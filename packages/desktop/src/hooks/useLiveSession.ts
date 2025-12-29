@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { io, type Socket } from "socket.io-client";
+import ReconnectingWebSocket from "reconnecting-websocket";
 import {
     virtualDjWatcher,
     type NowPlayingTrack,
 } from "../services/virtualDjWatcher";
 
 // Cloud server URL - use env variable in production
-const CLOUD_URL = import.meta.env.VITE_CLOUD_URL || "http://localhost:3001";
+const CLOUD_WS_URL = import.meta.env.VITE_CLOUD_WS_URL || "ws://localhost:3001/ws";
+
+console.log("[Live] Cloud WS URL:", CLOUD_WS_URL);
 
 export type LiveStatus = "offline" | "connecting" | "live" | "error";
 
@@ -25,7 +27,7 @@ export function useLiveSession() {
         sessionId: null,
     });
 
-    const socketRef = useRef<Socket | null>(null);
+    const socketRef = useRef<ReconnectingWebSocket | null>(null);
     const isLiveRef = useRef(false);
     const sessionIdRef = useRef<string | null>(null);
 
@@ -44,25 +46,32 @@ export function useLiveSession() {
         return sessionId;
     }, []);
 
+    // Send message to cloud
+    const sendMessage = useCallback((message: object) => {
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+            socketRef.current.send(JSON.stringify(message));
+            console.log("[Live] Sent:", message);
+        }
+    }, []);
+
     // Handle track changes from VirtualDJ - stable callback using refs
     const handleTrackChange = useCallback((track: NowPlayingTrack) => {
         console.log("[Live] Track changed:", track.artist, "-", track.title);
 
         setState((prev) => ({ ...prev, nowPlaying: track }));
 
-        // Emit to cloud if live
-        if (isLiveRef.current && socketRef.current?.connected) {
-            socketRef.current.emit("now_playing", {
+        // Send to cloud if live
+        if (isLiveRef.current && socketRef.current?.readyState === WebSocket.OPEN) {
+            sendMessage({
+                type: "BROADCAST_TRACK",
                 sessionId: sessionIdRef.current,
                 track: {
                     artist: track.artist,
                     title: track.title,
-                    timestamp: track.timestamp.toISOString(),
                 },
             });
-            console.log("[Live] Emitted now_playing to cloud");
         }
-    }, []); // Empty deps - uses refs for mutable values
+    }, [sendMessage]);
 
     // Set up track change listener ONCE on mount
     useEffect(() => {
@@ -94,7 +103,7 @@ export function useLiveSession() {
         try {
             // Start VirtualDJ watcher FIRST so it reads the current track
             console.log("[Live] Starting VirtualDJ watcher...");
-            await virtualDjWatcher.startWatching(1000);
+            await virtualDjWatcher.startWatching(2000); // Poll every 2 seconds
 
             // Get the initial track immediately
             const initialTrack = virtualDjWatcher.getCurrentTrack();
@@ -103,69 +112,80 @@ export function useLiveSession() {
                 setState((prev) => ({ ...prev, nowPlaying: initialTrack }));
             }
 
-            // Connect to cloud
-            console.log("[Live] Connecting to cloud:", CLOUD_URL);
-            const socket = io(CLOUD_URL, {
-                transports: ["websocket", "polling"],
-                timeout: 10000,
-                reconnection: true,
-                reconnectionAttempts: 5,
-                reconnectionDelay: 1000,
+            // Connect to cloud using ReconnectingWebSocket
+            console.log("[Live] Connecting to cloud:", CLOUD_WS_URL);
+
+            const socket = new ReconnectingWebSocket(CLOUD_WS_URL, [], {
+                connectionTimeout: 5000,
+                maxRetries: 10,
+                maxReconnectionDelay: 10000,
+                minReconnectionDelay: 1000,
             });
 
             socketRef.current = socket;
 
-            socket.on("connect", () => {
+            socket.onopen = () => {
                 console.log("[Live] Connected to cloud");
                 isLiveRef.current = true;
+                setState((prev) => ({ ...prev, status: "live", error: null }));
 
                 // Register session
-                socket.emit("register_session", {
+                sendMessage({
+                    type: "REGISTER_SESSION",
                     sessionId,
                     djName: "DJ Pika", // TODO: Make configurable
-                    startedAt: new Date().toISOString(),
                 });
-
-                setState((prev) => ({ ...prev, status: "live", error: null }));
 
                 // Send initial track if available
                 const currentTrack = virtualDjWatcher.getCurrentTrack();
                 if (currentTrack) {
-                    socket.emit("now_playing", {
+                    sendMessage({
+                        type: "BROADCAST_TRACK",
                         sessionId,
                         track: {
                             artist: currentTrack.artist,
                             title: currentTrack.title,
-                            timestamp: currentTrack.timestamp.toISOString(),
                         },
                     });
                 }
-            });
+            };
 
-            socket.on("disconnect", (reason) => {
-                console.log("[Live] Disconnected from cloud:", reason);
+            socket.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    console.log("[Live] Received:", message);
+
+                    if (message.type === "SESSION_REGISTERED") {
+                        console.log("[Live] Session registered:", message.sessionId);
+                    }
+                } catch (e) {
+                    console.error("[Live] Failed to parse message:", e);
+                }
+            };
+
+            socket.onclose = (event) => {
+                console.log("[Live] Disconnected from cloud:", event.code, event.reason);
+
+                // ReconnectingWebSocket handles reconnection automatically
+                // Just update UI to show reconnecting state
                 if (isLiveRef.current) {
                     setState((prev) => ({
                         ...prev,
                         status: "connecting",
-                        error: `Disconnected: ${reason}`,
+                        error: "Reconnecting...",
                     }));
                 }
-            });
+            };
 
-            socket.on("connect_error", (error) => {
-                console.error("[Live] Connection error:", error);
-                setState((prev) => ({
-                    ...prev,
-                    status: "error",
-                    error: error.message,
-                }));
-            });
-
-            socket.on("reconnect", (attempt) => {
-                console.log("[Live] Reconnected after", attempt, "attempts");
-                setState((prev) => ({ ...prev, status: "live", error: null }));
-            });
+            socket.onerror = () => {
+                console.error("[Live] Connection error");
+                if (isLiveRef.current) {
+                    setState((prev) => ({
+                        ...prev,
+                        error: "Connection error - retrying...",
+                    }));
+                }
+            };
         } catch (e) {
             console.error("[Live] Failed to go live:", e);
             setState((prev) => ({
@@ -174,17 +194,22 @@ export function useLiveSession() {
                 error: String(e),
             }));
         }
-    }, [state.status, getSessionId]);
+    }, [state.status, getSessionId, sendMessage]);
 
     // End set - disconnect and stop watching
     const endSet = useCallback(() => {
         console.log("[Live] Ending set...");
         isLiveRef.current = false;
 
-        // Disconnect socket
+        // Send end session message and close socket
         if (socketRef.current) {
-            socketRef.current.emit("end_session", { sessionId: sessionIdRef.current });
-            socketRef.current.disconnect();
+            if (socketRef.current.readyState === WebSocket.OPEN) {
+                sendMessage({
+                    type: "END_SESSION",
+                    sessionId: sessionIdRef.current,
+                });
+            }
+            socketRef.current.close();
             socketRef.current = null;
         }
 
@@ -198,25 +223,26 @@ export function useLiveSession() {
             sessionId: null,
         });
         sessionIdRef.current = null;
-    }, []);
+    }, [sendMessage]);
 
     // Clear now playing (for when track stops)
     const clearNowPlaying = useCallback(() => {
         setState((prev) => ({ ...prev, nowPlaying: null }));
 
         // Emit to cloud
-        if (isLiveRef.current && socketRef.current?.connected) {
-            socketRef.current.emit("track_stopped", {
+        if (isLiveRef.current && socketRef.current?.readyState === WebSocket.OPEN) {
+            sendMessage({
+                type: "TRACK_STOPPED",
                 sessionId: sessionIdRef.current,
             });
         }
-    }, []);
+    }, [sendMessage]);
 
     // Cleanup on unmount
     useEffect(() => {
         return () => {
             if (socketRef.current) {
-                socketRef.current.disconnect();
+                socketRef.current.close();
             }
             virtualDjWatcher.stopWatching();
         };
