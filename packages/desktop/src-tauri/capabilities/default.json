@@ -8,6 +8,15 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "sql:default",
+    {
+      "identifier": "sql:allow-load",
+      "allow": [
+        {
+          "name": "sqlite:pika.db"
+        }
+      ]
+    },
     "shell:allow-kill",
     "shell:allow-stdin-write",
     {
