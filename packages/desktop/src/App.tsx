@@ -2,14 +2,14 @@ import { PIKA_VERSION } from "@pika/shared";
 import { useSidecar } from "./hooks/useSidecar";
 import { LibraryImporter } from "./components/LibraryImporter";
 import { AnalyzerStatus } from "./components/AnalyzerStatus";
+import { LibraryBrowser } from "./components/LibraryBrowser";
 import "./App.css";
 
 import { useState, useEffect } from "react";
-import { trackRepository } from "./db/repositories/trackRepository";
 
 function App() {
   const { status, baseUrl, healthData, error, restart } = useSidecar();
-  const [totalTracks, setTotalTracks] = useState<number>(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Check if we're in Tauri
   const inTauri =
@@ -17,12 +17,8 @@ function App() {
 
   const refreshTracks = async () => {
     if (!inTauri) return;
-    try {
-      const count = await trackRepository.getTrackCount();
-      setTotalTracks(count);
-    } catch (e) {
-      console.error("Failed to fetch track count:", e);
-    }
+    // Trigger library browser refresh
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   useEffect(() => {
@@ -34,29 +30,45 @@ function App() {
       <h1>Pika! Desktop v{PIKA_VERSION}</h1>
       <p className="subtitle">Your intelligent music library companion</p>
 
-      <div className="stats-bar" style={{
-        display: 'flex',
-        gap: '2rem',
-        margin: '1rem 0',
-        padding: '1rem',
-        background: '#1e293b',
-        borderRadius: '8px'
-      }}>
-        <div className="stat-item">
-          <span className="stat-label" style={{ opacity: 0.7, marginRight: '0.5rem' }}>Total Tracks:</span>
-          <span className="stat-value" style={{ fontWeight: 'bold' }}>{totalTracks.toLocaleString()}</span>
+      {/* Top toolbar with import/analysis controls */}
+      <div
+        className="toolbar"
+        style={{
+          display: "flex",
+          gap: "1rem",
+          flexWrap: "wrap",
+          margin: "1rem 0",
+        }}
+      >
+        <LibraryImporter onImportComplete={refreshTracks} />
+        <AnalyzerStatus baseUrl={baseUrl} onComplete={refreshTracks} />
+      </div>
+
+      {/* Status cards - collapsible debug panel */}
+      <details
+        className="debug-section"
+        style={{ marginBottom: "1rem" }}
+      >
+        <summary
+          style={{
+            cursor: "pointer",
+            opacity: 0.7,
+            fontSize: "0.875rem",
+            marginBottom: "0.5rem",
+          }}
+        >
+          🔧 Debug Info ({status})
+        </summary>
+        <div className="debug-panel">
+          <div>inTauri={String(inTauri)}</div>
+          <div>Status: {status}</div>
+          <div>Base URL: {baseUrl ?? "null"}</div>
+          <div>Health: {healthData ? JSON.stringify(healthData) : "null"}</div>
+          <div>Error: {error ?? "null"}</div>
         </div>
-      </div>
+      </details>
 
-      {/* Debug panel - always visible */}
-      <div className="debug-panel">
-        <div>🔍 Debug: inTauri={String(inTauri)}</div>
-        <div>Status: {status}</div>
-        <div>Base URL: {baseUrl ?? "null"}</div>
-        <div>Health: {healthData ? JSON.stringify(healthData) : "null"}</div>
-        <div>Error: {error ?? "null"}</div>
-      </div>
-
+      {/* Sidecar status banner */}
       <div className="sidecar-status">
         {status === "starting" && (
           <div className="status-card loading">
@@ -66,7 +78,7 @@ function App() {
         )}
 
         {status === "ready" && (
-          <div className="status-card ready">
+          <div className="status-card ready" style={{ padding: "0.5rem 1rem" }}>
             <div className="status-indicator" />
             <div className="status-content">
               <span className="status-label">Analysis Engine</span>
@@ -110,9 +122,8 @@ function App() {
         )}
       </div>
 
-      <LibraryImporter onImportComplete={refreshTracks} />
-
-      <AnalyzerStatus baseUrl={baseUrl} onComplete={refreshTracks} />
+      {/* Main Library Browser */}
+      <LibraryBrowser refreshTrigger={refreshTrigger} />
     </main>
   );
 }

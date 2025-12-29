@@ -1,45 +1,98 @@
 import Database from "@tauri-apps/plugin-sql";
-import { drizzle } from "drizzle-orm/sqlite-proxy";
+import { drizzle, type SqliteRemoteDatabase } from "drizzle-orm/sqlite-proxy";
 import * as schema from "./schema";
 
-// Initialize the database connection
-// We load the sqlite database file. 'sqlite:' prefix is required by tauri-plugin-sql
-const sqlitePromise = Database.load("sqlite:pika.db").then(async (db) => {
-    await db.execute(`
-        CREATE TABLE IF NOT EXISTS tracks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            file_path TEXT NOT NULL UNIQUE,
-            artist TEXT,
-            title TEXT,
-            bpm REAL,
-            energy REAL,
-            key TEXT,
-            analyzed INTEGER DEFAULT 0
-        );
-    `);
-    return db;
-});
+// Lazy database initialization to avoid issues with module loading
+let sqliteInstance: Awaited<ReturnType<typeof Database.load>> | null = null;
+let dbInstance: SqliteRemoteDatabase<typeof schema> | null = null;
+let initPromise: Promise<void> | null = null;
 
-// Export raw SQLite connection for operations that need it
-export const getSqlite = () => sqlitePromise;
+async function initializeDb(): Promise<void> {
+    if (sqliteInstance) return;
 
-export const db = drizzle(
-    async (sql, params, method) => {
-        const sqlite = await sqlitePromise;
-        try {
-            // For write operations (INSERT, UPDATE, DELETE), use execute()
-            // For read operations (SELECT), use select()
-            if (method === "run") {
-                await sqlite.execute(sql, params);
-                return { rows: [] };
+    try {
+        sqliteInstance = await Database.load("sqlite:pika.db");
+        await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS tracks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path TEXT NOT NULL UNIQUE,
+                artist TEXT,
+                title TEXT,
+                bpm REAL,
+                energy REAL,
+                key TEXT,
+                analyzed INTEGER DEFAULT 0
+            );
+        `);
+        console.log("Database initialized successfully");
+    } catch (e) {
+        console.error("Failed to initialize database:", e);
+        throw e;
+    }
+}
+
+// Export function to get SQLite connection
+export async function getSqlite() {
+    if (!initPromise) {
+        initPromise = initializeDb();
+    }
+    await initPromise;
+    if (!sqliteInstance) {
+        throw new Error("Database not initialized");
+    }
+    return sqliteInstance;
+}
+
+// Helper function to convert snake_case to camelCase
+function snakeToCamel(str: string): string {
+    return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+// Map row column names from snake_case to camelCase
+function mapRowColumns(row: Record<string, unknown>): Record<string, unknown> {
+    const mapped: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+        mapped[snakeToCamel(key)] = value;
+    }
+    return mapped;
+}
+
+// Create drizzle instance - lazy initialization
+function createDrizzle(): SqliteRemoteDatabase<typeof schema> {
+    return drizzle(
+        async (sql, params, method) => {
+            const sqlite = await getSqlite();
+            try {
+                // For write operations (INSERT, UPDATE, DELETE), use execute()
+                // For read operations (SELECT), use select()
+                if (method === "run") {
+                    await sqlite.execute(sql, params);
+                    return { rows: [] };
+                }
+
+                const rows: Record<string, unknown>[] = await sqlite.select(
+                    sql,
+                    params
+                );
+                // Map column names from snake_case to camelCase for Drizzle
+                const mappedRows = rows.map(mapRowColumns);
+                return { rows: mappedRows };
+            } catch (e: unknown) {
+                console.error("Error from sqlite proxy server: ", e);
+                throw e;
             }
+        },
+        { schema }
+    );
+}
 
-            const rows: any[] = await sqlite.select(sql, params);
-            return { rows: rows };
-        } catch (e: any) {
-            console.error("Error from sqlite proxy server: ", e);
-            throw e; // Re-throw to surface errors properly
-        }
-    },
-    { schema },
-);
+// Export db getter - creates instance on first use
+export function getDb(): SqliteRemoteDatabase<typeof schema> {
+    if (!dbInstance) {
+        dbInstance = createDrizzle();
+    }
+    return dbInstance;
+}
+
+// For backward compatibility - export db as a getter
+export const db = createDrizzle();

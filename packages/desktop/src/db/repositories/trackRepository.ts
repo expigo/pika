@@ -1,4 +1,4 @@
-import { asc, eq, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, getSqlite } from "../index";
 import { tracks } from "../schema";
 
@@ -16,6 +16,7 @@ export interface AnalysisResult {
     bpm?: number;
     energy?: number;
     key?: string;
+    error?: string;
 }
 
 // Track type for UI display
@@ -29,6 +30,20 @@ export interface Track {
     key: string | null;
     analyzed: boolean | null;
 }
+
+// Raw SQL query for track selection with proper aliasing
+const TRACK_SELECT_SQL = `
+	SELECT 
+		id, 
+		file_path as filePath, 
+		artist, 
+		title, 
+		bpm, 
+		energy, 
+		key, 
+		analyzed 
+	FROM tracks
+`;
 
 export const trackRepository = {
     async addTracks(tracksList: VirtualDJTrack[]) {
@@ -69,12 +84,16 @@ export const trackRepository = {
         return true;
     },
 
-    async getAllTracks() {
-        return await db.select().from(tracks).orderBy(asc(tracks.artist));
+    async getAllTracks(): Promise<Track[]> {
+        // Use raw SQL with explicit column aliasing
+        const sqlite = await getSqlite();
+        const result = await sqlite.select<Track[]>(
+            `${TRACK_SELECT_SQL} ORDER BY artist ASC`
+        );
+        return result;
     },
 
-    async getTrackCount() {
-        // Use raw SQL because Drizzle's count() doesn't map through the proxy correctly
+    async getTrackCount(): Promise<number> {
         const sqlite = await getSqlite();
         const result = await sqlite.select<{ cnt: number }[]>(
             "SELECT COUNT(*) as cnt FROM tracks"
@@ -82,7 +101,7 @@ export const trackRepository = {
         return result[0]?.cnt ?? 0;
     },
 
-    async getUnanalyzedCount() {
+    async getUnanalyzedCount(): Promise<number> {
         const sqlite = await getSqlite();
         const result = await sqlite.select<{ cnt: number }[]>(
             "SELECT COUNT(*) as cnt FROM tracks WHERE analyzed = 0"
@@ -93,7 +112,7 @@ export const trackRepository = {
     async getNextUnanalyzedTrack(): Promise<Track | null> {
         const sqlite = await getSqlite();
         const result = await sqlite.select<Track[]>(
-            "SELECT id, file_path as filePath, artist, title, bpm, energy, key, analyzed FROM tracks WHERE analyzed = 0 LIMIT 1"
+            `${TRACK_SELECT_SQL} WHERE analyzed = 0 LIMIT 1`
         );
         return result[0] ?? null;
     },
