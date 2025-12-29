@@ -15,5 +15,8 @@
         "lint:fix": "biome check --write .",
         "typecheck": "tsc --noEmit"
     },
-    "devDependencies": {}
+    "devDependencies": {},
+    "dependencies": {
+        "zod": "^4.2.1"
+    }
 }

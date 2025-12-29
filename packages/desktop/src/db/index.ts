@@ -21,6 +21,10 @@ async function initializeDb(): Promise<void> {
                 bpm REAL,
                 energy REAL,
                 key TEXT,
+                danceability REAL,
+                brightness REAL,
+                acousticness REAL,
+                groove REAL,
                 analyzed INTEGER DEFAULT 0
             );
         `);

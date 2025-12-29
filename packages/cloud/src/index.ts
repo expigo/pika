@@ -3,7 +3,12 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { createBunWebSocket } from "hono/bun";
 import type { ServerWebSocket } from "bun";
-import { PIKA_VERSION } from "@pika/shared";
+import {
+    PIKA_VERSION,
+    WebSocketMessageSchema,
+    type WebSocketMessage,
+    type TrackInfo,
+} from "@pika/shared";
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
@@ -19,10 +24,7 @@ interface LiveSession {
     sessionId: string;
     djName: string;
     startedAt: string;
-    currentTrack?: {
-        artist: string;
-        title: string;
-    };
+    currentTrack?: TrackInfo;
 }
 
 const activeSessions = new Map<string, LiveSession>();
@@ -52,17 +54,6 @@ app.get("/sessions", (c) => {
     return c.json(sessions);
 });
 
-// WebSocket message interface
-interface WSMessage {
-    type: string;
-    sessionId?: string;
-    djName?: string;
-    track?: {
-        artist: string;
-        title: string;
-    };
-}
-
 // WebSocket route
 app.get(
     "/ws",
@@ -80,7 +71,17 @@ app.get(
             onMessage(event, ws) {
                 try {
                     const data = event.data.toString();
-                    const message: WSMessage = JSON.parse(data);
+                    const json = JSON.parse(data);
+
+                    // Validate message against Zod schema
+                    const result = WebSocketMessageSchema.safeParse(json);
+
+                    if (!result.success) {
+                        console.error("❌ Invalid message schema:", result.error.format());
+                        return; // Guard clause: reject malformed messages
+                    }
+
+                    const message: WebSocketMessage = result.data;
                     const rawWs = ws.raw as ServerWebSocket;
 
                     console.log(`📨 Received: ${message.type}`);
@@ -112,68 +113,60 @@ app.get(
                         }
 
                         case "BROADCAST_TRACK": {
-                            if (message.sessionId && message.track) {
-                                const session = activeSessions.get(message.sessionId);
-                                if (session) {
-                                    session.currentTrack = message.track;
-                                    console.log(`🎵 Now playing: ${message.track.artist} - ${message.track.title}`);
+                            const session = activeSessions.get(message.sessionId);
+                            if (session) {
+                                session.currentTrack = message.track;
+                                console.log(`🎵 Now playing: ${message.track.artist} - ${message.track.title}`);
 
-                                    // CRITICAL: Broadcast to all subscribers
-                                    rawWs.publish("live-session", JSON.stringify({
-                                        type: "NOW_PLAYING",
-                                        sessionId: message.sessionId,
-                                        djName: session.djName,
-                                        track: message.track,
-                                    }));
-                                }
+                                // CRITICAL: Broadcast to all subscribers
+                                rawWs.publish("live-session", JSON.stringify({
+                                    type: "NOW_PLAYING",
+                                    sessionId: message.sessionId,
+                                    djName: session.djName,
+                                    track: message.track,
+                                }));
                             }
                             break;
                         }
 
                         case "TRACK_STOPPED": {
-                            if (message.sessionId) {
-                                const session = activeSessions.get(message.sessionId);
-                                if (session) {
-                                    session.currentTrack = undefined;
-                                    console.log(`⏸️ Track stopped for session: ${message.sessionId}`);
+                            const session = activeSessions.get(message.sessionId);
+                            if (session) {
+                                delete session.currentTrack;
+                                console.log(`⏸️ Track stopped for session: ${message.sessionId}`);
 
-                                    rawWs.publish("live-session", JSON.stringify({
-                                        type: "TRACK_STOPPED",
-                                        sessionId: message.sessionId,
-                                    }));
-                                }
+                                rawWs.publish("live-session", JSON.stringify({
+                                    type: "TRACK_STOPPED",
+                                    sessionId: message.sessionId,
+                                }));
                             }
                             break;
                         }
 
                         case "END_SESSION": {
-                            if (message.sessionId) {
-                                const session = activeSessions.get(message.sessionId);
-                                if (session) {
-                                    console.log(`👋 Session ended: ${session.djName}`);
-                                    activeSessions.delete(message.sessionId);
+                            const session = activeSessions.get(message.sessionId);
+                            if (session) {
+                                console.log(`👋 Session ended: ${session.djName}`);
+                                activeSessions.delete(message.sessionId);
 
-                                    rawWs.publish("live-session", JSON.stringify({
-                                        type: "SESSION_ENDED",
-                                        sessionId: message.sessionId,
-                                    }));
-                                }
+                                rawWs.publish("live-session", JSON.stringify({
+                                    type: "SESSION_ENDED",
+                                    sessionId: message.sessionId,
+                                }));
                             }
                             break;
                         }
 
                         case "SEND_LIKE": {
                             // A listener sent a like for the current track
-                            const payload = (message as unknown as { payload?: { track?: { artist: string; title: string } } }).payload;
-                            if (payload?.track) {
-                                console.log(`❤️ Like received for: ${payload.track.title}`);
+                            const track = message.payload.track;
+                            console.log(`❤️ Like received for: ${track.title}`);
 
-                                // Broadcast to all clients (including DJ)
-                                rawWs.publish("live-session", JSON.stringify({
-                                    type: "LIKE_RECEIVED",
-                                    payload: { track: payload.track },
-                                }));
-                            }
+                            // Broadcast to all clients (including DJ)
+                            rawWs.publish("live-session", JSON.stringify({
+                                type: "LIKE_RECEIVED",
+                                payload: { track },
+                            }));
                             break;
                         }
 
@@ -190,8 +183,16 @@ app.get(
                             break;
                         }
 
-                        default:
-                            console.log(`❓ Unknown message type: ${message.type}`);
+                        // Server messages (should not be received from clients)
+                        case "SESSION_REGISTERED":
+                        case "SESSION_STARTED":
+                        case "NOW_PLAYING":
+                        case "SESSION_ENDED":
+                        case "SESSIONS_LIST":
+                        case "LIKE_RECEIVED": {
+                            console.log(`⚠️ Unexpected server message from client: ${message.type}`);
+                            break;
+                        }
                     }
                 } catch (e) {
                     console.error("❌ Failed to parse message:", e);

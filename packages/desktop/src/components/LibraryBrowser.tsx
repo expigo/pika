@@ -7,7 +7,9 @@ import {
     ArrowUp,
     ArrowDown,
     Plus,
+    Trash2,
 } from "lucide-react";
+import { ask } from "@tauri-apps/plugin-dialog";
 import {
     trackRepository,
     type Track,
@@ -124,6 +126,21 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
     const isInSet = (trackId: number) =>
         activeSet.some((t) => t.id === trackId);
 
+    // Handle delete track with confirmation
+    const handleDeleteTrack = async (track: Track) => {
+        // Use Tauri's native dialog (window.confirm doesn't work in Tauri)
+        const confirmed = await ask(
+            `Remove "${track.title || track.artist || 'this track'}" from library?`,
+            { title: "Confirm Delete", kind: "warning" }
+        );
+        if (!confirmed) return;
+
+        const success = await trackRepository.deleteTrack(track.id);
+        if (success) {
+            setTracks((prev) => prev.filter((t) => t.id !== track.id));
+        }
+    };
+
     // Browser mode placeholder
     if (!inTauri) {
         return (
@@ -237,6 +254,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                     Energy <SortIcon columnKey="energy" />
                                 </div>
                             </th>
+                            <th style={{ ...styles.th, width: "40px" }}></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -305,6 +323,16 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                                     : "-"}
                                             </span>
                                         </div>
+                                    </td>
+                                    <td style={styles.td}>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteTrack(track)}
+                                            style={styles.deleteButton}
+                                            title="Remove from library"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
                                     </td>
                                 </tr>
                             );
@@ -405,6 +433,19 @@ const styles: Record<string, React.CSSProperties> = {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
+    },
+    deleteButton: {
+        padding: "0.25rem",
+        background: "transparent",
+        color: "#64748b",
+        border: "none",
+        borderRadius: "4px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        opacity: 0.5,
+        transition: "opacity 0.2s, color 0.2s",
     },
     unknown: {
         opacity: 0.5,

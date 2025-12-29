@@ -16,9 +16,10 @@ import {
 } from "@dnd-kit/sortable";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Trash2, ListMusic, Zap, Music } from "lucide-react";
+import { GripVertical, Trash2, ListMusic, Zap, Music, TriangleAlert } from "lucide-react";
 import { useSetStore, getSetStats } from "../hooks/useSetBuilder";
 import { EnergyWave } from "./EnergyWave";
+import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
 import type { Track } from "../db/repositories/trackRepository";
 
 interface SortableTrackRowProps {
@@ -86,6 +87,29 @@ function SortableTrackRow({ track, index, onRemove }: SortableTrackRowProps) {
             >
                 <Trash2 size={14} />
             </button>
+        </div>
+    );
+}
+
+/**
+ * Warning badge displayed between tracks with compatibility issues.
+ */
+interface TransitionWarningProps {
+    analysis: TransitionAnalysis;
+}
+
+function TransitionWarning({ analysis }: TransitionWarningProps) {
+    if (analysis.warningLevel === "none") return null;
+
+    const color = analysis.warningLevel === "red" ? "#ef4444" : "#eab308";
+    const tooltip = analysis.issues.join(" • ");
+
+    return (
+        <div style={styles.warningBadge} title={tooltip}>
+            <TriangleAlert size={14} color={color} />
+            <span style={{ ...styles.warningText, color }}>
+                {analysis.issues[0]}
+            </span>
         </div>
     );
 }
@@ -171,14 +195,26 @@ export function SetCanvas() {
                             items={activeSet.map((t) => t.id)}
                             strategy={verticalListSortingStrategy}
                         >
-                            {activeSet.map((track, index) => (
-                                <SortableTrackRow
-                                    key={track.id}
-                                    track={track}
-                                    index={index}
-                                    onRemove={removeTrack}
-                                />
-                            ))}
+                            {activeSet.map((track, index) => {
+                                // Analyze transition to next track
+                                const nextTrack = activeSet[index + 1];
+                                const transition = nextTrack
+                                    ? analyzeTransition(track, nextTrack)
+                                    : null;
+
+                                return (
+                                    <div key={track.id}>
+                                        <SortableTrackRow
+                                            track={track}
+                                            index={index}
+                                            onRemove={removeTrack}
+                                        />
+                                        {transition && (
+                                            <TransitionWarning analysis={transition} />
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </SortableContext>
                     </DndContext>
                 )}
@@ -327,5 +363,21 @@ const styles: Record<string, React.CSSProperties> = {
         display: "flex",
         alignItems: "center",
         opacity: 0.6,
+    },
+    warningBadge: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "0.375rem",
+        padding: "0.25rem 0.5rem",
+        marginBottom: "0.25rem",
+        marginLeft: "2rem",
+        background: "rgba(239, 68, 68, 0.1)",
+        borderRadius: "4px",
+        borderLeft: "2px solid currentColor",
+    },
+    warningText: {
+        fontSize: "0.7rem",
+        fontWeight: 500,
     },
 };

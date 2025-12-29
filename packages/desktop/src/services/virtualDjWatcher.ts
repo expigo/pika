@@ -1,11 +1,24 @@
 import { invoke } from "@tauri-apps/api/core";
+import { type TrackInfo } from "@pika/shared";
 
-export interface NowPlayingTrack {
-    artist: string;
-    title: string;
+/**
+ * Extended track info from VirtualDJ with additional metadata.
+ * When sending to Cloud, map to TrackInfo (just artist + title).
+ */
+export interface NowPlayingTrack extends TrackInfo {
     filePath: string;
     timestamp: Date;
     rawTimestamp?: number;
+}
+
+/**
+ * Convert NowPlayingTrack to TrackInfo for WebSocket messages
+ */
+export function toTrackInfo(track: NowPlayingTrack): TrackInfo {
+    return {
+        artist: track.artist,
+        title: track.title,
+    };
 }
 
 interface HistoryTrack {

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { parseWebSocketMessage } from "@pika/shared";
 import {
     virtualDjWatcher,
+    toTrackInfo,
     type NowPlayingTrack,
 } from "../services/virtualDjWatcher";
 
@@ -62,15 +63,12 @@ export function useLiveSession() {
 
         setState((prev) => ({ ...prev, nowPlaying: track }));
 
-        // Send to cloud if live
+        // Send to cloud if live (convert to TrackInfo schema)
         if (isLiveRef.current && socketRef.current?.readyState === WebSocket.OPEN) {
             sendMessage({
                 type: "BROADCAST_TRACK",
                 sessionId: sessionIdRef.current,
-                track: {
-                    artist: track.artist,
-                    title: track.title,
-                },
+                track: toTrackInfo(track),
             });
         }
     }, [sendMessage]);
@@ -144,10 +142,7 @@ export function useLiveSession() {
                     sendMessage({
                         type: "BROADCAST_TRACK",
                         sessionId,
-                        track: {
-                            artist: currentTrack.artist,
-                            title: currentTrack.title,
-                        },
+                        track: toTrackInfo(currentTrack),
                     });
                 }
             };

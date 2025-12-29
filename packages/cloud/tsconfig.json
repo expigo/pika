@@ -1,7 +1,6 @@
 {
     "extends": "../../tsconfig.json",
     "compilerOptions": {
-        "composite": true,
         "rootDir": "./src",
         "outDir": "./dist",
         "types": [
@@ -14,10 +13,5 @@
     "exclude": [
         "node_modules",
         "dist"
-    ],
-    "references": [
-        {
-            "path": "../shared"
-        }
     ]
 }

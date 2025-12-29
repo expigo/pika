@@ -1,6 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { db, getSqlite } from "../index";
 import { tracks } from "../schema";
+import { type AnalysisResult } from "@pika/shared";
 
 // Helper type matching the Rust output
 export interface VirtualDJTrack {
@@ -11,23 +12,27 @@ export interface VirtualDJTrack {
     key?: string;
 }
 
-// Analysis result from Python sidecar
-export interface AnalysisResult {
-    bpm?: number;
-    energy?: number;
-    key?: string;
-    error?: string;
-}
+// Re-export AnalysisResult for backwards compatibility
+export type { AnalysisResult } from "@pika/shared";
 
-// Track type for UI display
+// Track type for UI display (includes fingerprint metrics)
 export interface Track {
     id: number;
     filePath: string;
     artist: string | null;
     title: string | null;
+
+    // Core metrics
     bpm: number | null;
     energy: number | null;
     key: string | null;
+
+    // Fingerprint metrics
+    danceability: number | null;
+    brightness: number | null;
+    acousticness: number | null;
+    groove: number | null;
+
     analyzed: boolean | null;
 }
 
@@ -41,6 +46,10 @@ const TRACK_SELECT_SQL = `
 		bpm, 
 		energy, 
 		key, 
+		danceability,
+		brightness,
+		acousticness,
+		groove,
 		analyzed 
 	FROM tracks
 `;
@@ -60,11 +69,16 @@ export const trackRepository = {
                 // Parse BPM, handle potentially empty or invalid strings
                 bpm: t.bpm ? Number.parseFloat(t.bpm) || null : null,
                 key: t.key ?? null,
-                energy: null, // Not provided by VirtualDJ XML usually
+                // These will be filled in during analysis
+                energy: null,
+                danceability: null,
+                brightness: null,
+                acousticness: null,
+                groove: null,
                 analyzed: false,
             }));
 
-            // Use upsert: update metadata on conflict, but preserve analyzed/energy
+            // Use upsert: update metadata on conflict, but preserve analyzed data
             await db
                 .insert(tracks)
                 .values(values)
@@ -76,7 +90,7 @@ export const trackRepository = {
                         title: sql`excluded.title`,
                         bpm: sql`excluded.bpm`,
                         key: sql`excluded.key`,
-                        // Do NOT update: analyzed, energy (preserve analysis data)
+                        // Do NOT update: analyzed, energy, fingerprint (preserve analysis data)
                     },
                 });
         }
@@ -122,13 +136,20 @@ export const trackRepository = {
         analysisData: AnalysisResult | null
     ): Promise<void> {
         if (analysisData) {
-            // Update with analysis results
+            // Update with all analysis results (core + fingerprint)
             await db
                 .update(tracks)
                 .set({
+                    // Core metrics
                     bpm: analysisData.bpm ?? null,
                     energy: analysisData.energy ?? null,
                     key: analysisData.key ?? null,
+                    // Fingerprint metrics
+                    danceability: analysisData.danceability ?? null,
+                    brightness: analysisData.brightness ?? null,
+                    acousticness: analysisData.acousticness ?? null,
+                    groove: analysisData.groove ?? null,
+                    // Mark as analyzed
                     analyzed: true,
                 })
                 .where(eq(tracks.id, id));
@@ -138,6 +159,71 @@ export const trackRepository = {
                 .update(tracks)
                 .set({ analyzed: true })
                 .where(eq(tracks.id, id));
+        }
+    },
+
+    /**
+     * Delete a single track by ID
+     */
+    async deleteTrack(id: number): Promise<boolean> {
+        try {
+            await db.delete(tracks).where(eq(tracks.id, id));
+            console.log(`Track ${id} deleted`);
+            return true;
+        } catch (e) {
+            console.error(`Failed to delete track ${id}:`, e);
+            return false;
+        }
+    },
+
+    /**
+     * Delete multiple tracks by IDs
+     */
+    async deleteTracks(ids: number[]): Promise<number> {
+        let deleted = 0;
+        for (const id of ids) {
+            const success = await this.deleteTrack(id);
+            if (success) deleted++;
+        }
+        return deleted;
+    },
+
+    /**
+     * Clear all tracks from the database
+     * WARNING: This removes all tracks!
+     */
+    async clearAllTracks(): Promise<boolean> {
+        try {
+            const sqlite = await getSqlite();
+            await sqlite.execute("DELETE FROM tracks");
+            console.log("All tracks cleared");
+            return true;
+        } catch (e) {
+            console.error("Failed to clear tracks:", e);
+            return false;
+        }
+    },
+
+    /**
+     * Reset analysis for all tracks (re-analyze everything)
+     */
+    async resetAnalysis(): Promise<boolean> {
+        try {
+            const sqlite = await getSqlite();
+            await sqlite.execute(`
+                UPDATE tracks SET 
+                    analyzed = 0,
+                    energy = NULL,
+                    danceability = NULL,
+                    brightness = NULL,
+                    acousticness = NULL,
+                    groove = NULL
+            `);
+            console.log("Analysis reset for all tracks");
+            return true;
+        } catch (e) {
+            console.error("Failed to reset analysis:", e);
+            return false;
         }
     },
 };
