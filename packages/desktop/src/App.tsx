@@ -1,5 +1,6 @@
 import { PIKA_VERSION } from "@pika/shared";
 import { useSidecar } from "./hooks/useSidecar";
+import { LibraryImporter } from "./components/LibraryImporter";
 import "./App.css";
 
 function App() {
@@ -75,6 +76,8 @@ function App() {
           </div>
         )}
       </div>
+
+      <LibraryImporter />
     </main>
   );
 }

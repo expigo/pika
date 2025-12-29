@@ -9,6 +9,7 @@
     "core:default",
     "opener:default",
     "sql:default",
+    "dialog:default",
     {
       "identifier": "sql:allow-load",
       "allow": [
