@@ -6,14 +6,19 @@ import {
     ArrowUpDown,
     ArrowUp,
     ArrowDown,
+    Plus,
 } from "lucide-react";
-import { trackRepository, type Track } from "../db/repositories/trackRepository";
+import {
+    trackRepository,
+    type Track,
+} from "../db/repositories/trackRepository";
+import { useSetStore } from "../hooks/useSetBuilder";
 
 type SortKey = "artist" | "title" | "bpm" | "key" | "energy" | "analyzed";
 type SortDirection = "asc" | "desc";
 
 interface Props {
-    refreshTrigger?: number; // Increment to trigger refresh
+    refreshTrigger?: number;
 }
 
 export function LibraryBrowser({ refreshTrigger }: Props) {
@@ -22,6 +27,9 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [sortKey, setSortKey] = useState<SortKey>("artist");
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+    const addTrack = useSetStore((state) => state.addTrack);
+    const activeSet = useSetStore((state) => state.activeSet);
 
     // Check if we're in Tauri
     const inTauri =
@@ -56,22 +64,18 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
             let aVal: string | number | boolean | null = a[sortKey];
             let bVal: string | number | boolean | null = b[sortKey];
 
-            // Handle nulls
             if (aVal === null || aVal === undefined) aVal = "";
             if (bVal === null || bVal === undefined) bVal = "";
 
-            // Handle booleans
             if (typeof aVal === "boolean") aVal = aVal ? 1 : 0;
             if (typeof bVal === "boolean") bVal = bVal ? 1 : 0;
 
-            // String comparison
             if (typeof aVal === "string" && typeof bVal === "string") {
                 return sortDirection === "asc"
                     ? aVal.localeCompare(bVal)
                     : bVal.localeCompare(aVal);
             }
 
-            // Number comparison
             const numA = typeof aVal === "number" ? aVal : 0;
             const numB = typeof bVal === "number" ? bVal : 0;
             return sortDirection === "asc" ? numA - numB : numB - numA;
@@ -79,7 +83,6 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
         return sorted;
     }, [tracks, sortKey, sortDirection]);
 
-    // Handle column click for sorting
     const handleSort = (key: SortKey) => {
         if (sortKey === key) {
             setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
@@ -89,7 +92,6 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
         }
     };
 
-    // Get sort indicator icon
     const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
         if (sortKey !== columnKey) {
             return <ArrowUpDown size={14} style={{ opacity: 0.4 }} />;
@@ -101,28 +103,28 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
         );
     };
 
-    // Get energy bar color
     const getEnergyColor = (energy: number | null) => {
         if (energy === null) return "#4b5563";
-        const normalized = energy / 100; // Normalize from 0-100 to 0-1
-        if (normalized < 0.4) return "#3b82f6"; // Blue - Low
-        if (normalized <= 0.7) return "#22c55e"; // Green - Mid
-        return "#f97316"; // Orange - High
+        const normalized = energy / 100;
+        if (normalized < 0.4) return "#3b82f6";
+        if (normalized <= 0.7) return "#22c55e";
+        return "#f97316";
     };
 
-    // Get energy percentage
     const getEnergyPercent = (energy: number | null) => {
         if (energy === null) return 0;
-        return Math.min(100, energy); // Already 0-100 range
+        return Math.min(100, energy);
     };
 
-    // Extract filename from path
     const getFileName = (filePath: string) => {
         const parts = filePath.split("/");
         return parts[parts.length - 1] || filePath;
     };
 
-    // Browser mode - show placeholder
+    const isInSet = (trackId: number) =>
+        activeSet.some((t) => t.id === trackId);
+
+    // Browser mode placeholder
     if (!inTauri) {
         return (
             <div style={styles.container}>
@@ -132,9 +134,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                         Library
                     </span>
                 </div>
-                <div style={styles.empty}>
-                    Open the desktop app to view your library.
-                </div>
+                <div style={styles.empty}>Open the desktop app to view your library.</div>
             </div>
         );
     }
@@ -197,6 +197,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                 <table style={styles.table}>
                     <thead>
                         <tr>
+                            <th style={{ ...styles.th, width: "40px" }}>Add</th>
                             <th style={styles.th} onClick={() => handleSort("analyzed")}>
                                 <div style={styles.thContent}>
                                     Status <SortIcon columnKey="analyzed" />
@@ -213,7 +214,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                 </div>
                             </th>
                             <th
-                                style={{ ...styles.th, width: "80px" }}
+                                style={{ ...styles.th, width: "70px" }}
                                 onClick={() => handleSort("bpm")}
                             >
                                 <div style={styles.thContent}>
@@ -221,7 +222,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                 </div>
                             </th>
                             <th
-                                style={{ ...styles.th, width: "60px" }}
+                                style={{ ...styles.th, width: "50px" }}
                                 onClick={() => handleSort("key")}
                             >
                                 <div style={styles.thContent}>
@@ -229,7 +230,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                 </div>
                             </th>
                             <th
-                                style={{ ...styles.th, width: "120px" }}
+                                style={{ ...styles.th, width: "80px" }}
                                 onClick={() => handleSort("energy")}
                             >
                                 <div style={styles.thContent}>
@@ -239,51 +240,75 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedTracks.map((track) => (
-                            <tr key={track.id} style={styles.tr}>
-                                <td style={styles.td}>
-                                    {track.analyzed ? (
-                                        <CheckCircle size={16} color="#22c55e" />
-                                    ) : (
-                                        <Circle size={16} color="#6b7280" />
-                                    )}
-                                </td>
-                                <td style={styles.td}>
-                                    {track.artist || (
-                                        <span style={styles.unknown}>Unknown</span>
-                                    )}
-                                </td>
-                                <td style={styles.td}>
-                                    {track.title || (
-                                        <span style={styles.filename}>
-                                            {getFileName(track.filePath)}
-                                        </span>
-                                    )}
-                                </td>
-                                <td style={{ ...styles.td, textAlign: "right" }}>
-                                    {track.bpm ? track.bpm.toFixed(1) : "-"}
-                                </td>
-                                <td style={{ ...styles.td, textAlign: "center" }}>
-                                    {track.key || "-"}
-                                </td>
-                                <td style={styles.td}>
-                                    <div style={styles.energyContainer}>
-                                        <div
+                        {sortedTracks.map((track) => {
+                            const inSet = isInSet(track.id);
+                            return (
+                                <tr
+                                    key={track.id}
+                                    style={{
+                                        ...styles.tr,
+                                        opacity: inSet ? 0.5 : 1,
+                                    }}
+                                >
+                                    <td style={styles.td}>
+                                        <button
+                                            type="button"
+                                            onClick={() => addTrack(track)}
+                                            disabled={inSet}
                                             style={{
-                                                ...styles.energyBar,
-                                                width: `${getEnergyPercent(track.energy)}%`,
-                                                backgroundColor: getEnergyColor(track.energy),
+                                                ...styles.addButton,
+                                                opacity: inSet ? 0.3 : 1,
+                                                cursor: inSet ? "not-allowed" : "pointer",
                                             }}
-                                        />
-                                        <span style={styles.energyText}>
-                                            {track.energy !== null
-                                                ? Math.round(track.energy)
-                                                : "-"}
-                                        </span>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                                            title={inSet ? "Already in set" : "Add to set"}
+                                        >
+                                            <Plus size={14} />
+                                        </button>
+                                    </td>
+                                    <td style={styles.td}>
+                                        {track.analyzed ? (
+                                            <CheckCircle size={16} color="#22c55e" />
+                                        ) : (
+                                            <Circle size={16} color="#6b7280" />
+                                        )}
+                                    </td>
+                                    <td style={styles.td}>
+                                        {track.artist || (
+                                            <span style={styles.unknown}>Unknown</span>
+                                        )}
+                                    </td>
+                                    <td style={styles.td}>
+                                        {track.title || (
+                                            <span style={styles.filename}>
+                                                {getFileName(track.filePath)}
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td style={{ ...styles.td, textAlign: "right" }}>
+                                        {track.bpm ? track.bpm.toFixed(0) : "-"}
+                                    </td>
+                                    <td style={{ ...styles.td, textAlign: "center" }}>
+                                        {track.key || "-"}
+                                    </td>
+                                    <td style={styles.td}>
+                                        <div style={styles.energyContainer}>
+                                            <div
+                                                style={{
+                                                    ...styles.energyBar,
+                                                    width: `${getEnergyPercent(track.energy)}%`,
+                                                    backgroundColor: getEnergyColor(track.energy),
+                                                }}
+                                            />
+                                            <span style={styles.energyText}>
+                                                {track.energy !== null
+                                                    ? Math.round(track.energy)
+                                                    : "-"}
+                                            </span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
@@ -291,10 +316,11 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
     );
 }
 
-// Inline styles for dark mode DJ environment
 const styles: Record<string, React.CSSProperties> = {
     container: {
-        marginTop: "1.5rem",
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
         background: "#0f172a",
         borderRadius: "8px",
         overflow: "hidden",
@@ -334,18 +360,18 @@ const styles: Record<string, React.CSSProperties> = {
         color: "#ef4444",
     },
     tableContainer: {
+        flex: 1,
         overflowX: "auto",
-        maxHeight: "400px",
         overflowY: "auto",
     },
     table: {
         width: "100%",
         borderCollapse: "collapse",
-        fontSize: "0.875rem",
+        fontSize: "0.8rem",
     },
     th: {
         textAlign: "left",
-        padding: "0.75rem 1rem",
+        padding: "0.5rem 0.75rem",
         background: "#1e293b",
         borderBottom: "1px solid #334155",
         cursor: "pointer",
@@ -358,17 +384,27 @@ const styles: Record<string, React.CSSProperties> = {
     thContent: {
         display: "flex",
         alignItems: "center",
-        gap: "0.5rem",
+        gap: "0.25rem",
     },
     tr: {
         borderBottom: "1px solid #1e293b",
     },
     td: {
-        padding: "0.5rem 1rem",
+        padding: "0.4rem 0.75rem",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
-        maxWidth: "200px",
+        maxWidth: "180px",
+    },
+    addButton: {
+        padding: "0.25rem",
+        background: "#22c55e",
+        color: "white",
+        border: "none",
+        borderRadius: "4px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
     },
     unknown: {
         opacity: 0.5,
@@ -376,11 +412,11 @@ const styles: Record<string, React.CSSProperties> = {
     },
     filename: {
         opacity: 0.7,
-        fontSize: "0.75rem",
+        fontSize: "0.7rem",
     },
     energyContainer: {
         position: "relative" as const,
-        height: "20px",
+        height: "16px",
         background: "#1e293b",
         borderRadius: "4px",
         overflow: "hidden",
@@ -390,7 +426,7 @@ const styles: Record<string, React.CSSProperties> = {
         left: 0,
         top: 0,
         height: "100%",
-        transition: "width 0.3s ease",
+        transition: "width 0.2s ease",
         borderRadius: "4px",
     },
     energyText: {
@@ -398,7 +434,7 @@ const styles: Record<string, React.CSSProperties> = {
         right: "4px",
         top: "50%",
         transform: "translateY(-50%)",
-        fontSize: "0.7rem",
+        fontSize: "0.65rem",
         fontWeight: "bold",
         textShadow: "0 1px 2px rgba(0,0,0,0.5)",
     },
