@@ -1,0 +1,2 @@
+# Sidecar binaries are placed here by the build script
+# The binary is named api-<target-triple> (e.g., api-aarch64-apple-darwin)

@@ -1,33 +1,44 @@
 :root {
-  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-family:
+    "Inter",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
   font-size: 16px;
-  line-height: 24px;
+  line-height: 1.5;
   font-weight: 400;
 
   color: #0f0f0f;
-  background-color: #f6f6f6;
+  background-color: #f8f9fa;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 .container {
-  margin: 0;
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   text-align: center;
+  padding: 2rem;
+  gap: 1.5rem;
 }
 
 h1 {
   font-size: 2.5rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -37,16 +48,177 @@ h1 {
 .subtitle {
   font-size: 1.1rem;
   color: #666;
-  margin: 0;
 }
 
+/* Sidecar Status Styles */
+.sidecar-status {
+  margin-top: 2rem;
+  width: 100%;
+  max-width: 400px;
+}
+
+.debug-panel {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: rgba(255, 100, 100, 0.2);
+  border: 1px solid rgba(255, 100, 100, 0.5);
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-family: "SF Mono", Monaco, monospace;
+  text-align: left;
+  width: 100%;
+  max-width: 500px;
+}
+
+.status-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  border-radius: 12px;
+  background: white;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.1),
+    0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease;
+}
+
+.status-card.loading {
+  justify-content: center;
+  color: #667eea;
+}
+
+.status-card.ready {
+  border-left: 4px solid #10b981;
+}
+
+.status-card.error {
+  border-left: 4px solid #ef4444;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.status-card.idle {
+  border-left: 4px solid #9ca3af;
+  justify-content: space-between;
+}
+
+/* Spinner */
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid #e0e0e0;
+  border-top-color: #667eea;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Status Indicator */
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  background: #10b981;
+  border-radius: 50%;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.status-content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+
+.status-label {
+  font-weight: 600;
+  color: #374151;
+}
+
+.status-version {
+  font-size: 0.875rem;
+  color: #10b981;
+  font-weight: 500;
+}
+
+.status-url {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  font-family: "SF Mono", Monaco, monospace;
+}
+
+/* Error & Retry */
+.error-message {
+  color: #ef4444;
+  font-size: 0.9rem;
+}
+
+.retry-button {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.retry-button:active {
+  transform: translateY(0);
+}
+
+/* Dark Mode */
 @media (prefers-color-scheme: dark) {
   :root {
     color: #f6f6f6;
-    background-color: #1a1a2e;
+    background-color: #0f0f1a;
   }
 
   .subtitle {
     color: #a0a0a0;
+  }
+
+  .status-card {
+    background: #1a1a2e;
+    box-shadow:
+      0 1px 3px rgba(0, 0, 0, 0.3),
+      0 1px 2px rgba(0, 0, 0, 0.2);
+  }
+
+  .status-label {
+    color: #e5e7eb;
+  }
+
+  .status-url {
+    color: #6b7280;
+  }
+
+  .spinner {
+    border-color: #374151;
+    border-top-color: #667eea;
   }
 }

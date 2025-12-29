@@ -8,9 +8,18 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "shell:allow-spawn",
     "shell:allow-kill",
     "shell:allow-stdin-write",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/api",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
     "http:default",
     {
       "identifier": "http:allow-fetch",

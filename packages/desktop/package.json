@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tauri dev",
     "build": "tauri build",
+    "build:sidecar": "bun run scripts/build-sidecar.ts",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "biome check .",
