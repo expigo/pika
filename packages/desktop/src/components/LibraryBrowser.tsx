@@ -8,6 +8,8 @@ import {
     ArrowDown,
     Plus,
     Trash2,
+    X,
+    Eye,
 } from "lucide-react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -15,6 +17,7 @@ import {
     type Track,
 } from "../db/repositories/trackRepository";
 import { useSetStore } from "../hooks/useSetBuilder";
+import { TrackFingerprint } from "./TrackFingerprint";
 
 type SortKey = "artist" | "title" | "bpm" | "key" | "energy" | "analyzed";
 type SortDirection = "asc" | "desc";
@@ -29,9 +32,16 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [sortKey, setSortKey] = useState<SortKey>("artist");
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+    const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
 
     const addTrack = useSetStore((state) => state.addTrack);
     const activeSet = useSetStore((state) => state.activeSet);
+
+    // Get the selected track object
+    const selectedTrack = useMemo(
+        () => tracks.find((t) => t.id === selectedTrackId) ?? null,
+        [tracks, selectedTrackId]
+    );
 
     // Check if we're in Tauri
     const inTauri =
@@ -125,6 +135,16 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
 
     const isInSet = (trackId: number) =>
         activeSet.some((t) => t.id === trackId);
+
+    // Check if track has fingerprint data
+    const hasFingerprint = (track: Track) =>
+        track.analyzed && (
+            track.energy !== null ||
+            track.danceability !== null ||
+            track.brightness !== null ||
+            track.acousticness !== null ||
+            track.groove !== null
+        );
 
     // Handle delete track with confirmation
     const handleDeleteTrack = async (track: Track) => {
@@ -325,14 +345,26 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                         </div>
                                     </td>
                                     <td style={styles.td}>
-                                        <button
-                                            type="button"
-                                            onClick={() => handleDeleteTrack(track)}
-                                            style={styles.deleteButton}
-                                            title="Remove from library"
-                                        >
-                                            <Trash2 size={14} />
-                                        </button>
+                                        <div style={styles.actionButtons}>
+                                            {track.analyzed && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedTrackId(track.id)}
+                                                    style={styles.viewButton}
+                                                    title="View fingerprint"
+                                                >
+                                                    <Eye size={14} />
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => handleDeleteTrack(track)}
+                                                style={styles.deleteButton}
+                                                title="Remove from library"
+                                            >
+                                                <Trash2 size={14} />
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                             );
@@ -340,6 +372,88 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                     </tbody>
                 </table>
             </div>
+
+            {/* Track Details Modal */}
+            {selectedTrack && (
+                <div style={styles.modalOverlay} onClick={() => setSelectedTrackId(null)}>
+                    <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+                        {/* Modal Header */}
+                        <div style={styles.modalHeader}>
+                            <div>
+                                <h3 style={styles.modalTitle}>
+                                    {selectedTrack.title || "Untitled"}
+                                </h3>
+                                <p style={styles.modalArtist}>
+                                    {selectedTrack.artist || "Unknown Artist"}
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setSelectedTrackId(null)}
+                                style={styles.modalClose}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Track Metadata */}
+                        <div style={styles.modalMeta}>
+                            <div style={styles.metaItem}>
+                                <span style={styles.metaLabel}>BPM</span>
+                                <span style={styles.metaValue}>
+                                    {selectedTrack.bpm?.toFixed(1) || "-"}
+                                </span>
+                            </div>
+                            <div style={styles.metaItem}>
+                                <span style={styles.metaLabel}>Key</span>
+                                <span style={styles.metaValue}>
+                                    {selectedTrack.key || "-"}
+                                </span>
+                            </div>
+                            <div style={styles.metaItem}>
+                                <span style={styles.metaLabel}>Energy</span>
+                                <span style={styles.metaValue}>
+                                    {selectedTrack.energy?.toFixed(0) || "-"}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Fingerprint Visualization */}
+                        <div style={styles.fingerprintContainer}>
+                            {hasFingerprint(selectedTrack) ? (
+                                <TrackFingerprint track={selectedTrack} size={280} />
+                            ) : (
+                                <div style={styles.noFingerprint}>
+                                    <Music size={48} style={{ opacity: 0.3 }} />
+                                    <p>No analysis data available</p>
+                                    <p style={{ fontSize: "0.75rem", opacity: 0.6 }}>
+                                        Run analysis on this track to see its fingerprint
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div style={styles.modalActions}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    addTrack(selectedTrack);
+                                    setSelectedTrackId(null);
+                                }}
+                                disabled={isInSet(selectedTrack.id)}
+                                style={{
+                                    ...styles.modalButton,
+                                    opacity: isInSet(selectedTrack.id) ? 0.5 : 1,
+                                }}
+                            >
+                                <Plus size={16} />
+                                {isInSet(selectedTrack.id) ? "In Set" : "Add to Set"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -478,5 +592,131 @@ const styles: Record<string, React.CSSProperties> = {
         fontSize: "0.65rem",
         fontWeight: "bold",
         textShadow: "0 1px 2px rgba(0,0,0,0.5)",
+    },
+    actionButtons: {
+        display: "flex",
+        gap: "0.25rem",
+        alignItems: "center",
+    },
+    viewButton: {
+        padding: "0.25rem",
+        background: "rgba(59, 130, 246, 0.2)",
+        color: "#3b82f6",
+        border: "none",
+        borderRadius: "4px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        transition: "background 0.2s",
+    },
+    // Modal styles
+    modalOverlay: {
+        position: "fixed" as const,
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.8)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+    },
+    modal: {
+        background: "#1e293b",
+        borderRadius: "16px",
+        padding: "1.5rem",
+        minWidth: "360px",
+        maxWidth: "90vw",
+        maxHeight: "90vh",
+        overflow: "auto",
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+        border: "1px solid #334155",
+    },
+    modalHeader: {
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        marginBottom: "1rem",
+    },
+    modalTitle: {
+        margin: 0,
+        fontSize: "1.25rem",
+        fontWeight: "bold",
+        color: "#f1f5f9",
+    },
+    modalArtist: {
+        margin: "0.25rem 0 0 0",
+        fontSize: "0.875rem",
+        color: "#94a3b8",
+    },
+    modalClose: {
+        padding: "0.25rem",
+        background: "transparent",
+        color: "#64748b",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+    },
+    modalMeta: {
+        display: "flex",
+        gap: "1.5rem",
+        padding: "0.75rem 1rem",
+        background: "#0f172a",
+        borderRadius: "8px",
+        marginBottom: "1rem",
+    },
+    metaItem: {
+        display: "flex",
+        flexDirection: "column" as const,
+        alignItems: "center",
+        gap: "0.25rem",
+    },
+    metaLabel: {
+        fontSize: "0.625rem",
+        textTransform: "uppercase" as const,
+        color: "#64748b",
+        fontWeight: "bold",
+    },
+    metaValue: {
+        fontSize: "1rem",
+        fontWeight: "bold",
+        color: "#f1f5f9",
+    },
+    fingerprintContainer: {
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        minHeight: "300px",
+        padding: "1rem 0",
+    },
+    noFingerprint: {
+        display: "flex",
+        flexDirection: "column" as const,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "0.5rem",
+        color: "#64748b",
+        textAlign: "center" as const,
+    },
+    modalActions: {
+        display: "flex",
+        justifyContent: "center",
+        paddingTop: "1rem",
+        borderTop: "1px solid #334155",
+    },
+    modalButton: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.5rem 1rem",
+        background: "#22c55e",
+        color: "white",
+        border: "none",
+        borderRadius: "8px",
+        fontSize: "0.875rem",
+        fontWeight: "bold",
+        cursor: "pointer",
+        transition: "background 0.2s",
     },
 };

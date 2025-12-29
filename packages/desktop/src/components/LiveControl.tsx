@@ -1,8 +1,15 @@
-import { Radio, Wifi, WifiOff, Music2, AlertCircle, X } from "lucide-react";
+import { useState } from "react";
+import { Radio, Wifi, WifiOff, Music2, AlertCircle, X, QrCode } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useLiveSession } from "../hooks/useLiveSession";
+import { getListenerUrl } from "../config";
 
 export function LiveControl() {
-    const { status, nowPlaying, error, isLive, goLive, endSet, clearNowPlaying } = useLiveSession();
+    const { status, nowPlaying, error, isLive, sessionId, goLive, endSet, clearNowPlaying } = useLiveSession();
+    const [showQR, setShowQR] = useState(false);
+
+    // Generate QR URL only if we have a session
+    const qrUrl = sessionId ? getListenerUrl(sessionId) : null;
 
     return (
         <div style={styles.container}>
@@ -36,6 +43,18 @@ export function LiveControl() {
                     )}
                 </div>
             </button>
+
+            {/* QR Code Button (only when live) */}
+            {isLive && sessionId && (
+                <button
+                    type="button"
+                    onClick={() => setShowQR(true)}
+                    style={styles.qrButton}
+                    title="Show QR Code"
+                >
+                    <QrCode size={20} />
+                </button>
+            )}
 
             {/* Status & Now Playing */}
             <div style={styles.statusArea}>
@@ -72,6 +91,36 @@ export function LiveControl() {
                     </div>
                 )}
             </div>
+
+            {/* QR Code Modal */}
+            {showQR && qrUrl && (
+                <div style={styles.modalOverlay} onClick={() => setShowQR(false)}>
+                    <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+                        <div style={styles.modalHeader}>
+                            <h3 style={styles.modalTitle}>Scan to Listen</h3>
+                            <button
+                                type="button"
+                                onClick={() => setShowQR(false)}
+                                style={styles.modalClose}
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+                        <div style={styles.qrContainer}>
+                            <QRCodeSVG
+                                value={qrUrl}
+                                size={256}
+                                bgColor="#ffffff"
+                                fgColor="#0f172a"
+                                level="M"
+                                includeMargin={true}
+                            />
+                        </div>
+                        <p style={styles.qrUrl}>{qrUrl}</p>
+                        <p style={styles.qrHint}>Share this with your audience!</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -128,6 +177,18 @@ const styles: Record<string, React.CSSProperties> = {
     },
     pulseIcon: {
         animation: "pulse 1s ease-in-out infinite",
+    },
+    qrButton: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "0.5rem",
+        background: "rgba(255, 255, 255, 0.1)",
+        color: "white",
+        border: "1px solid rgba(255, 255, 255, 0.2)",
+        borderRadius: "8px",
+        cursor: "pointer",
+        transition: "all 0.2s ease",
     },
     statusArea: {
         display: "flex",
@@ -188,5 +249,67 @@ const styles: Record<string, React.CSSProperties> = {
         fontSize: "0.75rem",
         color: "#64748b",
         fontStyle: "italic",
+    },
+    // Modal styles
+    modalOverlay: {
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0, 0, 0, 0.8)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 9999,
+    },
+    modal: {
+        background: "#1e293b",
+        borderRadius: "16px",
+        padding: "1.5rem",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "1rem",
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+        border: "1px solid #334155",
+        maxWidth: "90vw",
+    },
+    modalHeader: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        width: "100%",
+    },
+    modalTitle: {
+        margin: 0,
+        fontSize: "1.25rem",
+        fontWeight: "bold",
+        color: "#f1f5f9",
+    },
+    modalClose: {
+        padding: "0.25rem",
+        background: "transparent",
+        color: "#64748b",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+    },
+    qrContainer: {
+        background: "#ffffff",
+        padding: "1rem",
+        borderRadius: "12px",
+    },
+    qrUrl: {
+        fontSize: "0.75rem",
+        color: "#94a3b8",
+        margin: 0,
+        fontFamily: "monospace",
+        wordBreak: "break-all",
+        textAlign: "center",
+    },
+    qrHint: {
+        fontSize: "0.875rem",
+        color: "#64748b",
+        margin: 0,
     },
 };

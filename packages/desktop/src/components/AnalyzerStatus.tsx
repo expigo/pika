@@ -112,22 +112,50 @@ export function AnalyzerStatus({ baseUrl, onComplete }: Props) {
             ) : (
                 <>
                     {/* Start button */}
-                    <button
-                        type="button"
-                        onClick={handleStart}
-                        disabled={!baseUrl}
-                        style={{
-                            padding: "0.5rem 1rem",
-                            background: baseUrl ? "#22c55e" : "#4b5563",
-                            color: "white",
-                            border: "none",
-                            borderRadius: "6px",
-                            cursor: baseUrl ? "pointer" : "not-allowed",
-                            opacity: baseUrl ? 1 : 0.5,
-                        }}
-                    >
-                        Start Analysis
-                    </button>
+                    <div style={{ display: "flex", gap: "0.5rem" }}>
+                        <button
+                            type="button"
+                            onClick={handleStart}
+                            disabled={!baseUrl}
+                            style={{
+                                padding: "0.5rem 1rem",
+                                background: baseUrl ? "#22c55e" : "#4b5563",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: baseUrl ? "pointer" : "not-allowed",
+                                opacity: baseUrl ? 1 : 0.5,
+                            }}
+                        >
+                            Start Analysis
+                        </button>
+
+                        {/* Re-analyze All button */}
+                        <button
+                            type="button"
+                            onClick={async () => {
+                                if (!baseUrl) return;
+                                const { trackRepository } = await import("../db/repositories/trackRepository");
+                                await trackRepository.resetAnalysis();
+                                await startAnalysis(baseUrl);
+                                onComplete?.();
+                            }}
+                            disabled={!baseUrl}
+                            style={{
+                                padding: "0.5rem 1rem",
+                                background: baseUrl ? "#f59e0b" : "#4b5563",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                cursor: baseUrl ? "pointer" : "not-allowed",
+                                opacity: baseUrl ? 1 : 0.5,
+                                fontSize: "0.875rem",
+                            }}
+                            title="Reset and re-analyze all tracks (updates fingerprint metrics)"
+                        >
+                            Re-analyze All
+                        </button>
+                    </div>
 
                     {!baseUrl && (
                         <div

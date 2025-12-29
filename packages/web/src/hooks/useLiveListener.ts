@@ -52,12 +52,19 @@ interface LiveState {
 
 const MAX_HISTORY = 5;
 
-export function useLiveListener() {
+/**
+ * Hook for listening to live DJ sessions via WebSocket.
+ * 
+ * @param targetSessionId - Optional. If provided, only listen to this specific session.
+ *                          If undefined, auto-join the first active session.
+ */
+export function useLiveListener(targetSessionId?: string) {
     const [state, setState] = useState<LiveState>({
         status: "connecting",
         currentTrack: null,
         djName: null,
-        sessionId: null,
+        // If targeting a specific session, set it immediately
+        sessionId: targetSessionId ?? null,
         history: [],
     });
 
@@ -82,27 +89,12 @@ export function useLiveListener() {
         }
     }, []);
 
-    // Add track to history (real-time update)
-    const addToHistory = useCallback((track: TrackInfo) => {
-        setState((prev) => {
-            // Don't add duplicates
-            if (prev.history.some(h => h.artist === track.artist && h.title === track.title)) {
-                return prev;
-            }
-
-            // Prepend and keep max 5
-            const newHistory: HistoryTrack[] = [
-                { ...track, playedAt: new Date().toISOString() },
-                ...prev.history,
-            ].slice(0, MAX_HISTORY);
-
-            return { ...prev, history: newHistory };
-        });
-    }, []);
-
     useEffect(() => {
         const wsUrl = getWebSocketUrl();
         console.log("[Listener] Connecting to:", wsUrl);
+        if (targetSessionId) {
+            console.log("[Listener] Targeting specific session:", targetSessionId);
+        }
 
         const socket = new ReconnectingWebSocket(wsUrl, [], {
             connectionTimeout: 5000,
@@ -117,6 +109,11 @@ export function useLiveListener() {
             console.log("[Listener] Connected to cloud");
             setState((prev) => ({ ...prev, status: "connected" }));
             socket.send(JSON.stringify({ type: "SUBSCRIBE" }));
+
+            // If targeting a specific session, fetch its history immediately
+            if (targetSessionId) {
+                fetchHistory(targetSessionId);
+            }
         };
 
         socket.onmessage = (event) => {
@@ -130,7 +127,8 @@ export function useLiveListener() {
 
             switch (message.type) {
                 case "SESSIONS_LIST": {
-                    if (message.sessions && message.sessions.length > 0) {
+                    // Only auto-join if NOT targeting a specific session
+                    if (!targetSessionId && message.sessions && message.sessions.length > 0) {
                         const session = message.sessions[0];
                         setState((prev) => ({
                             ...prev,
@@ -145,6 +143,11 @@ export function useLiveListener() {
                 }
 
                 case "SESSION_STARTED": {
+                    // Filter: Only handle if matches target or no target set
+                    if (targetSessionId && message.sessionId !== targetSessionId) {
+                        return;
+                    }
+
                     setState((prev) => ({
                         ...prev,
                         sessionId: message.sessionId || null,
@@ -156,6 +159,11 @@ export function useLiveListener() {
                 }
 
                 case "NOW_PLAYING": {
+                    // Filter: Only handle if matches target or no target set
+                    if (targetSessionId && message.sessionId !== targetSessionId) {
+                        return;
+                    }
+
                     if (message.track) {
                         setState((prev) => {
                             // Get the previous track before updating
@@ -186,27 +194,55 @@ export function useLiveListener() {
                 }
 
                 case "TRACK_STOPPED": {
+                    // Filter: Only handle if matches target or current session
+                    if (targetSessionId && message.sessionId !== targetSessionId) {
+                        return;
+                    }
+
                     setState((prev) => {
-                        // Move current track to history
-                        if (prev.currentTrack) {
-                            addToHistory(prev.currentTrack);
+                        // Only handle if this is for our session
+                        if (prev.sessionId && message.sessionId !== prev.sessionId) {
+                            return prev;
                         }
+
+                        // Move current track to history if exists
+                        let newHistory = prev.history;
+                        if (prev.currentTrack) {
+                            newHistory = [
+                                { ...prev.currentTrack, playedAt: new Date().toISOString() },
+                                ...prev.history,
+                            ].slice(0, MAX_HISTORY);
+                        }
+
                         return {
                             ...prev,
                             currentTrack: null,
+                            history: newHistory,
                         };
                     });
                     break;
                 }
 
                 case "SESSION_ENDED": {
-                    setState((prev) => ({
-                        ...prev,
-                        sessionId: null,
-                        djName: null,
-                        currentTrack: null,
-                        history: [],
-                    }));
+                    // Filter: Only handle if matches target or current session
+                    if (targetSessionId && message.sessionId !== targetSessionId) {
+                        return;
+                    }
+
+                    setState((prev) => {
+                        // Only reset if this is for our session
+                        if (prev.sessionId && message.sessionId !== prev.sessionId) {
+                            return prev;
+                        }
+
+                        return {
+                            ...prev,
+                            sessionId: targetSessionId ?? null, // Keep target if specified
+                            djName: null,
+                            currentTrack: null,
+                            history: [],
+                        };
+                    });
                     break;
                 }
             }
@@ -224,7 +260,7 @@ export function useLiveListener() {
         return () => {
             socket.close();
         };
-    }, [fetchHistory, addToHistory]);
+    }, [targetSessionId, fetchHistory]);
 
     // Send a like for the current track
     const sendLike = (track: { artist: string; title: string }) => {
