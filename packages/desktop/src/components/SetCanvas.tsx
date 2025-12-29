@@ -18,6 +18,7 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Trash2, ListMusic, Zap, Music } from "lucide-react";
 import { useSetStore, getSetStats } from "../hooks/useSetBuilder";
+import { EnergyWave } from "./EnergyWave";
 import type { Track } from "../db/repositories/trackRepository";
 
 interface SortableTrackRowProps {
@@ -43,7 +44,6 @@ function SortableTrackRow({ track, index, onRemove }: SortableTrackRowProps) {
         zIndex: isDragging ? 1000 : "auto",
     };
 
-    // Get energy color
     const getEnergyColor = (energy: number | null) => {
         if (energy === null) return "#4b5563";
         const normalized = energy / 100;
@@ -129,6 +129,11 @@ export function SetCanvas() {
                 )}
             </div>
 
+            {/* Energy Wave Visualization */}
+            <div style={styles.waveContainer}>
+                <EnergyWave height={100} />
+            </div>
+
             {/* Stats */}
             <div style={styles.stats}>
                 <div style={styles.stat}>
@@ -153,7 +158,7 @@ export function SetCanvas() {
                 {activeSet.length === 0 ? (
                     <div style={styles.emptyState}>
                         <ListMusic size={48} style={{ opacity: 0.3 }} />
-                        <p>Drag tracks here or click + to add</p>
+                        <p>Click + on tracks to add them to your set</p>
                     </div>
                 ) : (
                     <DndContext
@@ -196,7 +201,7 @@ const styles: Record<string, React.CSSProperties> = {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        padding: "1rem",
+        padding: "0.75rem 1rem",
         background: "#1e293b",
         borderBottom: "1px solid #334155",
     },
@@ -214,6 +219,10 @@ const styles: Record<string, React.CSSProperties> = {
         borderRadius: "4px",
         cursor: "pointer",
         fontSize: "0.75rem",
+    },
+    waveContainer: {
+        padding: "0.5rem",
+        background: "#0f172a",
     },
     stats: {
         display: "flex",
