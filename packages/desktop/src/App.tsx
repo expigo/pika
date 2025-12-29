@@ -4,6 +4,7 @@ import { LibraryImporter } from "./components/LibraryImporter";
 import { AnalyzerStatus } from "./components/AnalyzerStatus";
 import { LibraryBrowser } from "./components/LibraryBrowser";
 import { SetCanvas } from "./components/SetCanvas";
+import { LiveControl } from "./components/LiveControl";
 import "./App.css";
 
 import { useState, useEffect } from "react";
@@ -36,6 +37,8 @@ function App() {
 
         {/* Toolbar */}
         <div style={styles.toolbar}>
+          <LiveControl />
+          <div style={styles.toolbarDivider} />
           <LibraryImporter onImportComplete={refreshTracks} />
           <AnalyzerStatus baseUrl={baseUrl} onComplete={refreshTracks} />
         </div>
@@ -150,6 +153,11 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     gap: "0.75rem",
     alignItems: "center",
+  },
+  toolbarDivider: {
+    width: "1px",
+    height: "24px",
+    background: "#334155",
   },
   statusBanner: {
     display: "flex",

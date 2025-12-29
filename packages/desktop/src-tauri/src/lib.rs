@@ -120,6 +120,75 @@ fn import_virtualdj_library(xml_path: String) -> Result<Vec<VirtualDJTrack>, Str
     Ok(tracks)
 }
 
+/// Read the VirtualDJ history file for the current day
+#[derive(Debug, Serialize)]
+pub struct HistoryTrack {
+    artist: String,
+    title: String,
+    file_path: String,
+    timestamp: u64,
+}
+
+#[tauri::command]
+fn read_virtualdj_history() -> Result<Option<HistoryTrack>, String> {
+    // Get home directory
+    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    
+    // Build today's history file path
+    let today = chrono::Local::now();
+    let filename = today.format("%Y-%m-%d.m3u").to_string();
+    let history_path = std::path::PathBuf::from(&home)
+        .join("Library")
+        .join("Application Support")
+        .join("VirtualDJ")
+        .join("History")
+        .join(&filename);
+    
+    // Read the file
+    let content = match std::fs::read_to_string(&history_path) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("[VDJ History] Failed to read {}: {}", history_path.display(), e);
+            return Ok(None);
+        }
+    };
+    
+    // Parse the last entry
+    let lines: Vec<&str> = content.trim().lines().collect();
+    if lines.len() < 2 {
+        return Ok(None);
+    }
+    
+    let file_path = lines[lines.len() - 1].to_string();
+    let ext_line = lines[lines.len() - 2];
+    
+    if !ext_line.starts_with("#EXTVDJ:") {
+        return Ok(None);
+    }
+    
+    // Parse the EXTVDJ line - extract artist, title, lastplaytime
+    let extract_tag = |content: &str, tag: &str| -> Option<String> {
+        let start = format!("<{}>", tag);
+        let end = format!("</{}>", tag);
+        let start_idx = content.find(&start)? + start.len();
+        let end_idx = content.find(&end)?;
+        Some(content[start_idx..end_idx].to_string())
+    };
+    
+    let artist = extract_tag(ext_line, "artist").unwrap_or_else(|| "Unknown".to_string());
+    let title = extract_tag(ext_line, "title").unwrap_or_else(|| "Unknown".to_string());
+    let timestamp: u64 = extract_tag(ext_line, "lastplaytime")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    
+    Ok(Some(HistoryTrack {
+        artist,
+        title,
+        file_path,
+        timestamp,
+    }))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -127,8 +196,10 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![import_virtualdj_library])
+        .invoke_handler(tauri::generate_handler![import_virtualdj_library, read_virtualdj_history])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+

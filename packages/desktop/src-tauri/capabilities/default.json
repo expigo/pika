@@ -7,7 +7,9 @@
   ],
   "permissions": [
     "core:default",
+    "core:path:default",
     "opener:default",
+    "fs:default",
     "sql:default",
     "sql:allow-execute",
     "dialog:default",
