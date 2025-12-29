@@ -26,9 +26,16 @@ interface SortableTrackRowProps {
     track: Track;
     index: number;
     onRemove: (id: number) => void;
+    nextTrack?: Track;
+    transitionWarning?: TransitionAnalysis;
 }
 
-function SortableTrackRow({ track, index, onRemove }: SortableTrackRowProps) {
+function SortableTrackRow({
+    track,
+    index,
+    onRemove,
+    transitionWarning,
+}: SortableTrackRowProps) {
     const {
         attributes,
         listeners,
@@ -53,63 +60,67 @@ function SortableTrackRow({ track, index, onRemove }: SortableTrackRowProps) {
         return "#f97316";
     };
 
+    // Build tooltip for warning badge
+    const warningTooltip = transitionWarning?.issues.join(" • ") || "";
+    const showWarning = transitionWarning && transitionWarning.warningLevel !== "none";
+    const warningColor = transitionWarning?.warningLevel === "red" ? "#ef4444" : "#eab308";
+
     return (
-        <div ref={setNodeRef} style={{ ...styles.row, ...style }}>
-            <div
-                {...attributes}
-                {...listeners}
-                style={styles.dragHandle}
-                title="Drag to reorder"
-            >
-                <GripVertical size={16} />
+        <div ref={setNodeRef} style={{ ...styles.rowWrapper, ...style }}>
+            {/* Main row content */}
+            <div style={styles.row}>
+                <div
+                    {...attributes}
+                    {...listeners}
+                    style={styles.dragHandle}
+                    title="Drag to reorder"
+                >
+                    <GripVertical size={16} />
+                </div>
+                <span style={styles.index}>{index + 1}</span>
+                <div style={styles.trackInfo}>
+                    <span style={styles.artist}>{track.artist || "Unknown"}</span>
+                    <span style={styles.title}>{track.title || "Untitled"}</span>
+                </div>
+                <span style={styles.bpm}>{track.bpm?.toFixed(0) || "-"}</span>
+                <span style={styles.key}>{track.key || "-"}</span>
+                <div style={styles.energyContainer}>
+                    <div
+                        style={{
+                            ...styles.energyBar,
+                            width: `${Math.min(100, track.energy ?? 0)}%`,
+                            backgroundColor: getEnergyColor(track.energy),
+                        }}
+                    />
+                </div>
+                <button
+                    type="button"
+                    onClick={() => onRemove(track.id)}
+                    style={styles.removeButton}
+                    title="Remove from set"
+                >
+                    <Trash2 size={14} />
+                </button>
             </div>
-            <span style={styles.index}>{index + 1}</span>
-            <div style={styles.trackInfo}>
-                <span style={styles.artist}>{track.artist || "Unknown"}</span>
-                <span style={styles.title}>{track.title || "Untitled"}</span>
-            </div>
-            <span style={styles.bpm}>{track.bpm?.toFixed(0) || "-"}</span>
-            <span style={styles.key}>{track.key || "-"}</span>
-            <div style={styles.energyContainer}>
+
+            {/* Transition warning badge (at bottom of row) */}
+            {showWarning && (
                 <div
                     style={{
-                        ...styles.energyBar,
-                        width: `${Math.min(100, track.energy ?? 0)}%`,
-                        backgroundColor: getEnergyColor(track.energy),
+                        ...styles.warningBadge,
+                        borderColor: warningColor,
+                        background: warningColor === "#ef4444"
+                            ? "rgba(239, 68, 68, 0.15)"
+                            : "rgba(234, 179, 8, 0.15)",
                     }}
-                />
-            </div>
-            <button
-                type="button"
-                onClick={() => onRemove(track.id)}
-                style={styles.removeButton}
-                title="Remove from set"
-            >
-                <Trash2 size={14} />
-            </button>
-        </div>
-    );
-}
-
-/**
- * Warning badge displayed between tracks with compatibility issues.
- */
-interface TransitionWarningProps {
-    analysis: TransitionAnalysis;
-}
-
-function TransitionWarning({ analysis }: TransitionWarningProps) {
-    if (analysis.warningLevel === "none") return null;
-
-    const color = analysis.warningLevel === "red" ? "#ef4444" : "#eab308";
-    const tooltip = analysis.issues.join(" • ");
-
-    return (
-        <div style={styles.warningBadge} title={tooltip}>
-            <TriangleAlert size={14} color={color} />
-            <span style={{ ...styles.warningText, color }}>
-                {analysis.issues[0]}
-            </span>
+                    title={warningTooltip}
+                >
+                    <TriangleAlert size={12} color={warningColor} />
+                    <span style={{ ...styles.warningText, color: warningColor }}>
+                        {transitionWarning?.issues[0]}
+                    </span>
+                </div>
+            )}
         </div>
     );
 }
@@ -200,19 +211,17 @@ export function SetCanvas() {
                                 const nextTrack = activeSet[index + 1];
                                 const transition = nextTrack
                                     ? analyzeTransition(track, nextTrack)
-                                    : null;
+                                    : undefined;
 
                                 return (
-                                    <div key={track.id}>
-                                        <SortableTrackRow
-                                            track={track}
-                                            index={index}
-                                            onRemove={removeTrack}
-                                        />
-                                        {transition && (
-                                            <TransitionWarning analysis={transition} />
-                                        )}
-                                    </div>
+                                    <SortableTrackRow
+                                        key={track.id}
+                                        track={track}
+                                        index={index}
+                                        onRemove={removeTrack}
+                                        nextTrack={nextTrack}
+                                        transitionWarning={transition}
+                                    />
                                 );
                             })}
                         </SortableContext>
@@ -289,6 +298,9 @@ const styles: Record<string, React.CSSProperties> = {
         textAlign: "center",
         padding: "2rem",
     },
+    rowWrapper: {
+        marginBottom: "0.25rem",
+    },
     row: {
         display: "flex",
         alignItems: "center",
@@ -296,7 +308,6 @@ const styles: Record<string, React.CSSProperties> = {
         padding: "0.5rem",
         background: "#1e293b",
         borderRadius: "4px",
-        marginBottom: "0.25rem",
         fontSize: "0.8rem",
     },
     dragHandle: {
@@ -368,16 +379,17 @@ const styles: Record<string, React.CSSProperties> = {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        gap: "0.375rem",
-        padding: "0.25rem 0.5rem",
-        marginBottom: "0.25rem",
-        marginLeft: "2rem",
-        background: "rgba(239, 68, 68, 0.1)",
-        borderRadius: "4px",
-        borderLeft: "2px solid currentColor",
+        gap: "0.25rem",
+        padding: "0.125rem 0.5rem",
+        marginTop: "0.125rem",
+        marginLeft: "auto",
+        marginRight: "auto",
+        width: "fit-content",
+        borderRadius: "10px",
+        border: "1px solid",
+        fontSize: "0.65rem",
     },
     warningText: {
-        fontSize: "0.7rem",
         fontWeight: 500,
     },
 };
