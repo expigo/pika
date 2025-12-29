@@ -162,6 +162,21 @@ app.get(
                             break;
                         }
 
+                        case "SEND_LIKE": {
+                            // A listener sent a like for the current track
+                            const payload = (message as unknown as { payload?: { track?: { artist: string; title: string } } }).payload;
+                            if (payload?.track) {
+                                console.log(`❤️ Like received for: ${payload.track.title}`);
+
+                                // Broadcast to all clients (including DJ)
+                                rawWs.publish("live-session", JSON.stringify({
+                                    type: "LIKE_RECEIVED",
+                                    payload: { track: payload.track },
+                                }));
+                            }
+                            break;
+                        }
+
                         case "SUBSCRIBE": {
                             // Client wants to subscribe to updates (web frontend)
                             console.log("👀 Listener subscribed to live-session channel");

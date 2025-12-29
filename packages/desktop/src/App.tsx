@@ -5,6 +5,7 @@ import { AnalyzerStatus } from "./components/AnalyzerStatus";
 import { LibraryBrowser } from "./components/LibraryBrowser";
 import { SetCanvas } from "./components/SetCanvas";
 import { LiveControl } from "./components/LiveControl";
+import { Toaster } from "sonner";
 import "./App.css";
 
 import { useState, useEffect } from "react";
@@ -28,6 +29,9 @@ function App() {
 
   return (
     <div style={styles.appContainer}>
+      {/* Toast notifications */}
+      <Toaster theme="dark" position="top-right" richColors />
+
       {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>

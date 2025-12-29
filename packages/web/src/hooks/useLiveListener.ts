@@ -159,5 +159,17 @@ export function useLiveListener() {
         };
     }, []);
 
-    return state;
+    // Send a like for the current track
+    const sendLike = (track: { artist: string; title: string }) => {
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+            socketRef.current.send(JSON.stringify({
+                type: "SEND_LIKE",
+                payload: { track },
+            }));
+            console.log("[Listener] Sent like for:", track.title);
+        }
+    };
+
+    return { ...state, sendLike };
 }
+

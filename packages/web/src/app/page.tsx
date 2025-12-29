@@ -1,14 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import { useLiveListener } from "@/hooks/useLiveListener";
-import { Radio, Music2, Wifi, WifiOff } from "lucide-react";
+import { Radio, Music2, Wifi, WifiOff, Heart } from "lucide-react";
 
 export default function Home() {
-  const { status, currentTrack, djName } = useLiveListener();
+  const { status, currentTrack, djName, sendLike } = useLiveListener();
+  const [liked, setLiked] = useState(false);
+  const [cooldown, setCooldown] = useState(false);
 
   const isConnected = status === "connected";
   const hasTrack = currentTrack !== null;
   const isLive = isConnected && (hasTrack || djName);
+
+  const handleLike = () => {
+    if (!currentTrack || cooldown) return;
+
+    // Send like
+    sendLike(currentTrack);
+
+    // Animate
+    setLiked(true);
+    setCooldown(true);
+
+    // Reset animation after 1s
+    setTimeout(() => setLiked(false), 1000);
+
+    // Allow next like after 2s
+    setTimeout(() => setCooldown(false), 2000);
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
@@ -60,6 +80,28 @@ export default function Home() {
                   Live with <span className="text-red-400 font-medium">{djName}</span>
                 </p>
               )}
+
+              {/* Like Button */}
+              <button
+                onClick={handleLike}
+                disabled={cooldown}
+                className={`mt-6 p-4 rounded-full transition-all duration-300 ${liked
+                    ? "bg-red-500 scale-125"
+                    : cooldown
+                      ? "bg-slate-700/50 cursor-not-allowed"
+                      : "bg-slate-700/50 hover:bg-red-500/20 hover:scale-110 active:scale-95"
+                  }`}
+              >
+                <Heart
+                  className={`w-8 h-8 transition-all duration-300 ${liked
+                      ? "text-white fill-white"
+                      : "text-red-400"
+                    }`}
+                />
+              </button>
+              <p className="text-xs text-slate-500 mt-2">
+                {liked ? "Liked! ❤️" : "Tap to like"}
+              </p>
             </>
           ) : djName ? (
             <>
