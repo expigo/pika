@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
+import { parseWebSocketMessage } from "@pika/shared";
 import {
     virtualDjWatcher,
     type NowPlayingTrack,
@@ -152,27 +153,28 @@ export function useLiveSession() {
             };
 
             socket.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    console.log("[Live] Received:", message);
+                const message = parseWebSocketMessage(event.data);
+                if (!message) {
+                    console.error("[Live] Failed to parse message:", event.data);
+                    return;
+                }
 
-                    if (message.type === "SESSION_REGISTERED") {
-                        console.log("[Live] Session registered:", message.sessionId);
-                    }
+                console.log("[Live] Received:", message);
 
-                    // Handle likes from listeners
-                    if (message.type === "LIKE_RECEIVED") {
-                        const track = message.payload?.track;
-                        if (track) {
-                            console.log("[Live] Like received for:", track.title);
-                            toast(`Someone liked "${track.title}"`, {
-                                icon: "❤️",
-                                duration: 3000,
-                            });
-                        }
+                if (message.type === "SESSION_REGISTERED") {
+                    console.log("[Live] Session registered:", message.sessionId);
+                }
+
+                // Handle likes from listeners
+                if (message.type === "LIKE_RECEIVED") {
+                    const track = message.payload?.track;
+                    if (track) {
+                        console.log("[Live] Like received for:", track.title);
+                        toast(`Someone liked "${track.title}"`, {
+                            icon: "❤️",
+                            duration: 3000,
+                        });
                     }
-                } catch (e) {
-                    console.error("[Live] Failed to parse message:", e);
                 }
             };
 

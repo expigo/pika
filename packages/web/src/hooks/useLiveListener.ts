@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
+import { parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 
 // Get WebSocket URL dynamically based on page location
 // This allows mobile devices on the same network to connect
@@ -26,27 +27,9 @@ export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
 interface LiveState {
     status: ConnectionStatus;
-    currentTrack: { artist: string; title: string } | null;
+    currentTrack: TrackInfo | null;
     djName: string | null;
     sessionId: string | null;
-}
-
-interface WSMessage {
-    type: string;
-    sessionId?: string;
-    djName?: string;
-    track?: {
-        artist: string;
-        title: string;
-    };
-    sessions?: Array<{
-        sessionId: string;
-        djName: string;
-        currentTrack?: {
-            artist: string;
-            title: string;
-        };
-    }>;
 }
 
 export function useLiveListener() {
@@ -81,67 +64,68 @@ export function useLiveListener() {
         };
 
         socket.onmessage = (event) => {
-            try {
-                const message: WSMessage = JSON.parse(event.data);
-                console.log("[Listener] Received:", message);
+            const message = parseWebSocketMessage(event.data);
+            if (!message) {
+                console.error("[Listener] Failed to parse message:", event.data);
+                return;
+            }
 
-                switch (message.type) {
-                    case "SESSIONS_LIST": {
-                        // Initial sessions list when we subscribe
-                        if (message.sessions && message.sessions.length > 0) {
-                            const session = message.sessions[0]; // Take first active session
-                            setState((prev) => ({
-                                ...prev,
-                                sessionId: session.sessionId,
-                                djName: session.djName,
-                                currentTrack: session.currentTrack || null,
-                            }));
-                        }
-                        break;
-                    }
+            console.log("[Listener] Received:", message);
 
-                    case "SESSION_STARTED": {
+            switch (message.type) {
+                case "SESSIONS_LIST": {
+                    // Initial sessions list when we subscribe
+                    if (message.sessions && message.sessions.length > 0) {
+                        const session = message.sessions[0]; // Take first active session
                         setState((prev) => ({
                             ...prev,
-                            sessionId: message.sessionId || null,
-                            djName: message.djName || null,
-                            currentTrack: null,
+                            sessionId: session.sessionId,
+                            djName: session.djName,
+                            currentTrack: session.currentTrack || null,
                         }));
-                        break;
                     }
-
-                    case "NOW_PLAYING": {
-                        if (message.track) {
-                            setState((prev) => ({
-                                ...prev,
-                                sessionId: message.sessionId || prev.sessionId,
-                                djName: message.djName || prev.djName,
-                                currentTrack: message.track || null,
-                            }));
-                        }
-                        break;
-                    }
-
-                    case "TRACK_STOPPED": {
-                        setState((prev) => ({
-                            ...prev,
-                            currentTrack: null,
-                        }));
-                        break;
-                    }
-
-                    case "SESSION_ENDED": {
-                        setState((prev) => ({
-                            ...prev,
-                            sessionId: null,
-                            djName: null,
-                            currentTrack: null,
-                        }));
-                        break;
-                    }
+                    break;
                 }
-            } catch (e) {
-                console.error("[Listener] Failed to parse message:", e);
+
+                case "SESSION_STARTED": {
+                    setState((prev) => ({
+                        ...prev,
+                        sessionId: message.sessionId || null,
+                        djName: message.djName || null,
+                        currentTrack: null,
+                    }));
+                    break;
+                }
+
+                case "NOW_PLAYING": {
+                    if (message.track) {
+                        setState((prev) => ({
+                            ...prev,
+                            sessionId: message.sessionId || prev.sessionId,
+                            djName: message.djName || prev.djName,
+                            currentTrack: message.track || null,
+                        }));
+                    }
+                    break;
+                }
+
+                case "TRACK_STOPPED": {
+                    setState((prev) => ({
+                        ...prev,
+                        currentTrack: null,
+                    }));
+                    break;
+                }
+
+                case "SESSION_ENDED": {
+                    setState((prev) => ({
+                        ...prev,
+                        sessionId: null,
+                        djName: null,
+                        currentTrack: null,
+                    }));
+                    break;
+                }
             }
         };
 
