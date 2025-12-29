@@ -1,26 +1,23 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { useState } from "react";
+import { type VirtualDJTrack, trackRepository } from "../db/repositories/trackRepository";
 
-// Matches the Rust struct
-interface VirtualDJTrack {
-    file_path: string;
-    artist?: string;
-    title?: string;
-    bpm?: string;
-    key?: string;
+interface Props {
+    onImportComplete?: () => void;
 }
 
-export function LibraryImporter() {
-    const [count, setCount] = useState<number | null>(null);
+export function LibraryImporter({ onImportComplete }: Props) {
+    const [parsedTracks, setParsedTracks] = useState<VirtualDJTrack[]>([]);
     const [loading, setLoading] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const handleImport = async () => {
         try {
             setLoading(true);
             setError(null);
-            setCount(null);
+            setParsedTracks([]);
 
             const selected = await open({
                 multiple: false,
@@ -37,12 +34,11 @@ export function LibraryImporter() {
                 return;
             }
 
-            // selected is string when multiple is false
             const result = await invoke<VirtualDJTrack[]>("import_virtualdj_library", {
                 xmlPath: selected,
             });
 
-            setCount(result.length);
+            setParsedTracks(result);
         } catch (err: any) {
             console.error("Import error:", err);
             setError(String(err));
@@ -51,31 +47,76 @@ export function LibraryImporter() {
         }
     };
 
+    const handleSave = async () => {
+        if (parsedTracks.length === 0) return;
+
+        try {
+            setSaving(true);
+            await trackRepository.addTracks(parsedTracks);
+            setParsedTracks([]);
+            onImportComplete?.();
+            alert(`Successfully saved ${parsedTracks.length} tracks to database!`);
+        } catch (err: any) {
+            console.error("Save error:", err);
+            setError(String(err));
+        } finally {
+            setSaving(false);
+        }
+    };
+
     return (
         <div className="library-importer" style={{ marginTop: "2rem" }}>
-            <button
-                type="button"
-                onClick={handleImport}
-                disabled={loading}
-                className="retry-button" // Styling reuse
-                style={{
-                    background: "#334155",
-                    color: "white",
-                    padding: "0.5rem 1rem",
-                    border: "none",
-                    borderRadius: "6px",
-                    cursor: loading ? "not-allowed" : "pointer",
-                    opacity: loading ? 0.7 : 1,
-                }}
-            >
-                {loading ? "Parsing..." : "Import VirtualDJ Database"}
-            </button>
+            <div style={{ display: "flex", gap: "1rem" }}>
+                <button
+                    type="button"
+                    onClick={handleImport}
+                    disabled={loading || saving}
+                    className="retry-button"
+                    style={{
+                        background: "#334155",
+                        color: "white",
+                        padding: "0.5rem 1rem",
+                        border: "none",
+                        borderRadius: "6px",
+                        cursor: loading || saving ? "not-allowed" : "pointer",
+                        opacity: loading || saving ? 0.7 : 1,
+                    }}
+                >
+                    {loading ? "Parsing..." : "Import VirtualDJ Database"}
+                </button>
 
-            {count !== null && (
-                <div style={{ marginTop: "1rem" }}>✅ Found {count.toLocaleString()} tracks</div>
+                {parsedTracks.length > 0 && (
+                    <button
+                        type="button"
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="retry-button"
+                        style={{
+                            background: "#0891b2", // Cyan color for save action
+                            color: "white",
+                            padding: "0.5rem 1rem",
+                            border: "none",
+                            borderRadius: "6px",
+                            cursor: saving ? "not-allowed" : "pointer",
+                            opacity: saving ? 0.7 : 1,
+                        }}
+                    >
+                        {saving ? "Saving to Database..." : "Save to Database"}
+                    </button>
+                )}
+            </div>
+
+            {parsedTracks.length > 0 && !saving && (
+                <div style={{ marginTop: "1rem" }}>
+                    ✅ Found {parsedTracks.length.toLocaleString()} tracks. Ready to save.
+                </div>
             )}
 
-            {error && <div className="error-message" style={{ marginTop: "1rem" }}>❌ {error}</div>}
+            {error && (
+                <div className="error-message" style={{ marginTop: "1rem" }}>
+                    ❌ {error}
+                </div>
+            )}
         </div>
     );
 }

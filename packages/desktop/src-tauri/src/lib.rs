@@ -11,15 +11,15 @@ struct VirtualDJDatabase {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct VirtualDJTrack {
-    #[serde(rename = "@FilePath")]
+    #[serde(rename(deserialize = "@FilePath"))]
     file_path: String,
-    #[serde(rename = "@Artist", default)]
+    #[serde(rename(deserialize = "@Artist"), default)]
     artist: Option<String>,
-    #[serde(rename = "@Title", default)]
+    #[serde(rename(deserialize = "@Title"), default)]
     title: Option<String>,
-    #[serde(rename = "@Bpm", default)]
+    #[serde(rename(deserialize = "@Bpm"), default)]
     bpm: Option<String>, // Parsing as string first to be safe, then can convert if needed, or leave as string
-    #[serde(rename = "@Key", default)]
+    #[serde(rename(deserialize = "@Key"), default)]
     key: Option<String>,
 }
 
