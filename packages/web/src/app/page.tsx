@@ -1,11 +1,65 @@
 "use client";
 
 import { useState } from "react";
-import { useLiveListener } from "@/hooks/useLiveListener";
-import { Radio, Music2, Wifi, WifiOff, Heart } from "lucide-react";
+import { useLiveListener, type HistoryTrack } from "@/hooks/useLiveListener";
+import { Radio, Music2, Wifi, WifiOff, Heart, Clock } from "lucide-react";
+
+// Format relative time (e.g., "2m ago")
+function formatRelativeTime(dateString?: string): string {
+  if (!dateString) return "";
+
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  return `${Math.floor(diffHours / 24)}d ago`;
+}
+
+// History list component
+function HistoryList({ tracks }: { tracks: HistoryTrack[] }) {
+  if (tracks.length === 0) return null;
+
+  return (
+    <div className="px-6 py-4 border-t border-slate-700/50">
+      <div className="flex items-center gap-2 mb-3">
+        <Clock className="w-4 h-4 text-slate-500" />
+        <span className="text-xs text-slate-500 font-medium uppercase tracking-wide">
+          Recently Played
+        </span>
+      </div>
+      <ul className="space-y-2">
+        {tracks.map((track, index) => (
+          <li
+            key={`${track.artist}-${track.title}-${index}`}
+            className="flex items-center justify-between opacity-70 hover:opacity-100 transition-opacity"
+          >
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-slate-300 truncate">
+                {track.title}
+              </p>
+              <p className="text-xs text-slate-500 truncate">
+                {track.artist}
+              </p>
+            </div>
+            <span className="text-xs text-slate-600 ml-2 flex-shrink-0">
+              {formatRelativeTime(track.playedAt)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default function Home() {
-  const { status, currentTrack, djName, sendLike } = useLiveListener();
+  const { status, currentTrack, djName, history, sendLike } = useLiveListener();
   const [liked, setLiked] = useState(false);
   const [cooldown, setCooldown] = useState(false);
 
@@ -16,17 +70,11 @@ export default function Home() {
   const handleLike = () => {
     if (!currentTrack || cooldown) return;
 
-    // Send like
     sendLike(currentTrack);
-
-    // Animate
     setLiked(true);
     setCooldown(true);
 
-    // Reset animation after 1s
     setTimeout(() => setLiked(false), 1000);
-
-    // Allow next like after 2s
     setTimeout(() => setCooldown(false), 2000);
   };
 
@@ -86,16 +134,16 @@ export default function Home() {
                 onClick={handleLike}
                 disabled={cooldown}
                 className={`mt-6 p-4 rounded-full transition-all duration-300 ${liked
-                    ? "bg-red-500 scale-125"
-                    : cooldown
-                      ? "bg-slate-700/50 cursor-not-allowed"
-                      : "bg-slate-700/50 hover:bg-red-500/20 hover:scale-110 active:scale-95"
+                  ? "bg-red-500 scale-125"
+                  : cooldown
+                    ? "bg-slate-700/50 cursor-not-allowed"
+                    : "bg-slate-700/50 hover:bg-red-500/20 hover:scale-110 active:scale-95"
                   }`}
               >
                 <Heart
                   className={`w-8 h-8 transition-all duration-300 ${liked
-                      ? "text-white fill-white"
-                      : "text-red-400"
+                    ? "text-white fill-white"
+                    : "text-red-400"
                     }`}
                 />
               </button>
@@ -129,6 +177,9 @@ export default function Home() {
             </>
           )}
         </div>
+
+        {/* History List */}
+        <HistoryList tracks={history} />
 
         {/* Footer */}
         <div className="px-6 py-3 border-t border-slate-700/50 flex items-center justify-center">

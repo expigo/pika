@@ -9,6 +9,7 @@ import {
     type WebSocketMessage,
     type TrackInfo,
 } from "@pika/shared";
+import { db, schema } from "./db";
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
@@ -19,7 +20,7 @@ const app = new Hono();
 app.use("*", logger());
 app.use("*", cors());
 
-// Active sessions store (for REST API)
+// Active sessions store (for WebSocket connections - in-memory)
 interface LiveSession {
     sessionId: string;
     djName: string;
@@ -28,6 +29,96 @@ interface LiveSession {
 }
 
 const activeSessions = new Map<string, LiveSession>();
+
+// ============================================================================
+// Database Persistence Helpers
+// ============================================================================
+
+// Track which sessions have been persisted to avoid race conditions
+const persistedSessions = new Set<string>();
+
+/**
+ * Persist session to database - MUST complete before tracks can be saved
+ */
+async function persistSession(sessionId: string, djName: string): Promise<boolean> {
+    try {
+        await db.insert(schema.sessions).values({
+            id: sessionId,
+            djName,
+        }).onConflictDoNothing();
+        persistedSessions.add(sessionId);
+        console.log(`💾 Session persisted: ${sessionId}`);
+        return true;
+    } catch (e) {
+        console.error("❌ Failed to persist session:", e);
+        return false;
+    }
+}
+
+/**
+ * Persist played track to database
+ * Only persists if session already exists in DB
+ */
+async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> {
+    // Wait for session to be persisted (with timeout)
+    let attempts = 0;
+    while (!persistedSessions.has(sessionId) && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+    }
+
+    if (!persistedSessions.has(sessionId)) {
+        console.warn(`⚠️ Session ${sessionId} not persisted yet, skipping track`);
+        return;
+    }
+
+    try {
+        await db.insert(schema.playedTracks).values({
+            sessionId,
+            artist: track.artist,
+            title: track.title,
+        });
+        console.log(`💾 Track persisted: ${track.artist} - ${track.title}`);
+    } catch (e) {
+        console.error("❌ Failed to persist track:", e);
+    }
+}
+
+/**
+ * Persist like to database (fire-and-forget)
+ */
+async function persistLike(track: TrackInfo, sessionId?: string): Promise<void> {
+    try {
+        await db.insert(schema.likes).values({
+            sessionId: sessionId ?? null,
+            trackArtist: track.artist,
+            trackTitle: track.title,
+        });
+        console.log(`💾 Like persisted: ${track.title}`);
+    } catch (e) {
+        console.error("❌ Failed to persist like:", e);
+    }
+}
+
+/**
+ * Mark session as ended in database
+ */
+async function endSessionInDb(sessionId: string): Promise<void> {
+    try {
+        const { eq } = await import("drizzle-orm");
+        await db.update(schema.sessions)
+            .set({ endedAt: new Date() })
+            .where(eq(schema.sessions.id, sessionId));
+        persistedSessions.delete(sessionId);
+        console.log(`💾 Session ended in DB: ${sessionId}`);
+    } catch (e) {
+        console.error("❌ Failed to end session in DB:", e);
+    }
+}
+
+// ============================================================================
+// REST Endpoints
+// ============================================================================
 
 // Health check endpoint
 app.get("/health", (c) => {
@@ -54,7 +145,35 @@ app.get("/sessions", (c) => {
     return c.json(sessions);
 });
 
-// WebSocket route
+// Get session track history (last 5 tracks)
+app.get("/api/session/:sessionId/history", async (c) => {
+    const sessionId = c.req.param("sessionId");
+
+    try {
+        const { desc, eq } = await import("drizzle-orm");
+        const tracks = await db
+            .select({
+                id: schema.playedTracks.id,
+                artist: schema.playedTracks.artist,
+                title: schema.playedTracks.title,
+                playedAt: schema.playedTracks.playedAt,
+            })
+            .from(schema.playedTracks)
+            .where(eq(schema.playedTracks.sessionId, sessionId))
+            .orderBy(desc(schema.playedTracks.playedAt))
+            .limit(5);
+
+        return c.json(tracks);
+    } catch (e) {
+        console.error("Failed to fetch history:", e);
+        return c.json([], 500);
+    }
+});
+
+// ============================================================================
+// WebSocket Handler
+// ============================================================================
+
 app.get(
     "/ws",
     upgradeWebSocket((c) => {
@@ -63,7 +182,6 @@ app.get(
                 console.log("🔌 Client connected");
 
                 // Subscribe all clients to the live-session channel
-                // This allows them to receive broadcasted messages
                 const rawWs = ws.raw as ServerWebSocket;
                 rawWs.subscribe("live-session");
             },
@@ -78,7 +196,7 @@ app.get(
 
                     if (!result.success) {
                         console.error("❌ Invalid message schema:", result.error.format());
-                        return; // Guard clause: reject malformed messages
+                        return;
                     }
 
                     const message: WebSocketMessage = result.data;
@@ -89,13 +207,17 @@ app.get(
                     switch (message.type) {
                         case "REGISTER_SESSION": {
                             const sessionId = message.sessionId || `session_${Date.now()}`;
+                            const djName = message.djName || "DJ";
                             const session: LiveSession = {
                                 sessionId,
-                                djName: message.djName || "DJ",
+                                djName,
                                 startedAt: new Date().toISOString(),
                             };
                             activeSessions.set(sessionId, session);
-                            console.log(`🎧 DJ going live: ${session.djName} (${sessionId})`);
+                            console.log(`🎧 DJ going live: ${djName} (${sessionId})`);
+
+                            // 💾 Persist to database
+                            persistSession(sessionId, djName);
 
                             // Confirm registration to the client
                             ws.send(JSON.stringify({
@@ -103,11 +225,11 @@ app.get(
                                 sessionId,
                             }));
 
-                            // Broadcast to all subscribers that a new session started
+                            // Broadcast to all subscribers
                             rawWs.publish("live-session", JSON.stringify({
                                 type: "SESSION_STARTED",
                                 sessionId,
-                                djName: session.djName,
+                                djName,
                             }));
                             break;
                         }
@@ -118,7 +240,10 @@ app.get(
                                 session.currentTrack = message.track;
                                 console.log(`🎵 Now playing: ${message.track.artist} - ${message.track.title}`);
 
-                                // CRITICAL: Broadcast to all subscribers
+                                // 💾 Persist to database
+                                persistTrack(message.sessionId, message.track);
+
+                                // Broadcast to all subscribers
                                 rawWs.publish("live-session", JSON.stringify({
                                     type: "NOW_PLAYING",
                                     sessionId: message.sessionId,
@@ -149,6 +274,9 @@ app.get(
                                 console.log(`👋 Session ended: ${session.djName}`);
                                 activeSessions.delete(message.sessionId);
 
+                                // 💾 Update in database
+                                endSessionInDb(message.sessionId);
+
                                 rawWs.publish("live-session", JSON.stringify({
                                     type: "SESSION_ENDED",
                                     sessionId: message.sessionId,
@@ -158,9 +286,12 @@ app.get(
                         }
 
                         case "SEND_LIKE": {
-                            // A listener sent a like for the current track
                             const track = message.payload.track;
                             console.log(`❤️ Like received for: ${track.title}`);
+
+                            // 💾 Persist to database (find active session for context)
+                            const activeSessionIds = Array.from(activeSessions.keys());
+                            persistLike(track, activeSessionIds[0]);
 
                             // Broadcast to all clients (including DJ)
                             rawWs.publish("live-session", JSON.stringify({
@@ -171,7 +302,6 @@ app.get(
                         }
 
                         case "SUBSCRIBE": {
-                            // Client wants to subscribe to updates (web frontend)
                             console.log("👀 Listener subscribed to live-session channel");
 
                             // Send current sessions list
@@ -201,9 +331,6 @@ app.get(
 
             onClose(event, ws) {
                 console.log("❌ Client disconnected");
-
-                // Note: We could clean up sessions here if we tracked which socket owns which session
-                // For MVP, sessions persist until explicitly ended
             },
 
             onError(event, ws) {
@@ -213,14 +340,18 @@ app.get(
     })
 );
 
-// Start the server
+// ============================================================================
+// Start Server
+// ============================================================================
+
 const port = Number(process.env["PORT"] ?? 3001);
 
 console.log(`🚀 Pika! Cloud server starting on http://localhost:${port}`);
 console.log(`📡 WebSocket endpoint: ws://localhost:${port}/ws`);
+console.log(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "localhost (default)"}`);
 
 export default {
     port,
     fetch: app.fetch,
-    websocket, // CRITICAL: Export websocket handler for Bun
+    websocket,
 };

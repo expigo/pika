@@ -1,36 +1,56 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 
 // Get WebSocket URL dynamically based on page location
-// This allows mobile devices on the same network to connect
 function getWebSocketUrl(): string {
-    // Allow override via env variable
     if (process.env.NEXT_PUBLIC_CLOUD_WS_URL) {
         return process.env.NEXT_PUBLIC_CLOUD_WS_URL;
     }
 
-    // In browser, use same host as page but port 3001
     if (typeof window !== "undefined") {
         const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
         const hostname = window.location.hostname;
         return `${protocol}//${hostname}:3001/ws`;
     }
 
-    // Fallback for SSR
     return "ws://localhost:3001/ws";
 }
 
+// Get API base URL for REST calls
+function getApiBaseUrl(): string {
+    if (process.env.NEXT_PUBLIC_CLOUD_API_URL) {
+        return process.env.NEXT_PUBLIC_CLOUD_API_URL;
+    }
+
+    if (typeof window !== "undefined") {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        return `${protocol}//${hostname}:3001`;
+    }
+
+    return "http://localhost:3001";
+}
+
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
+
+// History track with timestamp
+export interface HistoryTrack extends TrackInfo {
+    id?: number;
+    playedAt?: string;
+}
 
 interface LiveState {
     status: ConnectionStatus;
     currentTrack: TrackInfo | null;
     djName: string | null;
     sessionId: string | null;
+    history: HistoryTrack[];
 }
+
+const MAX_HISTORY = 5;
 
 export function useLiveListener() {
     const [state, setState] = useState<LiveState>({
@@ -38,9 +58,47 @@ export function useLiveListener() {
         currentTrack: null,
         djName: null,
         sessionId: null,
+        history: [],
     });
 
     const socketRef = useRef<ReconnectingWebSocket | null>(null);
+
+    // Fetch history from REST API
+    const fetchHistory = useCallback(async (sessionId: string) => {
+        try {
+            const baseUrl = getApiBaseUrl();
+            const response = await fetch(`${baseUrl}/api/session/${sessionId}/history`);
+            if (response.ok) {
+                const tracks: HistoryTrack[] = await response.json();
+                setState((prev) => ({
+                    ...prev,
+                    // Skip the first track (it's the current one)
+                    history: tracks.slice(1),
+                }));
+                console.log("[Listener] Fetched history:", tracks.length, "tracks");
+            }
+        } catch (e) {
+            console.error("[Listener] Failed to fetch history:", e);
+        }
+    }, []);
+
+    // Add track to history (real-time update)
+    const addToHistory = useCallback((track: TrackInfo) => {
+        setState((prev) => {
+            // Don't add duplicates
+            if (prev.history.some(h => h.artist === track.artist && h.title === track.title)) {
+                return prev;
+            }
+
+            // Prepend and keep max 5
+            const newHistory: HistoryTrack[] = [
+                { ...track, playedAt: new Date().toISOString() },
+                ...prev.history,
+            ].slice(0, MAX_HISTORY);
+
+            return { ...prev, history: newHistory };
+        });
+    }, []);
 
     useEffect(() => {
         const wsUrl = getWebSocketUrl();
@@ -48,7 +106,7 @@ export function useLiveListener() {
 
         const socket = new ReconnectingWebSocket(wsUrl, [], {
             connectionTimeout: 5000,
-            maxRetries: Infinity, // Keep trying forever
+            maxRetries: Infinity,
             maxReconnectionDelay: 10000,
             minReconnectionDelay: 1000,
         });
@@ -58,8 +116,6 @@ export function useLiveListener() {
         socket.onopen = () => {
             console.log("[Listener] Connected to cloud");
             setState((prev) => ({ ...prev, status: "connected" }));
-
-            // Subscribe to live updates
             socket.send(JSON.stringify({ type: "SUBSCRIBE" }));
         };
 
@@ -74,15 +130,16 @@ export function useLiveListener() {
 
             switch (message.type) {
                 case "SESSIONS_LIST": {
-                    // Initial sessions list when we subscribe
                     if (message.sessions && message.sessions.length > 0) {
-                        const session = message.sessions[0]; // Take first active session
+                        const session = message.sessions[0];
                         setState((prev) => ({
                             ...prev,
                             sessionId: session.sessionId,
                             djName: session.djName,
                             currentTrack: session.currentTrack || null,
                         }));
+                        // Fetch initial history
+                        fetchHistory(session.sessionId);
                     }
                     break;
                 }
@@ -93,27 +150,52 @@ export function useLiveListener() {
                         sessionId: message.sessionId || null,
                         djName: message.djName || null,
                         currentTrack: null,
+                        history: [], // Clear history for new session
                     }));
                     break;
                 }
 
                 case "NOW_PLAYING": {
                     if (message.track) {
-                        setState((prev) => ({
-                            ...prev,
-                            sessionId: message.sessionId || prev.sessionId,
-                            djName: message.djName || prev.djName,
-                            currentTrack: message.track || null,
-                        }));
+                        setState((prev) => {
+                            // Get the previous track before updating
+                            const prevTrack = prev.currentTrack;
+
+                            // Build new history by prepending previous track (if exists and different)
+                            let newHistory = prev.history;
+                            if (prevTrack &&
+                                (prevTrack.artist !== message.track.artist ||
+                                    prevTrack.title !== message.track.title)) {
+                                // Prepend previous track to history, keep max 5
+                                newHistory = [
+                                    { ...prevTrack, playedAt: new Date().toISOString() },
+                                    ...prev.history,
+                                ].slice(0, MAX_HISTORY);
+                            }
+
+                            return {
+                                ...prev,
+                                sessionId: message.sessionId || prev.sessionId,
+                                djName: message.djName || prev.djName,
+                                currentTrack: message.track || null,
+                                history: newHistory,
+                            };
+                        });
                     }
                     break;
                 }
 
                 case "TRACK_STOPPED": {
-                    setState((prev) => ({
-                        ...prev,
-                        currentTrack: null,
-                    }));
+                    setState((prev) => {
+                        // Move current track to history
+                        if (prev.currentTrack) {
+                            addToHistory(prev.currentTrack);
+                        }
+                        return {
+                            ...prev,
+                            currentTrack: null,
+                        };
+                    });
                     break;
                 }
 
@@ -123,6 +205,7 @@ export function useLiveListener() {
                         sessionId: null,
                         djName: null,
                         currentTrack: null,
+                        history: [],
                     }));
                     break;
                 }
@@ -141,7 +224,7 @@ export function useLiveListener() {
         return () => {
             socket.close();
         };
-    }, []);
+    }, [fetchHistory, addToHistory]);
 
     // Send a like for the current track
     const sendLike = (track: { artist: string; title: string }) => {
@@ -156,4 +239,3 @@ export function useLiveListener() {
 
     return { ...state, sendLike };
 }
-
