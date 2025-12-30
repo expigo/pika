@@ -8,12 +8,25 @@ import {
     ResponsiveContainer,
     Tooltip,
 } from "recharts";
-import type { Track } from "../db/repositories/trackRepository";
+
+/**
+ * Generic fingerprint metrics interface
+ * Used for both individual tracks and set averages
+ */
+export interface FingerprintMetrics {
+    energy: number | null;
+    danceability: number | null;
+    brightness: number | null;
+    acousticness: number | null;
+    groove: number | null;
+}
 
 interface Props {
-    track: Track;
+    metrics: FingerprintMetrics;
     size?: number;
     showLabels?: boolean;
+    /** Optional title to show above the chart */
+    title?: string;
 }
 
 interface DataPoint {
@@ -34,44 +47,47 @@ const COLORS = {
 /**
  * TrackFingerprint Component
  * 
- * A radar chart visualization of a track's audio fingerprint metrics.
+ * A radar chart visualization of audio fingerprint metrics.
  * Displays: Energy, Danceability, Brightness, Acousticness, Groove
+ * 
+ * Can be used for individual tracks or set averages.
  */
 export function TrackFingerprint({
-    track,
+    metrics,
     size = 200,
     showLabels = true,
+    title,
 }: Props) {
-    // Map track metrics to chart data, defaulting null values to 0
+    // Map metrics to chart data, defaulting null values to 0
     const data: DataPoint[] = useMemo(() => [
         {
             metric: "Energy",
-            value: track.energy ?? 0,
+            value: metrics.energy ?? 0,
             fullMark: 100
         },
         {
             metric: "Dance",
-            value: track.danceability ?? 0,
+            value: metrics.danceability ?? 0,
             fullMark: 100
         },
         {
             metric: "Bright",
-            value: track.brightness ?? 0,
+            value: metrics.brightness ?? 0,
             fullMark: 100
         },
         {
             metric: "Acoustic",
-            value: track.acousticness ?? 0,
+            value: metrics.acousticness ?? 0,
             fullMark: 100
         },
         {
             metric: "Groove",
-            value: track.groove ?? 0,
+            value: metrics.groove ?? 0,
             fullMark: 100
         },
-    ], [track]);
+    ], [metrics]);
 
-    // Check if track has any fingerprint data
+    // Check if there's any fingerprint data
     const hasData = useMemo(() =>
         data.some(d => d.value > 0),
         [data]
@@ -89,6 +105,7 @@ export function TrackFingerprint({
 
     return (
         <div style={{ ...styles.container, width: size, height: size }}>
+            {title && <div style={styles.title}>{title}</div>}
             <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
                     {/* Grid lines */}
@@ -182,6 +199,17 @@ const tooltipStyles: Record<string, React.CSSProperties> = {
 const styles: Record<string, React.CSSProperties> = {
     container: {
         position: "relative",
+    },
+    title: {
+        position: "absolute",
+        top: 0,
+        left: "50%",
+        transform: "translateX(-50%)",
+        fontSize: "0.625rem",
+        fontWeight: "bold",
+        textTransform: "uppercase",
+        color: "#64748b",
+        letterSpacing: "0.05em",
     },
     noData: {
         position: "absolute",

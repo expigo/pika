@@ -10,6 +10,7 @@ import {
     Trash2,
     X,
     Eye,
+    Check,
 } from "lucide-react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -18,6 +19,8 @@ import {
 } from "../db/repositories/trackRepository";
 import { useSetStore } from "../hooks/useSetBuilder";
 import { TrackFingerprint } from "./TrackFingerprint";
+import { SmartCrate } from "./SmartCrate";
+import { toCamelot } from "../utils/transitionEngine";
 
 type SortKey = "artist" | "title" | "bpm" | "key" | "energy" | "analyzed";
 type SortDirection = "asc" | "desc";
@@ -409,6 +412,11 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                 <span style={styles.metaValue}>
                                     {selectedTrack.key || "-"}
                                 </span>
+                                {selectedTrack.key && toCamelot(selectedTrack.key) && (
+                                    <span style={styles.camelotBadge}>
+                                        {toCamelot(selectedTrack.key)}
+                                    </span>
+                                )}
                             </div>
                             <div style={styles.metaItem}>
                                 <span style={styles.metaLabel}>Energy</span>
@@ -416,40 +424,53 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                     {selectedTrack.energy?.toFixed(0) || "-"}
                                 </span>
                             </div>
+                            <div style={styles.metaItem}>
+                                <span style={styles.metaLabel}>Danceability</span>
+                                <span style={styles.metaValue}>
+                                    {selectedTrack.danceability?.toFixed(0) || "-"}
+                                </span>
+                            </div>
                         </div>
 
-                        {/* Fingerprint Visualization */}
-                        <div style={styles.fingerprintContainer}>
-                            {hasFingerprint(selectedTrack) ? (
-                                <TrackFingerprint track={selectedTrack} size={280} />
-                            ) : (
-                                <div style={styles.noFingerprint}>
-                                    <Music size={48} style={{ opacity: 0.3 }} />
-                                    <p>No analysis data available</p>
-                                    <p style={{ fontSize: "0.75rem", opacity: 0.6 }}>
-                                        Run analysis on this track to see its fingerprint
-                                    </p>
-                                </div>
-                            )}
+                        {/* Two-column content: Fingerprint + Recommendations */}
+                        <div style={styles.modalContent}>
+                            {/* Left: Fingerprint Visualization */}
+                            <div style={styles.fingerprintColumn}>
+                                {hasFingerprint(selectedTrack) ? (
+                                    <TrackFingerprint metrics={selectedTrack} size={250} />
+                                ) : (
+                                    <div style={styles.noFingerprint}>
+                                        <Music size={48} style={{ opacity: 0.3 }} />
+                                        <p>No analysis data</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Right: Smart Recommendations */}
+                            <div style={styles.recommendationsColumn}>
+                                <SmartCrate currentTrack={selectedTrack} library={tracks} />
+                            </div>
                         </div>
 
                         {/* Action Buttons */}
                         <div style={styles.modalActions}>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    addTrack(selectedTrack);
-                                    setSelectedTrackId(null);
-                                }}
-                                disabled={isInSet(selectedTrack.id)}
-                                style={{
-                                    ...styles.modalButton,
-                                    opacity: isInSet(selectedTrack.id) ? 0.5 : 1,
-                                }}
-                            >
-                                <Plus size={16} />
-                                {isInSet(selectedTrack.id) ? "In Set" : "Add to Set"}
-                            </button>
+                            {isInSet(selectedTrack.id) ? (
+                                <div style={styles.inSetBadge}>
+                                    <Check size={16} />
+                                    Already in Set
+                                </div>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        addTrack(selectedTrack);
+                                    }}
+                                    style={styles.modalButton}
+                                >
+                                    <Plus size={16} />
+                                    Add to Set
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -614,19 +635,20 @@ const styles: Record<string, React.CSSProperties> = {
     modalOverlay: {
         position: "fixed" as const,
         inset: 0,
-        background: "rgba(0, 0, 0, 0.8)",
+        background: "rgba(0, 0, 0, 0.85)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         zIndex: 9999,
+        padding: "2rem",
     },
     modal: {
         background: "#1e293b",
         borderRadius: "16px",
-        padding: "1.5rem",
-        minWidth: "360px",
-        maxWidth: "90vw",
-        maxHeight: "90vh",
+        padding: "2rem",
+        width: "100%",
+        maxWidth: "900px",
+        maxHeight: "85vh",
         overflow: "auto",
         boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
         border: "1px solid #334155",
@@ -635,60 +657,75 @@ const styles: Record<string, React.CSSProperties> = {
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "space-between",
-        marginBottom: "1rem",
+        marginBottom: "1.5rem",
     },
     modalTitle: {
         margin: 0,
-        fontSize: "1.25rem",
+        fontSize: "1.5rem",
         fontWeight: "bold",
         color: "#f1f5f9",
     },
     modalArtist: {
-        margin: "0.25rem 0 0 0",
-        fontSize: "0.875rem",
+        margin: "0.375rem 0 0 0",
+        fontSize: "1rem",
         color: "#94a3b8",
     },
     modalClose: {
-        padding: "0.25rem",
-        background: "transparent",
-        color: "#64748b",
+        padding: "0.5rem",
+        background: "rgba(100, 116, 139, 0.2)",
+        color: "#94a3b8",
         border: "none",
-        borderRadius: "4px",
+        borderRadius: "8px",
         cursor: "pointer",
         display: "flex",
         alignItems: "center",
+        transition: "background 0.2s",
     },
     modalMeta: {
         display: "flex",
-        gap: "1.5rem",
-        padding: "0.75rem 1rem",
+        gap: "2rem",
+        padding: "1rem 1.5rem",
         background: "#0f172a",
-        borderRadius: "8px",
-        marginBottom: "1rem",
+        borderRadius: "12px",
+        marginBottom: "1.5rem",
     },
     metaItem: {
         display: "flex",
         flexDirection: "column" as const,
         alignItems: "center",
-        gap: "0.25rem",
+        gap: "0.375rem",
     },
     metaLabel: {
-        fontSize: "0.625rem",
+        fontSize: "0.75rem",
         textTransform: "uppercase" as const,
         color: "#64748b",
         fontWeight: "bold",
+        letterSpacing: "0.05em",
     },
     metaValue: {
-        fontSize: "1rem",
+        fontSize: "1.25rem",
         fontWeight: "bold",
         color: "#f1f5f9",
     },
-    fingerprintContainer: {
+    // Two-column layout for fingerprint + recommendations
+    modalContent: {
+        display: "flex",
+        gap: "2rem",
+        marginBottom: "1.5rem",
+        minHeight: "280px",
+    },
+    fingerprintColumn: {
+        flex: "0 0 280px",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
-        minHeight: "300px",
-        padding: "1rem 0",
+        background: "#0f172a",
+        borderRadius: "12px",
+        padding: "1rem",
+    },
+    recommendationsColumn: {
+        flex: 1,
+        minWidth: 0,
     },
     noFingerprint: {
         display: "flex",
@@ -698,25 +735,46 @@ const styles: Record<string, React.CSSProperties> = {
         gap: "0.5rem",
         color: "#64748b",
         textAlign: "center" as const,
+        padding: "1rem",
     },
     modalActions: {
         display: "flex",
         justifyContent: "center",
-        paddingTop: "1rem",
+        paddingTop: "1.5rem",
         borderTop: "1px solid #334155",
     },
     modalButton: {
         display: "flex",
         alignItems: "center",
         gap: "0.5rem",
-        padding: "0.5rem 1rem",
+        padding: "0.75rem 1.5rem",
         background: "#22c55e",
         color: "white",
         border: "none",
         borderRadius: "8px",
-        fontSize: "0.875rem",
+        fontSize: "1rem",
         fontWeight: "bold",
         cursor: "pointer",
         transition: "background 0.2s",
+    },
+    inSetBadge: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.75rem 1.5rem",
+        background: "#334155",
+        color: "#94a3b8",
+        borderRadius: "8px",
+        fontSize: "1rem",
+        fontWeight: "bold",
+    },
+    camelotBadge: {
+        marginTop: "0.25rem",
+        padding: "0.25rem 0.5rem",
+        background: "rgba(168, 85, 247, 0.2)",
+        color: "#a855f7",
+        borderRadius: "4px",
+        fontSize: "0.75rem",
+        fontWeight: "bold",
     },
 };

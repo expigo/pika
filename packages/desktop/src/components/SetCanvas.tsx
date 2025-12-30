@@ -19,6 +19,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Trash2, ListMusic, Zap, Music, TriangleAlert } from "lucide-react";
 import { useSetStore, getSetStats } from "../hooks/useSetBuilder";
 import { EnergyWave } from "./EnergyWave";
+import { TrackFingerprint, type FingerprintMetrics } from "./TrackFingerprint";
 import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
 import type { Track } from "../db/repositories/trackRepository";
 
@@ -129,6 +130,36 @@ export function SetCanvas() {
     const { activeSet, removeTrack, reorderTracks, clearSet } = useSetStore();
     const stats = useMemo(() => getSetStats(activeSet), [activeSet]);
 
+    // Calculate average fingerprint metrics for the set
+    const setAverageMetrics: FingerprintMetrics = useMemo(() => {
+        if (activeSet.length === 0) {
+            return {
+                energy: null,
+                danceability: null,
+                brightness: null,
+                acousticness: null,
+                groove: null,
+            };
+        }
+
+        // Helper to calculate average, skipping nulls
+        const avg = (getter: (t: Track) => number | null): number | null => {
+            const values = activeSet
+                .map(getter)
+                .filter((v): v is number => v !== null);
+            if (values.length === 0) return null;
+            return values.reduce((sum, v) => sum + v, 0) / values.length;
+        };
+
+        return {
+            energy: avg((t) => t.energy),
+            danceability: avg((t) => t.danceability),
+            brightness: avg((t) => t.brightness),
+            acousticness: avg((t) => t.acousticness),
+            groove: avg((t) => t.groove),
+        };
+    }, [activeSet]);
+
     const sensors = useSensors(
         useSensor(PointerSensor),
         useSensor(KeyboardSensor, {
@@ -171,20 +202,34 @@ export function SetCanvas() {
 
             {/* Stats */}
             <div style={styles.stats}>
-                <div style={styles.stat}>
-                    <Music size={14} />
-                    <span>{stats.totalTracks} tracks</span>
+                <div style={styles.statsLeft}>
+                    <div style={styles.stat}>
+                        <Music size={14} />
+                        <span>{stats.totalTracks} tracks</span>
+                    </div>
+                    {stats.totalTracks > 0 && (
+                        <>
+                            <div style={styles.stat}>
+                                <span>Avg BPM: {stats.avgBpm}</span>
+                            </div>
+                            <div style={styles.stat}>
+                                <Zap size={14} color="#f97316" />
+                                <span>Energy: {stats.avgEnergy}</span>
+                            </div>
+                        </>
+                    )}
                 </div>
+
+                {/* Set Fingerprint */}
                 {stats.totalTracks > 0 && (
-                    <>
-                        <div style={styles.stat}>
-                            <span>Avg BPM: {stats.avgBpm}</span>
-                        </div>
-                        <div style={styles.stat}>
-                            <Zap size={14} color="#f97316" />
-                            <span>Energy: {stats.avgEnergy}</span>
-                        </div>
-                    </>
+                    <div style={styles.setFingerprint}>
+                        <TrackFingerprint
+                            metrics={setAverageMetrics}
+                            size={100}
+                            showLabels={false}
+                            title="Set Profile"
+                        />
+                    </div>
                 )}
             </div>
 
@@ -271,6 +316,8 @@ const styles: Record<string, React.CSSProperties> = {
     },
     stats: {
         display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
         gap: "1rem",
         padding: "0.5rem 1rem",
         background: "#1e293b",
@@ -278,10 +325,18 @@ const styles: Record<string, React.CSSProperties> = {
         fontSize: "0.75rem",
         opacity: 0.8,
     },
+    statsLeft: {
+        display: "flex",
+        flexDirection: "column" as const,
+        gap: "0.25rem",
+    },
     stat: {
         display: "flex",
         alignItems: "center",
         gap: "0.25rem",
+    },
+    setFingerprint: {
+        flexShrink: 0,
     },
     listContainer: {
         flex: 1,
