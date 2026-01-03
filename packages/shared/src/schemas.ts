@@ -152,6 +152,11 @@ export const LikeReceivedSchema = z.object({
     }),
 });
 
+export const ListenerCountSchema = z.object({
+    type: z.literal("LISTENER_COUNT"),
+    count: z.number(),
+});
+
 // ============================================================================
 // Combined Message Schemas
 // ============================================================================
@@ -180,6 +185,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
     SessionEndedSchema,
     SessionsListSchema,
     LikeReceivedSchema,
+    ListenerCountSchema,
     TrackStoppedSchema, // Can also come from server
 ]);
 

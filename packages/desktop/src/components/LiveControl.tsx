@@ -1,22 +1,45 @@
 import { useState } from "react";
-import { Radio, Wifi, WifiOff, Music2, AlertCircle, X, QrCode } from "lucide-react";
+import { Radio, Wifi, WifiOff, Music2, AlertCircle, X, QrCode, Edit3, Users } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLiveSession } from "../hooks/useLiveSession";
 import { getListenerUrl } from "../config";
 
 export function LiveControl() {
-    const { status, nowPlaying, error, isLive, sessionId, goLive, endSet, clearNowPlaying } = useLiveSession();
+    const { status, nowPlaying, error, isLive, sessionId, listenerCount, goLive, endSet, clearNowPlaying } = useLiveSession();
     const [showQR, setShowQR] = useState(false);
+    const [showNameModal, setShowNameModal] = useState(false);
+    const [sessionName, setSessionName] = useState("");
 
     // Generate QR URL only if we have a session
     const qrUrl = sessionId ? getListenerUrl(sessionId) : null;
+
+    const handleGoLiveClick = () => {
+        if (isLive) {
+            endSet();
+        } else {
+            // Show modal to name the session
+            setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
+            setShowNameModal(true);
+        }
+    };
+
+    const handleStartSession = () => {
+        goLive(sessionName.trim() || undefined);
+        setShowNameModal(false);
+        setSessionName("");
+    };
+
+    const handleCancelSession = () => {
+        setShowNameModal(false);
+        setSessionName("");
+    };
 
     return (
         <div style={styles.container}>
             {/* Live Button */}
             <button
                 type="button"
-                onClick={isLive ? endSet : goLive}
+                onClick={handleGoLiveClick}
                 disabled={status === "connecting"}
                 style={{
                     ...styles.liveButton,
@@ -43,6 +66,55 @@ export function LiveControl() {
                     )}
                 </div>
             </button>
+
+            {/* Listener Count Badge */}
+            {isLive && (
+                <div style={styles.listenerBadge}>
+                    <Users size={14} />
+                    <span>{listenerCount}</span>
+                </div>
+            )}
+
+            {/* Session Name Modal */}
+            {showNameModal && (
+                <div style={styles.modalOverlay} onClick={handleCancelSession}>
+                    <div style={{ ...styles.modal, ...styles.sessionModalContent }} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={styles.sessionModalTitle}>
+                            <Edit3 size={20} />
+                            Name Your Session
+                        </h3>
+                        <input
+                            type="text"
+                            value={sessionName}
+                            onChange={(e) => setSessionName(e.target.value)}
+                            placeholder="e.g. Friday Night @ Club XYZ"
+                            style={styles.sessionInput}
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter") handleStartSession();
+                                if (e.key === "Escape") handleCancelSession();
+                            }}
+                        />
+                        <div style={styles.sessionModalActions}>
+                            <button
+                                type="button"
+                                onClick={handleCancelSession}
+                                style={styles.cancelBtn}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleStartSession}
+                                style={styles.startBtn}
+                            >
+                                <Radio size={16} />
+                                Start Live Session
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* QR Code Button (only when live) */}
             {isLive && sessionId && (
@@ -178,6 +250,18 @@ const styles: Record<string, React.CSSProperties> = {
     pulseIcon: {
         animation: "pulse 1s ease-in-out infinite",
     },
+    listenerBadge: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.35rem",
+        padding: "0.35rem 0.6rem",
+        background: "rgba(34, 197, 94, 0.15)",
+        border: "1px solid rgba(34, 197, 94, 0.4)",
+        borderRadius: "6px",
+        color: "#22c55e",
+        fontSize: "0.8rem",
+        fontWeight: 600,
+    },
     qrButton: {
         display: "flex",
         alignItems: "center",
@@ -311,5 +395,62 @@ const styles: Record<string, React.CSSProperties> = {
         fontSize: "0.875rem",
         color: "#64748b",
         margin: 0,
+    },
+    // Session name modal specific styles
+    sessionInput: {
+        width: "100%",
+        padding: "0.75rem 1rem",
+        background: "#0f172a",
+        border: "1px solid #334155",
+        borderRadius: "8px",
+        color: "#e2e8f0",
+        fontSize: "1rem",
+        fontFamily: "inherit",
+        boxSizing: "border-box" as const,
+    },
+    sessionModalActions: {
+        display: "flex",
+        justifyContent: "flex-end",
+        gap: "0.75rem",
+        marginTop: "1.25rem",
+        width: "100%",
+    },
+    cancelBtn: {
+        padding: "0.625rem 1rem",
+        background: "transparent",
+        color: "#94a3b8",
+        border: "1px solid #334155",
+        borderRadius: "8px",
+        fontSize: "0.875rem",
+        cursor: "pointer",
+    },
+    startBtn: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.625rem 1rem",
+        background: "#ef4444",
+        color: "white",
+        border: "none",
+        borderRadius: "8px",
+        fontSize: "0.875rem",
+        fontWeight: "bold",
+        cursor: "pointer",
+    },
+    sessionModalContent: {
+        width: "100%",
+        maxWidth: "400px",
+        display: "flex",
+        flexDirection: "column" as const,
+        alignItems: "stretch",
+    },
+    sessionModalTitle: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        margin: "0 0 1rem 0",
+        fontSize: "1.125rem",
+        fontWeight: "bold",
+        color: "#e2e8f0",
     },
 };

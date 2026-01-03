@@ -31,6 +31,42 @@ interface LiveSession {
 const activeSessions = new Map<string, LiveSession>();
 
 // ============================================================================
+// Listener Count Tracking
+// ============================================================================
+// Track connected listeners (dancers) for crowd size display
+let listenerCount = 0;
+const djConnections = new Set<string>(); // Track DJ connections to exclude from count
+
+// ============================================================================
+// Rate Limiting: Track likes per client per track
+// ============================================================================
+// Uses persistent clientId sent from the web client (stored in localStorage)
+// This survives page reloads, so users can't abuse by refreshing
+const likesSent = new Map<string, Set<string>>();
+
+function getTrackKey(track: TrackInfo): string {
+    return `${track.artist}:${track.title}`;
+}
+
+function hasLikedTrack(clientId: string, track: TrackInfo): boolean {
+    const clientLikes = likesSent.get(clientId);
+    if (!clientLikes) return false;
+    return clientLikes.has(getTrackKey(track));
+}
+
+function recordLike(clientId: string, track: TrackInfo): void {
+    if (!likesSent.has(clientId)) {
+        likesSent.set(clientId, new Set());
+    }
+    likesSent.get(clientId)!.add(getTrackKey(track));
+}
+
+// Clean up likes when session ends
+function clearLikesForSession(): void {
+    likesSent.clear();
+}
+
+// ============================================================================
 // Database Persistence Helpers
 // ============================================================================
 
@@ -177,6 +213,11 @@ app.get("/api/session/:sessionId/history", async (c) => {
 app.get(
     "/ws",
     upgradeWebSocket((c) => {
+        // clientId will be set when client sends SUBSCRIBE with their persistent ID
+        let clientId: string | null = null;
+        // Track if this connection is a listener (dancer) vs DJ
+        let isListener = false;
+
         return {
             onOpen(event, ws) {
                 console.log("🔌 Client connected");
@@ -190,6 +231,12 @@ app.get(
                 try {
                     const data = event.data.toString();
                     const json = JSON.parse(data);
+
+                    // Extract clientId from message if present (for SUBSCRIBE and SEND_LIKE)
+                    if (json.clientId) {
+                        clientId = json.clientId;
+                        console.log(`📋 Client identified: ${clientId}`);
+                    }
 
                     // Validate message against Zod schema
                     const result = WebSocketMessageSchema.safeParse(json);
@@ -277,6 +324,9 @@ app.get(
                                 // 💾 Update in database
                                 endSessionInDb(message.sessionId);
 
+                                // Clear like tracking for new session
+                                clearLikesForSession();
+
                                 rawWs.publish("live-session", JSON.stringify({
                                     type: "SESSION_ENDED",
                                     sessionId: message.sessionId,
@@ -287,7 +337,31 @@ app.get(
 
                         case "SEND_LIKE": {
                             const track = message.payload.track;
-                            console.log(`❤️ Like received for: ${track.title}`);
+
+                            // Require clientId for rate limiting
+                            if (!clientId) {
+                                console.log("⚠️ Like rejected: no clientId provided");
+                                ws.send(JSON.stringify({
+                                    type: "ERROR",
+                                    message: "Client ID required for likes",
+                                }));
+                                break;
+                            }
+
+                            // Check if this client has already liked this track
+                            if (hasLikedTrack(clientId, track)) {
+                                console.log(`⚠️ Duplicate like ignored for: ${track.title} (${clientId})`);
+                                // Send feedback to client that they already liked
+                                ws.send(JSON.stringify({
+                                    type: "LIKE_ALREADY_SENT",
+                                    payload: { track },
+                                }));
+                                break;
+                            }
+
+                            // Record the like
+                            recordLike(clientId, track);
+                            console.log(`❤️ Like received for: ${track.title} (${clientId})`);
 
                             // 💾 Persist to database (find active session for context)
                             const activeSessionIds = Array.from(activeSessions.keys());
@@ -304,11 +378,30 @@ app.get(
                         case "SUBSCRIBE": {
                             console.log("👀 Listener subscribed to live-session channel");
 
+                            // Mark this connection as a listener and increment count
+                            if (!isListener) {
+                                isListener = true;
+                                listenerCount++;
+                                console.log(`👥 Listener count: ${listenerCount}`);
+
+                                // Broadcast updated listener count to all (including DJ)
+                                rawWs.publish("live-session", JSON.stringify({
+                                    type: "LISTENER_COUNT",
+                                    count: listenerCount,
+                                }));
+                            }
+
                             // Send current sessions list
                             const sessions = Array.from(activeSessions.values());
                             ws.send(JSON.stringify({
                                 type: "SESSIONS_LIST",
                                 sessions,
+                            }));
+
+                            // Also send current listener count to the new subscriber
+                            ws.send(JSON.stringify({
+                                type: "LISTENER_COUNT",
+                                count: listenerCount,
                             }));
                             break;
                         }
@@ -331,6 +424,19 @@ app.get(
 
             onClose(event, ws) {
                 console.log("❌ Client disconnected");
+
+                // Decrement listener count if this was a listener
+                if (isListener) {
+                    listenerCount = Math.max(0, listenerCount - 1);
+                    console.log(`👥 Listener count: ${listenerCount}`);
+
+                    // Broadcast updated count
+                    const rawWs = ws.raw as ServerWebSocket;
+                    rawWs.publish("live-session", JSON.stringify({
+                        type: "LISTENER_COUNT",
+                        count: listenerCount,
+                    }));
+                }
             },
 
             onError(event, ws) {

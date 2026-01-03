@@ -33,6 +33,9 @@ export interface Track {
     acousticness: number | null;
     groove: number | null;
 
+    // Duration in seconds
+    duration: number | null;
+
     analyzed: boolean | null;
 }
 
@@ -50,6 +53,7 @@ const TRACK_SELECT_SQL = `
 		brightness,
 		acousticness,
 		groove,
+		duration,
 		analyzed 
 	FROM tracks
 `;
@@ -105,6 +109,44 @@ export const trackRepository = {
             `${TRACK_SELECT_SQL} ORDER BY artist ASC`
         );
         return result;
+    },
+
+    async getTrackById(id: number): Promise<Track | null> {
+        const sqlite = await getSqlite();
+        const result = await sqlite.select<Track[]>(
+            `${TRACK_SELECT_SQL} WHERE id = ?`,
+            [id]
+        );
+        return result[0] ?? null;
+    },
+
+    /**
+     * Insert a single track and return its ID
+     */
+    async insertTrack(track: {
+        filePath: string;
+        artist?: string | null;
+        title?: string | null;
+        bpm?: number | null;
+        key?: string | null;
+    }): Promise<number> {
+        const sqlite = await getSqlite();
+        await sqlite.execute(
+            `INSERT INTO tracks (file_path, artist, title, bpm, key, analyzed) VALUES (?, ?, ?, ?, ?, 0)`,
+            [
+                track.filePath,
+                track.artist ?? null,
+                track.title ?? null,
+                track.bpm ?? null,
+                track.key ?? null,
+            ]
+        );
+
+        // Get the last inserted ID
+        const result = await sqlite.select<{ id: number }[]>(
+            "SELECT last_insert_rowid() as id"
+        );
+        return result[0]?.id ?? -1;
     },
 
     async getTrackCount(): Promise<number> {
@@ -226,4 +268,85 @@ export const trackRepository = {
             return false;
         }
     },
+
+    /**
+     * Get play history stats for a track
+     * Returns peaks count, bricks count, last notes, and sessions played on
+     */
+    async getTrackPlayHistory(trackId: number): Promise<TrackPlayHistory | null> {
+        const sqlite = await getSqlite();
+
+        // Get aggregated stats
+        const statsResult = await sqlite.select<{
+            play_count: number;
+            peak_count: number;
+            brick_count: number;
+            total_likes: number;
+            last_notes: string | null;
+            last_played_at: number | null;
+        }[]>(`
+            SELECT 
+                COUNT(*) as play_count,
+                SUM(CASE WHEN reaction = 'peak' THEN 1 ELSE 0 END) as peak_count,
+                SUM(CASE WHEN reaction = 'brick' THEN 1 ELSE 0 END) as brick_count,
+                COALESCE(SUM(dancer_likes), 0) as total_likes,
+                (SELECT notes FROM plays WHERE track_id = ? AND notes IS NOT NULL ORDER BY played_at DESC LIMIT 1) as last_notes,
+                MAX(played_at) as last_played_at
+            FROM plays
+            WHERE track_id = ?
+        `, [trackId, trackId]);
+
+        const stats = statsResult[0];
+        if (!stats || stats.play_count === 0) {
+            return null;
+        }
+
+        // Get sessions this track was played in
+        const sessionsResult = await sqlite.select<{
+            session_id: number;
+            session_name: string | null;
+            played_at: number;
+        }[]>(`
+            SELECT DISTINCT
+                s.id as session_id,
+                s.name as session_name,
+                p.played_at
+            FROM plays p
+            JOIN sessions s ON p.session_id = s.id
+            WHERE p.track_id = ?
+            ORDER BY p.played_at DESC
+            LIMIT 10
+        `, [trackId]);
+
+        return {
+            trackId,
+            playCount: stats.play_count,
+            peakCount: stats.peak_count,
+            brickCount: stats.brick_count,
+            totalLikes: stats.total_likes,
+            lastNotes: stats.last_notes,
+            lastPlayedAt: stats.last_played_at,
+            sessions: sessionsResult.map(s => ({
+                sessionId: s.session_id,
+                sessionName: s.session_name,
+                playedAt: s.played_at,
+            })),
+        };
+    },
 };
+
+// Track play history interface
+export interface TrackPlayHistory {
+    trackId: number;
+    playCount: number;
+    peakCount: number;
+    brickCount: number;
+    totalLikes: number;
+    lastNotes: string | null;
+    lastPlayedAt: number | null;
+    sessions: {
+        sessionId: number;
+        sessionName: string | null;
+        playedAt: number;
+    }[];
+}

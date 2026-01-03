@@ -11,19 +11,28 @@ import {
     X,
     Eye,
     Check,
+    Flame,
+    BrickWall,
+    Heart,
+    History,
+    Search,
+    Filter,
+    Clock,
 } from "lucide-react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
     trackRepository,
     type Track,
+    type TrackPlayHistory,
 } from "../db/repositories/trackRepository";
 import { useSetStore } from "../hooks/useSetBuilder";
 import { TrackFingerprint } from "./TrackFingerprint";
 import { SmartCrate } from "./SmartCrate";
 import { toCamelot } from "../utils/transitionEngine";
 
-type SortKey = "artist" | "title" | "bpm" | "key" | "energy" | "analyzed";
+type SortKey = "artist" | "title" | "bpm" | "key" | "energy" | "analyzed" | "duration";
 type SortDirection = "asc" | "desc";
+type BpmFilter = "all" | "slow" | "medium" | "fast";
 
 interface Props {
     refreshTrigger?: number;
@@ -36,6 +45,12 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
     const [sortKey, setSortKey] = useState<SortKey>("artist");
     const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
     const [selectedTrackId, setSelectedTrackId] = useState<number | null>(null);
+    const [trackPerformance, setTrackPerformance] = useState<TrackPlayHistory | null>(null);
+
+    // Search and filter state
+    const [searchQuery, setSearchQuery] = useState("");
+    const [bpmFilter, setBpmFilter] = useState<BpmFilter>("all");
+    const [showFilters, setShowFilters] = useState(false);
 
     const addTrack = useSetStore((state) => state.addTrack);
     const activeSet = useSetStore((state) => state.activeSet);
@@ -45,6 +60,24 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
         () => tracks.find((t) => t.id === selectedTrackId) ?? null,
         [tracks, selectedTrackId]
     );
+
+    // Load track performance when a track is selected
+    useEffect(() => {
+        async function loadPerformance() {
+            if (!selectedTrackId) {
+                setTrackPerformance(null);
+                return;
+            }
+            try {
+                const perf = await trackRepository.getTrackPlayHistory(selectedTrackId);
+                setTrackPerformance(perf);
+            } catch (e) {
+                console.error("Failed to load track performance:", e);
+                setTrackPerformance(null);
+            }
+        }
+        loadPerformance();
+    }, [selectedTrackId]);
 
     // Check if we're in Tauri
     const inTauri =
@@ -73,11 +106,53 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
         fetchTracks();
     }, [refreshTrigger, inTauri]);
 
-    // Sort tracks
-    const sortedTracks = useMemo(() => {
-        const sorted = [...tracks].sort((a, b) => {
-            let aVal: string | number | boolean | null = a[sortKey];
-            let bVal: string | number | boolean | null = b[sortKey];
+    // Get BPM range for filter presets
+    const getBpmRange = (filter: BpmFilter): [number, number] => {
+        switch (filter) {
+            case "slow": return [80, 95];
+            case "medium": return [95, 115];
+            case "fast": return [115, 130];
+            default: return [0, 999];
+        }
+    };
+
+    // Filter and sort tracks
+    const filteredAndSortedTracks = useMemo(() => {
+        // First, filter by search query
+        let filtered = tracks;
+
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase().trim();
+            filtered = tracks.filter((t) => {
+                const artist = (t.artist || "").toLowerCase();
+                const title = (t.title || "").toLowerCase();
+                const filePath = (t.filePath || "").toLowerCase();
+                return artist.includes(query) || title.includes(query) || filePath.includes(query);
+            });
+        }
+
+        // Then, filter by BPM
+        if (bpmFilter !== "all") {
+            const [minBpm, maxBpm] = getBpmRange(bpmFilter);
+            filtered = filtered.filter((t) => {
+                if (t.bpm === null) return false;
+                return t.bpm >= minBpm && t.bpm <= maxBpm;
+            });
+        }
+
+        // Finally, sort
+        const sorted = [...filtered].sort((a, b) => {
+            let aVal: string | number | boolean | null;
+            let bVal: string | number | boolean | null;
+
+            // Handle duration separately since it's a new field
+            if (sortKey === "duration") {
+                aVal = a.duration;
+                bVal = b.duration;
+            } else {
+                aVal = a[sortKey as keyof Omit<Track, "duration">];
+                bVal = b[sortKey as keyof Omit<Track, "duration">];
+            }
 
             if (aVal === null || aVal === undefined) aVal = "";
             if (bVal === null || bVal === undefined) bVal = "";
@@ -96,7 +171,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
             return sortDirection === "asc" ? numA - numB : numB - numA;
         });
         return sorted;
-    }, [tracks, sortKey, sortDirection]);
+    }, [tracks, searchQuery, bpmFilter, sortKey, sortDirection]);
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) {
@@ -225,13 +300,85 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
 
     return (
         <div style={styles.container}>
+            {/* Header with Search */}
             <div style={styles.header}>
-                <span style={styles.title}>
-                    <Music size={18} style={{ marginRight: "0.5rem" }} />
-                    Library
-                </span>
-                <span style={styles.count}>{tracks.length} tracks</span>
+                <div style={styles.headerLeft}>
+                    <span style={styles.title}>
+                        <Music size={18} style={{ marginRight: "0.5rem" }} />
+                        Library
+                    </span>
+                    <span style={styles.count}>
+                        {filteredAndSortedTracks.length === tracks.length
+                            ? `${tracks.length} tracks`
+                            : `${filteredAndSortedTracks.length} / ${tracks.length} tracks`}
+                    </span>
+                </div>
+                <div style={styles.headerRight}>
+                    {/* Search Input */}
+                    <div style={styles.searchContainer}>
+                        <Search size={16} style={styles.searchIcon} />
+                        <input
+                            type="text"
+                            placeholder="Search artist, title..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            style={styles.searchInput}
+                        />
+                        {searchQuery && (
+                            <button
+                                type="button"
+                                onClick={() => setSearchQuery("")}
+                                style={styles.clearButton}
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                    {/* Filter Toggle */}
+                    <button
+                        type="button"
+                        onClick={() => setShowFilters(!showFilters)}
+                        style={{
+                            ...styles.filterToggle,
+                            background: showFilters || bpmFilter !== "all" ? "#3b82f6" : "#334155",
+                        }}
+                    >
+                        <Filter size={16} />
+                    </button>
+                </div>
             </div>
+
+            {/* Filter Bar */}
+            {showFilters && (
+                <div style={styles.filterBar}>
+                    <span style={styles.filterLabel}>BPM:</span>
+                    <div style={styles.filterButtons}>
+                        {(["all", "slow", "medium", "fast"] as BpmFilter[]).map((f) => (
+                            <button
+                                key={f}
+                                type="button"
+                                onClick={() => setBpmFilter(f)}
+                                style={{
+                                    ...styles.filterButton,
+                                    background: bpmFilter === f ? "#3b82f6" : "#1e293b",
+                                    color: bpmFilter === f ? "#fff" : "#94a3b8",
+                                }}
+                            >
+                                {f === "all" ? "All" : f === "slow" ? "Slow (80-95)" : f === "medium" ? "Medium (95-115)" : "Fast (115-130)"}
+                            </button>
+                        ))}
+                    </div>
+                    {bpmFilter !== "all" && (
+                        <button
+                            type="button"
+                            onClick={() => setBpmFilter("all")}
+                            style={styles.clearFilterButton}
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
+            )}
 
             <div style={styles.tableContainer}>
                 <table style={styles.table}>
@@ -270,6 +417,15 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                 </div>
                             </th>
                             <th
+                                style={{ ...styles.th, width: "60px" }}
+                                onClick={() => handleSort("duration")}
+                            >
+                                <div style={styles.thContent}>
+                                    <Clock size={14} style={{ marginRight: 4 }} />
+                                    <SortIcon columnKey="duration" />
+                                </div>
+                            </th>
+                            <th
                                 style={{ ...styles.th, width: "80px" }}
                                 onClick={() => handleSort("energy")}
                             >
@@ -281,7 +437,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                         </tr>
                     </thead>
                     <tbody>
-                        {sortedTracks.map((track) => {
+                        {filteredAndSortedTracks.map((track) => {
                             const inSet = isInSet(track.id);
                             return (
                                 <tr
@@ -330,6 +486,11 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                                     </td>
                                     <td style={{ ...styles.td, textAlign: "center" }}>
                                         {track.key || "-"}
+                                    </td>
+                                    <td style={{ ...styles.td, textAlign: "right", fontFamily: "monospace", fontSize: "0.8rem", color: "#94a3b8" }}>
+                                        {track.duration
+                                            ? `${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, "0")}`
+                                            : "-"}
                                     </td>
                                     <td style={styles.td}>
                                         <div style={styles.energyContainer}>
@@ -452,6 +613,56 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                             </div>
                         </div>
 
+                        {/* Track Performance History */}
+                        {trackPerformance && (
+                            <div style={styles.performanceSection}>
+                                <div style={styles.performanceHeader}>
+                                    <History size={16} />
+                                    <span>Performance History</span>
+                                </div>
+                                <div style={styles.performanceStats}>
+                                    <div style={styles.perfStat}>
+                                        <span style={styles.perfValue}>{trackPerformance.playCount}</span>
+                                        <span style={styles.perfLabel}>Plays</span>
+                                    </div>
+                                    <div style={styles.perfStat}>
+                                        <Flame size={14} color="#f97316" />
+                                        <span style={styles.perfValue}>{trackPerformance.peakCount}</span>
+                                        <span style={styles.perfLabel}>Peaks</span>
+                                    </div>
+                                    <div style={styles.perfStat}>
+                                        <BrickWall size={14} color="#64748b" />
+                                        <span style={styles.perfValue}>{trackPerformance.brickCount}</span>
+                                        <span style={styles.perfLabel}>Bricks</span>
+                                    </div>
+                                    <div style={styles.perfStat}>
+                                        <Heart size={14} color="#ef4444" />
+                                        <span style={styles.perfValue}>{trackPerformance.totalLikes}</span>
+                                        <span style={styles.perfLabel}>Likes</span>
+                                    </div>
+                                </div>
+                                {trackPerformance.lastNotes && (
+                                    <div style={styles.lastNotes}>
+                                        <span style={styles.notesLabel}>Last Note:</span>
+                                        <span style={styles.notesText}>{trackPerformance.lastNotes}</span>
+                                    </div>
+                                )}
+                                {trackPerformance.sessions.length > 0 && (
+                                    <div style={styles.sessionsList}>
+                                        <span style={styles.sessionsLabel}>Played in:</span>
+                                        {trackPerformance.sessions.slice(0, 3).map((s) => (
+                                            <span key={s.sessionId} style={styles.sessionTag}>
+                                                {s.sessionName || `Session ${s.sessionId}`}
+                                            </span>
+                                        ))}
+                                        {trackPerformance.sessions.length > 3 && (
+                                            <span style={styles.moreTag}>+{trackPerformance.sessions.length - 3} more</span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Action Buttons */}
                         <div style={styles.modalActions}>
                             {isInSet(selectedTrack.id) ? (
@@ -493,9 +704,20 @@ const styles: Record<string, React.CSSProperties> = {
         display: "flex",
         justifyContent: "space-between",
         alignItems: "center",
-        padding: "1rem",
+        padding: "0.75rem 1rem",
         background: "#1e293b",
         borderBottom: "1px solid #334155",
+        gap: "1rem",
+    },
+    headerLeft: {
+        display: "flex",
+        alignItems: "center",
+        gap: "1rem",
+    },
+    headerRight: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
     },
     title: {
         fontWeight: "bold",
@@ -505,7 +727,85 @@ const styles: Record<string, React.CSSProperties> = {
     },
     count: {
         opacity: 0.7,
-        fontSize: "0.875rem",
+        fontSize: "0.75rem",
+        background: "#334155",
+        padding: "0.25rem 0.5rem",
+        borderRadius: "4px",
+    },
+    searchContainer: {
+        position: "relative",
+        display: "flex",
+        alignItems: "center",
+    },
+    searchIcon: {
+        position: "absolute",
+        left: "0.5rem",
+        color: "#64748b",
+        pointerEvents: "none",
+    },
+    searchInput: {
+        width: "200px",
+        padding: "0.4rem 0.5rem 0.4rem 2rem",
+        background: "#0f172a",
+        border: "1px solid #334155",
+        borderRadius: "6px",
+        color: "#e2e8f0",
+        fontSize: "0.8rem",
+        outline: "none",
+    },
+    clearButton: {
+        position: "absolute",
+        right: "0.25rem",
+        padding: "0.25rem",
+        background: "transparent",
+        border: "none",
+        color: "#64748b",
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+    },
+    filterToggle: {
+        padding: "0.4rem",
+        border: "none",
+        borderRadius: "6px",
+        cursor: "pointer",
+        color: "#e2e8f0",
+        display: "flex",
+        alignItems: "center",
+    },
+    filterBar: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.75rem",
+        padding: "0.5rem 1rem",
+        background: "#1e293b",
+        borderBottom: "1px solid #334155",
+    },
+    filterLabel: {
+        fontSize: "0.75rem",
+        color: "#94a3b8",
+        fontWeight: 500,
+    },
+    filterButtons: {
+        display: "flex",
+        gap: "0.25rem",
+    },
+    filterButton: {
+        padding: "0.3rem 0.6rem",
+        border: "none",
+        borderRadius: "4px",
+        cursor: "pointer",
+        fontSize: "0.7rem",
+        transition: "all 0.15s",
+    },
+    clearFilterButton: {
+        padding: "0.25rem 0.5rem",
+        background: "transparent",
+        border: "1px solid #475569",
+        borderRadius: "4px",
+        color: "#94a3b8",
+        cursor: "pointer",
+        fontSize: "0.7rem",
     },
     loading: {
         padding: "2rem",
@@ -776,5 +1076,82 @@ const styles: Record<string, React.CSSProperties> = {
         borderRadius: "4px",
         fontSize: "0.75rem",
         fontWeight: "bold",
+    },
+    // Track Performance Section
+    performanceSection: {
+        padding: "1rem",
+        background: "#0f172a",
+        borderRadius: "8px",
+        border: "1px solid #1e293b",
+        marginTop: "1rem",
+    },
+    performanceHeader: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        color: "#94a3b8",
+        fontSize: "0.75rem",
+        fontWeight: "bold",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        marginBottom: "0.75rem",
+    },
+    performanceStats: {
+        display: "flex",
+        gap: "1.5rem",
+    },
+    perfStat: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.375rem",
+    },
+    perfValue: {
+        fontSize: "1rem",
+        fontWeight: "bold",
+        color: "#e2e8f0",
+    },
+    perfLabel: {
+        fontSize: "0.75rem",
+        color: "#64748b",
+    },
+    lastNotes: {
+        marginTop: "0.75rem",
+        padding: "0.5rem 0.75rem",
+        background: "#1e293b",
+        borderRadius: "6px",
+        display: "flex",
+        gap: "0.5rem",
+    },
+    notesLabel: {
+        fontSize: "0.75rem",
+        color: "#64748b",
+        flexShrink: 0,
+    },
+    notesText: {
+        fontSize: "0.75rem",
+        color: "#94a3b8",
+        fontStyle: "italic",
+    },
+    sessionsList: {
+        marginTop: "0.75rem",
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: "0.5rem",
+    },
+    sessionsLabel: {
+        fontSize: "0.75rem",
+        color: "#64748b",
+    },
+    sessionTag: {
+        padding: "0.25rem 0.5rem",
+        background: "#334155",
+        color: "#94a3b8",
+        borderRadius: "4px",
+        fontSize: "0.6875rem",
+    },
+    moreTag: {
+        fontSize: "0.6875rem",
+        color: "#64748b",
     },
 };

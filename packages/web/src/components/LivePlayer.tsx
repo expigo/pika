@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useLiveListener, type HistoryTrack } from "@/hooks/useLiveListener";
-import { Radio, Music2, Wifi, WifiOff, Heart, Clock } from "lucide-react";
+import { Radio, Music2, Wifi, WifiOff, Heart, Clock, Users } from "lucide-react";
 
 // Format relative time (e.g., "2m ago")
 function formatRelativeTime(dateString?: string): string {
@@ -63,24 +63,25 @@ interface LivePlayerProps {
 }
 
 export function LivePlayer({ targetSessionId }: LivePlayerProps) {
-    const { status, currentTrack, djName, sessionId, history, sendLike } = useLiveListener(targetSessionId);
-    const [liked, setLiked] = useState(false);
-    const [cooldown, setCooldown] = useState(false);
+    const { status, currentTrack, djName, sessionId, history, listenerCount, sendLike, hasLiked } = useLiveListener(targetSessionId);
+    const [likeAnimating, setLikeAnimating] = useState(false);
 
     const isConnected = status === "connected";
     const hasTrack = currentTrack !== null;
     const isLive = isConnected && (hasTrack || djName);
     const isTargetedSession = !!targetSessionId;
 
+    // Check if current track has been liked
+    const isLiked = currentTrack ? hasLiked(currentTrack) : false;
+
     const handleLike = () => {
-        if (!currentTrack || cooldown) return;
+        if (!currentTrack || isLiked) return;
 
-        sendLike(currentTrack);
-        setLiked(true);
-        setCooldown(true);
-
-        setTimeout(() => setLiked(false), 1000);
-        setTimeout(() => setCooldown(false), 2000);
+        const sent = sendLike(currentTrack);
+        if (sent) {
+            setLikeAnimating(true);
+            setTimeout(() => setLikeAnimating(false), 1000);
+        }
     };
 
     return (
@@ -100,11 +101,19 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                             Pika! <span className="text-red-500">Live</span>
                         </h1>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
+                        {/* Listener count */}
+                        {isConnected && listenerCount > 0 && (
+                            <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/15 rounded-lg border border-emerald-500/30">
+                                <Users className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-xs text-emerald-400 font-medium">{listenerCount}</span>
+                            </div>
+                        )}
+                        {/* Connection status */}
                         {isConnected ? (
                             <>
                                 <Wifi className="w-4 h-4 text-green-400" />
-                                <span className="text-xs text-green-400 font-medium">Connected</span>
+                                <span className="text-xs text-green-400 font-medium">Live</span>
                             </>
                         ) : (
                             <>
@@ -137,23 +146,23 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                             {/* Like Button */}
                             <button
                                 onClick={handleLike}
-                                disabled={cooldown}
-                                className={`mt-6 p-4 rounded-full transition-all duration-300 ${liked
-                                    ? "bg-red-500 scale-125"
-                                    : cooldown
-                                        ? "bg-slate-700/50 cursor-not-allowed"
+                                disabled={isLiked}
+                                className={`mt-6 p-4 rounded-full transition-all duration-300 ${isLiked
+                                    ? "bg-red-500/30 cursor-default"
+                                    : likeAnimating
+                                        ? "bg-red-500 scale-125"
                                         : "bg-slate-700/50 hover:bg-red-500/20 hover:scale-110 active:scale-95"
                                     }`}
                             >
                                 <Heart
-                                    className={`w-8 h-8 transition-all duration-300 ${liked
-                                        ? "text-white fill-white"
+                                    className={`w-8 h-8 transition-all duration-300 ${isLiked || likeAnimating
+                                        ? "text-red-400 fill-red-400"
                                         : "text-red-400"
                                         }`}
                                 />
                             </button>
                             <p className="text-xs text-slate-500 mt-2">
-                                {liked ? "Liked! ❤️" : "Tap to like"}
+                                {isLiked ? "Liked! ❤️" : "Tap to like"}
                             </p>
                         </>
                     ) : djName ? (

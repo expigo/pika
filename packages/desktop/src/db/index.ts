@@ -12,6 +12,8 @@ async function initializeDb(): Promise<void> {
 
     try {
         sqliteInstance = await Database.load("sqlite:pika.db");
+
+        // Create tracks table
         await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS tracks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -25,9 +27,47 @@ async function initializeDb(): Promise<void> {
                 brightness REAL,
                 acousticness REAL,
                 groove REAL,
+                duration INTEGER,
                 analyzed INTEGER DEFAULT 0
             );
         `);
+
+        // Migration: Add duration column if it doesn't exist (for existing databases)
+        try {
+            await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN duration INTEGER;`);
+            console.log("Migration: Added duration column to tracks table");
+        } catch {
+            // Column already exists, ignore error
+        }
+
+        // Create sessions table (Logbook)
+        await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                uuid TEXT NOT NULL UNIQUE,
+                dj_identity TEXT DEFAULT 'Default',
+                name TEXT,
+                started_at INTEGER NOT NULL,
+                ended_at INTEGER
+            );
+        `);
+
+        // Create plays table (Track history within sessions)
+        await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS plays (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id INTEGER NOT NULL,
+                track_id INTEGER NOT NULL,
+                played_at INTEGER NOT NULL,
+                duration INTEGER,
+                reaction TEXT DEFAULT 'neutral',
+                notes TEXT,
+                dancer_likes INTEGER DEFAULT 0,
+                FOREIGN KEY (session_id) REFERENCES sessions(id),
+                FOREIGN KEY (track_id) REFERENCES tracks(id)
+            );
+        `);
+
         console.log("Database initialized successfully");
     } catch (e) {
         console.error("Failed to initialize database:", e);
