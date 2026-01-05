@@ -20,6 +20,7 @@ import { GripVertical, Trash2, ListMusic, Zap, Music, TriangleAlert } from "luci
 import { useSetStore, getSetStats } from "../hooks/useSetBuilder";
 import { EnergyWave } from "./EnergyWave";
 import { TrackFingerprint, type FingerprintMetrics } from "./TrackFingerprint";
+import { SaveLoadSets } from "./SaveLoadSets";
 import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
 import type { Track } from "../db/repositories/trackRepository";
 
@@ -184,15 +185,18 @@ export function SetCanvas() {
                     <ListMusic size={20} />
                     <span>Set Builder</span>
                 </div>
-                {activeSet.length > 0 && (
-                    <button
-                        type="button"
-                        onClick={clearSet}
-                        style={styles.clearButton}
-                    >
-                        Clear All
-                    </button>
-                )}
+                <div style={styles.headerActions}>
+                    <SaveLoadSets />
+                    {activeSet.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={clearSet}
+                            style={styles.clearButton}
+                        >
+                            Clear All
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Energy Wave Visualization */}
@@ -300,6 +304,11 @@ const styles: Record<string, React.CSSProperties> = {
         alignItems: "center",
         gap: "0.5rem",
         fontWeight: "bold",
+    },
+    headerActions: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
     },
     clearButton: {
         padding: "0.25rem 0.75rem",

@@ -40,10 +40,12 @@ export const playedTracks = pgTable("played_tracks", {
 
 /**
  * Listener likes for tracks during a session.
+ * clientId allows tracking "my likes" for each dancer (browser-based identity).
  */
 export const likes = pgTable("likes", {
     id: serial("id").primaryKey(),
     sessionId: text("session_id").references(() => sessions.id),
+    clientId: text("client_id"),  // Browser-based identity for "my likes"
     trackArtist: text("track_artist").notNull(),
     trackTitle: text("track_title").notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),

@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useLiveListener, type HistoryTrack } from "@/hooks/useLiveListener";
-import { Radio, Music2, Wifi, WifiOff, Heart, Clock, Users } from "lucide-react";
+import { Radio, Music2, Wifi, WifiOff, Heart, Clock, Users, ChevronDown, ChevronUp, Check, Share2, X } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 // Format relative time (e.g., "2m ago")
 function formatRelativeTime(dateString?: string): string {
@@ -63,13 +64,28 @@ interface LivePlayerProps {
 }
 
 export function LivePlayer({ targetSessionId }: LivePlayerProps) {
-    const { status, currentTrack, djName, sessionId, history, listenerCount, sendLike, hasLiked } = useLiveListener(targetSessionId);
+    const {
+        status,
+        currentTrack,
+        djName,
+        sessionId,
+        history,
+        listenerCount,
+        sendLike,
+        hasLiked,
+        sendTempoRequest,
+        tempoVote
+    } = useLiveListener(targetSessionId);
     const [likeAnimating, setLikeAnimating] = useState(false);
+    const [showQR, setShowQR] = useState(false);
 
     const isConnected = status === "connected";
     const hasTrack = currentTrack !== null;
     const isLive = isConnected && (hasTrack || djName);
     const isTargetedSession = !!targetSessionId;
+
+    // Get current page URL for sharing
+    const shareUrl = typeof window !== "undefined" ? window.location.href : "";
 
     // Check if current track has been liked
     const isLiked = currentTrack ? hasLiked(currentTrack) : false;
@@ -81,6 +97,26 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
         if (sent) {
             setLikeAnimating(true);
             setTimeout(() => setLikeAnimating(false), 1000);
+        }
+    };
+
+    const handleShare = async () => {
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: `Pika! Live - ${djName || "DJ"}`,
+                    text: currentTrack
+                        ? `Now playing: ${currentTrack.artist} - ${currentTrack.title}`
+                        : `Join the live session with ${djName}!`,
+                    url: shareUrl,
+                });
+            } catch (e) {
+                // User cancelled or error, show QR as fallback
+                setShowQR(true);
+            }
+        } else {
+            // No native share, show QR code
+            setShowQR(true);
         }
     };
 
@@ -102,6 +138,16 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                         </h1>
                     </div>
                     <div className="flex items-center gap-3">
+                        {/* Share button - only when live */}
+                        {isLive && (
+                            <button
+                                onClick={handleShare}
+                                className="p-2 bg-slate-700/50 hover:bg-slate-600/50 rounded-lg transition-colors"
+                                title="Share this session"
+                            >
+                                <Share2 className="w-4 h-4 text-slate-300" />
+                            </button>
+                        )}
                         {/* Listener count */}
                         {isConnected && listenerCount > 0 && (
                             <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-500/15 rounded-lg border border-emerald-500/30">
@@ -164,6 +210,40 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                             <p className="text-xs text-slate-500 mt-2">
                                 {isLiked ? "Liked! ❤️" : "Tap to like"}
                             </p>
+
+                            {/* Tempo Preference Buttons */}
+                            <div className="mt-6 flex items-center gap-2">
+                                <button
+                                    onClick={() => sendTempoRequest("slower")}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 ${tempoVote === "slower"
+                                        ? "bg-blue-500/30 text-blue-400 border border-blue-500/50"
+                                        : "bg-slate-700/50 text-slate-400 hover:bg-blue-500/20 hover:text-blue-300"
+                                        }`}
+                                >
+                                    {tempoVote === "slower" && <Check className="w-3 h-3" />}
+                                    🐢 Slower
+                                </button>
+                                <button
+                                    onClick={() => sendTempoRequest("perfect")}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 ${tempoVote === "perfect"
+                                        ? "bg-green-500/30 text-green-400 border border-green-500/50"
+                                        : "bg-slate-700/50 text-slate-400 hover:bg-green-500/20 hover:text-green-300"
+                                        }`}
+                                >
+                                    {tempoVote === "perfect" && <Check className="w-3 h-3" />}
+                                    👌 Perfect
+                                </button>
+                                <button
+                                    onClick={() => sendTempoRequest("faster")}
+                                    className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-sm font-medium transition-all duration-200 ${tempoVote === "faster"
+                                        ? "bg-orange-500/30 text-orange-400 border border-orange-500/50"
+                                        : "bg-slate-700/50 text-slate-400 hover:bg-orange-500/20 hover:text-orange-300"
+                                        }`}
+                                >
+                                    {tempoVote === "faster" && <Check className="w-3 h-3" />}
+                                    🐇 Faster
+                                </button>
+                            </div>
                         </>
                     ) : djName ? (
                         <>
@@ -214,12 +294,66 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 <HistoryList tracks={history} />
 
                 {/* Footer */}
-                <div className="px-6 py-3 border-t border-slate-700/50 flex items-center justify-center">
+                <div className="px-6 py-3 border-t border-slate-700/50 flex items-center justify-between">
+                    <a
+                        href="/my-likes"
+                        className="text-xs text-red-400 hover:text-red-300 transition-colors flex items-center gap-1"
+                    >
+                        <Heart className="w-3 h-3 fill-current" />
+                        My Likes
+                    </a>
                     <p className="text-xs text-slate-500">
                         Powered by <span className="font-semibold text-slate-400">Pika!</span>
                     </p>
                 </div>
             </div>
+
+            {/* QR Code Share Modal */}
+            {showQR && (
+                <div
+                    className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
+                    onClick={() => setShowQR(false)}
+                >
+                    <div
+                        className="bg-slate-800 rounded-3xl border border-slate-700 p-6 max-w-sm w-full"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-white">Share Session</h3>
+                            <button
+                                onClick={() => setShowQR(false)}
+                                className="p-1 text-slate-400 hover:text-white transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="flex justify-center mb-4">
+                            <div className="bg-white p-4 rounded-2xl">
+                                <QRCodeSVG
+                                    value={shareUrl}
+                                    size={200}
+                                    level="M"
+                                />
+                            </div>
+                        </div>
+
+                        <p className="text-center text-slate-400 text-sm mb-4">
+                            Scan to join the party! 🎧
+                        </p>
+
+                        <button
+                            onClick={async () => {
+                                await navigator.clipboard.writeText(shareUrl);
+                                // Could add toast notification here
+                            }}
+                            className="w-full py-3 bg-gradient-to-r from-red-500 to-pink-500 rounded-xl text-white font-semibold hover:opacity-90 transition-opacity"
+                        >
+                            Copy Link
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

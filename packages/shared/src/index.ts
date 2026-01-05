@@ -43,3 +43,11 @@ export {
     parseWebSocketMessage,
     parseAnalysisResult,
 } from "./schemas";
+
+// Re-export slug utilities
+export {
+    slugify,
+    isReservedSlug,
+    validateDjSlug,
+    RESERVED_SLUGS,
+} from "./slugify";

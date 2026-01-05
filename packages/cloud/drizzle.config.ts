@@ -5,6 +5,6 @@ export default defineConfig({
     out: "./drizzle",
     dialect: "postgresql",
     dbCredentials: {
-        url: process.env["DATABASE_URL"] || "postgres://postgres:postgres@localhost:5433/pika",
+        url: process.env["DATABASE_URL"] || "postgres://pika:pika@localhost:5433/pika_cloud",
     },
 });

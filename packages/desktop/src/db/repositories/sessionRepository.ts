@@ -14,6 +14,7 @@ import { sessions, plays, type PlayReaction } from "../schema";
 export interface Session {
     id: number;
     uuid: string;
+    cloudSessionId: string | null;
     djIdentity: string;
     name: string | null;
     startedAt: number;
@@ -94,6 +95,7 @@ export const sessionRepository = {
         return {
             id: row.id as number,
             uuid: row.uuid as string,
+            cloudSessionId: row.cloud_session_id as string | null,
             djIdentity: row.dj_identity as string,
             name: row.name as string | null,
             startedAt: row.started_at as number,
@@ -108,6 +110,16 @@ export const sessionRepository = {
         await db
             .update(sessions)
             .set({ endedAt: now() })
+            .where(eq(sessions.id, sessionId));
+    },
+
+    /**
+     * Set the cloud session ID for a session (for recap link)
+     */
+    async setCloudSessionId(sessionId: number, cloudSessionId: string): Promise<void> {
+        await db
+            .update(sessions)
+            .set({ cloudSessionId })
             .where(eq(sessions.id, sessionId));
     },
 
@@ -127,6 +139,7 @@ export const sessionRepository = {
         return {
             id: row.id as number,
             uuid: row.uuid as string,
+            cloudSessionId: row.cloud_session_id as string | null,
             djIdentity: row.dj_identity as string,
             name: row.name as string | null,
             startedAt: row.started_at as number,
@@ -150,6 +163,7 @@ export const sessionRepository = {
         return {
             id: row.id as number,
             uuid: row.uuid as string,
+            cloudSessionId: row.cloud_session_id as string | null,
             djIdentity: row.dj_identity as string,
             name: row.name as string | null,
             startedAt: row.started_at as number,
@@ -170,6 +184,7 @@ export const sessionRepository = {
         return result.map((row) => ({
             id: row.id as number,
             uuid: row.uuid as string,
+            cloudSessionId: row.cloud_session_id as string | null,
             djIdentity: row.dj_identity as string,
             name: row.name as string | null,
             startedAt: row.started_at as number,

@@ -18,7 +18,7 @@ type ViewMode = "builder" | "logbook";
 
 function App() {
   const { status, baseUrl, healthData, error, restart } = useSidecar();
-  const { isLive } = useLiveSession();
+  const { isLive, listenerCount, tempoFeedback } = useLiveSession();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("builder");
@@ -40,7 +40,11 @@ function App() {
     <div style={styles.appContainer}>
       {/* Performance Mode Overlay */}
       {isPerformanceMode && (
-        <LivePerformanceMode onExit={() => setIsPerformanceMode(false)} />
+        <LivePerformanceMode
+          onExit={() => setIsPerformanceMode(false)}
+          listenerCount={listenerCount}
+          tempoFeedback={tempoFeedback}
+        />
       )}
 
       {/* Toast notifications */}

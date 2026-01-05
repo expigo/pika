@@ -12,15 +12,27 @@ import {
     Music,
     Activity,
     Heart,
+    Users,
+    Gauge,
 } from "lucide-react";
 import { useActivePlay } from "../hooks/useActivePlay";
 import type { PlayReaction } from "../db/schema";
 
-interface Props {
-    onExit: () => void;
+export interface TempoFeedback {
+    slower: number;
+    perfect: number;
+    faster: number;
+    total: number;
 }
 
-export function LivePerformanceMode({ onExit }: Props) {
+interface Props {
+    onExit: () => void;
+    listenerCount?: number;
+    tempoFeedback?: TempoFeedback | null;
+    liveLikes?: number; // Real-time likes from cloud
+}
+
+export function LivePerformanceMode({ onExit, listenerCount = 0, tempoFeedback, liveLikes = 0 }: Props) {
     const {
         currentPlay,
         recentPlays,
@@ -58,6 +70,32 @@ export function LivePerformanceMode({ onExit }: Props) {
                     <span style={styles.liveDot} />
                     <span style={styles.liveText}>LIVE</span>
                     <span style={styles.playCount}>{playCount} tracks played</span>
+
+                    {/* Listener Count */}
+                    {listenerCount > 0 && (
+                        <span style={styles.listenerBadge}>
+                            <Users size={14} />
+                            {listenerCount}
+                        </span>
+                    )}
+
+                    {/* Tempo Feedback */}
+                    {tempoFeedback && tempoFeedback.total > 0 && (
+                        <span style={styles.tempoBadge}>
+                            <Gauge size={14} />
+                            {tempoFeedback.slower > 0 && <span style={styles.tempoSlower}>🐢{tempoFeedback.slower}</span>}
+                            {tempoFeedback.perfect > 0 && <span style={styles.tempoPerfect}>👌{tempoFeedback.perfect}</span>}
+                            {tempoFeedback.faster > 0 && <span style={styles.tempoFaster}>🐇{tempoFeedback.faster}</span>}
+                        </span>
+                    )}
+
+                    {/* Live Likes */}
+                    {liveLikes > 0 && (
+                        <span style={styles.livelikesBadge}>
+                            <Heart size={14} fill="#ef4444" color="#ef4444" />
+                            {liveLikes}
+                        </span>
+                    )}
                 </div>
 
                 <button
@@ -186,22 +224,24 @@ export function LivePerformanceMode({ onExit }: Props) {
                 </button>
             </footer>
 
-            {/* Recent Plays (Mini Timeline) */}
-            <div style={styles.timeline}>
-                {recentPlays.slice(-5).map((play, idx) => (
-                    <div
-                        key={play.id}
-                        style={{
-                            ...styles.timelineItem,
-                            opacity: idx === recentPlays.slice(-5).length - 1 ? 1 : 0.5,
-                        }}
-                    >
-                        {play.reaction === "peak" && "🔥"}
-                        {play.reaction === "brick" && "🧱"}
-                        {play.reaction === "neutral" && "•"}
-                    </div>
-                ))}
-            </div>
+            {/* Recent Plays (Mini Timeline) - Shows previous plays, not current */}
+            {recentPlays.length > 1 && (
+                <div style={styles.timeline}>
+                    {recentPlays.slice(-6, -1).map((play, idx, arr) => (
+                        <div
+                            key={play.id}
+                            style={{
+                                ...styles.timelineItem,
+                                opacity: idx === arr.length - 1 ? 0.7 : 0.4,
+                            }}
+                        >
+                            {play.reaction === "peak" && "🔥"}
+                            {play.reaction === "brick" && "🧱"}
+                            {play.reaction === "neutral" && "•"}
+                        </div>
+                    ))}
+                </div>
+            )}
 
             {/* Note Modal */}
             {showNoteModal && (
@@ -287,6 +327,51 @@ const styles: Record<string, React.CSSProperties> = {
         fontSize: "0.875rem",
         color: "#71717a",
         marginLeft: "1rem",
+    },
+    listenerBadge: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.4rem",
+        padding: "0.3rem 0.6rem",
+        background: "rgba(34, 197, 94, 0.2)",
+        border: "1px solid rgba(34, 197, 94, 0.4)",
+        borderRadius: "6px",
+        color: "#22c55e",
+        fontSize: "0.875rem",
+        marginLeft: "0.5rem",
+    },
+    tempoBadge: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.4rem",
+        padding: "0.3rem 0.6rem",
+        background: "rgba(139, 92, 246, 0.2)",
+        border: "1px solid rgba(139, 92, 246, 0.4)",
+        borderRadius: "6px",
+        color: "#a78bfa",
+        fontSize: "0.875rem",
+        marginLeft: "0.5rem",
+    },
+    tempoSlower: {
+        color: "#60a5fa",
+    },
+    tempoPerfect: {
+        color: "#34d399",
+    },
+    tempoFaster: {
+        color: "#f97316",
+    },
+    livelikesBadge: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.4rem",
+        padding: "0.3rem 0.6rem",
+        background: "rgba(239, 68, 68, 0.2)",
+        border: "1px solid rgba(239, 68, 68, 0.4)",
+        borderRadius: "6px",
+        color: "#ef4444",
+        fontSize: "0.875rem",
+        marginLeft: "0.5rem",
     },
     exitButton: {
         display: "flex",
@@ -419,7 +504,7 @@ const styles: Record<string, React.CSSProperties> = {
     },
     timeline: {
         position: "absolute",
-        bottom: "8rem",
+        bottom: "12rem", // Moved higher to avoid overlapping with footer buttons
         left: "50%",
         transform: "translateX(-50%)",
         display: "flex",

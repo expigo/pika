@@ -154,7 +154,28 @@ export const LikeReceivedSchema = z.object({
 
 export const ListenerCountSchema = z.object({
     type: z.literal("LISTENER_COUNT"),
+    sessionId: z.string().optional(), // Per-session listener count
     count: z.number(),
+});
+
+// Tempo preference type (includes "clear" for toggle-off)
+export const TempoPreferenceSchema = z.enum(["faster", "slower", "perfect", "clear"]);
+export type TempoPreference = z.infer<typeof TempoPreferenceSchema>;
+
+// Client -> Server: Dancer sends tempo preference
+export const SendTempoRequestSchema = z.object({
+    type: z.literal("SEND_TEMPO_REQUEST"),
+    sessionId: z.string(),
+    preference: TempoPreferenceSchema,
+});
+
+// Server -> DJ: Aggregated tempo feedback
+export const TempoFeedbackSchema = z.object({
+    type: z.literal("TEMPO_FEEDBACK"),
+    faster: z.number(),   // count of "faster" votes
+    slower: z.number(),   // count of "slower" votes
+    perfect: z.number(),  // count of "perfect" votes
+    total: z.number(),    // total votes
 });
 
 // ============================================================================
@@ -171,6 +192,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     EndSessionSchema,
     SubscribeSchema,
     SendLikeSchema,
+    SendTempoRequestSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -186,6 +208,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
     SessionsListSchema,
     LikeReceivedSchema,
     ListenerCountSchema,
+    TempoFeedbackSchema,
     TrackStoppedSchema, // Can also come from server
 ]);
 

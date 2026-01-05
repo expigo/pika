@@ -18,6 +18,7 @@ import {
     Search,
     Filter,
     Clock,
+    CheckSquare,
 } from "lucide-react";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
@@ -51,6 +52,10 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
     const [searchQuery, setSearchQuery] = useState("");
     const [bpmFilter, setBpmFilter] = useState<BpmFilter>("all");
     const [showFilters, setShowFilters] = useState(false);
+
+    // Multi-select state
+    const [selectedTrackIds, setSelectedTrackIds] = useState<Set<number>>(new Set());
+    const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(null);
 
     const addTrack = useSetStore((state) => state.addTrack);
     const activeSet = useSetStore((state) => state.activeSet);
@@ -172,6 +177,84 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
         });
         return sorted;
     }, [tracks, searchQuery, bpmFilter, sortKey, sortDirection]);
+
+    // Keyboard shortcuts for selection
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Escape: Clear selection
+            if (e.key === "Escape" && selectedTrackIds.size > 0) {
+                setSelectedTrackIds(new Set());
+                setLastSelectedIndex(null);
+            }
+            // Cmd/Ctrl+A: Select all visible tracks (when not in input)
+            if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+                const activeEl = document.activeElement;
+                const isInput = activeEl?.tagName === "INPUT" || activeEl?.tagName === "TEXTAREA";
+                if (!isInput && filteredAndSortedTracks.length > 0) {
+                    e.preventDefault();
+                    const allIds = new Set(filteredAndSortedTracks.map((t) => t.id));
+                    setSelectedTrackIds(allIds);
+                }
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [selectedTrackIds.size, filteredAndSortedTracks]);
+
+    // Multi-select handler
+    const handleRowClick = (
+        e: React.MouseEvent,
+        trackId: number,
+        currentIndex: number
+    ) => {
+        const isMetaKey = e.metaKey || e.ctrlKey;
+        const isShiftKey = e.shiftKey;
+
+        if (isMetaKey) {
+            // Cmd/Ctrl+Click: Toggle individual selection
+            setSelectedTrackIds((prev) => {
+                const next = new Set(prev);
+                if (next.has(trackId)) {
+                    next.delete(trackId);
+                } else {
+                    next.add(trackId);
+                }
+                return next;
+            });
+            setLastSelectedIndex(currentIndex);
+        } else if (isShiftKey && lastSelectedIndex !== null) {
+            // Shift+Click: Range selection
+            const start = Math.min(lastSelectedIndex, currentIndex);
+            const end = Math.max(lastSelectedIndex, currentIndex);
+            const rangeIds = filteredAndSortedTracks
+                .slice(start, end + 1)
+                .map((t) => t.id);
+            setSelectedTrackIds((prev) => {
+                const next = new Set(prev);
+                rangeIds.forEach((id) => next.add(id));
+                return next;
+            });
+        } else {
+            // Plain click: Single select (clear others)
+            setSelectedTrackIds(new Set([trackId]));
+            setLastSelectedIndex(currentIndex);
+        }
+    };
+
+    // Clear selection
+    const clearSelection = () => {
+        setSelectedTrackIds(new Set());
+        setLastSelectedIndex(null);
+    };
+
+    // Add all selected tracks to set
+    const addSelectedToSet = () => {
+        const selectedTracks = filteredAndSortedTracks.filter((t) =>
+            selectedTrackIds.has(t.id)
+        );
+        selectedTracks.forEach((track) => addTrack(track));
+        clearSelection();
+    };
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) {
@@ -380,6 +463,34 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                 </div>
             )}
 
+            {/* Selection Toolbar */}
+            {selectedTrackIds.size > 0 && (
+                <div style={styles.selectionToolbar}>
+                    <div style={styles.selectionInfo}>
+                        <CheckSquare size={16} />
+                        <span>{selectedTrackIds.size} selected</span>
+                    </div>
+                    <div style={styles.selectionActions}>
+                        <button
+                            type="button"
+                            onClick={addSelectedToSet}
+                            style={styles.selectionButton}
+                        >
+                            <Plus size={14} />
+                            Add to Set
+                        </button>
+                        <button
+                            type="button"
+                            onClick={clearSelection}
+                            style={styles.selectionButtonSecondary}
+                        >
+                            <X size={14} />
+                            Clear
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <div style={styles.tableContainer}>
                 <table style={styles.table}>
                     <thead>
@@ -437,14 +548,18 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredAndSortedTracks.map((track) => {
+                        {filteredAndSortedTracks.map((track, index) => {
                             const inSet = isInSet(track.id);
+                            const isSelected = selectedTrackIds.has(track.id);
                             return (
                                 <tr
                                     key={track.id}
+                                    onClick={(e) => handleRowClick(e, track.id, index)}
                                     style={{
                                         ...styles.tr,
                                         opacity: inSet ? 0.5 : 1,
+                                        background: isSelected ? "rgba(59, 130, 246, 0.2)" : "transparent",
+                                        cursor: "pointer",
                                     }}
                                 >
                                     <td style={styles.td}>
@@ -806,6 +921,52 @@ const styles: Record<string, React.CSSProperties> = {
         color: "#94a3b8",
         cursor: "pointer",
         fontSize: "0.7rem",
+    },
+    selectionToolbar: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        padding: "0.5rem 1rem",
+        background: "linear-gradient(135deg, #1e40af 0%, #3b82f6 100%)",
+        borderBottom: "1px solid #2563eb",
+    },
+    selectionInfo: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        color: "#fff",
+        fontWeight: 600,
+        fontSize: "0.85rem",
+    },
+    selectionActions: {
+        display: "flex",
+        gap: "0.5rem",
+    },
+    selectionButton: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.35rem",
+        padding: "0.4rem 0.75rem",
+        background: "#fff",
+        border: "none",
+        borderRadius: "6px",
+        color: "#1e40af",
+        fontWeight: 600,
+        fontSize: "0.8rem",
+        cursor: "pointer",
+    },
+    selectionButtonSecondary: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.35rem",
+        padding: "0.4rem 0.75rem",
+        background: "transparent",
+        border: "1px solid rgba(255,255,255,0.4)",
+        borderRadius: "6px",
+        color: "#fff",
+        fontWeight: 500,
+        fontSize: "0.8rem",
+        cursor: "pointer",
     },
     loading: {
         padding: "2rem",

@@ -38,6 +38,9 @@ export const sessions = sqliteTable("sessions", {
     /** Unique UUID for cloud sync */
     uuid: text("uuid").notNull().unique(),
 
+    /** Cloud session ID (pika_xxx format) for recap link */
+    cloudSessionId: text("cloud_session_id"),
+
     /** DJ identity name (for multi-DJ setups) */
     djIdentity: text("dj_identity").default("Default"),
 
@@ -81,4 +84,41 @@ export const plays = sqliteTable("plays", {
 
     /** Count of likes from live listeners */
     dancerLikes: int("dancer_likes").default(0),
+});
+
+// ============================================================================
+// Saved Sets Table - Named Playlists
+// ============================================================================
+
+export const savedSets = sqliteTable("saved_sets", {
+    id: int("id").primaryKey({ autoIncrement: true }),
+
+    /** Name of the saved set */
+    name: text("name").notNull(),
+
+    /** Optional description/notes */
+    description: text("description"),
+
+    /** Unix timestamp when set was created */
+    createdAt: int("created_at").notNull(),
+
+    /** Unix timestamp when set was last modified */
+    updatedAt: int("updated_at").notNull(),
+});
+
+// ============================================================================
+// Saved Set Tracks - Track Order Within Saved Sets
+// ============================================================================
+
+export const savedSetTracks = sqliteTable("saved_set_tracks", {
+    id: int("id").primaryKey({ autoIncrement: true }),
+
+    /** Reference to the saved set */
+    setId: int("set_id").notNull(),
+
+    /** Reference to the track */
+    trackId: int("track_id").notNull(),
+
+    /** Position in the set (0-indexed) */
+    position: int("position").notNull(),
 });

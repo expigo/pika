@@ -16,8 +16,11 @@ import {
     Heart,
     Trash2,
     BarChart3,
+    Link2,
+    Check,
 } from "lucide-react";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { toast } from "sonner";
 import {
     sessionRepository,
     type Session,
@@ -25,6 +28,7 @@ import {
     type PlayWithTrack,
     type AllSessionsSummary,
 } from "../db/repositories/sessionRepository";
+import { getRecapUrl } from "../config";
 
 // ============================================================================
 // Helper Functions
@@ -147,6 +151,7 @@ export function Logbook() {
     const [summary, setSummary] = useState<AllSessionsSummary | null>(null);
     const [loading, setLoading] = useState(true);
     const [showSummary, setShowSummary] = useState(false);
+    const [recapCopied, setRecapCopied] = useState(false);
 
     // Load all sessions and summary
     useEffect(() => {
@@ -193,6 +198,16 @@ export function Logbook() {
     const handleExportCsv = useCallback(() => {
         if (!sessionDetails) return;
         downloadCsv(sessionDetails.session, sessionDetails.plays);
+    }, [sessionDetails]);
+
+    const handleCopyRecapLink = useCallback(async () => {
+        if (!sessionDetails?.session.cloudSessionId) return;
+
+        const recapUrl = getRecapUrl(sessionDetails.session.cloudSessionId);
+        await navigator.clipboard.writeText(recapUrl);
+        setRecapCopied(true);
+        toast.success("Recap link copied to clipboard!");
+        setTimeout(() => setRecapCopied(false), 2000);
     }, [sessionDetails]);
 
     const handleDeleteSession = useCallback(async (sessionId: number) => {
@@ -459,14 +474,28 @@ export function Logbook() {
                                     {formatTime(sessionDetails.session.startedAt)}
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={handleExportCsv}
-                                style={styles.exportButton}
-                            >
-                                <Download size={16} />
-                                Export CSV
-                            </button>
+                            <div style={styles.headerActions}>
+                                {/* Recap Link Button (only if cloud session ID exists) */}
+                                {sessionDetails.session.cloudSessionId && (
+                                    <button
+                                        type="button"
+                                        onClick={handleCopyRecapLink}
+                                        style={styles.recapButton}
+                                        title="Copy public recap link"
+                                    >
+                                        {recapCopied ? <Check size={16} /> : <Link2 size={16} />}
+                                        {recapCopied ? "Copied!" : "Recap Link"}
+                                    </button>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={handleExportCsv}
+                                    style={styles.exportButton}
+                                >
+                                    <Download size={16} />
+                                    Export CSV
+                                </button>
+                            </div>
                         </div>
 
                         {/* Stats */}
@@ -696,6 +725,24 @@ const styles: Record<string, React.CSSProperties> = {
         margin: "0.25rem 0 0",
         fontSize: "0.875rem",
         color: "#64748b",
+    },
+    headerActions: {
+        display: "flex",
+        gap: "0.5rem",
+        alignItems: "center",
+    },
+    recapButton: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.625rem 1rem",
+        background: "#3b82f6",
+        color: "white",
+        border: "none",
+        borderRadius: "8px",
+        fontSize: "0.875rem",
+        fontWeight: "bold",
+        cursor: "pointer",
     },
     exportButton: {
         display: "flex",

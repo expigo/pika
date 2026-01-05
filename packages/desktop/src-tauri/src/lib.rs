@@ -21,13 +21,22 @@ struct VirtualDJSong {
     tags: Option<VirtualDJTags>,
     #[serde(rename = "Scan", default)]
     scan: Option<VirtualDJScan>,
-    // Ignore other elements by not parsing them
     #[serde(rename = "Infos", default)]
-    _infos: Option<serde::de::IgnoredAny>,
+    infos: Option<VirtualDJInfos>,
     #[serde(rename = "Comment", default)]
     _comment: Option<serde::de::IgnoredAny>,
     #[serde(rename = "Poi", default)]
     _poi: Vec<serde::de::IgnoredAny>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct VirtualDJInfos {
+    #[serde(rename = "@SongLength", default)]
+    song_length: Option<String>,
+    #[serde(rename = "@FirstSeen", default)]
+    first_seen: Option<String>,
+    #[serde(rename = "@PlayCount", default)]
+    play_count: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -74,6 +83,7 @@ pub struct VirtualDJTrack {
     title: Option<String>,
     bpm: Option<String>,
     key: Option<String>,
+    duration: Option<i32>,
 }
 
 /// Convert VirtualDJ BPM format to actual BPM
@@ -96,12 +106,19 @@ impl From<VirtualDJSong> for VirtualDJTrack {
             .and_then(|s| s.bpm.as_ref())
             .and_then(|b| convert_virtualdj_bpm(b));
         
+        // Parse duration from Infos.SongLength (stored as float seconds)
+        let duration = song.infos.as_ref()
+            .and_then(|i| i.song_length.as_ref())
+            .and_then(|s| s.parse::<f64>().ok())
+            .map(|d| d.round() as i32);
+        
         VirtualDJTrack {
             file_path: song.file_path,
             artist: song.tags.as_ref().and_then(|t| t.author.clone()),
             title: song.tags.as_ref().and_then(|t| t.title.clone()),
             bpm,
             key: song.scan.as_ref().and_then(|s| s.key.clone()),
+            duration,
         }
     }
 }
@@ -189,6 +206,22 @@ fn read_virtualdj_history() -> Result<Option<HistoryTrack>, String> {
     }))
 }
 
+/// Get the local network IP address for LAN sharing
+/// Returns the first non-loopback IPv4 address found
+#[tauri::command]
+fn get_local_ip() -> Option<String> {
+    use std::net::UdpSocket;
+    
+    // This is a common trick to find the local IP:
+    // We create a UDP socket and "connect" to an external address
+    // Then we get the local address of this socket
+    // The connection doesn't actually send any data
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let addr = socket.local_addr().ok()?;
+    Some(addr.ip().to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -198,7 +231,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![import_virtualdj_library, read_virtualdj_history])
+        .invoke_handler(tauri::generate_handler![import_virtualdj_library, read_virtualdj_history, get_local_ip])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

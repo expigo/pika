@@ -2,7 +2,7 @@ import { useEffect, useCallback, useRef } from "react";
 import { create } from "zustand";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
-import { parseWebSocketMessage } from "@pika/shared";
+import { parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import {
     virtualDjWatcher,
     toTrackInfo,
@@ -10,6 +10,7 @@ import {
 } from "../services/virtualDjWatcher";
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
+import { getDjName } from "./useDjSettings";
 
 // Cloud server URL - use env variable in production
 const CLOUD_WS_URL = import.meta.env.VITE_CLOUD_WS_URL || "ws://localhost:3001/ws";
@@ -30,6 +31,7 @@ interface LiveSessionStore {
     dbSessionId: number | null;    // Database session ID for history/plays
     currentPlayId: number | null;  // Current play ID in database
     listenerCount: number;         // Number of connected dancers
+    tempoFeedback: { faster: number; slower: number; perfect: number; total: number } | null;
 
     // Actions
     setStatus: (status: LiveStatus) => void;
@@ -39,6 +41,7 @@ interface LiveSessionStore {
     setDbSessionId: (dbSessionId: number | null) => void;
     setCurrentPlayId: (playId: number | null) => void;
     setListenerCount: (count: number) => void;
+    setTempoFeedback: (feedback: { faster: number; slower: number; perfect: number; total: number } | null) => void;
     reset: () => void;
 }
 
@@ -50,6 +53,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
     dbSessionId: null,
     currentPlayId: null,
     listenerCount: 0,
+    tempoFeedback: null,
 
     setStatus: (status) => set({ status }),
     setNowPlaying: (nowPlaying) => set({ nowPlaying }),
@@ -58,6 +62,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
     setDbSessionId: (dbSessionId) => set({ dbSessionId }),
     setCurrentPlayId: (currentPlayId) => set({ currentPlayId }),
     setListenerCount: (listenerCount) => set({ listenerCount }),
+    setTempoFeedback: (tempoFeedback) => set({ tempoFeedback }),
     reset: () => set({
         status: "offline",
         nowPlaying: null,
@@ -66,6 +71,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
         dbSessionId: null,
         currentPlayId: null,
         listenerCount: 0,
+        tempoFeedback: null,
     }),
 }));
 
@@ -79,6 +85,9 @@ let currentSessionId: string | null = null;
 let currentDbSessionId: number | null = null;
 let currentPlayIdRef: number | null = null; // Track current play for likes
 let processedTrackKeys = new Set<string>(); // Track which tracks we've already recorded
+let lastBroadcastedTrackKey: string | null = null; // Prevent duplicate cloud broadcasts
+let skipInitialTrackBroadcast = false; // Explicit flag to skip initial track broadcast
+let lastProcessedLikeKey: string | null = null; // Prevent duplicate like notifications
 
 function sendMessage(message: object) {
     if (socketInstance?.readyState === WebSocket.OPEN) {
@@ -87,13 +96,33 @@ function sendMessage(message: object) {
     }
 }
 
-function getOrCreateSessionId(): string {
-    let sessionId = localStorage.getItem("pika_session_id");
-    if (!sessionId) {
-        sessionId = `pika_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-        localStorage.setItem("pika_session_id", sessionId);
+/**
+ * Broadcast track to cloud with deduplication
+ * Prevents the same track being sent multiple times
+ */
+function broadcastTrack(sessionId: string, track: TrackInfo): boolean {
+    const trackKey = `${track.artist}:${track.title}`;
+
+    if (lastBroadcastedTrackKey === trackKey) {
+        console.log("[Live] Skipping duplicate broadcast:", track.title);
+        return false;
     }
-    return sessionId;
+
+    lastBroadcastedTrackKey = trackKey;
+    sendMessage({
+        type: "BROADCAST_TRACK",
+        sessionId,
+        track,
+    });
+    return true;
+}
+
+/**
+ * Generate a new unique session ID for each live session.
+ * Each "Go Live" creates a new session with its own recap.
+ */
+function generateSessionId(): string {
+    return `pika_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 }
 
 /**
@@ -169,7 +198,7 @@ async function recordPlay(track: NowPlayingTrack): Promise<number | null> {
 
 export function useLiveSession() {
     const {
-        status, nowPlaying, error, sessionId, dbSessionId, currentPlayId, listenerCount,
+        status, nowPlaying, error, sessionId, dbSessionId, currentPlayId, listenerCount, tempoFeedback,
         setStatus, setNowPlaying, setError, setSessionId, setDbSessionId, setCurrentPlayId, reset
     } = useLiveStore();
 
@@ -195,13 +224,9 @@ export function useLiveSession() {
             console.log("[Live] Not recording - isLiveFlag:", isLiveFlag, "currentDbSessionId:", currentDbSessionId);
         }
 
-        // Send to cloud if live
-        if (isLiveFlag && socketInstance?.readyState === WebSocket.OPEN) {
-            sendMessage({
-                type: "BROADCAST_TRACK",
-                sessionId: currentSessionId,
-                track: toTrackInfo(track),
-            });
+        // Send to cloud if live (with deduplication)
+        if (isLiveFlag && socketInstance?.readyState === WebSocket.OPEN && currentSessionId) {
+            broadcastTrack(currentSessionId, toTrackInfo(track));
         }
     }, [setNowPlaying, setCurrentPlayId]);
 
@@ -220,13 +245,14 @@ export function useLiveSession() {
     }, [handleTrackChange]);
 
     // Go live - connect to cloud and start watching
-    const goLive = useCallback(async (sessionName?: string) => {
+    // includeCurrentTrack: if false, skip recording/broadcasting whatever is currently playing
+    const goLive = useCallback(async (sessionName?: string, includeCurrentTrack: boolean = true) => {
         if (status === "live" || status === "connecting") {
             console.log("[Live] Already live or connecting");
             return;
         }
 
-        const newSessionId = getOrCreateSessionId();
+        const newSessionId = generateSessionId();
         currentSessionId = newSessionId;
 
         setStatus("connecting");
@@ -242,23 +268,38 @@ export function useLiveSession() {
             setDbSessionId(dbSession.id);
             console.log("[Live] Database session created:", dbSession.id);
 
+            // Store cloud session ID for recap link
+            await sessionRepository.setCloudSessionId(dbSession.id, newSessionId);
+            console.log("[Live] Cloud session ID saved:", newSessionId);
+
             // Clear processed tracks for new session
             processedTrackKeys.clear();
+            lastBroadcastedTrackKey = null;
 
             // Start VirtualDJ watcher FIRST so it reads the current track
             console.log("[Live] Starting VirtualDJ watcher...");
             await virtualDjWatcher.startWatching(2000);
 
-            // Get the initial track immediately
+            // Get the initial track - only record if includeCurrentTrack is true
             const initialTrack = virtualDjWatcher.getCurrentTrack();
             if (initialTrack) {
                 console.log("[Live] Initial track found:", initialTrack.artist, "-", initialTrack.title);
-                setNowPlaying(initialTrack);
 
-                // Record initial track to database
-                const playId = await recordPlay(initialTrack);
-                if (playId) {
-                    setCurrentPlayId(playId);
+                if (includeCurrentTrack) {
+                    setNowPlaying(initialTrack);
+                    skipInitialTrackBroadcast = false; // Will broadcast
+                    // Record initial track to database
+                    const playId = await recordPlay(initialTrack);
+                    if (playId) {
+                        setCurrentPlayId(playId);
+                    }
+                } else {
+                    console.log("[Live] Skipping initial track (user chose not to include)");
+                    skipInitialTrackBroadcast = true; // Skip broadcast
+                    // Mark it as processed so it won't be recorded when track changes
+                    const trackKey = `${initialTrack.artist}-${initialTrack.title}-${Math.floor(Date.now() / 60000)}`;
+                    processedTrackKeys.add(trackKey);
+                    lastBroadcastedTrackKey = `${initialTrack.artist}:${initialTrack.title}`;
                 }
             }
 
@@ -280,21 +321,23 @@ export function useLiveSession() {
                 setStatus("live");
                 setError(null);
 
-                // Register session
+                // Register session with DJ name from settings
                 sendMessage({
                     type: "REGISTER_SESSION",
                     sessionId: newSessionId,
-                    djName: "DJ Pika",
+                    djName: getDjName(),
                 });
 
-                // Send initial track if available
-                const currentTrack = virtualDjWatcher.getCurrentTrack();
-                if (currentTrack) {
-                    sendMessage({
-                        type: "BROADCAST_TRACK",
-                        sessionId: newSessionId,
-                        track: toTrackInfo(currentTrack),
-                    });
+                // Send initial track if available AND user chose to include it
+                // The skipInitialTrackBroadcast flag is set based on user's choice
+                if (!skipInitialTrackBroadcast) {
+                    const currentTrack = virtualDjWatcher.getCurrentTrack();
+                    if (currentTrack) {
+                        console.log("[Live] Broadcasting initial track:", currentTrack.title);
+                        broadcastTrack(newSessionId, toTrackInfo(currentTrack));
+                    }
+                } else {
+                    console.log("[Live] Not broadcasting initial track (user skipped)");
                 }
             };
 
@@ -311,36 +354,61 @@ export function useLiveSession() {
                     console.log("[Live] Session registered:", message.sessionId);
                 }
 
-                // Handle likes from listeners
+                // Handle likes from listeners (with deduplication)
                 if (message.type === "LIKE_RECEIVED") {
                     const track = message.payload?.track;
                     if (track) {
-                        console.log("[Live] Like received for:", track.title);
-                        toast(`Someone liked "${track.title}"`, {
-                            icon: "❤️",
-                            duration: 3000,
-                        });
+                        // Create a unique key for this like to prevent duplicates
+                        const likeKey = `${track.artist}:${track.title}:${Math.floor(Date.now() / 1000)}`;
 
-                        // Store the like in the database
-                        if (currentPlayIdRef) {
-                            sessionRepository.incrementDancerLikes(currentPlayIdRef)
-                                .then(() => {
-                                    console.log("[Live] Like stored for play ID:", currentPlayIdRef);
-                                })
-                                .catch((e) => {
-                                    console.error("[Live] Failed to store like:", e);
-                                });
+                        // Skip if we've already processed a like for this track in the last second
+                        if (lastProcessedLikeKey === likeKey) {
+                            console.log("[Live] Skipping duplicate like notification for:", track.title);
                         } else {
-                            console.warn("[Live] No current play ID to store like");
+                            lastProcessedLikeKey = likeKey;
+                            console.log("[Live] Like received for:", track.title);
+                            toast(`Someone liked "${track.title}"`, {
+                                icon: "❤️",
+                                duration: 3000,
+                            });
+
+                            // Store the like in the database
+                            if (currentPlayIdRef) {
+                                sessionRepository.incrementDancerLikes(currentPlayIdRef)
+                                    .then(() => {
+                                        console.log("[Live] Like stored for play ID:", currentPlayIdRef);
+                                    })
+                                    .catch((e) => {
+                                        console.error("[Live] Failed to store like:", e);
+                                    });
+                            } else {
+                                console.warn("[Live] No current play ID to store like");
+                            }
                         }
                     }
                 }
 
-                // Handle listener count updates
+                // Handle listener count updates (only for our session)
                 if (message.type === "LISTENER_COUNT") {
+                    const sessionId = message.sessionId;
                     const count = message.count;
-                    console.log("[Live] Listener count:", count);
-                    useLiveStore.getState().setListenerCount(count);
+
+                    // Only update count if it's for our session or no session specified
+                    if (!sessionId || sessionId === newSessionId) {
+                        console.log("[Live] Listener count:", count);
+                        useLiveStore.getState().setListenerCount(count);
+                    }
+                }
+
+                // Handle tempo feedback updates
+                if (message.type === "TEMPO_FEEDBACK") {
+                    console.log("[Live] Tempo feedback:", message);
+                    useLiveStore.getState().setTempoFeedback({
+                        faster: message.faster,
+                        slower: message.slower,
+                        perfect: message.perfect,
+                        total: message.total,
+                    });
                 }
             };
 
@@ -402,6 +470,7 @@ export function useLiveSession() {
         currentDbSessionId = null;
         currentPlayIdRef = null;
         processedTrackKeys.clear();
+        lastBroadcastedTrackKey = null;
     }, [reset]);
 
     // Clear now playing
@@ -431,6 +500,7 @@ export function useLiveSession() {
         dbSessionId,
         currentPlayId,
         listenerCount,
+        tempoFeedback,
         isLive: status === "live",
         goLive,
         endSet,

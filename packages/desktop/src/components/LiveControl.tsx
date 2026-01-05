@@ -1,37 +1,139 @@
-import { useState } from "react";
-import { Radio, Wifi, WifiOff, Music2, AlertCircle, X, QrCode, Edit3, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Radio, Wifi, WifiOff, Music2, AlertCircle, X, QrCode, Edit3, Users, Link2, Check, Gauge, Settings, AlertTriangle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useLiveSession } from "../hooks/useLiveSession";
-import { getListenerUrl } from "../config";
+import { useDjSettings } from "../hooks/useDjSettings";
+import { getListenerUrl, getRecapUrl, getLocalIp } from "../config";
+import { virtualDjWatcher } from "../services/virtualDjWatcher";
+
+interface PendingTrack {
+    artist: string;
+    title: string;
+    isStale: boolean; // True if track timestamp is old (might not be currently playing)
+}
 
 export function LiveControl() {
-    const { status, nowPlaying, error, isLive, sessionId, listenerCount, goLive, endSet, clearNowPlaying } = useLiveSession();
+    const { status, nowPlaying, error, isLive, sessionId, listenerCount, tempoFeedback, goLive, endSet, clearNowPlaying } = useLiveSession();
+    const { djName, setDjName, hasSetDjName } = useDjSettings();
     const [showQR, setShowQR] = useState(false);
     const [showNameModal, setShowNameModal] = useState(false);
+    const [showDjNamePrompt, setShowDjNamePrompt] = useState(false);
+    const [showEditDjName, setShowEditDjName] = useState(false);
+    const [showIncludeTrackPrompt, setShowIncludeTrackPrompt] = useState(false);
+    const [pendingTrack, setPendingTrack] = useState<PendingTrack | null>(null);
     const [sessionName, setSessionName] = useState("");
+    const [djNameInput, setDjNameInput] = useState("");
+    const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+    const [recapCopied, setRecapCopied] = useState(false);
+    const [localIp, setLocalIp] = useState<string | null>(null);
 
-    // Generate QR URL only if we have a session
-    const qrUrl = sessionId ? getListenerUrl(sessionId) : null;
+    // Fetch local IP once on mount for QR codes
+    useEffect(() => {
+        getLocalIp().then(setLocalIp);
+    }, []);
+
+    // Generate QR URL only if we have a session (uses local IP if available for LAN testing)
+    const qrUrl = sessionId ? getListenerUrl(sessionId, djName, localIp) : null;
+    const recapUrl = lastSessionId ? getRecapUrl(lastSessionId, djName, localIp) : null;
 
     const handleGoLiveClick = () => {
         if (isLive) {
+            // Save session ID before ending so we can show recap link
+            if (sessionId) {
+                setLastSessionId(sessionId);
+            }
             endSet();
         } else {
-            // Show modal to name the session
+            // Clear last session when starting new one
+            setLastSessionId(null);
+
+            // If no DJ name set, prompt for it first
+            if (!hasSetDjName) {
+                setDjNameInput("");
+                setShowDjNamePrompt(true);
+            } else {
+                // Check for current track
+                checkForCurrentTrack();
+            }
+        }
+    };
+
+
+    // Check if there's a track playing and prompt to include it
+    const checkForCurrentTrack = () => {
+        const currentTrack = virtualDjWatcher.getCurrentTrack();
+        if (currentTrack) {
+            // Check if track is stale (older than 10 minutes)
+            // This helps detect tracks from previous sessions that are still in VirtualDJ history
+            const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+            const trackTime = currentTrack.timestamp?.getTime() ?? 0;
+            const isStale = (Date.now() - trackTime) > STALE_THRESHOLD_MS;
+
+            setPendingTrack({
+                artist: currentTrack.artist,
+                title: currentTrack.title,
+                isStale
+            });
+            setShowIncludeTrackPrompt(true);
+        } else {
+            // No current track, go straight to session name
             setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
             setShowNameModal(true);
         }
     };
 
+    const handleDjNameSubmit = () => {
+        const name = djNameInput.trim();
+        if (name) {
+            setDjName(name);
+            setShowDjNamePrompt(false);
+            setShowEditDjName(false);
+            // If this was the initial prompt, continue to track check
+            if (!hasSetDjName) {
+                checkForCurrentTrack();
+            }
+        }
+    };
+
+    const handleEditDjName = () => {
+        setDjNameInput(djName);
+        setShowEditDjName(true);
+    };
+
+    const handleIncludeTrack = (include: boolean) => {
+        setShowIncludeTrackPrompt(false);
+        if (!include) {
+            setPendingTrack(null); // Will be skipped
+        }
+        // Show session name modal
+        setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
+        setShowNameModal(true);
+    };
+
+    const handleCopyRecapLink = async () => {
+        if (recapUrl) {
+            await navigator.clipboard.writeText(recapUrl);
+            setRecapCopied(true);
+            setTimeout(() => setRecapCopied(false), 2000);
+        }
+    };
+
+    const handleDismissRecap = () => {
+        setLastSessionId(null);
+    };
+
     const handleStartSession = () => {
-        goLive(sessionName.trim() || undefined);
+        // Pass the pending track decision to goLive
+        goLive(sessionName.trim() || undefined, pendingTrack !== null);
         setShowNameModal(false);
         setSessionName("");
+        setPendingTrack(null);
     };
 
     const handleCancelSession = () => {
         setShowNameModal(false);
         setSessionName("");
+        setPendingTrack(null);
     };
 
     return (
@@ -72,6 +174,194 @@ export function LiveControl() {
                 <div style={styles.listenerBadge}>
                     <Users size={14} />
                     <span>{listenerCount}</span>
+                </div>
+            )}
+
+            {/* DJ Name Badge (when live, clickable to edit) */}
+            {isLive && hasSetDjName && (
+                <button
+                    type="button"
+                    onClick={handleEditDjName}
+                    style={styles.djNameBadge}
+                    title={`Broadcasting as ${djName} (click to edit)`}
+                >
+                    <span>{djName}</span>
+                    <Edit3 size={12} style={{ opacity: 0.6 }} />
+                </button>
+            )}
+
+            {/* DJ Name Badge (when not live, just display with edit option) */}
+            {!isLive && hasSetDjName && (
+                <button
+                    type="button"
+                    onClick={handleEditDjName}
+                    style={styles.djNameBadgeOffline}
+                    title={`DJ Name: ${djName} (click to edit)`}
+                >
+                    <span>{djName}</span>
+                    <Edit3 size={12} style={{ opacity: 0.6 }} />
+                </button>
+            )}
+
+            {/* Tempo Feedback Display */}
+            {isLive && tempoFeedback && tempoFeedback.total > 0 && (
+                <div style={styles.tempoFeedback}>
+                    <Gauge size={14} style={{ opacity: 0.7 }} />
+                    <div style={styles.tempoVotes}>
+                        {tempoFeedback.slower > 0 && (
+                            <span style={styles.tempoSlower} title="Slower requests">
+                                🐢 {tempoFeedback.slower}
+                            </span>
+                        )}
+                        {tempoFeedback.perfect > 0 && (
+                            <span style={styles.tempoPerfect} title="Perfect">
+                                👌 {tempoFeedback.perfect}
+                            </span>
+                        )}
+                        {tempoFeedback.faster > 0 && (
+                            <span style={styles.tempoFaster} title="Faster requests">
+                                🐇 {tempoFeedback.faster}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* DJ Name Prompt Modal (first-time setup) */}
+            {showDjNamePrompt && (
+                <div style={styles.modalOverlay} onClick={() => setShowDjNamePrompt(false)}>
+                    <div style={{ ...styles.modal, ...styles.sessionModalContent }} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={styles.sessionModalTitle}>
+                            <Settings size={20} />
+                            What's Your DJ Name?
+                        </h3>
+                        <p style={styles.modalSubtitle}>
+                            This will be shown to dancers during your live sessions.
+                        </p>
+                        <input
+                            type="text"
+                            value={djNameInput}
+                            onChange={(e) => setDjNameInput(e.target.value)}
+                            placeholder="e.g. DJ Smooth, Sarah B, etc."
+                            style={styles.sessionInput}
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && djNameInput.trim()) handleDjNameSubmit();
+                                if (e.key === "Escape") setShowDjNamePrompt(false);
+                            }}
+                        />
+                        <div style={styles.sessionModalActions}>
+                            <button
+                                type="button"
+                                onClick={() => setShowDjNamePrompt(false)}
+                                style={styles.cancelBtn}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDjNameSubmit}
+                                style={styles.startBtn}
+                                disabled={!djNameInput.trim()}
+                            >
+                                Continue
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit DJ Name Modal (for changing after initial setup) */}
+            {showEditDjName && (
+                <div style={styles.modalOverlay} onClick={() => setShowEditDjName(false)}>
+                    <div style={{ ...styles.modal, ...styles.sessionModalContent }} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={styles.sessionModalTitle}>
+                            <Edit3 size={20} />
+                            Edit DJ Name
+                        </h3>
+                        <p style={styles.modalSubtitle}>
+                            Change how you appear to dancers.
+                        </p>
+                        <input
+                            type="text"
+                            value={djNameInput}
+                            onChange={(e) => setDjNameInput(e.target.value)}
+                            placeholder="Your DJ name"
+                            style={styles.sessionInput}
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === "Enter" && djNameInput.trim()) handleDjNameSubmit();
+                                if (e.key === "Escape") setShowEditDjName(false);
+                            }}
+                        />
+                        <div style={styles.sessionModalActions}>
+                            <button
+                                type="button"
+                                onClick={() => setShowEditDjName(false)}
+                                style={styles.cancelBtn}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDjNameSubmit}
+                                style={styles.startBtn}
+                                disabled={!djNameInput.trim()}
+                            >
+                                Save
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Include Current Track Prompt */}
+            {showIncludeTrackPrompt && pendingTrack && (
+                <div style={styles.modalOverlay} onClick={() => handleIncludeTrack(false)}>
+                    <div style={{ ...styles.modal, ...styles.sessionModalContent }} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={styles.sessionModalTitle}>
+                            <Music2 size={20} />
+                            Include Current Track?
+                        </h3>
+                        <div style={styles.trackPreview}>
+                            <p style={styles.trackPreviewTitle}>{pendingTrack.title}</p>
+                            <p style={styles.trackPreviewArtist}>{pendingTrack.artist}</p>
+                        </div>
+
+                        {/* Stale track warning */}
+                        {pendingTrack.isStale && (
+                            <div style={styles.staleWarning}>
+                                <AlertTriangle size={16} />
+                                <span>
+                                    This track may be from a previous session.
+                                    Make sure it's actually playing before including.
+                                </span>
+                            </div>
+                        )}
+
+                        <p style={styles.modalSubtitle}>
+                            {pendingTrack.isStale
+                                ? "The last track in VirtualDJ history. Is this actually playing now?"
+                                : "This song is currently playing. Include it in this session's tracklist?"}
+                        </p>
+                        <div style={styles.sessionModalActions}>
+                            <button
+                                type="button"
+                                onClick={() => handleIncludeTrack(false)}
+                                style={styles.cancelBtn}
+                            >
+                                Skip This Song
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => handleIncludeTrack(true)}
+                                style={styles.startBtn}
+                            >
+                                <Check size={16} />
+                                Include It
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -126,6 +416,34 @@ export function LiveControl() {
                 >
                     <QrCode size={20} />
                 </button>
+            )}
+
+            {/* Recap Link (after session ends) */}
+            {!isLive && lastSessionId && recapUrl && (
+                <div style={styles.recapBanner}>
+                    <div style={styles.recapContent}>
+                        <Link2 size={16} />
+                        <span>Session recap ready!</span>
+                    </div>
+                    <div style={styles.recapActions}>
+                        <button
+                            type="button"
+                            onClick={handleCopyRecapLink}
+                            style={styles.recapCopyBtn}
+                        >
+                            {recapCopied ? <Check size={14} /> : <Link2 size={14} />}
+                            {recapCopied ? "Copied!" : "Copy Link"}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleDismissRecap}
+                            style={styles.recapDismissBtn}
+                            title="Dismiss"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div>
             )}
 
             {/* Status & Now Playing */}
@@ -262,6 +580,62 @@ const styles: Record<string, React.CSSProperties> = {
         fontSize: "0.8rem",
         fontWeight: 600,
     },
+    djNameBadge: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.4rem",
+        padding: "0.35rem 0.6rem",
+        background: "rgba(251, 146, 60, 0.15)",
+        border: "1px solid rgba(251, 146, 60, 0.4)",
+        borderRadius: "6px",
+        color: "#fb923c",
+        fontSize: "0.75rem",
+        fontWeight: 500,
+        cursor: "pointer",
+        transition: "all 0.2s",
+    },
+    djNameBadgeOffline: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.4rem",
+        padding: "0.35rem 0.6rem",
+        background: "rgba(100, 116, 139, 0.15)",
+        border: "1px solid rgba(100, 116, 139, 0.3)",
+        borderRadius: "6px",
+        color: "#94a3b8",
+        fontSize: "0.75rem",
+        fontWeight: 500,
+        cursor: "pointer",
+        transition: "all 0.2s",
+    },
+    tempoFeedback: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.35rem 0.6rem",
+        background: "rgba(139, 92, 246, 0.15)",
+        border: "1px solid rgba(139, 92, 246, 0.3)",
+        borderRadius: "6px",
+        color: "#a78bfa",
+        fontSize: "0.75rem",
+    },
+    tempoVotes: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+    },
+    tempoSlower: {
+        color: "#60a5fa",
+        fontWeight: 500,
+    },
+    tempoPerfect: {
+        color: "#22c55e",
+        fontWeight: 500,
+    },
+    tempoFaster: {
+        color: "#fb923c",
+        fontWeight: 500,
+    },
     qrButton: {
         display: "flex",
         alignItems: "center",
@@ -273,6 +647,53 @@ const styles: Record<string, React.CSSProperties> = {
         borderRadius: "8px",
         cursor: "pointer",
         transition: "all 0.2s ease",
+    },
+    recapBanner: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: "0.75rem",
+        padding: "0.5rem 0.75rem",
+        background: "linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%)",
+        border: "1px solid rgba(34, 197, 94, 0.3)",
+        borderRadius: "8px",
+        flex: 1,
+    },
+    recapContent: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        color: "#22c55e",
+        fontSize: "0.8rem",
+        fontWeight: 500,
+    },
+    recapActions: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.35rem",
+    },
+    recapCopyBtn: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.35rem",
+        padding: "0.35rem 0.6rem",
+        background: "#22c55e",
+        border: "none",
+        borderRadius: "6px",
+        color: "#fff",
+        fontSize: "0.75rem",
+        fontWeight: 600,
+        cursor: "pointer",
+    },
+    recapDismissBtn: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "0.35rem",
+        background: "transparent",
+        border: "none",
+        color: "#64748b",
+        cursor: "pointer",
     },
     statusArea: {
         display: "flex",
@@ -452,5 +873,42 @@ const styles: Record<string, React.CSSProperties> = {
         fontSize: "1.125rem",
         fontWeight: "bold",
         color: "#e2e8f0",
+    },
+    modalSubtitle: {
+        margin: "0 0 1rem 0",
+        fontSize: "0.875rem",
+        color: "#94a3b8",
+        lineHeight: 1.5,
+    },
+    trackPreview: {
+        padding: "1rem",
+        background: "rgba(255, 255, 255, 0.05)",
+        borderRadius: "8px",
+        marginBottom: "1rem",
+        textAlign: "center" as const,
+    },
+    trackPreviewTitle: {
+        margin: "0 0 0.25rem 0",
+        fontSize: "1rem",
+        fontWeight: 600,
+        color: "#ffffff",
+    },
+    trackPreviewArtist: {
+        margin: 0,
+        fontSize: "0.875rem",
+        color: "#94a3b8",
+    },
+    staleWarning: {
+        display: "flex",
+        alignItems: "flex-start",
+        gap: "0.5rem",
+        padding: "0.75rem 1rem",
+        background: "rgba(245, 158, 11, 0.15)",
+        border: "1px solid rgba(245, 158, 11, 0.3)",
+        borderRadius: "8px",
+        color: "#fbbf24",
+        fontSize: "0.8rem",
+        lineHeight: 1.4,
+        marginTop: "0.75rem",
     },
 };

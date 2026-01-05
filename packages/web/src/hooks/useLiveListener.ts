@@ -69,6 +69,7 @@ interface LiveState {
     history: HistoryTrack[];
     likedTracks: Set<string>; // Track keys that user has liked (artist:title)
     listenerCount: number;    // Number of connected dancers
+    tempoVote: "faster" | "slower" | "perfect" | null;  // Current user's tempo vote
 }
 
 const MAX_HISTORY = 5;
@@ -125,17 +126,26 @@ export function useLiveListener(targetSessionId?: string) {
         history: [],
         likedTracks: loadLikedTracks(), // Restore from localStorage
         listenerCount: 0,
+        tempoVote: null,
     }));
 
     const socketRef = useRef<ReconnectingWebSocket | null>(null);
+    const historyFetchedRef = useRef<string | null>(null); // Prevent duplicate history fetches
 
-    // Fetch history from REST API
+    // Fetch history from REST API (with deduplication)
     const fetchHistory = useCallback(async (sessionId: string) => {
+        // Skip if we've already fetched history for this session
+        if (historyFetchedRef.current === sessionId) {
+            console.log("[Listener] History already fetched for:", sessionId);
+            return;
+        }
+
         try {
             const baseUrl = getApiBaseUrl();
             const response = await fetch(`${baseUrl}/api/session/${sessionId}/history`);
             if (response.ok) {
                 const tracks: HistoryTrack[] = await response.json();
+                historyFetchedRef.current = sessionId; // Mark as fetched
                 setState((prev) => ({
                     ...prev,
                     // Skip the first track (it's the current one)
@@ -168,10 +178,11 @@ export function useLiveListener(targetSessionId?: string) {
         socket.onopen = () => {
             console.log("[Listener] Connected to cloud");
             setState((prev) => ({ ...prev, status: "connected" }));
-            // Send SUBSCRIBE with persistent clientId for like tracking
+            // Send SUBSCRIBE with persistent clientId for like tracking and sessionId for listener count
             socket.send(JSON.stringify({
                 type: "SUBSCRIBE",
                 clientId,
+                sessionId: targetSessionId, // Include session for per-session listener count
             }));
 
             // If targeting a specific session, fetch its history immediately
@@ -216,6 +227,15 @@ export function useLiveListener(targetSessionId?: string) {
                                 djName: session.djName,
                                 currentTrack: session.currentTrack || null,
                             }));
+
+                            // Send SUBSCRIBE with the discovered session ID to be counted
+                            // This ensures homepage visitors are counted as listeners
+                            socketRef.current?.send(JSON.stringify({
+                                type: "SUBSCRIBE",
+                                clientId,
+                                sessionId: session.sessionId,
+                            }));
+
                             // Fetch initial history
                             fetchHistory(session.sessionId);
                         }
@@ -327,6 +347,7 @@ export function useLiveListener(targetSessionId?: string) {
                             history: [],
                             likedTracks: new Set(), // Reset likes
                             listenerCount: 0, // Reset count
+                            tempoVote: null, // Reset tempo vote
                         };
                     });
                     break;
@@ -390,5 +411,54 @@ export function useLiveListener(targetSessionId?: string) {
         return state.likedTracks.has(getTrackKey(track as TrackInfo));
     }, [state.likedTracks]);
 
-    return { ...state, sendLike, hasLiked };
+    // Send tempo preference (faster/slower/perfect) - tapping same button again clears vote
+    const sendTempoRequest = useCallback((preference: "faster" | "slower" | "perfect"): boolean => {
+        if (!state.sessionId) {
+            console.log("[Listener] Cannot send tempo request: no session");
+            return false;
+        }
+
+        // Toggle off: if tapping the same preference, clear it
+        const isToggleOff = state.tempoVote === preference;
+
+        if (socketRef.current?.readyState === WebSocket.OPEN) {
+            if (isToggleOff) {
+                // Send a "clear" message (we'll use "none" as a special value)
+                socketRef.current.send(JSON.stringify({
+                    type: "SEND_TEMPO_REQUEST",
+                    clientId: getOrCreateClientId(),
+                    sessionId: state.sessionId,
+                    preference: "clear",  // Special value to remove vote
+                }));
+
+                // Clear local state
+                setState((prev) => ({
+                    ...prev,
+                    tempoVote: null,
+                }));
+
+                console.log("[Listener] Cleared tempo vote");
+            } else {
+                // Normal vote
+                socketRef.current.send(JSON.stringify({
+                    type: "SEND_TEMPO_REQUEST",
+                    clientId: getOrCreateClientId(),
+                    sessionId: state.sessionId,
+                    preference,
+                }));
+
+                // Update local state with the vote
+                setState((prev) => ({
+                    ...prev,
+                    tempoVote: preference,
+                }));
+
+                console.log("[Listener] Sent tempo request:", preference);
+            }
+            return true;
+        }
+        return false;
+    }, [state.sessionId, state.tempoVote]);
+
+    return { ...state, sendLike, hasLiked, sendTempoRequest };
 }

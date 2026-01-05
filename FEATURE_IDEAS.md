@@ -1079,6 +1079,41 @@ West Coast Swing competitions have specific requirements that differ significant
 
 | Date | Changes |
 |------|---------|
+| 2026-01-05 | **IMPLEMENTED**: "My Likes" page for dancers (`/my-likes`) - view all your liked songs ✅ |
+| 2026-01-05 | **IMPLEMENTED**: `client_id` stored with likes for personal history tracking ✅ |
+| 2026-01-05 | **IMPLEMENTED**: Per-track like counts on recap page ✅ |
+| 2026-01-05 | **FIXED**: Recap DJ name now fetched from database (was defaulting to "DJ") ✅ |
+| 2026-01-05 | **FIXED**: Reduced SUBSCRIBE log spam (only log new subscriptions) ✅ |
+| 2026-01-05 | **FIXED**: Multiple sequential /history API calls (added deduplication) ✅ |
+| 2026-01-05 | **DESIGNED**: Deployment architecture ([006-deployment-architecture.md](docs/design/006-deployment-architecture.md)) |
+| 2026-01-05 | **CHANGED**: Dev servers bind to all interfaces for LAN testing |
+| 2026-01-05 | **FIXED**: Homepage visitors (localhost:3002) now counted as listeners ✅ |
+| 2026-01-05 | **IMPLEMENTED**: QR codes use local IP for LAN testing (phones/tablets) ✅ |
+| 2026-01-05 | **FIXED**: Listener count now per-session (was counting all sessions globally) ✅ |
+| 2026-01-05 | **FIXED**: Like toast notifications deduplicated (no more double toasts) ✅ |
+| 2026-01-05 | **FIXED**: Timeline shows only previous plays, not current (cleaner UI) ✅ |
+| 2026-01-05 | **CHANGED**: Default window size increased to 1400x900 for better layout ✅ |
+| 2026-01-05 | **FIXED**: Performance Mode now shows tempo feedback and listener count ✅ |
+| 2026-01-05 | **FIXED**: Peak/Brick badge no longer overlays footer buttons ✅ |
+| 2026-01-05 | **IMPLEMENTED**: Edit DJ name button (click DJ badge to change) ✅ |
+| 2026-01-05 | **FIXED**: "Skip track" choice now correctly prevents cloud broadcast ✅ |
+| 2026-01-05 | **IMPLEMENTED**: Stale track warning (detects old VirtualDJ history entries) ✅ |
+| 2026-01-04 | **IMPLEMENTED**: New URL structure `/dj/{slug}/...` ✅ |
+| 2026-01-04 | **IMPLEMENTED**: DJ profile page with session history ✅ |
+| 2026-01-04 | **IMPLEMENTED**: DJ profile API endpoint ✅ |
+| 2026-01-04 | **IMPLEMENTED**: Logbook "Recap Link" button for each session ✅ |
+| 2026-01-04 | **IMPLEMENTED**: Session history stores cloud recap link ✅ |
+| 2026-01-04 | **IMPLEMENTED**: DJ name → URL slug utility (`slugify()`) ✅ |
+| 2026-01-04 | **FIXED**: Session ID now unique per session (was reusing same ID) ✅ |
+| 2026-01-04 | **IMPLEMENTED**: DJ name settings with first-time prompt ✅ |
+| 2026-01-04 | **IMPLEMENTED**: "Include current track?" prompt when going live ✅ |
+| 2026-01-04 | **DESIGNED**: Spotify playlist generation ([005-spotify-playlist-generation.md](docs/design/005-spotify-playlist-generation.md)) |
+| 2026-01-04 | **FIXED**: Duplicate tracks in session recap ✅ |
+| 2026-01-04 | **IMPLEMENTED**: QR code sharing for dancers (spread the session!) ✅ |
+| 2026-01-04 | **IMPLEMENTED**: Tempo preference buttons (Slower/Perfect/Faster) ✅ |
+| 2026-01-04 | **IMPLEMENTED**: Session Recap page with full tracklist (Phase 1) ✅ |
+| 2026-01-04 | **IMPLEMENTED**: Save/Load sets with persistent storage ✅ |
+| 2026-01-04 | **IMPLEMENTED**: Multi-select with Shift/Cmd+Click, bulk add to set ✅ |
 | 2026-01-03 | **IMPLEMENTED**: Library search with artist/title filtering ✅ |
 | 2026-01-03 | **IMPLEMENTED**: BPM filter buttons (Slow/Medium/Fast presets) ✅ |
 | 2026-01-03 | **IMPLEMENTED**: Song duration column in library table ✅ |

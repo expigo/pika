@@ -10,6 +10,7 @@ export interface VirtualDJTrack {
     title?: string;
     bpm?: string;
     key?: string;
+    duration?: number;
 }
 
 // Re-export AnalysisResult for backwards compatibility
@@ -73,6 +74,8 @@ export const trackRepository = {
                 // Parse BPM, handle potentially empty or invalid strings
                 bpm: t.bpm ? Number.parseFloat(t.bpm) || null : null,
                 key: t.key ?? null,
+                // Duration from VirtualDJ (in seconds)
+                duration: t.duration ?? null,
                 // These will be filled in during analysis
                 energy: null,
                 danceability: null,
@@ -94,6 +97,7 @@ export const trackRepository = {
                         title: sql`excluded.title`,
                         bpm: sql`excluded.bpm`,
                         key: sql`excluded.key`,
+                        duration: sql`excluded.duration`,
                         // Do NOT update: analyzed, energy, fingerprint (preserve analysis data)
                     },
                 });

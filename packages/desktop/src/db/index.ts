@@ -45,12 +45,21 @@ async function initializeDb(): Promise<void> {
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 uuid TEXT NOT NULL UNIQUE,
+                cloud_session_id TEXT,
                 dj_identity TEXT DEFAULT 'Default',
                 name TEXT,
                 started_at INTEGER NOT NULL,
                 ended_at INTEGER
             );
         `);
+
+        // Migration: Add cloud_session_id column if it doesn't exist (for existing databases)
+        try {
+            await sqliteInstance.execute(`ALTER TABLE sessions ADD COLUMN cloud_session_id TEXT;`);
+            console.log("Migration: Added cloud_session_id column to sessions table");
+        } catch {
+            // Column already exists, ignore error
+        }
 
         // Create plays table (Track history within sessions)
         await sqliteInstance.execute(`
@@ -64,6 +73,29 @@ async function initializeDb(): Promise<void> {
                 notes TEXT,
                 dancer_likes INTEGER DEFAULT 0,
                 FOREIGN KEY (session_id) REFERENCES sessions(id),
+                FOREIGN KEY (track_id) REFERENCES tracks(id)
+            );
+        `);
+
+        // Create saved_sets table
+        await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS saved_sets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+        `);
+
+        // Create saved_set_tracks table
+        await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS saved_set_tracks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                set_id INTEGER NOT NULL,
+                track_id INTEGER NOT NULL,
+                position INTEGER NOT NULL,
+                FOREIGN KEY (set_id) REFERENCES saved_sets(id) ON DELETE CASCADE,
                 FOREIGN KEY (track_id) REFERENCES tracks(id)
             );
         `);
