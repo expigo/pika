@@ -10,6 +10,7 @@ import {
     type TrackInfo,
 } from "@pika/shared";
 import { db, schema } from "./db";
+import { eq } from "drizzle-orm";
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
@@ -32,29 +33,51 @@ interface LiveSession {
 const activeSessions = new Map<string, LiveSession>();
 
 // ============================================================================
-// Listener Count Tracking (Per-Session)
+// Listener Count Tracking (Per-Session) with Connection Reference Counting
 // ============================================================================
-// Track connected listeners (dancers) per session for accurate crowd size
-// Map: sessionId -> Set<clientId>
-const sessionListeners = new Map<string, Set<string>>();
+// Track connected listeners (dancers) per session for accurate crowd size.
+// Uses reference counting: multiple tabs from same client count as ONE listener.
+// Map: sessionId -> Map<clientId, connectionCount>
+const sessionListeners = new Map<string, Map<string, number>>();
 const djConnections = new Set<string>(); // Track DJ connections to exclude from count
 
-// Get listener count for a specific session
+// Get listener count for a specific session (unique clients, not connections)
 function getListenerCount(sessionId: string): number {
     return sessionListeners.get(sessionId)?.size ?? 0;
 }
 
-// Add listener to a session
-function addListener(sessionId: string, clientId: string): void {
+// Add listener connection to a session (increments reference count)
+// Returns true if this is a NEW client (unique count increased)
+function addListener(sessionId: string, clientId: string): boolean {
     if (!sessionListeners.has(sessionId)) {
-        sessionListeners.set(sessionId, new Set());
+        sessionListeners.set(sessionId, new Map());
     }
-    sessionListeners.get(sessionId)!.add(clientId);
+    const clients = sessionListeners.get(sessionId)!;
+    const currentCount = clients.get(clientId) ?? 0;
+    const isNewClient = currentCount === 0;
+    clients.set(clientId, currentCount + 1);
+    console.log(`👥 Listener connection added: ${clientId.substring(0, 8)}... (${currentCount + 1} connections, isNew: ${isNewClient})`);
+    return isNewClient;
 }
 
-// Remove listener from a session
-function removeListener(sessionId: string, clientId: string): void {
-    sessionListeners.get(sessionId)?.delete(clientId);
+// Remove listener connection from a session (decrements reference count)
+// Returns true if client was completely removed (unique count decreased)
+function removeListener(sessionId: string, clientId: string): boolean {
+    const clients = sessionListeners.get(sessionId);
+    if (!clients) return false;
+
+    const currentCount = clients.get(clientId) ?? 0;
+    if (currentCount <= 1) {
+        // Last connection from this client, remove entirely
+        clients.delete(clientId);
+        console.log(`👥 Listener removed: ${clientId.substring(0, 8)}... (no more connections)`);
+        return true; // Unique count changed
+    } else {
+        // Still has other connections open
+        clients.set(clientId, currentCount - 1);
+        console.log(`👥 Listener connection closed: ${clientId.substring(0, 8)}... (${currentCount - 1} connections remaining)`);
+        return false; // Unique count unchanged
+    }
 }
 
 // ============================================================================
@@ -133,6 +156,113 @@ function clearLikesForSession(): void {
 }
 
 // ============================================================================
+// Poll State Management
+// ============================================================================
+// Track active polls and votes in memory for real-time updates
+
+interface ActivePoll {
+    id: number;
+    sessionId: string;
+    question: string;
+    options: string[];
+    votes: number[]; // Vote count per option
+    votedClients: Set<string>; // Clients who have voted
+    endsAt?: Date; // Optional auto-close time
+}
+
+// Map: pollId -> ActivePoll
+const activePolls = new Map<number, ActivePoll>();
+
+// Map: sessionId -> current active poll ID (one poll at a time per session)
+const sessionActivePoll = new Map<string, number>();
+
+function getActivePoll(pollId: number): ActivePoll | undefined {
+    return activePolls.get(pollId);
+}
+
+function getSessionPoll(sessionId: string): ActivePoll | undefined {
+    const pollId = sessionActivePoll.get(sessionId);
+    return pollId ? activePolls.get(pollId) : undefined;
+}
+
+function hasClientVoted(pollId: number, clientId: string): boolean {
+    const poll = activePolls.get(pollId);
+    return poll ? poll.votedClients.has(clientId) : true;
+}
+
+function endPoll(pollId: number): ActivePoll | undefined {
+    const poll = activePolls.get(pollId);
+    if (poll) {
+        activePolls.delete(pollId);
+        sessionActivePoll.delete(poll.sessionId);
+    }
+    return poll;
+}
+
+// Poll database helpers (fire-and-forget async operations)
+async function createPollInDb(
+    sessionId: string,
+    question: string,
+    options: string[],
+    currentTrack?: TrackInfo | null
+): Promise<number | null> {
+    // Wait for session to be persisted (with timeout)
+    // Increased to 30 attempts (3 seconds) to ensure session has time to persist
+    let attempts = 0;
+    const maxAttempts = 30;
+    while (!persistedSessions.has(sessionId) && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+        if (attempts % 10 === 0) {
+            console.log(`⏳ Waiting for session persistence: ${attempts}/${maxAttempts}...`);
+        }
+    }
+
+    if (!persistedSessions.has(sessionId)) {
+        console.error("❌ Session not persisted after 3s, cannot create poll:", sessionId);
+        console.error("   Known sessions:", Array.from(persistedSessions));
+        return null;
+    }
+
+    try {
+        const [newPoll] = await db.insert(schema.polls).values({
+            sessionId,
+            question,
+            options: JSON.stringify(options),
+            status: "active",
+            currentTrackArtist: currentTrack?.artist ?? null,
+            currentTrackTitle: currentTrack?.title ?? null,
+        }).returning({ id: schema.polls.id });
+        return newPoll?.id ?? null;
+    } catch (e) {
+        console.error("❌ Failed to create poll:", e);
+        return null;
+    }
+}
+
+async function closePollInDb(pollId: number): Promise<void> {
+    try {
+        await db.update(schema.polls)
+            .set({ status: "closed", endedAt: new Date() })
+            .where(eq(schema.polls.id, pollId));
+    } catch (e) {
+        console.error("❌ Failed to close poll:", e);
+    }
+}
+
+async function recordPollVote(pollId: number, clientId: string, optionIndex: number): Promise<void> {
+    try {
+        await db.insert(schema.pollVotes).values({
+            pollId,
+            clientId,
+            optionIndex,
+        }).onConflictDoNothing();
+    } catch (e) {
+        console.error("❌ Failed to persist vote:", e);
+    }
+}
+
+// ============================================================================
 // Database Persistence Helpers
 // ============================================================================
 
@@ -160,6 +290,7 @@ async function persistSession(sessionId: string, djName: string): Promise<boolea
 /**
  * Persist played track to database
  * Only persists if session already exists in DB
+ * Stores BPM, key, and fingerprint for analytics visualizations
  */
 async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> {
     // Wait for session to be persisted (with timeout)
@@ -179,8 +310,19 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
             sessionId,
             artist: track.artist,
             title: track.title,
+            // Core metrics
+            bpm: track.bpm ?? null,
+            key: track.key ?? null,
+            // Fingerprint metrics
+            energy: track.energy ? Math.round(track.energy) : null,
+            danceability: track.danceability ? Math.round(track.danceability) : null,
+            brightness: track.brightness ? Math.round(track.brightness) : null,
+            acousticness: track.acousticness ? Math.round(track.acousticness) : null,
+            groove: track.groove ? Math.round(track.groove) : null,
         });
-        console.log(`💾 Track persisted: ${track.artist} - ${track.title}`);
+        const bpmInfo = track.bpm ? ` (${track.bpm} BPM)` : "";
+        const fingerprint = track.danceability ? ` [D:${Math.round(track.danceability)}]` : "";
+        console.log(`💾 Track persisted: ${track.artist} - ${track.title}${bpmInfo}${fingerprint}`);
     } catch (e) {
         console.error("❌ Failed to persist track:", e);
     }
@@ -203,6 +345,37 @@ async function persistLike(track: TrackInfo, sessionId?: string, clientId?: stri
         console.log(`💾 Like persisted: ${track.title} (client: ${clientId?.substring(0, 20)}...)`);
     } catch (e) {
         console.error("❌ Failed to persist like:", e);
+    }
+}
+
+/**
+ * Persist tempo votes for a track (called when track changes)
+ * @param sessionId - Session ID
+ * @param track - The track that was playing
+ * @param votes - Aggregated vote counts
+ */
+async function persistTempoVotes(
+    sessionId: string,
+    track: TrackInfo,
+    votes: { slower: number; perfect: number; faster: number }
+): Promise<void> {
+    // Only persist if there were any votes
+    if (votes.slower === 0 && votes.perfect === 0 && votes.faster === 0) {
+        return;
+    }
+
+    try {
+        await db.insert(schema.tempoVotes).values({
+            sessionId,
+            trackArtist: track.artist,
+            trackTitle: track.title,
+            slowerCount: votes.slower,
+            perfectCount: votes.perfect,
+            fasterCount: votes.faster,
+        });
+        console.log(`🎚️ Tempo votes persisted: ${track.title} (🐢${votes.slower} ✅${votes.perfect} 🐇${votes.faster})`);
+    } catch (e) {
+        console.error("❌ Failed to persist tempo votes:", e);
     }
 }
 
@@ -295,12 +468,19 @@ app.get("/api/session/:sessionId/recap", async (c) => {
 
         const dbSession = sessionData[0];
 
-        // Get all tracks for this session
+        // Get all tracks for this session (including fingerprint for analytics)
         const tracks = await db
             .select({
                 id: schema.playedTracks.id,
                 artist: schema.playedTracks.artist,
                 title: schema.playedTracks.title,
+                bpm: schema.playedTracks.bpm,
+                key: schema.playedTracks.key,
+                energy: schema.playedTracks.energy,
+                danceability: schema.playedTracks.danceability,
+                brightness: schema.playedTracks.brightness,
+                acousticness: schema.playedTracks.acousticness,
+                groove: schema.playedTracks.groove,
                 playedAt: schema.playedTracks.playedAt,
             })
             .from(schema.playedTracks)
@@ -336,6 +516,82 @@ app.get("/api/session/:sessionId/recap", async (c) => {
             trackLikeCounts.set(`${track.artist}:${track.title}`, likeCount[0]?.count || 0);
         }
 
+        // Get per-track tempo votes
+        const tempoVotesData = await db
+            .select({
+                trackArtist: schema.tempoVotes.trackArtist,
+                trackTitle: schema.tempoVotes.trackTitle,
+                slowerCount: schema.tempoVotes.slowerCount,
+                perfectCount: schema.tempoVotes.perfectCount,
+                fasterCount: schema.tempoVotes.fasterCount,
+            })
+            .from(schema.tempoVotes)
+            .where(eq(schema.tempoVotes.sessionId, sessionId));
+
+        const trackTempoVotes = new Map<string, { slower: number; perfect: number; faster: number }>();
+        for (const tv of tempoVotesData) {
+            trackTempoVotes.set(`${tv.trackArtist}:${tv.trackTitle}`, {
+                slower: tv.slowerCount,
+                perfect: tv.perfectCount,
+                faster: tv.fasterCount,
+            });
+        }
+
+        // Get polls for this session
+        const pollsData = await db
+            .select({
+                id: schema.polls.id,
+                question: schema.polls.question,
+                options: schema.polls.options,
+                status: schema.polls.status,
+                startedAt: schema.polls.startedAt,
+                endedAt: schema.polls.endedAt,
+                currentTrackArtist: schema.polls.currentTrackArtist,
+                currentTrackTitle: schema.polls.currentTrackTitle,
+            })
+            .from(schema.polls)
+            .where(eq(schema.polls.sessionId, sessionId));
+
+        // Get vote counts for each poll
+        const pollsWithResults = await Promise.all(pollsData.map(async (poll) => {
+            const votes = await db
+                .select({
+                    optionIndex: schema.pollVotes.optionIndex,
+                    count: count(),
+                })
+                .from(schema.pollVotes)
+                .where(eq(schema.pollVotes.pollId, poll.id))
+                .groupBy(schema.pollVotes.optionIndex);
+
+            const options = JSON.parse(poll.options) as string[];
+            const voteCounts = new Array(options.length).fill(0) as number[];
+
+            for (const v of votes) {
+                if (v.optionIndex >= 0 && v.optionIndex < voteCounts.length) {
+                    voteCounts[v.optionIndex] = v.count;
+                }
+            }
+
+            const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
+            const winnerIndex = totalVotes > 0 ? voteCounts.indexOf(Math.max(...voteCounts)) : -1;
+
+            return {
+                id: poll.id,
+                question: poll.question,
+                options,
+                votes: voteCounts,
+                totalVotes,
+                winnerIndex,
+                winner: winnerIndex >= 0 ? options[winnerIndex] : null,
+                startedAt: poll.startedAt,
+                endedAt: poll.endedAt,
+                // Track context: what was playing when poll was created
+                currentTrack: poll.currentTrackArtist && poll.currentTrackTitle
+                    ? { artist: poll.currentTrackArtist, title: poll.currentTrackTitle }
+                    : null,
+            };
+        }));
+
         // Calculate session stats
         const firstTrack = tracks[0];
         const lastTrack = tracks[tracks.length - 1];
@@ -349,13 +605,32 @@ app.get("/api/session/:sessionId/recap", async (c) => {
             endedAt: endTime,
             trackCount: tracks.length,
             totalLikes,
-            tracks: tracks.map((t, index) => ({
-                position: index + 1,
-                artist: t.artist,
-                title: t.title,
-                playedAt: t.playedAt,
-                likes: trackLikeCounts.get(`${t.artist}:${t.title}`) || 0,
-            })),
+            tracks: tracks.map((t, index) => {
+                const tempoData = trackTempoVotes.get(`${t.artist}:${t.title}`);
+                return {
+                    position: index + 1,
+                    artist: t.artist,
+                    title: t.title,
+                    bpm: t.bpm,
+                    key: t.key,
+                    // Fingerprint data
+                    energy: t.energy,
+                    danceability: t.danceability,
+                    brightness: t.brightness,
+                    acousticness: t.acousticness,
+                    groove: t.groove,
+                    playedAt: t.playedAt,
+                    likes: trackLikeCounts.get(`${t.artist}:${t.title}`) || 0,
+                    tempo: tempoData ? {
+                        slower: tempoData.slower,
+                        perfect: tempoData.perfect,
+                        faster: tempoData.faster,
+                    } : null,
+                };
+            }),
+            polls: pollsWithResults,
+            totalPolls: pollsWithResults.length,
+            totalPollVotes: pollsWithResults.reduce((sum, p) => sum + p.totalVotes, 0),
         });
     } catch (e) {
         console.error("Failed to fetch recap:", e);
@@ -584,8 +859,12 @@ app.get(
                             activeSessions.set(sessionId, session);
                             console.log(`🎧 DJ going live: ${djName} (${sessionId})`);
 
-                            // 💾 Persist to database
-                            persistSession(sessionId, djName);
+                            // 💾 Persist to database SYNCHRONOUSLY
+                            // This ensures the session is in the DB before DJ can create polls
+                            (async () => {
+                                await persistSession(sessionId, djName);
+                                console.log(`✅ Session ready for polls: ${sessionId}`);
+                            })();
 
                             // Confirm registration to the client
                             ws.send(JSON.stringify({
@@ -605,6 +884,28 @@ app.get(
                         case "BROADCAST_TRACK": {
                             const session = activeSessions.get(message.sessionId);
                             if (session) {
+                                // 🎚️ Persist tempo votes for the PREVIOUS track (if any)
+                                if (session.currentTrack) {
+                                    const prevTrack = session.currentTrack;
+                                    const feedback = getTempoFeedback(message.sessionId);
+                                    if (feedback.total > 0) {
+                                        persistTempoVotes(message.sessionId, prevTrack, {
+                                            slower: feedback.slower,
+                                            perfect: feedback.perfect,
+                                            faster: feedback.faster,
+                                        });
+                                    }
+
+                                    // Clear tempo votes for this session (fresh start for new track)
+                                    tempoVotes.delete(message.sessionId);
+
+                                    // Broadcast to all clients to reset their tempo vote UI
+                                    rawWs.publish("live-session", JSON.stringify({
+                                        type: "TEMPO_RESET",
+                                        sessionId: message.sessionId,
+                                    }));
+                                }
+
                                 session.currentTrack = message.track;
                                 console.log(`🎵 Now playing: ${message.track.artist} - ${message.track.title}`);
 
@@ -640,6 +941,23 @@ app.get(
                             const session = activeSessions.get(message.sessionId);
                             if (session) {
                                 console.log(`👋 Session ended: ${session.djName}`);
+
+                                // 🎚️ Persist tempo votes for the LAST track (if any)
+                                // This was missing - tempo votes were only persisted on track change!
+                                if (session.currentTrack) {
+                                    const feedback = getTempoFeedback(message.sessionId);
+                                    if (feedback.total > 0) {
+                                        console.log(`🎚️ Persisting final tempo votes: ${JSON.stringify(feedback)}`);
+                                        persistTempoVotes(message.sessionId, session.currentTrack, {
+                                            slower: feedback.slower,
+                                            perfect: feedback.perfect,
+                                            faster: feedback.faster,
+                                        });
+                                    }
+                                    // Clear tempo votes for this session
+                                    tempoVotes.delete(message.sessionId);
+                                }
+
                                 activeSessions.delete(message.sessionId);
 
                                 // 💾 Update in database
@@ -658,6 +976,9 @@ app.get(
 
                         case "SEND_LIKE": {
                             const track = message.payload.track;
+                            // Get sessionId from message (new) or fall back to first active session (legacy)
+                            const likeSessionId = (message as { sessionId?: string }).sessionId
+                                || Array.from(activeSessions.keys())[0];
 
                             // Require clientId for rate limiting
                             if (!clientId) {
@@ -671,7 +992,7 @@ app.get(
 
                             // Check if this client has already liked this track
                             const trackKey = getTrackKey(track);
-                            console.log(`🔍 Like check: client=${clientId}, track="${trackKey}", hasLiked=${hasLikedTrack(clientId, track)}`);
+                            console.log(`🔍 Like check: client=${clientId}, session=${likeSessionId}, track="${trackKey}", hasLiked=${hasLikedTrack(clientId, track)}`);
 
                             if (hasLikedTrack(clientId, track)) {
                                 console.log(`⚠️ Duplicate like ignored for: ${track.title} (${clientId})`);
@@ -685,11 +1006,10 @@ app.get(
 
                             // Record the like
                             recordLike(clientId, track);
-                            console.log(`❤️ Like received for: ${track.title} (${clientId})`);
+                            console.log(`❤️ Like received for: ${track.title} (client: ${clientId}, session: ${likeSessionId})`);
 
-                            // 💾 Persist to database (find active session for context)
-                            const activeSessionIds = Array.from(activeSessions.keys());
-                            persistLike(track, activeSessionIds[0], clientId);  // Pass clientId!
+                            // 💾 Persist to database with correct sessionId
+                            persistLike(track, likeSessionId, clientId);
 
                             // Broadcast to all clients (including DJ)
                             rawWs.publish("live-session", JSON.stringify({
@@ -753,17 +1073,19 @@ app.get(
                             if (isNewSubscription) {
                                 isListener = true;
                                 subscribedSessionId = targetSession;
-                                addListener(targetSession!, clientId!);
+                                const isNewUniqueClient = addListener(targetSession!, clientId!);
 
                                 const count = getListenerCount(targetSession);
                                 console.log(`👥 Listener count for ${targetSession}: ${count}`);
 
-                                // Broadcast updated listener count for this session
-                                rawWs.publish("live-session", JSON.stringify({
-                                    type: "LISTENER_COUNT",
-                                    sessionId: targetSession,
-                                    count,
-                                }));
+                                // Only broadcast if unique client count changed
+                                if (isNewUniqueClient) {
+                                    rawWs.publish("live-session", JSON.stringify({
+                                        type: "LISTENER_COUNT",
+                                        sessionId: targetSession,
+                                        count,
+                                    }));
+                                }
                             }
 
                             // Send current sessions list
@@ -780,7 +1102,278 @@ app.get(
                                     sessionId: targetSession,
                                     count: getListenerCount(targetSession),
                                 }));
+
+                                // Send current track to new subscriber if there is one playing
+                                const session = activeSessions.get(targetSession);
+                                if (session?.currentTrack) {
+                                    ws.send(JSON.stringify({
+                                        type: "NOW_PLAYING",
+                                        sessionId: targetSession,
+                                        track: session.currentTrack,
+                                    }));
+                                    console.log(`🎵 Sent current track to new subscriber: ${session.currentTrack.artist} - ${session.currentTrack.title}`);
+                                }
+
+                                // If there's an active poll for this session, send it to the new subscriber
+                                const activePollId = sessionActivePoll.get(targetSession);
+                                if (activePollId) {
+                                    const poll = getActivePoll(activePollId);
+                                    if (poll) {
+                                        const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
+                                        // Check if THIS client has already voted
+                                        const hasVoted = clientId ? poll.votedClients.has(clientId) : false;
+
+                                        ws.send(JSON.stringify({
+                                            type: "POLL_STARTED",
+                                            pollId: poll.id,
+                                            question: poll.question,
+                                            options: poll.options,
+                                            endsAt: poll.endsAt?.toISOString(),
+                                            // Include current votes for existing polls
+                                            votes: poll.votes,
+                                            totalVotes,
+                                            // Tell client if they've already voted
+                                            hasVoted,
+                                        }));
+                                        console.log(`📊 Sent active poll to new subscriber: "${poll.question}" (${totalVotes} votes, hasVoted: ${hasVoted})`);
+                                    }
+                                }
                             }
+                            break;
+                        }
+
+                        // ========================================
+                        // Poll Handlers
+                        // ========================================
+
+                        case "START_POLL": {
+                            console.log("📊 START_POLL received:", message);
+
+                            const { sessionId: pollSessionId, question, options, durationSeconds } = message as {
+                                sessionId: string;
+                                question: string;
+                                options: string[];
+                                durationSeconds?: number;
+                            };
+
+                            console.log("📊 Poll details:", { pollSessionId, question, options, durationSeconds });
+
+                            // Check if there's already an active poll for this session
+                            const existingPoll = getSessionPoll(pollSessionId);
+                            if (existingPoll) {
+                                console.log("⚠️ Poll already active for session:", pollSessionId);
+                                break;
+                            }
+
+                            // Use IIFE for async database call
+                            (async () => {
+                                console.log("📊 Creating poll in database...");
+                                // Get current track for context
+                                const session = activeSessions.get(pollSessionId);
+                                const pollId = await createPollInDb(pollSessionId, question, options, session?.currentTrack);
+                                console.log("📊 Poll ID from database:", pollId);
+                                if (!pollId) {
+                                    console.log("❌ Failed to create poll in database - no ID returned");
+                                    return;
+                                }
+
+                                const endsAt = durationSeconds
+                                    ? new Date(Date.now() + durationSeconds * 1000)
+                                    : undefined;
+
+                                // Create in-memory poll state
+                                const activePoll: ActivePoll = {
+                                    id: pollId,
+                                    sessionId: pollSessionId,
+                                    question,
+                                    options,
+                                    votes: new Array(options.length).fill(0) as number[],
+                                    votedClients: new Set(),
+                                };
+                                if (endsAt) activePoll.endsAt = endsAt;
+
+                                activePolls.set(pollId, activePoll);
+                                sessionActivePoll.set(pollSessionId, pollId);
+
+                                console.log(`📊 Poll started: "${question}" with ${options.length} options`);
+
+                                // Broadcast to all dancers
+                                rawWs.publish("live-session", JSON.stringify({
+                                    type: "POLL_STARTED",
+                                    pollId,
+                                    question,
+                                    options,
+                                    endsAt: endsAt?.toISOString(),
+                                }));
+
+                                // Set auto-close timer if duration specified
+                                if (durationSeconds && endsAt) {
+                                    console.log(`⏱️ Poll timer set: ${durationSeconds}s, will end at ${endsAt.toISOString()}`);
+                                    setTimeout(() => {
+                                        console.log(`⏱️ Poll timer fired for poll ${pollId}`);
+                                        const poll = endPoll(pollId);
+                                        if (poll) {
+                                            const winnerIndex = poll.votes.indexOf(Math.max(...poll.votes));
+                                            const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
+
+                                            // Update database (fire-and-forget)
+                                            closePollInDb(pollId);
+
+                                            const endMessage = JSON.stringify({
+                                                type: "POLL_ENDED",
+                                                pollId,
+                                                results: poll.votes,
+                                                totalVotes,
+                                                winnerIndex,
+                                            });
+
+                                            // Broadcast end to all subscribers (dancers)
+                                            rawWs.publish("live-session", endMessage);
+
+                                            // Also send directly to DJ who created the poll
+                                            try {
+                                                ws.send(endMessage);
+                                            } catch (e) {
+                                                console.log("⚠️ Could not send POLL_ENDED to DJ (connection may have closed)");
+                                            }
+
+                                            console.log(`📊 Poll auto-closed: "${question}" - Winner: ${poll.options[winnerIndex]}`);
+                                        } else {
+                                            console.log(`⚠️ Poll ${pollId} already ended or not found`);
+                                        }
+                                    }, durationSeconds * 1000);
+                                }
+                            })().catch(e => {
+                                console.error("❌ Error in poll creation IIFE:", e);
+                            });
+                            break;
+                        }
+
+                        case "END_POLL": {
+                            const { pollId } = message as { pollId: number };
+
+                            const poll = endPoll(pollId);
+                            if (!poll) {
+                                console.log("⚠️ Poll not found:", pollId);
+                                break;
+                            }
+
+                            const winnerIndex = poll.votes.indexOf(Math.max(...poll.votes));
+                            const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
+
+                            // Update database (fire-and-forget)
+                            closePollInDb(pollId);
+
+                            // Broadcast end
+                            rawWs.publish("live-session", JSON.stringify({
+                                type: "POLL_ENDED",
+                                pollId,
+                                results: poll.votes,
+                                totalVotes,
+                                winnerIndex,
+                            }));
+
+                            console.log(`📊 Poll ended: "${poll.question}" - Winner: ${poll.options[winnerIndex]}`);
+                            break;
+                        }
+
+                        case "CANCEL_POLL": {
+                            // Cancel poll by session ID (used when poll ID isn't assigned yet)
+                            const { sessionId: cancelSessionId } = message as { sessionId: string };
+                            const pollId = sessionActivePoll.get(cancelSessionId);
+
+                            if (!pollId) {
+                                console.log("⚠️ No active poll for session to cancel:", cancelSessionId);
+                                break;
+                            }
+
+                            const poll = endPoll(pollId);
+                            if (poll) {
+                                closePollInDb(pollId);
+                                rawWs.publish("live-session", JSON.stringify({
+                                    type: "POLL_ENDED",
+                                    pollId,
+                                    cancelled: true,
+                                }));
+                                console.log(`📊 Poll cancelled: "${poll.question}"`);
+                            }
+                            break;
+                        }
+
+                        case "VOTE_ON_POLL": {
+                            const { pollId, optionIndex, clientId: voterId } = message as {
+                                pollId: number;
+                                optionIndex: number;
+                                clientId: string;
+                            };
+
+                            const poll = getActivePoll(pollId);
+                            if (!poll) {
+                                console.log("⚠️ Poll not found or closed:", pollId);
+                                ws.send(JSON.stringify({
+                                    type: "VOTE_REJECTED",
+                                    pollId,
+                                    reason: "Poll not found or closed",
+                                }));
+                                break;
+                            }
+
+                            // Check if client already voted
+                            if (poll.votedClients.has(voterId)) {
+                                console.log("⚠️ Client already voted:", voterId);
+                                // Send rejection with current correct vote state
+                                const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
+                                ws.send(JSON.stringify({
+                                    type: "VOTE_REJECTED",
+                                    pollId,
+                                    reason: "Already voted",
+                                    votes: poll.votes,
+                                    totalVotes,
+                                }));
+                                break;
+                            }
+
+                            // Validate option index
+                            if (optionIndex < 0 || optionIndex >= poll.options.length) {
+                                console.log("⚠️ Invalid option index:", optionIndex);
+                                ws.send(JSON.stringify({
+                                    type: "VOTE_REJECTED",
+                                    pollId,
+                                    reason: "Invalid option",
+                                }));
+                                break;
+                            }
+
+                            // Record vote in memory (poll is guaranteed to exist after guard)
+                            const currentValue = poll!.votes[optionIndex];
+                            if (currentValue !== undefined) {
+                                poll!.votes[optionIndex] = currentValue + 1;
+                            }
+                            poll!.votedClients.add(voterId);
+
+                            // Persist vote to database (fire-and-forget)
+                            recordPollVote(pollId, voterId, optionIndex);
+
+                            const totalVotes = poll!.votes.reduce((a, b) => a + b, 0);
+                            console.log(`📊 Vote on "${poll!.question}": ${poll!.options[optionIndex]} (total: ${totalVotes})`);
+
+                            // Confirm vote to sender
+                            ws.send(JSON.stringify({
+                                type: "VOTE_CONFIRMED",
+                                pollId,
+                                optionIndex,
+                                votes: poll!.votes,
+                                totalVotes,
+                            }));
+
+                            // Send update to all others (DJ included)
+                            rawWs.publish("live-session", JSON.stringify({
+                                type: "POLL_UPDATE",
+                                pollId,
+                                votes: poll!.votes,
+                                totalVotes,
+                            }));
+
                             break;
                         }
 
@@ -790,6 +1383,9 @@ app.get(
                         case "NOW_PLAYING":
                         case "SESSION_ENDED":
                         case "SESSIONS_LIST":
+                        case "POLL_STARTED":
+                        case "POLL_UPDATE":
+                        case "POLL_ENDED":
                         case "LIKE_RECEIVED": {
                             console.log(`⚠️ Unexpected server message from client: ${message.type}`);
                             break;
@@ -805,17 +1401,21 @@ app.get(
 
                 // Remove listener from session if this was a listener
                 if (isListener && clientId && subscribedSessionId) {
-                    removeListener(subscribedSessionId, clientId);
-                    const count = getListenerCount(subscribedSessionId);
-                    console.log(`👥 Listener count for ${subscribedSessionId}: ${count}`);
+                    const wasRemoved = removeListener(subscribedSessionId, clientId);
 
-                    // Broadcast updated count for this session
-                    const rawWs = ws.raw as ServerWebSocket;
-                    rawWs.publish("live-session", JSON.stringify({
-                        type: "LISTENER_COUNT",
-                        sessionId: subscribedSessionId,
-                        count,
-                    }));
+                    // Only broadcast if unique client count actually changed
+                    if (wasRemoved) {
+                        const count = getListenerCount(subscribedSessionId);
+                        console.log(`👥 Listener count for ${subscribedSessionId}: ${count}`);
+
+                        // Broadcast updated count for this session
+                        const rawWs = ws.raw as ServerWebSocket;
+                        rawWs.publish("live-session", JSON.stringify({
+                            type: "LISTENER_COUNT",
+                            sessionId: subscribedSessionId,
+                            count,
+                        }));
+                    }
                 }
             },
 

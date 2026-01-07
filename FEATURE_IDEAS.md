@@ -760,6 +760,102 @@ West Coast Swing competitions have specific requirements that differ significant
 
 ---
 
+### Small Improvements (Quick Wins)
+
+#### AN-11: Session Names
+- **Description**: Better session identification on DJ profile page
+- **Current**: Shows only date (repetitive for multiple sessions/day)
+- **Options**:
+  - A. Date + Time: "Tue, Jan 6 @ 7:30 PM" (5 min)
+  - B. Auto-generated from first track: "Women Be Wise Set" (15 min)
+  - C. DJ names session when starting (30 min, schema change)
+  - D. First Track + Time: "Women Be Wise (7:30 PM)" (10 min)
+- **Priority**: High
+- **Complexity**: Low
+
+#### AN-12: Track Fingerprint (Radar Chart)
+- **Description**: Multi-dimensional visualization per track
+- **Dimensions**: Likes, Perfect Tempo %, BPM (normalized), Position in set, Engagement
+- **Implementation**: Recharts RadarChart (already installed)
+- **Priority**: Medium
+- **Complexity**: Low (analytics page only)
+
+#### AN-13: Key Wheel Visualization
+- **Description**: Show harmonic mixing flow through the set
+- **Visualization**: Circle of Fifths with transition lines
+- **Use Case**: DJ-focused (did I make good key transitions?)
+- **Shows**: Key compatibility scores, most used keys
+- **Priority**: Low
+- **Complexity**: Medium
+
+---
+
+### Platform Ideas (Larger Vision)
+
+#### AN-14: Community Summary Page 🌟
+- **Description**: Global analytics aggregating all Pika! sessions
+- **Content**:
+  - Most loved tracks this week/month
+  - Trending songs in WCS community
+  - Total engagement stats
+  - Regional popularity
+- **Revenue Potential**: 
+  - Sponsored track placements
+  - Premium insights for DJs
+  - Advertising
+- **Anti-Hate Design**:
+  - Focus on POSITIVE metrics only (most loved, not least)
+  - Show trends, not DJ rankings
+  - Anonymous aggregation
+  - No public comparison between DJs
+- **Privacy**: Aggregate only, opt-out for DJs
+- **Priority**: Medium-High (community value)
+- **Complexity**: High
+
+#### AN-15: DJ Personal Summary Page 🎧
+- **Description**: Personal analytics dashboard for each DJ
+- **Content**:
+  - Most played tracks (lifetime)
+  - Session frequency, total tracks
+  - Average engagement metrics
+  - Music style breakdown (BPM ranges, keys)
+  - (Future) Events attended/upcoming
+- **Public vs Private**:
+  - Public: Highlights, session count, "signature songs"
+  - Private: Detailed analytics, improvement suggestions
+- **Anti-Hate Design**:
+  - No public ranking or comparison
+  - Positive framing ("top 5 crowd favorites" not "5 flops")
+  - DJ controls what's visible
+- **Priority**: Medium
+- **Complexity**: Medium
+
+#### AN-16: Live DJ Polls 📊
+- **Description**: DJ can start real-time polls during sessions
+- **Poll Types**:
+  - Music style: "What vibe next? Pop / Blues / Electro"
+  - Tempo: "Ready for something faster?"
+  - General: Custom single-choice questions
+- **DJ Control**:
+  - DJ decides WHEN to poll
+  - DJ controls OPTIONS (no negative options)
+  - Poll is SUGGESTIVE, not binding
+  - DJ can disable feature entirely
+- **Anti-Hate Design**:
+  - No "don't play X" options
+  - Limit poll frequency (max 1 per 15 min)
+  - Positive framing only
+  - No public results (DJ sees, audience doesn't)
+  - No comments/text input
+- **Abuse Prevention**:
+  - DJ curates options
+  - Rate limiting
+  - No trolling vectors (no freeform text)
+- **Priority**: High (high engagement potential)
+- **Complexity**: Medium
+
+---
+
 ## Event & Multi-DJ System
 
 ### Event Structure
@@ -1079,6 +1175,17 @@ West Coast Swing competitions have specific requirements that differ significant
 
 | Date | Changes |
 |------|---------|
+| 2026-01-06 | **IMPLEMENTED**: Live DJ Polls - complete flow with live results for dancers + recap integration ✅ |
+| 2026-01-06 | **FIXED**: Tempo feedback (🐢/👌/🐇) now resets on track change in Perform Mode ✅ |
+| 2026-01-06 | **IMPLEMENTED**: Set Fingerprint Radar Chart in analytics (energy, dance, bright, acoustic, groove) ✅ |
+| 2026-01-06 | **IMPLEMENTED**: Session names now show date + time (e.g., "Mon, Jan 6 @ 7:30 PM") ✅ |
+| 2026-01-06 | **IMPLEMENTED**: Fingerprint data (danceability, groove, etc.) piped to cloud ✅ |
+| 2026-01-06 | **IMPLEMENTED**: BPM Timeline chart in analytics (tempo progression) ✅ |
+| 2026-01-06 | **IMPLEMENTED**: Energy Wave visualization (BPM + engagement flow) ✅ |
+| 2026-01-06 | **IMPLEMENTED**: BPM and key stored per track for enhanced analytics ✅ |
+| 2026-01-06 | **IMPLEMENTED**: Session Analytics page with timeline charts & engagement visualization ✅ |
+| 2026-01-06 | **IMPLEMENTED**: Tempo votes persisted per track (reset on track change) ✅ |
+| 2026-01-06 | **IMPLEMENTED**: Tempo feedback shown on recap page (🐢 slower, ✅ perfect, 🐇 faster) ✅ |
 | 2026-01-05 | **IMPLEMENTED**: "My Likes" page for dancers (`/my-likes`) - view all your liked songs ✅ |
 | 2026-01-05 | **IMPLEMENTED**: `client_id` stored with likes for personal history tracking ✅ |
 | 2026-01-05 | **IMPLEMENTED**: Per-track like counts on recap page ✅ |

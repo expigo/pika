@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { use } from "react";
-import { Radio, Music2, Heart, Clock, Calendar, User, Share2, Check, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
+import { Radio, Music2, Heart, Clock, Calendar, User, Share2, Check, ChevronDown, ChevronUp, ArrowLeft, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 // API base URL
@@ -15,8 +15,21 @@ interface RecapTrack {
     position: number;
     artist: string;
     title: string;
+    bpm: number | null;
+    key: string | null;
+    // Fingerprint data
+    energy: number | null;
+    danceability: number | null;
+    brightness: number | null;
+    acousticness: number | null;
+    groove: number | null;
     playedAt: string;
     likes: number;
+    tempo: {
+        slower: number;
+        perfect: number;
+        faster: number;
+    } | null;
 }
 
 interface SessionRecap {
@@ -239,6 +252,23 @@ export default function DjRecapPage({ params }: RecapPageProps) {
                     </div>
                 </div>
 
+                {/* Analytics Link */}
+                <Link
+                    href={`/dj/${slug}/recap/${sessionId}/analytics`}
+                    className="block bg-gradient-to-r from-purple-500/10 to-pink-500/10 backdrop-blur-xl rounded-2xl border border-purple-500/30 hover:border-purple-500/50 p-4 mb-6 transition-all hover:shadow-lg hover:shadow-purple-500/10"
+                >
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <TrendingUp className="w-6 h-6 text-purple-400" />
+                            <div>
+                                <div className="font-semibold text-white">View Analytics</div>
+                                <div className="text-sm text-slate-400">Detailed engagement charts & tempo analysis</div>
+                            </div>
+                        </div>
+                        <span className="text-purple-400">→</span>
+                    </div>
+                </Link>
+
                 {/* Track List */}
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-700/50">
@@ -261,6 +291,26 @@ export default function DjRecapPage({ params }: RecapPageProps) {
                                     <p className="text-white font-medium truncate">{track.title}</p>
                                     <p className="text-slate-500 text-sm truncate">{track.artist}</p>
                                 </div>
+                                {/* Tempo feedback */}
+                                {track.tempo && (track.tempo.slower > 0 || track.tempo.perfect > 0 || track.tempo.faster > 0) && (
+                                    <div className="flex items-center gap-1 text-xs">
+                                        {track.tempo.slower > 0 && (
+                                            <span className="text-blue-400" title="Slower">
+                                                🐢{track.tempo.slower}
+                                            </span>
+                                        )}
+                                        {track.tempo.perfect > 0 && (
+                                            <span className="text-green-400" title="Perfect">
+                                                ✅{track.tempo.perfect}
+                                            </span>
+                                        )}
+                                        {track.tempo.faster > 0 && (
+                                            <span className="text-orange-400" title="Faster">
+                                                🐇{track.tempo.faster}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                                 {track.likes > 0 && (
                                     <span className="flex items-center gap-1 text-red-400 text-sm">
                                         <Heart className="w-3.5 h-3.5 fill-current" />

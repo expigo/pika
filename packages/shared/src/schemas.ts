@@ -10,11 +10,21 @@ import { z } from "zod";
 // ============================================================================
 
 /**
- * Basic track info for WebSocket messages (minimal)
+ * Basic track info for WebSocket messages
+ * Includes optional fingerprint data for analytics
  */
 export const TrackInfoSchema = z.object({
     title: z.string(),
     artist: z.string(),
+    // Core metrics
+    bpm: z.number().optional(),
+    key: z.string().optional(),
+    // Fingerprint metrics (all 0-100 scale)
+    energy: z.number().optional(),
+    danceability: z.number().optional(),
+    brightness: z.number().optional(),
+    acousticness: z.number().optional(),
+    groove: z.number().optional(),
 });
 
 export type TrackInfo = z.infer<typeof TrackInfoSchema>;
@@ -178,6 +188,96 @@ export const TempoFeedbackSchema = z.object({
     total: z.number(),    // total votes
 });
 
+// Server -> Clients: Reset tempo votes (track changed)
+export const TempoResetSchema = z.object({
+    type: z.literal("TEMPO_RESET"),
+    sessionId: z.string(),
+});
+
+// ============================================================================
+// Poll Schemas (Live DJ Polls)
+// ============================================================================
+
+// DJ -> Server: Start a new poll
+export const StartPollSchema = z.object({
+    type: z.literal("START_POLL"),
+    sessionId: z.string(),
+    question: z.string(),
+    options: z.array(z.string()).min(2).max(5), // 2-5 options
+    durationSeconds: z.number().min(30).max(300).optional(), // 30s to 5min, optional
+});
+
+// DJ -> Server: End poll early
+export const EndPollSchema = z.object({
+    type: z.literal("END_POLL"),
+    pollId: z.number(),
+});
+
+// DJ -> Server: Cancel poll (by session, used when poll ID not yet assigned)
+export const CancelPollSchema = z.object({
+    type: z.literal("CANCEL_POLL"),
+    sessionId: z.string(),
+});
+
+// Dancer -> Server: Vote on a poll
+export const VoteOnPollSchema = z.object({
+    type: z.literal("VOTE_ON_POLL"),
+    pollId: z.number(),
+    optionIndex: z.number(),
+    clientId: z.string(),
+});
+
+// Server -> Dancers: New poll started
+export const PollStartedSchema = z.object({
+    type: z.literal("POLL_STARTED"),
+    pollId: z.number(),
+    question: z.string(),
+    options: z.array(z.string()),
+    endsAt: z.string().optional(), // ISO timestamp when poll auto-closes
+});
+
+// Server -> DJ: Live poll results update
+export const PollUpdateSchema = z.object({
+    type: z.literal("POLL_UPDATE"),
+    pollId: z.number(),
+    votes: z.array(z.number()), // Vote count per option [12, 8, 5]
+    totalVotes: z.number(),
+});
+
+// Server -> All: Poll has ended
+export const PollEndedSchema = z.object({
+    type: z.literal("POLL_ENDED"),
+    pollId: z.number(),
+    results: z.array(z.number()), // Final vote count per option
+    totalVotes: z.number(),
+    winnerIndex: z.number(), // Index of option with most votes
+});
+
+// Server -> All: Poll ID updated (temp ID -> DB ID)
+export const PollIdUpdatedSchema = z.object({
+    type: z.literal("POLL_ID_UPDATED"),
+    oldPollId: z.number(),
+    newPollId: z.number(),
+});
+
+// Server -> Client: Vote rejected
+export const VoteRejectedSchema = z.object({
+    type: z.literal("VOTE_REJECTED"),
+    pollId: z.number(),
+    reason: z.string(),
+    votes: z.array(z.number()).optional(),
+    totalVotes: z.number().optional(),
+});
+
+// Server -> Client: Vote confirmed
+export const VoteConfirmedSchema = z.object({
+    type: z.literal("VOTE_CONFIRMED"),
+    pollId: z.number(),
+    optionIndex: z.number(),
+    votes: z.array(z.number()),
+    totalVotes: z.number(),
+});
+
 // ============================================================================
 // Combined Message Schemas
 // ============================================================================
@@ -193,6 +293,11 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
     SubscribeSchema,
     SendLikeSchema,
     SendTempoRequestSchema,
+    // Polls
+    StartPollSchema,
+    EndPollSchema,
+    CancelPollSchema,
+    VoteOnPollSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -209,7 +314,15 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
     LikeReceivedSchema,
     ListenerCountSchema,
     TempoFeedbackSchema,
+    TempoResetSchema,
     TrackStoppedSchema, // Can also come from server
+    // Polls
+    PollStartedSchema,
+    PollUpdateSchema,
+    PollEndedSchema,
+    PollIdUpdatedSchema,
+    VoteRejectedSchema,
+    VoteConfirmedSchema,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

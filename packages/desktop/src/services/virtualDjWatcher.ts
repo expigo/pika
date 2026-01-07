@@ -3,7 +3,7 @@ import { type TrackInfo } from "@pika/shared";
 
 /**
  * Extended track info from VirtualDJ with additional metadata.
- * When sending to Cloud, map to TrackInfo (just artist + title).
+ * When sending to Cloud, map to TrackInfo.
  */
 export interface NowPlayingTrack extends TrackInfo {
     filePath: string;
@@ -12,12 +12,22 @@ export interface NowPlayingTrack extends TrackInfo {
 }
 
 /**
- * Convert NowPlayingTrack to TrackInfo for WebSocket messages
+ * Convert NowPlayingTrack to TrackInfo for WebSocket messages.
+ * Includes fingerprint data if available.
  */
 export function toTrackInfo(track: NowPlayingTrack): TrackInfo {
     return {
         artist: track.artist,
         title: track.title,
+        // Core metrics
+        bpm: track.bpm,
+        key: track.key,
+        // Fingerprint metrics (if available on track)
+        energy: track.energy,
+        danceability: track.danceability,
+        brightness: track.brightness,
+        acousticness: track.acousticness,
+        groove: track.groove,
     };
 }
 

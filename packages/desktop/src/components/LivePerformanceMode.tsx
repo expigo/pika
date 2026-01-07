@@ -3,7 +3,7 @@
  * Full-screen, high-contrast overlay for gig performance.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     X,
     Flame,
@@ -14,9 +14,48 @@ import {
     Heart,
     Users,
     Gauge,
+    BarChart2,
+    Clock,
 } from "lucide-react";
 import { useActivePlay } from "../hooks/useActivePlay";
 import type { PlayReaction } from "../db/schema";
+
+// Poll countdown timer component
+function PollCountdown({ endsAt }: { endsAt: string }) {
+    const [timeLeft, setTimeLeft] = useState<number>(0);
+
+    useEffect(() => {
+        const endTime = new Date(endsAt).getTime();
+
+        const updateCountdown = () => {
+            const remaining = Math.max(0, endTime - Date.now());
+            setTimeLeft(remaining);
+        };
+
+        updateCountdown();
+        const interval = setInterval(updateCountdown, 1000);
+        return () => clearInterval(interval);
+    }, [endsAt]);
+
+    if (timeLeft <= 0) {
+        return <span style={{ color: "#fbbf24" }}>⏰ Closing...</span>;
+    }
+
+    const seconds = Math.floor(timeLeft / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    const timeStr = minutes > 0
+        ? `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+        : `${seconds}s`;
+
+    return (
+        <span style={{ color: "#a78bfa", fontFamily: "monospace", display: "flex", alignItems: "center", gap: "4px" }}>
+            <Clock size={14} />
+            {timeStr}
+        </span>
+    );
+}
 
 export interface TempoFeedback {
     slower: number;
@@ -25,14 +64,34 @@ export interface TempoFeedback {
     total: number;
 }
 
+export interface ActivePoll {
+    id: number;
+    question: string;
+    options: string[];
+    votes: number[];
+    totalVotes: number;
+    endsAt?: string; // ISO timestamp for auto-close timer
+}
+
 interface Props {
     onExit: () => void;
     listenerCount?: number;
     tempoFeedback?: TempoFeedback | null;
     liveLikes?: number; // Real-time likes from cloud
+    activePoll?: ActivePoll | null;
+    onStartPoll?: (question: string, options: string[], durationSeconds?: number) => void;
+    onEndPoll?: () => void;
 }
 
-export function LivePerformanceMode({ onExit, listenerCount = 0, tempoFeedback, liveLikes = 0 }: Props) {
+export function LivePerformanceMode({
+    onExit,
+    listenerCount = 0,
+    tempoFeedback,
+    liveLikes = 0,
+    activePoll,
+    onStartPoll,
+    onEndPoll,
+}: Props) {
     const {
         currentPlay,
         recentPlays,
@@ -44,6 +103,12 @@ export function LivePerformanceMode({ onExit, listenerCount = 0, tempoFeedback, 
 
     const [showNoteModal, setShowNoteModal] = useState(false);
     const [noteText, setNoteText] = useState("");
+
+    // Poll creation state
+    const [showPollModal, setShowPollModal] = useState(false);
+    const [pollQuestion, setPollQuestion] = useState("");
+    const [pollOptions, setPollOptions] = useState(["", ""]);
+    const [pollDuration, setPollDuration] = useState<number | null>(null); // Duration in seconds, null = no limit
 
     const handleReaction = async (reaction: PlayReaction) => {
         await updateReaction(reaction);
@@ -222,6 +287,20 @@ export function LivePerformanceMode({ onExit, listenerCount = 0, tempoFeedback, 
                     <StickyNote size={32} />
                     <span>Note</span>
                 </button>
+
+                <button
+                    type="button"
+                    onClick={() => setShowPollModal(true)}
+                    style={{
+                        ...styles.reactionButton,
+                        ...styles.pollButton,
+                        ...(activePoll ? styles.activeButton : {}),
+                    }}
+                    disabled={!!activePoll}
+                >
+                    <BarChart2 size={32} />
+                    <span>Poll</span>
+                </button>
             </footer>
 
             {/* Recent Plays (Mini Timeline) - Shows previous plays, not current */}
@@ -275,6 +354,166 @@ export function LivePerformanceMode({ onExit, listenerCount = 0, tempoFeedback, 
                             </button>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Poll Creation Modal */}
+            {showPollModal && (
+                <div style={styles.modalOverlay} onClick={() => setShowPollModal(false)}>
+                    <div style={styles.pollModal} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={styles.modalTitle}>📊 Create Poll</h3>
+                        <p style={styles.modalSubtitle}>Ask your dancers a question!</p>
+
+                        <input
+                            type="text"
+                            value={pollQuestion}
+                            onChange={(e) => setPollQuestion(e.target.value)}
+                            placeholder="What vibe next?"
+                            style={styles.pollInput}
+                            autoFocus
+                        />
+
+                        <div style={styles.pollOptionsContainer}>
+                            {pollOptions.map((option, idx) => (
+                                <div key={idx} style={styles.pollOptionRow}>
+                                    <input
+                                        type="text"
+                                        value={option}
+                                        onChange={(e) => {
+                                            const newOptions = [...pollOptions];
+                                            newOptions[idx] = e.target.value;
+                                            setPollOptions(newOptions);
+                                        }}
+                                        placeholder={`Option ${idx + 1}`}
+                                        style={styles.pollOptionInput}
+                                    />
+                                    {pollOptions.length > 2 && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setPollOptions(pollOptions.filter((_, i) => i !== idx));
+                                            }}
+                                            style={styles.removeOptionButton}
+                                        >
+                                            ×
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                            {pollOptions.length < 5 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setPollOptions([...pollOptions, ""])}
+                                    style={styles.addOptionButton}
+                                >
+                                    + Add Option
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Duration Selector */}
+                        <div style={styles.durationSection}>
+                            <label style={styles.pollLabel}>Poll Duration</label>
+                            <div style={styles.durationButtons}>
+                                {[
+                                    { label: "30s", value: 30 },
+                                    { label: "1m", value: 60 },
+                                    { label: "2m", value: 120 },
+                                    { label: "5m", value: 300 },
+                                    { label: "No limit", value: null },
+                                ].map((opt) => (
+                                    <button
+                                        key={opt.label}
+                                        type="button"
+                                        onClick={() => setPollDuration(opt.value)}
+                                        style={{
+                                            ...styles.durationButton,
+                                            ...(pollDuration === opt.value ? styles.durationButtonActive : {}),
+                                        }}
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div style={styles.modalActions}>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowPollModal(false);
+                                    setPollQuestion("");
+                                    setPollOptions(["", ""]);
+                                    setPollDuration(null);
+                                }}
+                                style={styles.cancelButton}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    const validOptions = pollOptions.filter(o => o.trim());
+                                    if (pollQuestion.trim() && validOptions.length >= 2) {
+                                        onStartPoll?.(pollQuestion, validOptions, pollDuration ?? undefined);
+                                        setShowPollModal(false);
+                                        setPollQuestion("");
+                                        setPollOptions(["", ""]);
+                                        setPollDuration(null);
+                                    }
+                                }}
+                                style={styles.saveButton}
+                                disabled={!pollQuestion.trim() || pollOptions.filter(o => o.trim()).length < 2}
+                            >
+                                Start Poll
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Active Poll Results Display */}
+            {activePoll && (
+                <div style={styles.activePollContainer}>
+                    <div style={styles.activePollHeader}>
+                        <BarChart2 size={20} />
+                        <span>{activePoll.question}</span>
+                        <span style={styles.pollVoteCount}>{activePoll.totalVotes} votes</span>
+                        {activePoll.endsAt && <PollCountdown endsAt={activePoll.endsAt} />}
+                    </div>
+                    <div style={styles.activePollOptions}>
+                        {activePoll.options.map((option, idx) => {
+                            const votes = activePoll.votes[idx] ?? 0;
+                            const percentage = activePoll.totalVotes > 0
+                                ? Math.round((votes / activePoll.totalVotes) * 100)
+                                : 0;
+                            const isWinning = votes === Math.max(...activePoll.votes);
+                            return (
+                                <div key={idx} style={styles.pollOptionResult}>
+                                    <div style={styles.pollOptionLabel}>
+                                        <span>{option}</span>
+                                        <span>{votes} ({percentage}%)</span>
+                                    </div>
+                                    <div style={styles.pollOptionBarBg}>
+                                        <div
+                                            style={{
+                                                ...styles.pollOptionBar,
+                                                width: `${percentage}%`,
+                                                backgroundColor: isWinning ? "#22c55e" : "#6366f1",
+                                            }}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <button
+                        type="button"
+                        onClick={onEndPoll}
+                        style={styles.endPollButton}
+                    >
+                        End Poll
+                    </button>
                 </div>
             )}
         </div>
@@ -578,6 +817,156 @@ const styles: Record<string, React.CSSProperties> = {
         fontSize: "1rem",
         fontWeight: "bold",
         cursor: "pointer",
+    },
+
+    // Poll styles
+    pollButton: {
+        background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
+    },
+    pollModal: {
+        background: "#18181b",
+        padding: "2rem",
+        borderRadius: "16px",
+        width: "90%",
+        maxWidth: "500px",
+        maxHeight: "80vh",
+        overflow: "auto",
+    },
+    pollInput: {
+        width: "100%",
+        padding: "1rem",
+        background: "#27272a",
+        border: "1px solid #3f3f46",
+        borderRadius: "8px",
+        color: "white",
+        fontSize: "1.25rem",
+        marginBottom: "1rem",
+    },
+    pollOptionsContainer: {
+        display: "flex",
+        flexDirection: "column" as const,
+        gap: "0.75rem",
+    },
+    pollOptionRow: {
+        display: "flex",
+        gap: "0.5rem",
+    },
+    pollOptionInput: {
+        flex: 1,
+        padding: "0.75rem",
+        background: "#27272a",
+        border: "1px solid #3f3f46",
+        borderRadius: "8px",
+        color: "white",
+        fontSize: "1rem",
+    },
+    removeOptionButton: {
+        width: "40px",
+        background: "rgba(239, 68, 68, 0.2)",
+        border: "1px solid rgba(239, 68, 68, 0.4)",
+        borderRadius: "8px",
+        color: "#ef4444",
+        fontSize: "1.25rem",
+        cursor: "pointer",
+    },
+    addOptionButton: {
+        padding: "0.75rem",
+        background: "rgba(99, 102, 241, 0.2)",
+        border: "1px solid rgba(99, 102, 241, 0.4)",
+        borderRadius: "8px",
+        color: "#818cf8",
+        fontSize: "0.9rem",
+        cursor: "pointer",
+        marginTop: "0.5rem",
+    },
+    activePollContainer: {
+        position: "fixed" as const,
+        bottom: "8rem",
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "rgba(24, 24, 27, 0.95)",
+        border: "1px solid #6366f1",
+        borderRadius: "16px",
+        padding: "1.5rem",
+        minWidth: "400px",
+        maxWidth: "600px",
+        boxShadow: "0 4px 20px rgba(99, 102, 241, 0.3)",
+    },
+    activePollHeader: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.75rem",
+        marginBottom: "1rem",
+        color: "#e4e4e7",
+        fontSize: "1.1rem",
+        fontWeight: "bold",
+    },
+    pollVoteCount: {
+        marginLeft: "auto",
+        color: "#6366f1",
+        fontSize: "0.9rem",
+    },
+    activePollOptions: {
+        display: "flex",
+        flexDirection: "column" as const,
+        gap: "0.75rem",
+    },
+    pollOptionResult: {
+        display: "flex",
+        flexDirection: "column" as const,
+        gap: "0.25rem",
+    },
+    pollOptionLabel: {
+        display: "flex",
+        justifyContent: "space-between",
+        fontSize: "0.9rem",
+        color: "#a1a1aa",
+    },
+    pollOptionBarBg: {
+        height: "8px",
+        background: "#27272a",
+        borderRadius: "4px",
+        overflow: "hidden",
+    },
+    pollOptionBar: {
+        height: "100%",
+        borderRadius: "4px",
+        transition: "width 0.3s ease",
+    },
+    endPollButton: {
+        marginTop: "1rem",
+        width: "100%",
+        padding: "0.75rem",
+        background: "rgba(239, 68, 68, 0.2)",
+        border: "1px solid rgba(239, 68, 68, 0.4)",
+        borderRadius: "8px",
+        color: "#ef4444",
+        fontSize: "1rem",
+        fontWeight: "bold",
+        cursor: "pointer",
+    },
+    durationSection: {
+        marginBottom: "1.5rem",
+    },
+    durationButtons: {
+        display: "flex",
+        gap: "0.5rem",
+        flexWrap: "wrap",
+    },
+    durationButton: {
+        padding: "0.5rem 0.75rem",
+        background: "rgba(255, 255, 255, 0.05)",
+        border: "1px solid rgba(255, 255, 255, 0.2)",
+        borderRadius: "6px",
+        color: "#a1a1aa",
+        fontSize: "0.85rem",
+        cursor: "pointer",
+        transition: "all 0.2s ease",
+    },
+    durationButtonActive: {
+        background: "rgba(139, 92, 246, 0.3)",
+        borderColor: "rgba(139, 92, 246, 0.6)",
+        color: "#c4b5fd",
     },
 };
 

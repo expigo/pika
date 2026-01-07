@@ -16,8 +16,21 @@ interface RecapTrack {
     position: number;
     artist: string;
     title: string;
+    bpm: number | null;
+    key: string | null;
+    // Fingerprint data
+    energy: number | null;
+    danceability: number | null;
+    brightness: number | null;
+    acousticness: number | null;
+    groove: number | null;
     playedAt: string;
     likes: number;
+    tempo: {
+        slower: number;
+        perfect: number;
+        faster: number;
+    } | null;
 }
 
 interface SessionRecap {
@@ -231,6 +244,26 @@ export default function RecapPage() {
                                     <p className="text-white font-medium truncate">{track.title}</p>
                                     <p className="text-slate-500 text-sm truncate">{track.artist}</p>
                                 </div>
+                                {/* Tempo feedback */}
+                                {track.tempo && (track.tempo.slower > 0 || track.tempo.perfect > 0 || track.tempo.faster > 0) && (
+                                    <div className="flex items-center gap-1 text-xs">
+                                        {track.tempo.slower > 0 && (
+                                            <span className="text-blue-400" title="Slower">
+                                                🐢{track.tempo.slower}
+                                            </span>
+                                        )}
+                                        {track.tempo.perfect > 0 && (
+                                            <span className="text-green-400" title="Perfect">
+                                                ✅{track.tempo.perfect}
+                                            </span>
+                                        )}
+                                        {track.tempo.faster > 0 && (
+                                            <span className="text-orange-400" title="Faster">
+                                                🐇{track.tempo.faster}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
                                 {track.likes > 0 && (
                                     <span className="flex items-center gap-1 text-red-400 text-sm">
                                         <Heart className="w-3.5 h-3.5 fill-current" />

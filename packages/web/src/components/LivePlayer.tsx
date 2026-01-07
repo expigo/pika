@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLiveListener, type HistoryTrack } from "@/hooks/useLiveListener";
 import { Radio, Music2, Wifi, WifiOff, Heart, Clock, Users, ChevronDown, ChevronUp, Check, Share2, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -21,6 +21,42 @@ function formatRelativeTime(dateString?: string): string {
     if (diffHours < 24) return `${diffHours}h ago`;
 
     return `${Math.floor(diffHours / 24)}d ago`;
+}
+
+// Poll countdown timer component
+function PollCountdown({ endsAt }: { endsAt: string }) {
+    const [timeLeft, setTimeLeft] = useState<number>(0);
+
+    useEffect(() => {
+        const endTime = new Date(endsAt).getTime();
+
+        const updateCountdown = () => {
+            const remaining = Math.max(0, endTime - Date.now());
+            setTimeLeft(remaining);
+        };
+
+        updateCountdown();
+        const interval = setInterval(updateCountdown, 1000);
+        return () => clearInterval(interval);
+    }, [endsAt]);
+
+    if (timeLeft <= 0) {
+        return <span className="text-amber-400">⏰ Closing...</span>;
+    }
+
+    const seconds = Math.floor(timeLeft / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    const timeStr = minutes > 0
+        ? `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`
+        : `${seconds}s`;
+
+    return (
+        <span className="text-purple-400 font-mono">
+            ⏱️ {timeStr}
+        </span>
+    );
 }
 
 // History list component
@@ -74,10 +110,14 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
         sendLike,
         hasLiked,
         sendTempoRequest,
-        tempoVote
+        tempoVote,
+        activePoll,
+        hasVotedOnPoll,
+        voteOnPoll,
     } = useLiveListener(targetSessionId);
     const [likeAnimating, setLikeAnimating] = useState(false);
     const [showQR, setShowQR] = useState(false);
+    const [votingOption, setVotingOption] = useState<number | null>(null);
 
     const isConnected = status === "connected";
     const hasTrack = currentTrack !== null;
@@ -244,6 +284,76 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                                     🐇 Faster
                                 </button>
                             </div>
+
+                            {/* Active Poll */}
+                            {activePoll && (
+                                <div className="mt-6 w-full max-w-md bg-gradient-to-br from-indigo-900/50 to-purple-900/50 rounded-2xl p-4 border border-indigo-500/30">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <span className="text-lg">📊</span>
+                                        <span className="text-sm font-bold text-indigo-300 uppercase tracking-wide">Live Poll</span>
+                                    </div>
+                                    <p className="text-lg font-semibold text-white mb-4">{activePoll.question}</p>
+
+                                    {hasVotedOnPoll ? (
+                                        <div className="space-y-3">
+                                            <div className="flex items-center justify-center gap-2 text-emerald-400 mb-4">
+                                                <Check className="w-4 h-4" />
+                                                <span className="text-sm font-medium">Voted! Watching results...</span>
+                                                <span className="text-slate-400 text-sm">({activePoll.totalVotes} votes)</span>
+                                            </div>
+                                            {activePoll.options.map((option, idx) => {
+                                                const votes = activePoll.votes[idx] ?? 0;
+                                                const percentage = activePoll.totalVotes > 0
+                                                    ? Math.round((votes / activePoll.totalVotes) * 100)
+                                                    : 0;
+                                                const isWinning = votes === Math.max(...activePoll.votes) && votes > 0;
+                                                return (
+                                                    <div key={idx} className="relative">
+                                                        <div className="flex justify-between text-sm mb-1">
+                                                            <span className={`font-medium ${isWinning ? 'text-emerald-300' : 'text-slate-300'}`}>
+                                                                {isWinning && '🏆 '}{option}
+                                                            </span>
+                                                            <span className="text-slate-400">{percentage}%</span>
+                                                        </div>
+                                                        <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all duration-500 ${isWinning ? 'bg-emerald-500' : 'bg-indigo-500'}`}
+                                                                style={{ width: `${percentage}%` }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ) : (
+                                        <div className="flex flex-col gap-2">
+                                            {activePoll.options.map((option, idx) => (
+                                                <button
+                                                    key={idx}
+                                                    onClick={() => {
+                                                        setVotingOption(idx);
+                                                        voteOnPoll(idx);
+                                                        setTimeout(() => setVotingOption(null), 500);
+                                                    }}
+                                                    disabled={votingOption !== null}
+                                                    className={`w-full py-3 px-4 rounded-xl font-medium text-left transition-all duration-200 ${votingOption === idx
+                                                        ? "bg-indigo-500 text-white scale-[0.98]"
+                                                        : "bg-slate-800/80 text-slate-200 hover:bg-indigo-600/50 hover:text-white hover:scale-[1.02]"
+                                                        }`}
+                                                >
+                                                    {option}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {activePoll.endsAt && (
+                                        <p className="text-sm mt-3 text-center">
+                                            <PollCountdown endsAt={activePoll.endsAt} />
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </>
                     ) : djName ? (
                         <>

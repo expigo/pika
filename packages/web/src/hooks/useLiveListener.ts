@@ -70,6 +70,16 @@ interface LiveState {
     likedTracks: Set<string>; // Track keys that user has liked (artist:title)
     listenerCount: number;    // Number of connected dancers
     tempoVote: "faster" | "slower" | "perfect" | null;  // Current user's tempo vote
+    // Poll state
+    activePoll: {
+        id: number;
+        question: string;
+        options: string[];
+        votes: number[];       // Live vote counts (only shown after voting)
+        totalVotes: number;    // Total votes cast
+        endsAt?: string;
+    } | null;
+    hasVotedOnPoll: boolean;  // Whether current user has voted
 }
 
 const MAX_HISTORY = 5;
@@ -127,16 +137,19 @@ export function useLiveListener(targetSessionId?: string) {
         likedTracks: loadLikedTracks(), // Restore from localStorage
         listenerCount: 0,
         tempoVote: null,
+        activePoll: null,
+        hasVotedOnPoll: false,
     }));
 
     const socketRef = useRef<ReconnectingWebSocket | null>(null);
     const historyFetchedRef = useRef<string | null>(null); // Prevent duplicate history fetches
+    const discoveredSessionRef = useRef<string | null>(null); // Prevent duplicate subscribes on homepage
 
     // Fetch history from REST API (with deduplication)
     const fetchHistory = useCallback(async (sessionId: string) => {
         // Skip if we've already fetched history for this session
         if (historyFetchedRef.current === sessionId) {
-            console.log("[Listener] History already fetched for:", sessionId);
+            // Already fetched, skip silently
             return;
         }
 
@@ -228,26 +241,33 @@ export function useLiveListener(targetSessionId?: string) {
                                 currentTrack: session.currentTrack || null,
                             }));
 
-                            // Send SUBSCRIBE with the discovered session ID to be counted
-                            // This ensures homepage visitors are counted as listeners
-                            socketRef.current?.send(JSON.stringify({
-                                type: "SUBSCRIBE",
-                                clientId,
-                                sessionId: session.sessionId,
-                            }));
+                            // Only subscribe once per discovered session (prevents infinite loop)
+                            if (discoveredSessionRef.current !== session.sessionId) {
+                                discoveredSessionRef.current = session.sessionId;
 
-                            // Fetch initial history
-                            fetchHistory(session.sessionId);
+                                // Send SUBSCRIBE with the discovered session ID to be counted
+                                // This ensures homepage visitors are counted as listeners
+                                socketRef.current?.send(JSON.stringify({
+                                    type: "SUBSCRIBE",
+                                    clientId,
+                                    sessionId: session.sessionId,
+                                }));
+
+                                // Fetch initial history
+                                fetchHistory(session.sessionId);
+                            }
                         }
                     }
                     break;
                 }
 
                 case "SESSION_STARTED": {
-                    // Filter: Only handle if matches target or no target set
+                    // Filter: Only handle if matches target or no target set (homepage)
                     if (targetSessionId && message.sessionId !== targetSessionId) {
                         return;
                     }
+
+                    console.log("[Listener] New session started:", message.sessionId, "current:", state.sessionId);
 
                     setState((prev) => ({
                         ...prev,
@@ -255,7 +275,25 @@ export function useLiveListener(targetSessionId?: string) {
                         djName: message.djName || null,
                         currentTrack: null,
                         history: [], // Clear history for new session
+                        activePoll: null, // Clear poll for new session
+                        hasVotedOnPoll: false,
                     }));
+
+                    // If homepage (no target), ALWAYS subscribe to new session
+                    // This handles the case where we were on an old session and DJ started new one
+                    if (!targetSessionId && message.sessionId) {
+                        console.log("[Listener] Switching to new session:", message.sessionId);
+                        discoveredSessionRef.current = message.sessionId;
+                        historyFetchedRef.current = null; // Allow history re-fetch
+
+                        socketRef.current?.send(JSON.stringify({
+                            type: "SUBSCRIBE",
+                            clientId,
+                            sessionId: message.sessionId,
+                        }));
+
+                        fetchHistory(message.sessionId);
+                    }
                     break;
                 }
 
@@ -358,6 +396,191 @@ export function useLiveListener(targetSessionId?: string) {
                     setState((prev) => ({ ...prev, listenerCount: count }));
                     break;
                 }
+
+                case "TEMPO_RESET": {
+                    // Server is telling us to reset tempo vote (track changed)
+                    const resetMsg = message as { type: "TEMPO_RESET"; sessionId: string };
+
+                    // Only reset if this is for our session
+                    if (targetSessionId && resetMsg.sessionId !== targetSessionId) {
+                        return;
+                    }
+
+                    setState((prev) => {
+                        if (prev.sessionId && resetMsg.sessionId !== prev.sessionId) {
+                            return prev;
+                        }
+                        return {
+                            ...prev,
+                            tempoVote: null,
+                        };
+                    });
+                    break;
+                }
+
+                case "POLL_STARTED": {
+                    // New poll from DJ (or existing poll for new subscriber)
+                    const pollMsg = message as {
+                        type: "POLL_STARTED";
+                        pollId: number;
+                        question: string;
+                        options: string[];
+                        endsAt?: string;
+                        votes?: number[]; // Sent for existing polls
+                        totalVotes?: number;
+                        hasVoted?: boolean; // Whether this client has already voted
+                    };
+
+                    console.log("[Listener] Poll started:", pollMsg.question, pollMsg.totalVotes ? `(${pollMsg.totalVotes} votes, hasVoted: ${pollMsg.hasVoted})` : "(new)");
+
+                    setState((prev) => {
+                        // If this is the same poll we already have, don't reset vote state
+                        const isNewPoll = !prev.activePoll || prev.activePoll.id !== pollMsg.pollId;
+
+                        // Use server-provided votes if available (for existing polls), otherwise use local or initialize
+                        const votes = pollMsg.votes || (isNewPoll ? new Array(pollMsg.options.length).fill(0) as number[] : prev.activePoll!.votes);
+                        const totalVotes = pollMsg.totalVotes ?? (isNewPoll ? 0 : prev.activePoll!.totalVotes);
+
+                        // Use server-provided hasVoted if available, otherwise preserve local state
+                        const hasVotedOnPoll = pollMsg.hasVoted ?? (isNewPoll ? false : prev.hasVotedOnPoll);
+
+                        return {
+                            ...prev,
+                            activePoll: {
+                                id: pollMsg.pollId,
+                                question: pollMsg.question,
+                                options: pollMsg.options,
+                                votes,
+                                totalVotes,
+                                endsAt: pollMsg.endsAt,
+                            },
+                            hasVotedOnPoll,
+                        };
+                    });
+                    break;
+                }
+
+                case "POLL_UPDATE": {
+                    // Live vote counts (only relevant if user has already voted)
+                    const updateMsg = message as {
+                        type: "POLL_UPDATE";
+                        pollId: number;
+                        votes: number[];
+                        totalVotes: number;
+                    };
+
+                    setState((prev) => {
+                        // Only update if we have an active poll matching this ID
+                        if (!prev.activePoll || prev.activePoll.id !== updateMsg.pollId) {
+                            return prev;
+                        }
+                        return {
+                            ...prev,
+                            activePoll: {
+                                ...prev.activePoll,
+                                votes: updateMsg.votes,
+                                totalVotes: updateMsg.totalVotes,
+                            },
+                        };
+                    });
+                    break;
+                }
+
+                case "POLL_ENDED": {
+                    // Poll ended by DJ or auto-close
+                    console.log("[Listener] Poll ended");
+
+                    setState((prev) => ({
+                        ...prev,
+                        activePoll: null,
+                        hasVotedOnPoll: false,
+                    }));
+                    break;
+                }
+
+                case "VOTE_REJECTED": {
+                    // Server rejected our vote (duplicate or invalid)
+                    const rejectMsg = message as {
+                        type: "VOTE_REJECTED";
+                        pollId: number;
+                        reason: string;
+                        votes?: number[];
+                        totalVotes?: number;
+                    };
+                    console.log("[Listener] Vote rejected:", rejectMsg.reason);
+
+                    setState((prev) => {
+                        if (!prev.activePoll || prev.activePoll.id !== rejectMsg.pollId) {
+                            return prev;
+                        }
+                        // Rollback: if server sent correct votes, use them
+                        // Also mark as already voted since server says we already voted
+                        return {
+                            ...prev,
+                            hasVotedOnPoll: rejectMsg.reason === "Already voted",
+                            activePoll: rejectMsg.votes ? {
+                                ...prev.activePoll,
+                                votes: rejectMsg.votes,
+                                totalVotes: rejectMsg.totalVotes ?? prev.activePoll.totalVotes,
+                            } : prev.activePoll,
+                        };
+                    });
+                    break;
+                }
+
+                case "VOTE_CONFIRMED": {
+                    // Server confirmed our vote
+                    const confirmMsg = message as {
+                        type: "VOTE_CONFIRMED";
+                        pollId: number;
+                        optionIndex: number;
+                        votes: number[];
+                        totalVotes: number;
+                    };
+                    console.log("[Listener] Vote confirmed");
+
+                    setState((prev) => {
+                        if (!prev.activePoll || prev.activePoll.id !== confirmMsg.pollId) {
+                            return prev;
+                        }
+                        // Update with server's authoritative vote counts
+                        return {
+                            ...prev,
+                            hasVotedOnPoll: true,
+                            activePoll: {
+                                ...prev.activePoll,
+                                votes: confirmMsg.votes,
+                                totalVotes: confirmMsg.totalVotes,
+                            },
+                        };
+                    });
+                    break;
+                }
+
+                case "POLL_ID_UPDATED": {
+                    // Poll ID was updated after DB persistence
+                    const idUpdateMsg = message as {
+                        type: "POLL_ID_UPDATED";
+                        oldPollId: number;
+                        newPollId: number;
+                    };
+
+                    console.log("[Listener] Poll ID updated:", idUpdateMsg.oldPollId, "->", idUpdateMsg.newPollId);
+
+                    setState((prev) => {
+                        if (!prev.activePoll || prev.activePoll.id !== idUpdateMsg.oldPollId) {
+                            return prev;
+                        }
+                        return {
+                            ...prev,
+                            activePoll: {
+                                ...prev.activePoll,
+                                id: idUpdateMsg.newPollId,
+                            },
+                        };
+                    });
+                    break;
+                }
             }
         };
 
@@ -373,7 +596,9 @@ export function useLiveListener(targetSessionId?: string) {
         return () => {
             socket.close();
         };
-    }, [targetSessionId, fetchHistory]);
+        // Note: fetchHistory is stable (no deps), don't include in deps array to avoid infinite loop
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [targetSessionId]);
 
     // Send a like for the current track (returns true if sent, false if already liked)
     const sendLike = useCallback((track: { artist: string; title: string }): boolean => {
@@ -385,10 +610,11 @@ export function useLiveListener(targetSessionId?: string) {
             return false;
         }
 
-        if (socketRef.current?.readyState === WebSocket.OPEN) {
+        if (socketRef.current?.readyState === WebSocket.OPEN && state.sessionId) {
             socketRef.current.send(JSON.stringify({
                 type: "SEND_LIKE",
                 clientId: getOrCreateClientId(),
+                sessionId: state.sessionId, // Include session for correct attribution
                 payload: { track },
             }));
 
@@ -404,7 +630,7 @@ export function useLiveListener(targetSessionId?: string) {
             return true;
         }
         return false;
-    }, [state.likedTracks]);
+    }, [state.likedTracks, state.sessionId]);
 
     // Check if a track has been liked
     const hasLiked = useCallback((track: { artist: string; title: string }): boolean => {
@@ -460,5 +686,39 @@ export function useLiveListener(targetSessionId?: string) {
         return false;
     }, [state.sessionId, state.tempoVote]);
 
-    return { ...state, sendLike, hasLiked, sendTempoRequest };
+    // Vote on active poll
+    const voteOnPoll = useCallback((optionIndex: number): boolean => {
+        if (socketRef.current?.readyState === WebSocket.OPEN && state.activePoll && !state.hasVotedOnPoll) {
+            socketRef.current.send(JSON.stringify({
+                type: "VOTE_ON_POLL",
+                pollId: state.activePoll.id,
+                optionIndex,
+                clientId: getOrCreateClientId(),
+            }));
+
+            // Optimistically update local state to show vote immediately
+            setState((prev) => {
+                if (!prev.activePoll) return prev;
+
+                const newVotes = [...prev.activePoll.votes];
+                newVotes[optionIndex] = (newVotes[optionIndex] || 0) + 1;
+
+                return {
+                    ...prev,
+                    hasVotedOnPoll: true,
+                    activePoll: {
+                        ...prev.activePoll,
+                        votes: newVotes,
+                        totalVotes: prev.activePoll.totalVotes + 1,
+                    },
+                };
+            });
+
+            console.log("[Listener] Voted on poll:", state.activePoll.options[optionIndex]);
+            return true;
+        }
+        return false;
+    }, [state.activePoll, state.hasVotedOnPoll]);
+
+    return { ...state, sendLike, hasLiked, sendTempoRequest, voteOnPoll };
 }

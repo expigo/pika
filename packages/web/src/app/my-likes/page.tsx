@@ -4,10 +4,19 @@ import { useEffect, useState } from "react";
 import { Heart, Music2, Calendar, User, ArrowLeft, Radio } from "lucide-react";
 import Link from "next/link";
 
-// API base URL
+// API base URL - dynamically detect based on page location
 function getApiBaseUrl(): string {
-    if (typeof window === "undefined") return "";
-    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
+    if (process.env.NEXT_PUBLIC_API_URL) {
+        return process.env.NEXT_PUBLIC_API_URL;
+    }
+
+    if (typeof window !== "undefined") {
+        const protocol = window.location.protocol;
+        const hostname = window.location.hostname;
+        return `${protocol}//${hostname}:3001`;
+    }
+
+    return "http://localhost:3001";
 }
 
 // Get or create a stable client ID

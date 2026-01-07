@@ -27,14 +27,16 @@ interface DjProfile {
     totalTracks: number;
 }
 
-// Format date nicely
+// Format date nicely with time
 function formatDate(dateString: string): string {
     const date = new Date(dateString);
     return date.toLocaleDateString("en-US", {
         weekday: "short",
-        year: "numeric",
         month: "short",
         day: "numeric",
+    }) + " @ " + date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
     });
 }
 

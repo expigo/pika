@@ -18,7 +18,7 @@ type ViewMode = "builder" | "logbook";
 
 function App() {
   const { status, baseUrl, healthData, error, restart } = useSidecar();
-  const { isLive, listenerCount, tempoFeedback } = useLiveSession();
+  const { isLive, listenerCount, tempoFeedback, activePoll, startPoll, endPoll } = useLiveSession();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("builder");
@@ -44,6 +44,9 @@ function App() {
           onExit={() => setIsPerformanceMode(false)}
           listenerCount={listenerCount}
           tempoFeedback={tempoFeedback}
+          activePoll={activePoll}
+          onStartPoll={startPoll}
+          onEndPoll={endPoll}
         />
       )}
 

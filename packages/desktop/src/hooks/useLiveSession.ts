@@ -33,6 +33,16 @@ interface LiveSessionStore {
     listenerCount: number;         // Number of connected dancers
     tempoFeedback: { faster: number; slower: number; perfect: number; total: number } | null;
 
+    // Poll state
+    activePoll: {
+        id: number;
+        question: string;
+        options: string[];
+        votes: number[];
+        totalVotes: number;
+        endsAt?: string; // ISO timestamp for auto-close timer
+    } | null;
+
     // Actions
     setStatus: (status: LiveStatus) => void;
     setNowPlaying: (track: NowPlayingTrack | null) => void;
@@ -42,6 +52,7 @@ interface LiveSessionStore {
     setCurrentPlayId: (playId: number | null) => void;
     setListenerCount: (count: number) => void;
     setTempoFeedback: (feedback: { faster: number; slower: number; perfect: number; total: number } | null) => void;
+    setActivePoll: (poll: { id: number; question: string; options: string[]; votes: number[]; totalVotes: number; endsAt?: string } | null) => void;
     reset: () => void;
 }
 
@@ -54,6 +65,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
     currentPlayId: null,
     listenerCount: 0,
     tempoFeedback: null,
+    activePoll: null,
 
     setStatus: (status) => set({ status }),
     setNowPlaying: (nowPlaying) => set({ nowPlaying }),
@@ -63,6 +75,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
     setCurrentPlayId: (currentPlayId) => set({ currentPlayId }),
     setListenerCount: (listenerCount) => set({ listenerCount }),
     setTempoFeedback: (tempoFeedback) => set({ tempoFeedback }),
+    setActivePoll: (activePoll) => set({ activePoll }),
     reset: () => set({
         status: "offline",
         nowPlaying: null,
@@ -72,6 +85,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
         currentPlayId: null,
         listenerCount: 0,
         tempoFeedback: null,
+        activePoll: null,
     }),
 }));
 
@@ -133,9 +147,24 @@ function normalizeText(text: string): string {
 }
 
 /**
- * Find or create a track in the database by artist/title
+ * Track info from database with fingerprint data
  */
-async function findOrCreateTrack(artist: string, title: string): Promise<number> {
+interface DbTrackInfo {
+    id: number;
+    bpm: number | null;
+    key: string | null;
+    energy: number | null;
+    danceability: number | null;
+    brightness: number | null;
+    acousticness: number | null;
+    groove: number | null;
+}
+
+/**
+ * Find or create a track in the database by artist/title
+ * Returns the track with fingerprint data for broadcasting
+ */
+async function findOrCreateTrack(artist: string, title: string): Promise<DbTrackInfo> {
     const allTracks = await trackRepository.getAllTracks();
     const normalizedArtist = normalizeText(artist);
     const normalizedTitle = normalizeText(title);
@@ -148,22 +177,43 @@ async function findOrCreateTrack(artist: string, title: string): Promise<number>
     );
 
     if (match) {
-        return match.id;
+        return {
+            id: match.id,
+            bpm: match.bpm,
+            key: match.key,
+            energy: match.energy,
+            danceability: match.danceability,
+            brightness: match.brightness,
+            acousticness: match.acousticness,
+            groove: match.groove,
+        };
     }
 
     // Create a ghost track for tracking purposes
     console.log("[Live] Creating ghost track:", artist, "-", title);
-    return await trackRepository.insertTrack({
+    const newId = await trackRepository.insertTrack({
         filePath: `ghost://${artist}/${title}`,
         artist,
         title,
     });
+
+    return {
+        id: newId,
+        bpm: null,
+        key: null,
+        energy: null,
+        danceability: null,
+        brightness: null,
+        acousticness: null,
+        groove: null,
+    };
 }
 
 /**
  * Record a track play to the database
+ * Returns the DbTrackInfo with fingerprint data, or null if deduped/failed
  */
-async function recordPlay(track: NowPlayingTrack): Promise<number | null> {
+async function recordPlay(track: NowPlayingTrack): Promise<{ playId: number; trackInfo: DbTrackInfo } | null> {
     if (!currentDbSessionId) {
         console.warn("[Live] No database session active");
         return null;
@@ -179,13 +229,13 @@ async function recordPlay(track: NowPlayingTrack): Promise<number | null> {
     processedTrackKeys.add(trackKey);
 
     try {
-        const trackId = await findOrCreateTrack(track.artist, track.title);
+        const dbTrack = await findOrCreateTrack(track.artist, track.title);
         const timestamp = Math.floor(Date.now() / 1000);
 
-        const play = await sessionRepository.addPlay(currentDbSessionId, trackId, timestamp);
+        const play = await sessionRepository.addPlay(currentDbSessionId, dbTrack.id, timestamp);
         console.log("[Live] Recorded play:", play.id, "-", track.artist, "-", track.title);
 
-        return play.id;
+        return { playId: play.id, trackInfo: dbTrack };
     } catch (e) {
         console.error("[Live] Failed to record play:", e);
         return null;
@@ -199,7 +249,7 @@ async function recordPlay(track: NowPlayingTrack): Promise<number | null> {
 export function useLiveSession() {
     const {
         status, nowPlaying, error, sessionId, dbSessionId, currentPlayId, listenerCount, tempoFeedback,
-        setStatus, setNowPlaying, setError, setSessionId, setDbSessionId, setCurrentPlayId, reset
+        setStatus, setNowPlaying, setError, setSessionId, setDbSessionId, setCurrentPlayId, setTempoFeedback, reset
     } = useLiveStore();
 
     // Use ref to track if this hook instance has set up the track listener
@@ -211,24 +261,40 @@ export function useLiveSession() {
         console.log("[Live] State check - isLiveFlag:", isLiveFlag, "currentDbSessionId:", currentDbSessionId);
         setNowPlaying(track);
 
-        // Record to database
+        // Reset tempo feedback when track changes (server also resets)
+        setTempoFeedback(null);
+
+        // Record to database and get fingerprint data
+        let enrichedTrack = track;
         if (isLiveFlag && currentDbSessionId) {
             console.log("[Live] Recording play to database...");
-            const playId = await recordPlay(track);
-            console.log("[Live] Play recorded with ID:", playId);
-            if (playId) {
-                currentPlayIdRef = playId; // Update singleton ref for likes
-                setCurrentPlayId(playId);
+            const result = await recordPlay(track);
+            console.log("[Live] Play recorded:", result?.playId);
+            if (result) {
+                currentPlayIdRef = result.playId; // Update singleton ref for likes
+                setCurrentPlayId(result.playId);
+
+                // Enrich track with fingerprint data from database
+                enrichedTrack = {
+                    ...track,
+                    bpm: result.trackInfo.bpm ?? undefined,
+                    key: result.trackInfo.key ?? undefined,
+                    energy: result.trackInfo.energy ?? undefined,
+                    danceability: result.trackInfo.danceability ?? undefined,
+                    brightness: result.trackInfo.brightness ?? undefined,
+                    acousticness: result.trackInfo.acousticness ?? undefined,
+                    groove: result.trackInfo.groove ?? undefined,
+                };
             }
         } else {
             console.log("[Live] Not recording - isLiveFlag:", isLiveFlag, "currentDbSessionId:", currentDbSessionId);
         }
 
-        // Send to cloud if live (with deduplication)
+        // Send to cloud if live (with deduplication) - uses enriched track with fingerprint
         if (isLiveFlag && socketInstance?.readyState === WebSocket.OPEN && currentSessionId) {
-            broadcastTrack(currentSessionId, toTrackInfo(track));
+            broadcastTrack(currentSessionId, toTrackInfo(enrichedTrack));
         }
-    }, [setNowPlaying, setCurrentPlayId]);
+    }, [setNowPlaying, setCurrentPlayId, setTempoFeedback]);
 
     // Set up track change listener ONCE
     useEffect(() => {
@@ -289,9 +355,9 @@ export function useLiveSession() {
                     setNowPlaying(initialTrack);
                     skipInitialTrackBroadcast = false; // Will broadcast
                     // Record initial track to database
-                    const playId = await recordPlay(initialTrack);
-                    if (playId) {
-                        setCurrentPlayId(playId);
+                    const result = await recordPlay(initialTrack);
+                    if (result) {
+                        setCurrentPlayId(result.playId);
                     }
                 } else {
                     console.log("[Live] Skipping initial track (user chose not to include)");
@@ -410,6 +476,44 @@ export function useLiveSession() {
                         total: message.total,
                     });
                 }
+
+                // Handle poll started confirmation with real ID
+                if (message.type === "POLL_STARTED") {
+                    console.log("[Live] Poll started confirmed:", message);
+                    const currentPoll = useLiveStore.getState().activePoll;
+                    // Update optimistic poll with real ID and endsAt
+                    if (currentPoll && currentPoll.id === -1 && currentPoll.question === message.question) {
+                        useLiveStore.getState().setActivePoll({
+                            ...currentPoll,
+                            id: message.pollId,
+                            endsAt: (message as { endsAt?: string }).endsAt,
+                        });
+                    }
+                }
+
+                // Handle poll updates (votes coming in)
+                if (message.type === "POLL_UPDATE") {
+                    console.log("[Live] Poll update:", message);
+                    const currentPoll = useLiveStore.getState().activePoll;
+                    // Match by ID, or match any active poll (in case ID update was missed)
+                    if (currentPoll && (currentPoll.id === message.pollId || currentPoll.id === -1)) {
+                        useLiveStore.getState().setActivePoll({
+                            ...currentPoll,
+                            id: message.pollId, // Update ID in case it was -1
+                            votes: message.votes,
+                            totalVotes: message.totalVotes,
+                        });
+                    }
+                }
+
+                // Handle poll ended
+                if (message.type === "POLL_ENDED") {
+                    console.log("[Live] Poll ended:", message);
+                    // Clear active poll after a short delay so DJ sees final results
+                    setTimeout(() => {
+                        useLiveStore.getState().setActivePoll(null);
+                    }, 5000); // 5 second delay to see results
+                }
             };
 
             socket.onclose = (event) => {
@@ -485,12 +589,77 @@ export function useLiveSession() {
         }
     }, [setNowPlaying]);
 
+    // Start a poll for dancers
+    const startPoll = useCallback((question: string, options: string[], durationSeconds?: number) => {
+        if (!isLiveFlag || !currentSessionId) {
+            console.log("[Live] Cannot start poll - not live");
+            return;
+        }
+
+        // Calculate endsAt for timer display
+        const endsAt = durationSeconds
+            ? new Date(Date.now() + durationSeconds * 1000).toISOString()
+            : undefined;
+
+        // Create optimistic poll state (will be updated with real ID from server)
+        const optimisticPoll = {
+            id: -1, // Will be updated
+            question,
+            options,
+            votes: new Array(options.length).fill(0) as number[],
+            totalVotes: 0,
+            endsAt,
+        };
+        useLiveStore.getState().setActivePoll(optimisticPoll);
+
+        sendMessage({
+            type: "START_POLL",
+            sessionId: currentSessionId,
+            question,
+            options,
+            durationSeconds,
+        });
+
+        console.log("[Live] Poll started:", question, durationSeconds ? `(${durationSeconds}s)` : "(no timer)");
+    }, []);
+
+    // End the current poll
+    const endCurrentPoll = useCallback(() => {
+        const poll = useLiveStore.getState().activePoll;
+        if (!poll) {
+            console.log("[Live] No active poll to end");
+            return;
+        }
+
+        // If poll has a valid ID, send END_POLL to server
+        if (poll.id >= 0) {
+            sendMessage({
+                type: "END_POLL",
+                pollId: poll.id,
+            });
+            console.log("[Live] Poll ended manually");
+        } else {
+            // Poll ID not yet assigned - send cancel by session
+            sendMessage({
+                type: "CANCEL_POLL",
+                sessionId: currentSessionId,
+            });
+            console.log("[Live] Poll cancelled (no ID yet)");
+        }
+
+        // Clear locally immediately for DJ
+        useLiveStore.getState().setActivePoll(null);
+    }, []);
+
     // Cleanup on unmount (only cleanup socket, not state - state is global)
     useEffect(() => {
         return () => {
             // Don't cleanup on unmount - state is global
         };
     }, []);
+
+    // Get activePoll from store
+    const { activePoll } = useLiveStore();
 
     return {
         status,
@@ -501,9 +670,12 @@ export function useLiveSession() {
         currentPlayId,
         listenerCount,
         tempoFeedback,
+        activePoll,
         isLive: status === "live",
         goLive,
         endSet,
         clearNowPlaying,
+        startPoll,
+        endPoll: endCurrentPoll,
     };
 }
