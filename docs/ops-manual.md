@@ -125,22 +125,81 @@ docker compose -f docker-compose.prod.yml down
 
 ## 🔍 Database Operations (Production)
 
-### 🚀 Running Migrations (Production)
+### 🚀 Migration Workflow (Best Practices)
 
-**After deploying new code with schema changes:**
+**How Drizzle Migrations Work:**
+```
+Migration Files (git)     Migration Table (DB)      Database
+─────────────────────     ────────────────────      ────────
+0000_init.sql        ┐    __drizzle_migrations     sessions
+0001_auth.sql        ├──▶ tracks which are done ◀──▶ dj_users
+0002_future.sql      ┘    (skip applied ones)       likes...
+```
+
+**Complete Workflow:**
+
 ```bash
-# SSH to VPS, then:
-cd /opt/pika/pika
+# ═══════════════════════════════════════════════════════════════
+# LOCAL: When you modify schema.ts
+# ═══════════════════════════════════════════════════════════════
 
-# Run migrations inside the cloud container
+cd packages/cloud
+
+# 1. Generate migration file from schema changes
+bun run db:generate
+# Creates: drizzle/0002_some_name.sql
+
+# 2. Review the generated SQL
+cat drizzle/0002_some_name.sql
+
+# 3. Apply locally to test
+bun run db:migrate
+
+# 4. Commit the migration file
+git add drizzle/
+git commit -m "feat(db): add xyz table"
+git push origin main
+
+# ═══════════════════════════════════════════════════════════════
+# PRODUCTION: After deploying code with schema changes
+# ═══════════════════════════════════════════════════════════════
+
+ssh root@anna179.mikrus.xyz -p 10223
+cd /opt/pika/pika
+git pull origin main
+
+# Rebuild containers (gets new migration files)
+docker compose -f docker-compose.prod.yml up -d --build
+
+# Run migrations
 docker compose -f docker-compose.prod.yml exec cloud \
   sh -c "cd /app/packages/cloud && bun run db:migrate"
 ```
 
-**Important:** 
-- Migration files (`drizzle/*.sql`) are committed to git
-- `db:migrate` applies only unapplied migrations (tracked in DB)
-- NEVER use `db:push` in production
+**Key Rules:**
+| Do ✅ | Don't ❌ |
+|-------|---------|
+| `db:generate` then `db:migrate` | Use `db:push` in production |
+| Commit migration files to git | Edit migration files after they've run |
+| Review generated SQL before applying | Skip the review step |
+| Run migrations after every deploy | Assume schema is up to date |
+
+### 🆘 Troubleshooting Migrations
+
+**"Migration file not found" Error:**
+```bash
+# Someone used db:push instead of db:generate. Fix by:
+# 1. Create the missing SQL file locally
+# 2. Or: Mark migration as applied manually:
+docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
+  "INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('0000_name', EXTRACT(EPOCH FROM NOW())::BIGINT * 1000);"
+```
+
+**Check Migration Status:**
+```bash
+docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
+  "SELECT * FROM __drizzle_migrations ORDER BY id;"
+```
 
 ### 🔌 Connecting to Prod DB
 
