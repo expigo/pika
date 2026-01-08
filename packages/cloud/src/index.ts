@@ -85,6 +85,7 @@ function removeListener(sessionId: string, clientId: string): boolean {
 // ============================================================================
 // Uses persistent clientId sent from the web client (stored in localStorage)
 // This survives page reloads, so users can't abuse by refreshing
+// Map: `${sessionId}:${clientId}` -> Set<trackKey>
 const likesSent = new Map<string, Set<string>>();
 
 function getTrackKey(track: TrackInfo): string {
@@ -137,22 +138,29 @@ function getTempoFeedback(sessionId: string) {
     return { faster, slower, perfect, total: faster + slower + perfect };
 }
 
-function hasLikedTrack(clientId: string, track: TrackInfo): boolean {
-    const clientLikes = likesSent.get(clientId);
+function hasLikedTrack(sessionId: string, clientId: string, track: TrackInfo): boolean {
+    const key = `${sessionId}:${clientId}`;
+    const clientLikes = likesSent.get(key);
     if (!clientLikes) return false;
     return clientLikes.has(getTrackKey(track));
 }
 
-function recordLike(clientId: string, track: TrackInfo): void {
-    if (!likesSent.has(clientId)) {
-        likesSent.set(clientId, new Set());
+function recordLike(sessionId: string, clientId: string, track: TrackInfo): void {
+    const key = `${sessionId}:${clientId}`;
+    if (!likesSent.has(key)) {
+        likesSent.set(key, new Set());
     }
-    likesSent.get(clientId)!.add(getTrackKey(track));
+    likesSent.get(key)!.add(getTrackKey(track));
 }
 
 // Clean up likes when session ends
-function clearLikesForSession(): void {
-    likesSent.clear();
+function clearLikesForSession(sessionId: string): void {
+    // Delete all entries starting with sessionId:
+    for (const key of likesSent.keys()) {
+        if (key.startsWith(`${sessionId}:`)) {
+            likesSent.delete(key);
+        }
+    }
 }
 
 // ============================================================================
@@ -837,6 +845,19 @@ app.get(
 
             onMessage(event, ws) {
                 try {
+                    // Security Check: Enforce 10KB message limit
+                    const messageSize = event.data instanceof ArrayBuffer
+                        ? event.data.byteLength
+                        : typeof event.data === "string"
+                            ? event.data.length
+                            : String(event.data).length;
+
+                    if (messageSize > 10 * 1024) {
+                        console.error(`❌ Message too large: ${messageSize} bytes (limit 10KB)`);
+                        ws.close(1009, "Message too large");
+                        return;
+                    }
+
                     const data = event.data.toString();
                     const json = JSON.parse(data);
 
@@ -982,7 +1003,7 @@ app.get(
                                 endSessionInDb(message.sessionId);
 
                                 // Clear like tracking for new session
-                                clearLikesForSession();
+                                clearLikesForSession(message.sessionId);
 
                                 rawWs.publish("live-session", JSON.stringify({
                                     type: "SESSION_ENDED",
@@ -998,6 +1019,11 @@ app.get(
                             const likeSessionId = (message as { sessionId?: string }).sessionId
                                 || Array.from(activeSessions.keys())[0];
 
+                            if (!likeSessionId) {
+                                console.log("⚠️ Like rejected: no active session found");
+                                break;
+                            }
+
                             // Require clientId for rate limiting
                             if (!clientId) {
                                 console.log("⚠️ Like rejected: no clientId provided");
@@ -1010,9 +1036,9 @@ app.get(
 
                             // Check if this client has already liked this track
                             const trackKey = getTrackKey(track);
-                            console.log(`🔍 Like check: client=${clientId}, session=${likeSessionId}, track="${trackKey}", hasLiked=${hasLikedTrack(clientId, track)}`);
+                            console.log(`🔍 Like check: client=${clientId}, session=${likeSessionId}, track="${trackKey}", hasLiked=${hasLikedTrack(likeSessionId, clientId, track)}`);
 
-                            if (hasLikedTrack(clientId, track)) {
+                            if (hasLikedTrack(likeSessionId, clientId, track)) {
                                 console.log(`⚠️ Duplicate like ignored for: ${track.title} (${clientId})`);
                                 // Send feedback to client that they already liked
                                 ws.send(JSON.stringify({
@@ -1023,7 +1049,7 @@ app.get(
                             }
 
                             // Record the like
-                            recordLike(clientId, track);
+                            recordLike(likeSessionId, clientId, track);
                             console.log(`❤️ Like received for: ${track.title} (client: ${clientId}, session: ${likeSessionId})`);
 
                             // 💾 Persist to database with correct sessionId

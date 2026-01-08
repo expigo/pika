@@ -441,18 +441,21 @@ Future feature (post-MVP):
 
 ### Week 2: Security + DJ Auth
 
-- [ ] **Day 1-2: Security Fixes**
-  - [ ] Add message size limit (10KB)
-  - [ ] Add input sanitization
-  - [ ] Fix likesSent per-session scope
+- [x] **Day 1-2: Security Fixes** ✅ (Completed 2026-01-08)
+  - [x] Add message size limit (10KB) — WebSocket rejects messages > 10KB
+  - [x] Add input sanitization — Zod schema validation on all messages
+  - [x] Fix likesSent per-session scope — Now uses `${sessionId}:${clientId}` key
+  - [x] Add session existence check (handles server restarts)
+  - [x] Fix frontend API URLs (was using localhost in prod)
 
-- [ ] **Day 3-5: DJ Authentication**
-  - [ ] Create dj_users and dj_tokens tables
-  - [ ] Registration page (email + password + bcrypt)
-  - [ ] Login page
+- [ ] **Day 3-5: DJ Authentication** (In Progress)
+  - [x] Create dj_users and dj_tokens tables (schema added)
+  - [ ] Registration API endpoint (email + password + bcrypt)
+  - [ ] Login API endpoint
   - [ ] Token generation and display
   - [ ] Token validation on REGISTER_SESSION
   - [ ] Desktop app token settings UI
+  - [ ] Web registration/login pages
 
 ### Week 3: Testing + Polish
 
@@ -490,6 +493,34 @@ Future feature (post-MVP):
   - [ ] Print QR code cards
   - [ ] Prepare backup hotspot
   - [ ] Rest before event!
+
+---
+
+## 7.5 Technical Debt & Known Issues
+
+*Added 2026-01-08 after code review.*
+
+### 🔴 Critical (Fix Before MVP Event)
+
+| Issue | Status | Location | Notes |
+|-------|--------|----------|-------|
+| DJ Token Validation | ⏳ Pending | `index.ts:890` | Anyone can create session as any DJ |
+| Poll Vote Unique Constraint | ⏳ Pending | `schema.ts:137` | DB allows duplicate votes after restart |
+
+### 🟡 Important (Fix Soon After)
+
+| Issue | Status | Location | Notes |
+|-------|--------|----------|-------|
+| Memory: `sessionListeners` not cleaned | ⏳ Pending | `index.ts:1000` | Minor memory leak |
+| Memory: `persistedSessions` not cleaned | ⏳ Pending | `index.ts:1006` | Minor memory leak |
+| Missing DB Indexes | ⏳ Pending | `schema.ts` | Performance at scale |
+
+### 🟢 Nice to Have
+
+| Issue | Status | Location | Notes |
+|-------|--------|----------|-------|
+| WebSocket Rate Limiting | ⏳ Pending | `index.ts:830` | DoS protection |
+| DJ Profile Query Optimization | ⏳ Pending | `index.ts:757-770` | Loads all sessions |
 
 ---
 

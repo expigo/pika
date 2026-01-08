@@ -6,6 +6,28 @@
 import { pgTable, text, timestamp, serial, integer } from "drizzle-orm/pg-core";
 
 // ============================================================================
+// DJ Users & Authentication
+// ============================================================================
+
+export const djUsers = pgTable("dj_users", {
+    id: serial("id").primaryKey(),
+    email: text("email").notNull().unique(),
+    passwordHash: text("password_hash").notNull(), // bcrypt hash
+    displayName: text("display_name").notNull(),
+    slug: text("slug").notNull().unique(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const djTokens = pgTable("dj_tokens", {
+    id: serial("id").primaryKey(),
+    djUserId: integer("dj_user_id").notNull().references(() => djUsers.id, { onDelete: 'cascade' }),
+    token: text("token").notNull().unique(),
+    name: text("name").default('Default'),
+    lastUsed: timestamp("last_used"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// ============================================================================
 // Sessions Table
 // ============================================================================
 
@@ -14,6 +36,7 @@ import { pgTable, text, timestamp, serial, integer } from "drizzle-orm/pg-core";
  */
 export const sessions = pgTable("sessions", {
     id: text("id").primaryKey(),
+    djUserId: integer("dj_user_id").references(() => djUsers.id), // Optional for now (backward compatibility)
     djName: text("dj_name").notNull(),
     startedAt: timestamp("started_at").defaultNow().notNull(),
     endedAt: timestamp("ended_at"),
