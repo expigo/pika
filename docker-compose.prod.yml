@@ -11,8 +11,12 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
-    # No ports exposed to host/internet for security
-    # Only internal Docker network access
+    # 🏥 HEALTHCHECK: Is Postgres ready to accept connections?
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U pika -d pika_prod" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   cloud:
     image: oven/bun:latest
@@ -20,7 +24,6 @@ services:
     working_dir: /app/packages/cloud
     command: sh -c "cd /app && bun install && cd packages/cloud && bun run db:push && bun run src/index.ts"
     environment:
-      # Connect to 'db' service (hostname is service name)
       - DATABASE_URL=postgres://pika:pika_password@db:5432/pika_prod
       - NODE_ENV=production
       - PORT=3001
@@ -30,7 +33,8 @@ services:
       - "127.0.0.1:3001:3001"
     restart: unless-stopped
     depends_on:
-      - db
+      db:
+        condition: service_healthy # 🛑 Wait until DB is green!
 
   web:
     image: oven/bun:latest
