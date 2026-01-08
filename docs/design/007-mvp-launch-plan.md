@@ -457,7 +457,7 @@ Future feature (post-MVP):
   - [x] Token validation endpoint (/api/auth/me)
   - [x] Token regeneration endpoint
   - [x] Token validation on REGISTER_SESSION
-  - [ ] Desktop app token settings UI
+  - [x] Desktop app token settings UI ✅ (Completed 2026-01-08)
   - [ ] Web registration/login pages
 
 ### Week 3: Testing + Polish

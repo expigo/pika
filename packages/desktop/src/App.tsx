@@ -153,14 +153,64 @@ function App() {
         </div>
       )}
 
-      {/* Debug panel - hidden by default */}
+      {/* Settings panel - hidden by default */}
       <details style={styles.debugSection}>
         <summary style={styles.debugSummary}>
-          🔧 Debug Info ({status})
+          ⚙️ Settings
         </summary>
         <div style={styles.debugPanel}>
-          <div style={styles.debugRow}>
-            <span>Environment:</span>
+          {/* Auth Token */}
+          <div style={styles.settingsSection}>
+            <div style={styles.settingsLabel}>
+              <span>🔑 DJ Auth Token</span>
+              {getStoredSettings().authToken ? (
+                <span style={styles.tokenStatus}>✅ Connected</span>
+              ) : (
+                <span style={styles.tokenStatusPending}>⚠️ Not set</span>
+              )}
+            </div>
+            <div style={styles.tokenInputRow}>
+              <input
+                type="password"
+                defaultValue={getStoredSettings().authToken}
+                placeholder="pk_dj_your_token_here"
+                style={styles.tokenInput}
+                onChange={(e) => {
+                  // Debounced save will happen on blur
+                  e.currentTarget.dataset.pendingValue = e.target.value;
+                }}
+                onBlur={(e) => {
+                  const value = e.currentTarget.dataset.pendingValue || e.target.value;
+                  if (value !== getStoredSettings().authToken) {
+                    // Save the token - we'll need to add setAuthToken to the hook usage
+                    localStorage.setItem('pika_dj_settings', JSON.stringify({
+                      ...getStoredSettings(),
+                      authToken: value
+                    }));
+                    // Show feedback
+                    if (value) {
+                      alert('Token saved! It will be used for your next session.');
+                    }
+                  }
+                }}
+              />
+              <a
+                href="https://pika.stream/dj/register"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={styles.tokenLink}
+              >
+                Get Token
+              </a>
+            </div>
+            <p style={styles.tokenHint}>
+              Enter your DJ token to authenticate your sessions. Get one at pika.stream
+            </p>
+          </div>
+
+          {/* Environment */}
+          <div style={styles.settingsSection}>
+            <div style={styles.settingsLabel}>🌐 Environment</div>
             <select
               defaultValue={getStoredSettings().serverEnv}
               onChange={(e) => {
@@ -173,11 +223,20 @@ function App() {
               <option value="dev">Development (localhost)</option>
             </select>
           </div>
-          <div>inTauri={String(inTauri)}</div>
-          <div>Status: {status}</div>
-          <div>Base URL: {baseUrl ?? "null"}</div>
-          <div>Health: {healthData ? JSON.stringify(healthData) : "null"}</div>
-          <div>Error: {error ?? "null"}</div>
+
+          {/* Debug Info (collapsed) */}
+          <details style={{ marginTop: '1rem' }}>
+            <summary style={{ cursor: 'pointer', color: '#64748b', fontSize: '0.75rem' }}>
+              🔧 Debug Info
+            </summary>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem' }}>
+              <div>inTauri={String(inTauri)}</div>
+              <div>Status: {status}</div>
+              <div>Base URL: {baseUrl ?? "null"}</div>
+              <div>Health: {healthData ? JSON.stringify(healthData) : "null"}</div>
+              <div>Error: {error ?? "null"}</div>
+            </div>
+          </details>
         </div>
       </details>
 
@@ -369,8 +428,61 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#e2e8f0",
     border: "1px solid #475569",
     borderRadius: "4px",
-    padding: "0.125rem 0.5rem",
+    padding: "0.25rem 0.5rem",
+    fontSize: "0.8rem",
+    width: "100%",
+  },
+  settingsSection: {
+    marginBottom: "1rem",
+  },
+  settingsLabel: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    marginBottom: "0.5rem",
+    color: "#e2e8f0",
+  },
+  tokenInputRow: {
+    display: "flex",
+    gap: "0.5rem",
+  },
+  tokenInput: {
+    flex: 1,
+    background: "#334155",
+    color: "#e2e8f0",
+    border: "1px solid #475569",
+    borderRadius: "4px",
+    padding: "0.5rem",
+    fontSize: "0.8rem",
+    fontFamily: "monospace",
+  },
+  tokenLink: {
+    display: "flex",
+    alignItems: "center",
+    padding: "0.5rem 0.75rem",
+    background: "#3b82f6",
+    color: "white",
+    borderRadius: "4px",
     fontSize: "0.75rem",
+    fontWeight: 600,
+    textDecoration: "none",
+    whiteSpace: "nowrap",
+  },
+  tokenHint: {
+    fontSize: "0.7rem",
+    color: "#64748b",
+    marginTop: "0.5rem",
+    marginBottom: 0,
+  },
+  tokenStatus: {
+    fontSize: "0.7rem",
+    color: "#22c55e",
+  },
+  tokenStatusPending: {
+    fontSize: "0.7rem",
+    color: "#f59e0b",
   },
 };
 

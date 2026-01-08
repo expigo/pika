@@ -1,9 +1,9 @@
 /**
  * DJ Settings Hook
- * Manages DJ profile settings (name, env, etc.) persisted to localStorage
+ * Manages DJ profile settings (name, env, token, etc.) persisted to localStorage
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 
 const STORAGE_KEY = "pika_dj_settings";
 
@@ -12,11 +12,13 @@ export type ServerEnv = "dev" | "prod";
 interface DjSettings {
     djName: string;
     serverEnv: ServerEnv;
+    authToken: string; // DJ authentication token (pk_dj_...)
 }
 
 const DEFAULT_SETTINGS: DjSettings = {
     djName: "",
     serverEnv: "prod", // Default to PROD for release builds!
+    authToken: "",
 };
 
 function loadSettings(): DjSettings {
@@ -63,12 +65,23 @@ export function useDjSettings() {
         });
     }, []);
 
+    const setAuthToken = useCallback((authToken: string) => {
+        setSettingsState((prev) => {
+            const newSettings = { ...prev, authToken };
+            saveSettings(newSettings);
+            return newSettings;
+        });
+    }, []);
+
     return {
         djName: settings.djName,
         serverEnv: settings.serverEnv,
+        authToken: settings.authToken,
         setDjName,
         setServerEnv,
+        setAuthToken,
         hasSetDjName: settings.djName.length > 0,
+        hasAuthToken: settings.authToken.length > 0,
     };
 }
 
@@ -79,6 +92,10 @@ export function getStoredSettings(): DjSettings {
 
 export function getDjName(): string {
     return loadSettings().djName || "DJ";
+}
+
+export function getAuthToken(): string {
+    return loadSettings().authToken || "";
 }
 
 /**

@@ -10,7 +10,7 @@ import {
 } from "../services/virtualDjWatcher";
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
-import { getDjName } from "./useDjSettings";
+import { getDjName, getAuthToken } from "./useDjSettings";
 
 import { getConfiguredUrls } from "./useDjSettings";
 
@@ -388,11 +388,13 @@ export function useLiveSession() {
                 setStatus("live");
                 setError(null);
 
-                // Register session with DJ name from settings
+                // Register session with DJ name and auth token from settings
+                const token = getAuthToken();
                 sendMessage({
                     type: "REGISTER_SESSION",
                     sessionId: newSessionId,
                     djName: getDjName(),
+                    ...(token ? { token } : {}), // Include token if available
                 });
 
                 // Send initial track if available AND user chose to include it
