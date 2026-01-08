@@ -33,29 +33,55 @@ async function baseline() {
         await sql`CREATE SCHEMA IF NOT EXISTS drizzle`;
         console.log("✓ Schema 'drizzle' exists");
 
-        // Ensure the migrations table exists
-        await sql`
-            CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
-                id SERIAL PRIMARY KEY,
-                hash TEXT NOT NULL UNIQUE,
-                created_at BIGINT NOT NULL
-            )
+        // Check if migrations table exists and what columns it has
+        const tableCheck = await sql`
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_schema = 'drizzle' 
+            AND table_name = '__drizzle_migrations'
         `;
-        console.log("✓ Migrations table exists");
 
-        // Insert baseline migrations
+        if (tableCheck.length === 0) {
+            // Create with proper schema
+            await sql`
+                CREATE TABLE drizzle.__drizzle_migrations (
+                    id SERIAL PRIMARY KEY,
+                    hash TEXT NOT NULL UNIQUE,
+                    created_at BIGINT NOT NULL
+                )
+            `;
+            console.log("✓ Created migrations table");
+        } else {
+            console.log("✓ Migrations table exists");
+
+            // Try to add unique constraint if missing
+            try {
+                await sql`
+                    ALTER TABLE drizzle.__drizzle_migrations 
+                    ADD CONSTRAINT __drizzle_migrations_hash_unique UNIQUE (hash)
+                `;
+                console.log("✓ Added unique constraint on hash");
+            } catch {
+                // Constraint might already exist or there are duplicates
+                console.log("  (unique constraint already exists or skipped)");
+            }
+        }
+
+        // Insert baseline migrations (check first, then insert)
         for (const hash of BASELINE_MIGRATIONS) {
-            const result = await sql`
-                INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
-                VALUES (${hash}, ${Date.now()})
-                ON CONFLICT (hash) DO NOTHING
-                RETURNING hash
+            // Check if already exists
+            const existing = await sql`
+                SELECT hash FROM drizzle.__drizzle_migrations WHERE hash = ${hash}
             `;
 
-            if (result.length > 0) {
-                console.log(`✓ Marked as applied: ${hash}`);
-            } else {
+            if (existing.length > 0) {
                 console.log(`  Already marked: ${hash}`);
+            } else {
+                await sql`
+                    INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+                    VALUES (${hash}, ${Date.now()})
+                `;
+                console.log(`✓ Marked as applied: ${hash}`);
             }
         }
 
