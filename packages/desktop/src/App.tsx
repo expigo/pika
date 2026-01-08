@@ -20,10 +20,20 @@ type ViewMode = "builder" | "logbook";
 function App() {
   const { status, baseUrl, healthData, error, restart } = useSidecar();
   const { isLive, listenerCount, tempoFeedback, activePoll, startPoll, endPoll, sessionId } = useLiveSession();
-  const { setServerEnv, djName } = useDjSettings(); // Hook must be top-level
+  const {
+    setServerEnv,
+    djName,
+    djInfo,
+    isAuthenticated,
+    isValidating,
+    validationError,
+    setAuthToken,
+    clearToken
+  } = useDjSettings();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("builder");
+  const [tokenInput, setTokenInput] = useState(getStoredSettings().authToken || "");
 
   // Check if we're in Tauri
   const inTauri =
@@ -156,56 +166,88 @@ function App() {
       {/* Settings panel - hidden by default */}
       <details style={styles.debugSection}>
         <summary style={styles.debugSummary}>
-          ⚙️ Settings
+          ⚙️ Settings {isAuthenticated && <span style={styles.authBadge}>✓ {djInfo?.displayName}</span>}
         </summary>
         <div style={styles.debugPanel}>
-          {/* Auth Token */}
+          {/* DJ Account */}
           <div style={styles.settingsSection}>
             <div style={styles.settingsLabel}>
-              <span>🔑 DJ Auth Token</span>
-              {getStoredSettings().authToken ? (
-                <span style={styles.tokenStatus}>✅ Connected</span>
+              <span>🎧 DJ Account</span>
+              {isAuthenticated ? (
+                <span style={styles.tokenStatus}>✅ Verified</span>
               ) : (
-                <span style={styles.tokenStatusPending}>⚠️ Not set</span>
+                <span style={styles.tokenStatusPending}>⚠️ Not logged in</span>
               )}
             </div>
-            <div style={styles.tokenInputRow}>
-              <input
-                type="password"
-                defaultValue={getStoredSettings().authToken}
-                placeholder="pk_dj_your_token_here"
-                style={styles.tokenInput}
-                onChange={(e) => {
-                  // Debounced save will happen on blur
-                  e.currentTarget.dataset.pendingValue = e.target.value;
-                }}
-                onBlur={(e) => {
-                  const value = e.currentTarget.dataset.pendingValue || e.target.value;
-                  if (value !== getStoredSettings().authToken) {
-                    // Save the token - we'll need to add setAuthToken to the hook usage
-                    localStorage.setItem('pika_dj_settings', JSON.stringify({
-                      ...getStoredSettings(),
-                      authToken: value
-                    }));
-                    // Show feedback
-                    if (value) {
-                      alert('Token saved! It will be used for your next session.');
-                    }
-                  }
-                }}
-              />
-              <a
-                href="https://pika.stream/dj/register"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={styles.tokenLink}
-              >
-                Get Token
-              </a>
-            </div>
-            <p style={styles.tokenHint}>
-              Enter your DJ token to authenticate your sessions. Get one at pika.stream
-            </p>
+
+            {/* Show logged in state or token input */}
+            {isAuthenticated && djInfo ? (
+              // Logged in - show DJ info
+              <div style={styles.loggedInBox}>
+                <div style={styles.djInfoRow}>
+                  <span style={styles.djInfoLabel}>DJ Name:</span>
+                  <span style={styles.djInfoValue}>{djInfo.displayName}</span>
+                </div>
+                <div style={styles.djInfoRow}>
+                  <span style={styles.djInfoLabel}>Email:</span>
+                  <span style={styles.djInfoValue}>{djInfo.email}</span>
+                </div>
+                <div style={styles.djInfoRow}>
+                  <span style={styles.djInfoLabel}>Profile:</span>
+                  <a
+                    href={`https://pika.stream/dj/${djInfo.slug}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={styles.profileLink}
+                  >
+                    pika.stream/dj/{djInfo.slug}
+                  </a>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearToken}
+                  style={styles.logoutBtn}
+                >
+                  Sign Out
+                </button>
+              </div>
+            ) : (
+              // Not logged in - show token input
+              <>
+                <div style={styles.tokenInputRow}>
+                  <input
+                    type="password"
+                    value={tokenInput}
+                    onChange={(e) => setTokenInput(e.target.value)}
+                    placeholder="pk_dj_your_token_here"
+                    style={styles.tokenInput}
+                    disabled={isValidating}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setAuthToken(tokenInput)}
+                    disabled={isValidating || !tokenInput}
+                    style={styles.validateBtn}
+                  >
+                    {isValidating ? "..." : "Connect"}
+                  </button>
+                </div>
+                {validationError && (
+                  <p style={styles.errorText}>{validationError}</p>
+                )}
+                <p style={styles.tokenHint}>
+                  Enter your DJ token to authenticate sessions.{" "}
+                  <a
+                    href="https://pika.stream/dj/register"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={styles.linkText}
+                  >
+                    Get one here
+                  </a>
+                </p>
+              </>
+            )}
           </div>
 
           {/* Environment */}
@@ -235,6 +277,7 @@ function App() {
               <div>Base URL: {baseUrl ?? "null"}</div>
               <div>Health: {healthData ? JSON.stringify(healthData) : "null"}</div>
               <div>Error: {error ?? "null"}</div>
+              <div>Authenticated: {String(isAuthenticated)}</div>
             </div>
           </details>
         </div>
@@ -483,6 +526,68 @@ const styles: Record<string, React.CSSProperties> = {
   tokenStatusPending: {
     fontSize: "0.7rem",
     color: "#f59e0b",
+  },
+  authBadge: {
+    marginLeft: "0.5rem",
+    fontSize: "0.7rem",
+    color: "#22c55e",
+    fontWeight: 500,
+  },
+  loggedInBox: {
+    background: "rgba(34, 197, 94, 0.1)",
+    border: "1px solid rgba(34, 197, 94, 0.3)",
+    borderRadius: "8px",
+    padding: "0.75rem",
+    marginTop: "0.5rem",
+  },
+  djInfoRow: {
+    display: "flex",
+    gap: "0.5rem",
+    marginBottom: "0.35rem",
+    fontSize: "0.8rem",
+  },
+  djInfoLabel: {
+    color: "#64748b",
+    minWidth: "60px",
+  },
+  djInfoValue: {
+    color: "#e2e8f0",
+    fontWeight: 500,
+  },
+  profileLink: {
+    color: "#a78bfa",
+    textDecoration: "none",
+    fontSize: "0.8rem",
+  },
+  logoutBtn: {
+    marginTop: "0.75rem",
+    padding: "0.35rem 0.75rem",
+    background: "rgba(239, 68, 68, 0.1)",
+    border: "1px solid rgba(239, 68, 68, 0.3)",
+    borderRadius: "4px",
+    color: "#ef4444",
+    fontSize: "0.75rem",
+    cursor: "pointer",
+  },
+  validateBtn: {
+    padding: "0.5rem 1rem",
+    background: "#22c55e",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  errorText: {
+    fontSize: "0.7rem",
+    color: "#ef4444",
+    marginTop: "0.5rem",
+    marginBottom: 0,
+  },
+  linkText: {
+    color: "#a78bfa",
+    textDecoration: "underline",
   },
 };
 

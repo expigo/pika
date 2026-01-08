@@ -14,7 +14,7 @@ interface PendingTrack {
 
 export function LiveControl() {
     const { status, nowPlaying, error, isLive, sessionId, listenerCount, tempoFeedback, goLive, endSet, clearNowPlaying } = useLiveSession();
-    const { djName, setDjName, hasSetDjName } = useDjSettings();
+    const { djName, setDjName, hasSetDjName, isAuthenticated } = useDjSettings();
     const [showQR, setShowQR] = useState(false);
     const [showNameModal, setShowNameModal] = useState(false);
     const [showDjNamePrompt, setShowDjNamePrompt] = useState(false);
@@ -47,8 +47,9 @@ export function LiveControl() {
             // Clear last session when starting new one
             setLastSessionId(null);
 
-            // If no DJ name set, prompt for it first
-            if (!hasSetDjName) {
+            // If authenticated, skip DJ name prompt (name is synced from token)
+            // Otherwise, if no DJ name set, prompt for it first
+            if (!isAuthenticated && !hasSetDjName) {
                 setDjNameInput("");
                 setShowDjNamePrompt(true);
             } else {
