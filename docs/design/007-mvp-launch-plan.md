@@ -448,12 +448,15 @@ Future feature (post-MVP):
   - [x] Add session existence check (handles server restarts)
   - [x] Fix frontend API URLs (was using localhost in prod)
 
-- [ ] **Day 3-5: DJ Authentication** (In Progress)
+- [x] **Day 3-5: DJ Authentication** ✅ (API Completed 2026-01-08)
   - [x] Create dj_users and dj_tokens tables (schema added)
-  - [ ] Registration API endpoint (email + password + bcrypt)
-  - [ ] Login API endpoint
-  - [ ] Token generation and display
-  - [ ] Token validation on REGISTER_SESSION
+  - [x] Add unique constraint on poll votes
+  - [x] Memory cleanup for session state (sessionListeners, persistedSessions)
+  - [x] Registration API endpoint (email + password + bcrypt)
+  - [x] Login API endpoint
+  - [x] Token validation endpoint (/api/auth/me)
+  - [x] Token regeneration endpoint
+  - [x] Token validation on REGISTER_SESSION
   - [ ] Desktop app token settings UI
   - [ ] Web registration/login pages
 
@@ -498,21 +501,21 @@ Future feature (post-MVP):
 
 ## 7.5 Technical Debt & Known Issues
 
-*Added 2026-01-08 after code review.*
+*Added 2026-01-08 after code review. Updated after auth implementation.*
 
 ### 🔴 Critical (Fix Before MVP Event)
 
 | Issue | Status | Location | Notes |
 |-------|--------|----------|-------|
-| DJ Token Validation | ⏳ Pending | `index.ts:890` | Anyone can create session as any DJ |
-| Poll Vote Unique Constraint | ⏳ Pending | `schema.ts:137` | DB allows duplicate votes after restart |
+| DJ Token Validation | ✅ Fixed | `index.ts:1191` | Token validated on REGISTER_SESSION |
+| Poll Vote Unique Constraint | ✅ Fixed | `schema.ts:145` | Added unique(pollId, clientId) |
 
 ### 🟡 Important (Fix Soon After)
 
 | Issue | Status | Location | Notes |
 |-------|--------|----------|-------|
-| Memory: `sessionListeners` not cleaned | ⏳ Pending | `index.ts:1000` | Minor memory leak |
-| Memory: `persistedSessions` not cleaned | ⏳ Pending | `index.ts:1006` | Minor memory leak |
+| Memory: `sessionListeners` not cleaned | ✅ Fixed | `index.ts:1008` | Cleaned on END_SESSION |
+| Memory: `persistedSessions` not cleaned | ✅ Fixed | `index.ts:1009` | Cleaned on END_SESSION |
 | Missing DB Indexes | ⏳ Pending | `schema.ts` | Performance at scale |
 
 ### 🟢 Nice to Have
@@ -520,7 +523,7 @@ Future feature (post-MVP):
 | Issue | Status | Location | Notes |
 |-------|--------|----------|-------|
 | WebSocket Rate Limiting | ⏳ Pending | `index.ts:830` | DoS protection |
-| DJ Profile Query Optimization | ⏳ Pending | `index.ts:757-770` | Loads all sessions |
+| DJ Profile Query Optimization | ⏳ Pending | `index.ts:1055` | Loads all sessions |
 
 ---
 

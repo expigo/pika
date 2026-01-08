@@ -3,7 +3,7 @@
  * PostgreSQL schema for session persistence, played tracks, and likes.
  */
 
-import { pgTable, text, timestamp, serial, integer } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, serial, integer, unique } from "drizzle-orm/pg-core";
 
 // ============================================================================
 // DJ Users & Authentication
@@ -140,4 +140,7 @@ export const pollVotes = pgTable("poll_votes", {
     clientId: text("client_id").notNull(), // Browser identity
     optionIndex: integer("option_index").notNull(), // Which option they voted for (0-indexed)
     votedAt: timestamp("voted_at").defaultNow().notNull(),
-});
+}, (table) => ({
+    // Unique constraint: one vote per client per poll
+    uniqueVote: unique().on(table.pollId, table.clientId),
+}));

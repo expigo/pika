@@ -297,14 +297,15 @@ async function ensureSessionPersisted(sessionId: string): Promise<boolean> {
 /**
  * Persist session to database - MUST complete before tracks can be saved
  */
-async function persistSession(sessionId: string, djName: string): Promise<boolean> {
+async function persistSession(sessionId: string, djName: string, djUserId?: number | null): Promise<boolean> {
     try {
         await db.insert(schema.sessions).values({
             id: sessionId,
             djName,
+            djUserId: djUserId ?? null,
         }).onConflictDoNothing();
         persistedSessions.add(sessionId);
-        console.log(`💾 Session persisted: ${sessionId}`);
+        console.log(`💾 Session persisted: ${sessionId}${djUserId ? ` (DJ ID: ${djUserId})` : ''}`);
         return true;
     } catch (e) {
         console.error("❌ Failed to persist session:", e);
@@ -433,6 +434,315 @@ app.get("/health", (c) => {
         timestamp: new Date().toISOString(),
         activeSessions: activeSessions.size,
     });
+});
+
+// ============================================================================
+// DJ Authentication API
+// ============================================================================
+
+// Helper: Generate URL-safe slug from DJ name
+function slugify(name: string): string {
+    return name
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[\s_]+/g, "-")
+        .replace(/[^a-z0-9-]/g, "")
+        .replace(/-+/g, "-")
+        .replace(/^-+|-+$/g, "");
+}
+
+// Helper: Generate secure random token
+function generateToken(): string {
+    const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+    let token = "pk_dj_";
+    for (let i = 0; i < 24; i++) {
+        token += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return token;
+}
+
+// Helper: Hash password using Bun's built-in bcrypt
+async function hashPassword(password: string): Promise<string> {
+    return await Bun.password.hash(password, {
+        algorithm: "bcrypt",
+        cost: 10,
+    });
+}
+
+// Helper: Verify password
+async function verifyPassword(password: string, hash: string): Promise<boolean> {
+    return await Bun.password.verify(password, hash);
+}
+
+// Helper: Validate token and return DJ user
+async function validateToken(token: string): Promise<{ id: number; displayName: string; email: string; slug: string } | null> {
+    try {
+        const result = await db
+            .select({
+                id: schema.djUsers.id,
+                displayName: schema.djUsers.displayName,
+                email: schema.djUsers.email,
+                slug: schema.djUsers.slug,
+            })
+            .from(schema.djTokens)
+            .innerJoin(schema.djUsers, eq(schema.djTokens.djUserId, schema.djUsers.id))
+            .where(eq(schema.djTokens.token, token))
+            .limit(1);
+
+        if (result.length === 0) return null;
+
+        const user = result[0];
+        if (!user) return null;
+
+        // Update last used timestamp (fire-and-forget)
+        db.update(schema.djTokens)
+            .set({ lastUsed: new Date() })
+            .where(eq(schema.djTokens.token, token))
+            .catch(() => { });
+
+        return user;
+    } catch (e) {
+        console.error("Token validation error:", e);
+        return null;
+    }
+}
+
+/**
+ * POST /api/auth/register
+ * Register a new DJ account
+ */
+app.post("/api/auth/register", async (c) => {
+    try {
+        const body = await c.req.json();
+        const { email, password, displayName } = body as {
+            email?: string;
+            password?: string;
+            displayName?: string;
+        };
+
+        // Validation
+        if (!email || !password || !displayName) {
+            return c.json({ error: "Email, password, and display name are required" }, 400);
+        }
+
+        if (password.length < 8) {
+            return c.json({ error: "Password must be at least 8 characters" }, 400);
+        }
+
+        if (!email.includes("@")) {
+            return c.json({ error: "Invalid email format" }, 400);
+        }
+
+        const slug = slugify(displayName);
+        if (slug.length < 2) {
+            return c.json({ error: "Display name must be at least 2 characters" }, 400);
+        }
+
+        // Check if email already exists
+        const existingEmail = await db
+            .select({ id: schema.djUsers.id })
+            .from(schema.djUsers)
+            .where(eq(schema.djUsers.email, email.toLowerCase()))
+            .limit(1);
+
+        if (existingEmail.length > 0) {
+            return c.json({ error: "Email already registered" }, 409);
+        }
+
+        // Check if slug already exists
+        const existingSlug = await db
+            .select({ id: schema.djUsers.id })
+            .from(schema.djUsers)
+            .where(eq(schema.djUsers.slug, slug))
+            .limit(1);
+
+        if (existingSlug.length > 0) {
+            return c.json({ error: "Display name already taken" }, 409);
+        }
+
+        // Hash password and create user
+        const passwordHash = await hashPassword(password);
+
+        const [newUser] = await db.insert(schema.djUsers).values({
+            email: email.toLowerCase(),
+            passwordHash,
+            displayName,
+            slug,
+        }).returning({ id: schema.djUsers.id });
+
+        if (!newUser) {
+            return c.json({ error: "Failed to create account" }, 500);
+        }
+
+        // Generate token
+        const token = generateToken();
+        await db.insert(schema.djTokens).values({
+            djUserId: newUser.id,
+            token,
+            name: "Default",
+        });
+
+        console.log(`✅ DJ registered: ${displayName} (${email})`);
+
+        return c.json({
+            success: true,
+            user: {
+                id: newUser.id,
+                email: email.toLowerCase(),
+                displayName,
+                slug,
+            },
+            token,
+        }, 201);
+    } catch (e) {
+        console.error("Registration error:", e);
+        return c.json({ error: "Registration failed" }, 500);
+    }
+});
+
+/**
+ * POST /api/auth/login
+ * Login with email and password, returns token
+ */
+app.post("/api/auth/login", async (c) => {
+    try {
+        const body = await c.req.json();
+        const { email, password } = body as { email?: string; password?: string };
+
+        if (!email || !password) {
+            return c.json({ error: "Email and password are required" }, 400);
+        }
+
+        // Find user by email
+        const users = await db
+            .select({
+                id: schema.djUsers.id,
+                email: schema.djUsers.email,
+                passwordHash: schema.djUsers.passwordHash,
+                displayName: schema.djUsers.displayName,
+                slug: schema.djUsers.slug,
+            })
+            .from(schema.djUsers)
+            .where(eq(schema.djUsers.email, email.toLowerCase()))
+            .limit(1);
+
+        if (users.length === 0) {
+            return c.json({ error: "Invalid email or password" }, 401);
+        }
+
+        const user = users[0]!; // We checked length > 0
+
+        // Verify password
+        const validPassword = await verifyPassword(password, user.passwordHash);
+        if (!validPassword) {
+            return c.json({ error: "Invalid email or password" }, 401);
+        }
+
+        // Get existing token or create new one
+        const tokens = await db
+            .select({ token: schema.djTokens.token })
+            .from(schema.djTokens)
+            .where(eq(schema.djTokens.djUserId, user.id))
+            .limit(1);
+
+        let token: string;
+        if (tokens.length > 0 && tokens[0]) {
+            token = tokens[0].token;
+            // Update last used
+            await db.update(schema.djTokens)
+                .set({ lastUsed: new Date() })
+                .where(eq(schema.djTokens.token, token));
+        } else {
+            // Create new token
+            token = generateToken();
+            await db.insert(schema.djTokens).values({
+                djUserId: user.id,
+                token,
+                name: "Default",
+            });
+        }
+
+        console.log(`✅ DJ logged in: ${user.displayName}`);
+
+        return c.json({
+            success: true,
+            user: {
+                id: user.id,
+                email: user.email,
+                displayName: user.displayName,
+                slug: user.slug,
+            },
+            token,
+        });
+    } catch (e) {
+        console.error("Login error:", e);
+        return c.json({ error: "Login failed" }, 500);
+    }
+});
+
+/**
+ * GET /api/auth/me
+ * Validate token and return user info
+ */
+app.get("/api/auth/me", async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+        return c.json({ error: "Authorization token required" }, 401);
+    }
+
+    const token = authHeader.substring(7);
+    const user = await validateToken(token);
+
+    if (!user) {
+        return c.json({ error: "Invalid token" }, 401);
+    }
+
+    return c.json({
+        success: true,
+        user,
+    });
+});
+
+/**
+ * POST /api/auth/regenerate-token
+ * Generate a new token (invalidates old one)
+ */
+app.post("/api/auth/regenerate-token", async (c) => {
+    const authHeader = c.req.header("Authorization");
+    if (!authHeader?.startsWith("Bearer ")) {
+        return c.json({ error: "Authorization token required" }, 401);
+    }
+
+    const oldToken = authHeader.substring(7);
+    const user = await validateToken(oldToken);
+
+    if (!user) {
+        return c.json({ error: "Invalid token" }, 401);
+    }
+
+    try {
+        // Delete old token
+        await db.delete(schema.djTokens).where(eq(schema.djTokens.token, oldToken));
+
+        // Create new token
+        const newToken = generateToken();
+        await db.insert(schema.djTokens).values({
+            djUserId: user.id,
+            token: newToken,
+            name: "Default",
+        });
+
+        console.log(`🔄 Token regenerated for: ${user.displayName}`);
+
+        return c.json({
+            success: true,
+            token: newToken,
+        });
+    } catch (e) {
+        console.error("Token regeneration error:", e);
+        return c.json({ error: "Failed to regenerate token" }, 500);
+    }
 });
 
 // Root endpoint
@@ -742,17 +1052,8 @@ app.get("/api/client/:clientId/likes", async (c) => {
 // DJ Profile API
 // ============================================================================
 
-// Helper: Convert DJ name to slug
-function slugify(name: string): string {
-    return name
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[\s_]+/g, "-")
-        .replace(/[^a-z0-9-]/g, "")
-        .replace(/-+/g, "-")
-        .replace(/^-+|-+$/g, "");
-}
+// Note: slugify function is defined above in the Auth section
+
 
 // Get DJ profile by slug
 app.get("/api/dj/:slug", async (c) => {
@@ -888,35 +1189,57 @@ app.get(
 
                     switch (message.type) {
                         case "REGISTER_SESSION": {
-                            const sessionId = message.sessionId || `session_${Date.now()}`;
-                            const djName = message.djName || "DJ";
-                            const session: LiveSession = {
-                                sessionId,
-                                djName,
-                                startedAt: new Date().toISOString(),
-                            };
-                            activeSessions.set(sessionId, session);
-                            console.log(`🎧 DJ going live: ${djName} (${sessionId})`);
-
-                            // 💾 Persist to database SYNCHRONOUSLY
-                            // This ensures the session is in the DB before DJ can create polls
+                            // Wrap in async IIFE for token validation
                             (async () => {
-                                await persistSession(sessionId, djName);
+                                const sessionId = message.sessionId || `session_${Date.now()}`;
+                                const requestedDjName = message.djName || "DJ";
+
+                                // 🔐 Token validation for DJ authentication
+                                const djToken = (message as { token?: string }).token;
+                                let djUserId: number | null = null;
+                                let djName = requestedDjName;
+
+                                if (djToken) {
+                                    // Validate token and get DJ info
+                                    const djUser = await validateToken(djToken);
+                                    if (djUser) {
+                                        djUserId = djUser.id;
+                                        djName = djUser.displayName; // Use registered name
+                                        console.log(`🔐 Authenticated DJ: ${djName} (ID: ${djUserId})`);
+                                    } else {
+                                        console.log(`⚠️ Invalid token provided, using anonymous mode`);
+                                    }
+                                } else {
+                                    console.log(`⚠️ No token provided, session will be anonymous`);
+                                }
+
+                                const session: LiveSession = {
+                                    sessionId,
+                                    djName,
+                                    startedAt: new Date().toISOString(),
+                                };
+                                activeSessions.set(sessionId, session);
+                                console.log(`🎧 DJ going live: ${djName} (${sessionId})${djUserId ? ` [Verified]` : ` [Anonymous]`}`);
+
+                                // 💾 Persist to database
+                                await persistSession(sessionId, djName, djUserId);
                                 console.log(`✅ Session ready for polls: ${sessionId}`);
-                            })();
 
-                            // Confirm registration to the client
-                            ws.send(JSON.stringify({
-                                type: "SESSION_REGISTERED",
-                                sessionId,
-                            }));
+                                // Confirm registration to the client
+                                ws.send(JSON.stringify({
+                                    type: "SESSION_REGISTERED",
+                                    sessionId,
+                                    authenticated: !!djUserId,
+                                    djName,
+                                }));
 
-                            // Broadcast to all subscribers
-                            rawWs.publish("live-session", JSON.stringify({
-                                type: "SESSION_STARTED",
-                                sessionId,
-                                djName,
-                            }));
+                                // Broadcast to all subscribers
+                                rawWs.publish("live-session", JSON.stringify({
+                                    type: "SESSION_STARTED",
+                                    sessionId,
+                                    djName,
+                                }));
+                            })().catch(e => console.error("❌ REGISTER_SESSION error:", e));
                             break;
                         }
 
@@ -1002,8 +1325,10 @@ app.get(
                                 // 💾 Update in database
                                 endSessionInDb(message.sessionId);
 
-                                // Clear like tracking for new session
+                                // 🧹 Clean up all in-memory state for this session
                                 clearLikesForSession(message.sessionId);
+                                sessionListeners.delete(message.sessionId);
+                                persistedSessions.delete(message.sessionId);
 
                                 rawWs.publish("live-session", JSON.stringify({
                                     type: "SESSION_ENDED",
