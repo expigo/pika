@@ -1,13 +1,27 @@
 version: '3.8'
 
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: pika-db
+    environment:
+      POSTGRES_USER: pika
+      POSTGRES_PASSWORD: pika_password
+      POSTGRES_DB: pika_prod
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    # No ports exposed to host/internet for security
+    # Only internal Docker network access
+
   cloud:
     image: oven/bun:latest
     container_name: pika-cloud
     working_dir: /app/packages/cloud
-    command: sh -c "cd /app && bun install && cd packages/cloud && bun run src/index.ts"
+    command: sh -c "cd /app && bun install && cd packages/cloud && bun run db:push && bun run src/index.ts"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      # Connect to 'db' service (hostname is service name)
+      - DATABASE_URL=postgres://pika:pika_password@db:5432/pika_prod
       - NODE_ENV=production
       - PORT=3001
     volumes:
@@ -15,12 +29,13 @@ services:
     ports:
       - "127.0.0.1:3001:3001"
     restart: unless-stopped
+    depends_on:
+      - db
 
   web:
     image: oven/bun:latest
     container_name: pika-web
     working_dir: /app/packages/web
-    # Use Bun for install/build/start to handle workspace:* protocol
     command: sh -c "cd /app && bun install && cd packages/web && bun run build && bun start"
     environment:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
@@ -34,3 +49,6 @@ services:
     restart: unless-stopped
     depends_on:
       - cloud
+
+volumes:
+  postgres_data:
