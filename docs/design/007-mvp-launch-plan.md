@@ -459,6 +459,7 @@ Future feature (post-MVP):
   - [x] Token validation on REGISTER_SESSION
   - [x] Desktop app token settings UI ✅ (Completed 2026-01-08)
   - [x] Web registration/login pages ✅ (Completed 2026-01-08)
+  - [x] Token auto-sync: validates token & auto-sets DJ name ✅ (Completed 2026-01-08)
 
 ### Week 3: Testing + Polish
 
