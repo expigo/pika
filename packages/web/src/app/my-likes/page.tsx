@@ -4,18 +4,13 @@ import { useEffect, useState } from "react";
 import { Heart, Music2, Calendar, User, ArrowLeft, Radio } from "lucide-react";
 import Link from "next/link";
 
-// API base URL - dynamically detect based on page location
+// API base URL
 function getApiBaseUrl(): string {
-    if (process.env.NEXT_PUBLIC_API_URL) {
-        return process.env.NEXT_PUBLIC_API_URL;
+    // In production, use the configured environment variable
+    if (process.env.NEXT_PUBLIC_CLOUD_API_URL) {
+        return process.env.NEXT_PUBLIC_CLOUD_API_URL;
     }
-
-    if (typeof window !== "undefined") {
-        const protocol = window.location.protocol;
-        const hostname = window.location.hostname;
-        return `${protocol}//${hostname}:3001`;
-    }
-
+    // Fallback for local development
     return "http://localhost:3001";
 }
 
