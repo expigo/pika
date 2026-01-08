@@ -12,10 +12,10 @@ import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
 import { getDjName } from "./useDjSettings";
 
-// Cloud server URL - use env variable in production
-const CLOUD_WS_URL = import.meta.env.VITE_CLOUD_WS_URL || "ws://localhost:3001/ws";
+import { getConfiguredUrls } from "./useDjSettings";
 
-console.log("[Live] Cloud WS URL:", CLOUD_WS_URL);
+// Cloud server URL is now dynamic based on settings
+// const CLOUD_WS_URL = ... (removed)
 
 export type LiveStatus = "offline" | "connecting" | "live" | "error";
 
@@ -370,9 +370,10 @@ export function useLiveSession() {
             }
 
             // Connect to cloud using ReconnectingWebSocket
-            console.log("[Live] Connecting to cloud:", CLOUD_WS_URL);
+            const { wsUrl } = getConfiguredUrls();
+            console.log("[Live] Connecting to cloud:", wsUrl);
 
-            const socket = new ReconnectingWebSocket(CLOUD_WS_URL, [], {
+            const socket = new ReconnectingWebSocket(wsUrl, [], {
                 connectionTimeout: 5000,
                 maxRetries: 10,
                 maxReconnectionDelay: 10000,

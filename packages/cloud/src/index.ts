@@ -207,20 +207,15 @@ async function createPollInDb(
     currentTrack?: TrackInfo | null
 ): Promise<number | null> {
     // Wait for session to be persisted (with timeout)
-    // Increased to 30 attempts (3 seconds) to ensure session has time to persist
     let attempts = 0;
     const maxAttempts = 30;
-    while (!persistedSessions.has(sessionId) && attempts < maxAttempts) {
+    while (!(await ensureSessionPersisted(sessionId)) && attempts < maxAttempts) {
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
-        if (attempts % 10 === 0) {
-            console.log(`⏳ Waiting for session persistence: ${attempts}/${maxAttempts}...`);
-        }
     }
 
     if (!persistedSessions.has(sessionId)) {
-        console.error("❌ Session not persisted after 3s, cannot create poll:", sessionId);
-        console.error("   Known sessions:", Array.from(persistedSessions));
+        console.error("❌ Session not persisted in DB after wait, cannot create poll:", sessionId);
         return null;
     }
 
@@ -270,6 +265,28 @@ async function recordPollVote(pollId: number, clientId: string, optionIndex: num
 const persistedSessions = new Set<string>();
 
 /**
+ * Check if session exists in DB (handling server restarts)
+ */
+async function ensureSessionPersisted(sessionId: string): Promise<boolean> {
+    if (persistedSessions.has(sessionId)) return true;
+
+    try {
+        const { eq } = await import("drizzle-orm");
+        const results = await db.select({ id: schema.sessions.id })
+            .from(schema.sessions)
+            .where(eq(schema.sessions.id, sessionId));
+
+        if (results.length > 0) {
+            persistedSessions.add(sessionId);
+            return true;
+        }
+    } catch (e) {
+        console.error("Failed to check session existence:", e);
+    }
+    return false;
+}
+
+/**
  * Persist session to database - MUST complete before tracks can be saved
  */
 async function persistSession(sessionId: string, djName: string): Promise<boolean> {
@@ -295,13 +312,13 @@ async function persistSession(sessionId: string, djName: string): Promise<boolea
 async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> {
     // Wait for session to be persisted (with timeout)
     let attempts = 0;
-    while (!persistedSessions.has(sessionId) && attempts < 10) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+    while (!(await ensureSessionPersisted(sessionId)) && attempts < 20) {
+        await new Promise(resolve => setTimeout(resolve, 200)); // 4 sec wait
         attempts++;
     }
 
     if (!persistedSessions.has(sessionId)) {
-        console.warn(`⚠️ Session ${sessionId} not persisted yet, skipping track`);
+        console.warn(`⚠️ Session ${sessionId} not found in DB, skipping track persistence`);
         return;
     }
 
@@ -487,8 +504,8 @@ app.get("/api/session/:sessionId/recap", async (c) => {
             .where(eq(schema.playedTracks.sessionId, sessionId))
             .orderBy(schema.playedTracks.playedAt);
 
-        if (tracks.length === 0) {
-            console.log(`📭 Recap not found for session: ${sessionId} (no tracks in database)`);
+        if (!dbSession) {
+            console.log(`📭 Recap not found for session: ${sessionId} (session not in DB)`);
             return c.json({ error: "Session not found" }, 404);
         }
 

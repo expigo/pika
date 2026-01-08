@@ -10,6 +10,7 @@ import { LivePerformanceMode } from "./components/LivePerformanceMode";
 import { Logbook } from "./components/Logbook";
 import { Toaster } from "sonner";
 import { Maximize2, LayoutGrid, Calendar } from "lucide-react";
+import { useDjSettings, getStoredSettings } from "./hooks/useDjSettings";
 import "./App.css";
 
 import { useState, useEffect } from "react";
@@ -18,7 +19,8 @@ type ViewMode = "builder" | "logbook";
 
 function App() {
   const { status, baseUrl, healthData, error, restart } = useSidecar();
-  const { isLive, listenerCount, tempoFeedback, activePoll, startPoll, endPoll } = useLiveSession();
+  const { isLive, listenerCount, tempoFeedback, activePoll, startPoll, endPoll, sessionId } = useLiveSession();
+  const { setServerEnv, djName } = useDjSettings(); // Hook must be top-level
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("builder");
@@ -47,6 +49,8 @@ function App() {
           activePoll={activePoll}
           onStartPoll={startPoll}
           onEndPoll={endPoll}
+          sessionId={sessionId}
+          djName={djName}
         />
       )}
 
@@ -155,6 +159,20 @@ function App() {
           🔧 Debug Info ({status})
         </summary>
         <div style={styles.debugPanel}>
+          <div style={styles.debugRow}>
+            <span>Environment:</span>
+            <select
+              defaultValue={getStoredSettings().serverEnv}
+              onChange={(e) => {
+                const env = e.target.value as "dev" | "prod";
+                setServerEnv(env);
+              }}
+              style={styles.envSelect}
+            >
+              <option value="prod">Production (pika.stream)</option>
+              <option value="dev">Development (localhost)</option>
+            </select>
+          </div>
           <div>inTauri={String(inTauri)}</div>
           <div>Status: {status}</div>
           <div>Base URL: {baseUrl ?? "null"}</div>
@@ -339,6 +357,20 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     minHeight: 0,
     overflow: "hidden",
+  },
+  debugRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    marginBottom: "0.5rem",
+  },
+  envSelect: {
+    background: "#334155",
+    color: "#e2e8f0",
+    border: "1px solid #475569",
+    borderRadius: "4px",
+    padding: "0.125rem 0.5rem",
+    fontSize: "0.75rem",
   },
 };
 

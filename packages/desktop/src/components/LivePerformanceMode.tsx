@@ -16,8 +16,11 @@ import {
     Gauge,
     BarChart2,
     Clock,
+    QrCode,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { useActivePlay } from "../hooks/useActivePlay";
+import { getListenerUrl } from "../config";
 import type { PlayReaction } from "../db/schema";
 
 // Poll countdown timer component
@@ -81,6 +84,8 @@ interface Props {
     activePoll?: ActivePoll | null;
     onStartPoll?: (question: string, options: string[], durationSeconds?: number) => void;
     onEndPoll?: () => void;
+    sessionId?: string | null;
+    djName?: string;
 }
 
 export function LivePerformanceMode({
@@ -91,6 +96,8 @@ export function LivePerformanceMode({
     activePoll,
     onStartPoll,
     onEndPoll,
+    sessionId,
+    djName,
 }: Props) {
     const {
         currentPlay,
@@ -109,6 +116,9 @@ export function LivePerformanceMode({
     const [pollQuestion, setPollQuestion] = useState("");
     const [pollOptions, setPollOptions] = useState(["", ""]);
     const [pollDuration, setPollDuration] = useState<number | null>(null); // Duration in seconds, null = no limit
+
+    // QR Code Modal
+    const [showQrModal, setShowQrModal] = useState(false);
 
     const handleReaction = async (reaction: PlayReaction) => {
         await updateReaction(reaction);
@@ -163,15 +173,27 @@ export function LivePerformanceMode({
                     )}
                 </div>
 
-                <button
-                    type="button"
-                    onClick={onExit}
-                    style={styles.exitButton}
-                    title="Exit Performance Mode"
-                >
-                    <X size={24} />
-                    <span>Exit</span>
-                </button>
+                <div style={{ display: "flex", gap: "1rem" }}>
+                    <button
+                        type="button"
+                        onClick={() => setShowQrModal(true)}
+                        style={styles.qrButton}
+                        title="Show QR Code for Dancers"
+                    >
+                        <QrCode size={20} />
+                        <span>Share Set</span>
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={onExit}
+                        style={styles.exitButton}
+                        title="Exit Performance Mode"
+                    >
+                        <X size={24} />
+                        <span>Exit</span>
+                    </button>
+                </div>
             </header>
 
             {/* Main Content - Current Track */}
@@ -516,6 +538,36 @@ export function LivePerformanceMode({
                     </button>
                 </div>
             )}
+
+            {/* QR Code Modal */}
+            {showQrModal && sessionId && (
+                <div style={styles.modalOverlay} onClick={() => setShowQrModal(false)}>
+                    <div style={styles.qrModal} onClick={(e) => e.stopPropagation()}>
+                        <h3 style={styles.modalTitle}>Join the Dance! 🕺💃</h3>
+                        <p style={styles.modalSubtitle}>Scan to vote & send love</p>
+
+                        <div style={{ background: "white", padding: "1.5rem", borderRadius: "16px", margin: "1rem 0" }}>
+                            <QRCodeSVG
+                                value={getListenerUrl(sessionId, djName)}
+                                size={300}
+                                level="H"
+                            />
+                        </div>
+
+                        <p style={{ fontFamily: "monospace", color: "#a1a1aa", fontSize: "1.2rem", background: "#27272a", padding: "0.5rem 1rem", borderRadius: "8px" }}>
+                            pika.stream
+                        </p>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowQrModal(false)}
+                            style={styles.saveButton} // Reuse save button style for "Done"
+                        >
+                            Done
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -798,6 +850,30 @@ const styles: Record<string, React.CSSProperties> = {
         justifyContent: "flex-end",
         gap: "1rem",
         marginTop: "1.5rem",
+    },
+    qrButton: {
+        display: "flex",
+        alignItems: "center",
+        gap: "0.5rem",
+        padding: "0.75rem 1.25rem",
+        background: "#3f3f46",
+        color: "#fafafa",
+        border: "none",
+        borderRadius: "8px",
+        fontSize: "1rem",
+        cursor: "pointer",
+        transition: "background 0.2s",
+    },
+    qrModal: {
+        background: "#18181b",
+        borderRadius: "24px",
+        padding: "3rem",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        textAlign: "center",
+        border: "1px solid #27272a",
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
     },
     cancelButton: {
         padding: "0.75rem 1.5rem",

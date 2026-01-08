@@ -1,16 +1,21 @@
 /**
  * Pika! Desktop Configuration
  * Environment-based configuration for the desktop app.
+ * NOW DYNAMIC based on User Settings (Dev/Prod).
  */
 
 import { invoke } from "@tauri-apps/api/core";
 import { slugify } from "@pika/shared";
+import { getConfiguredUrls, getStoredSettings } from "./hooks/useDjSettings";
 
-// Web client URL for QR codes
-export const WEB_CLIENT_URL = import.meta.env.VITE_WEB_URL || "http://localhost:3002";
+// Load configuration relative to current environment setting (Dev/Prod)
+const urls = getConfiguredUrls();
 
 // Cloud server WebSocket URL
-export const CLOUD_WS_URL = import.meta.env.VITE_CLOUD_WS_URL || "ws://localhost:3001/ws";
+export const CLOUD_WS_URL = urls.wsUrl;
+
+// Base Web URL (default)
+export const WEB_CLIENT_URL = urls.webUrl;
 
 // Cached local IP (fetched once on demand)
 let cachedLocalIp: string | null = null;
@@ -38,13 +43,23 @@ export async function getLocalIp(): Promise<string | null> {
 }
 
 /**
- * Get the web client base URL, using local IP for LAN access
- * @param localIp - Optional local IP to use (from getLocalIp)
+ * Get the web client base URL
+ * For PROD: Always return https://pika.stream
+ * For DEV: Try to use local IP for LAN access if available, else localhost
  */
 export function getWebClientBaseUrl(localIp?: string | null): string {
-    if (localIp) {
-        return `http://${localIp}:3002`;
+    const settings = getStoredSettings();
+
+    // In Production, ignore local IP, always use the public domain
+    if (settings.serverEnv === "prod") {
+        return WEB_CLIENT_URL;
     }
+
+    // In Dev, support LAN IP
+    if (localIp) {
+        return `http://${localIp}:3000`; // Next.js default port
+    }
+
     return WEB_CLIENT_URL;
 }
 
