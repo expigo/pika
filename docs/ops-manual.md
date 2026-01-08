@@ -186,19 +186,41 @@ docker compose -f docker-compose.prod.yml exec cloud \
 
 ### 🆘 Troubleshooting Migrations
 
+**"Relation already exists" Error:**
+```
+PostgresError: relation "sessions" already exists
+```
+This means migration files are trying to create tables that already exist (usually because `db:push` was used before migrations).
+
+**Fix: Run Baseline Script (One-time)**
+```bash
+docker compose -f docker-compose.prod.yml exec cloud bun run db:baseline
+```
+This marks existing migrations as "already applied" in the migrations journal.
+
+Then retry:
+```bash
+docker compose -f docker-compose.prod.yml exec cloud bun run db:migrate
+```
+
 **"Migration file not found" Error:**
 ```bash
 # Someone used db:push instead of db:generate. Fix by:
 # 1. Create the missing SQL file locally
 # 2. Or: Mark migration as applied manually:
 docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
-  "INSERT INTO __drizzle_migrations (hash, created_at) VALUES ('0000_name', EXTRACT(EPOCH FROM NOW())::BIGINT * 1000);"
+  "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('0000_name', EXTRACT(EPOCH FROM NOW())::BIGINT * 1000);"
 ```
 
 **Check Migration Status:**
 ```bash
-docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
-  "SELECT * FROM __drizzle_migrations ORDER BY id;"
+docker compose -f docker-compose.prod.yml exec cloud bun -e "
+  import postgres from 'postgres';
+  const sql = postgres(process.env.DATABASE_URL);
+  const result = await sql\`SELECT * FROM drizzle.__drizzle_migrations ORDER BY id\`;
+  console.table(result);
+  process.exit(0);
+"
 ```
 
 ### 🔌 Connecting to Prod DB
