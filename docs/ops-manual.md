@@ -18,7 +18,7 @@ npm run tauri dev
 ```
 
 ### 🗄️ Database (Local)
-The local environment uses a Postgres instance (often via Docker) or a local file depending on setup.
+The local environment uses a Postgres instance via Docker (port 5433).
 
 **Inspect DB (Drizzle Studio):**
 ```bash
@@ -27,11 +27,21 @@ cd packages/cloud
 bun run db:studio
 ```
 
-**Run Migrations:**
+**Database Migration Workflow:**
 ```bash
 cd packages/cloud
-bun run db:push
+
+# 1. GENERATE migration from schema changes (creates SQL file in drizzle/)
+bun run db:generate
+
+# 2. APPLY migrations to database
+bun run db:migrate
+
+# 3. (Dev only) PUSH schema directly (bypasses migration files - NOT for production!)
+# bun run db:push  # ⚠️ Use only for rapid prototyping
 ```
+
+**Important:** Migration files in `drizzle/*.sql` MUST be committed to git. These are the source of truth for database schema.
 
 ---
 
@@ -114,6 +124,23 @@ docker compose -f docker-compose.prod.yml down
 ---
 
 ## 🔍 Database Operations (Production)
+
+### 🚀 Running Migrations (Production)
+
+**After deploying new code with schema changes:**
+```bash
+# SSH to VPS, then:
+cd /opt/pika/pika
+
+# Run migrations inside the cloud container
+docker compose -f docker-compose.prod.yml exec cloud \
+  sh -c "cd /app/packages/cloud && bun run db:migrate"
+```
+
+**Important:** 
+- Migration files (`drizzle/*.sql`) are committed to git
+- `db:migrate` applies only unapplied migrations (tracked in DB)
+- NEVER use `db:push` in production
 
 ### 🔌 Connecting to Prod DB
 
