@@ -23,6 +23,7 @@ const sql = postgres(DATABASE_URL);
 // Add migration hashes here that should be marked as "applied"
 const BASELINE_MIGRATIONS = [
     "0000_nervous_hannibal_king",  // Initial schema (sessions, tracks, likes)
+    "0001_brief_inhumans",         // DJ auth (dj_users, dj_tokens, polls, tempo_votes)
 ];
 
 async function baseline() {
