@@ -238,5 +238,29 @@ If something goes wrong:
 cd /opt/pika
 docker compose down
 # Fix the issue
-docker compose up -d
-```
+
+---
+
+## Phase 5: Updates & Maintenance
+
+### Step 5.1: Deploy Code Changes
+When you have made changes to the code locally:
+
+1. **Sync files to VPS:**
+   ```bash
+   # From project root
+   rsync -avz --exclude 'node_modules' --exclude '.git' \
+     packages/cloud/ root@YOUR_VPS_IPV6:-p10XXX:/opt/pika/cloud/
+   
+   rsync -avz --exclude 'node_modules' --exclude '.git' --exclude '.next' \
+     packages/web/ root@YOUR_VPS_IPV6:-p10XXX:/opt/pika/web/
+   ```
+
+2. **Restart Services:**
+   ```bash
+   # On VPS
+   cd /opt/pika
+   docker compose -f docker-compose.prod.yml restart cloud
+   # If web app changed (next.js build needed):
+   docker compose -f docker-compose.prod.yml restart web
+   ```

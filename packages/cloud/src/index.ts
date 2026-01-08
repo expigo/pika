@@ -323,7 +323,7 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
     }
 
     try {
-        await db.insert(schema.playedTracks).values({
+        const [inserted] = await db.insert(schema.playedTracks).values({
             sessionId,
             artist: track.artist,
             title: track.title,
@@ -336,10 +336,11 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
             brightness: track.brightness ? Math.round(track.brightness) : null,
             acousticness: track.acousticness ? Math.round(track.acousticness) : null,
             groove: track.groove ? Math.round(track.groove) : null,
-        });
+        }).returning({ id: schema.playedTracks.id });
+
         const bpmInfo = track.bpm ? ` (${track.bpm} BPM)` : "";
         const fingerprint = track.danceability ? ` [D:${Math.round(track.danceability)}]` : "";
-        console.log(`💾 Track persisted: ${track.artist} - ${track.title}${bpmInfo}${fingerprint}`);
+        console.log(`💾 Track persisted: ${track.artist} - ${track.title} (ID: ${inserted?.id})${bpmInfo}${fingerprint}`);
     } catch (e) {
         console.error("❌ Failed to persist track:", e);
     }
