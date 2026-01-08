@@ -469,9 +469,12 @@ Future feature (post-MVP):
   - [ ] Test WebSocket reconnection
   - [ ] Test via Cloudflare tunnel
 
-- [ ] **Day 3-4: UX Polish**
+- [x] **Day 3-4: UX Polish** ✅ (Started 2026-01-08)
+  - [x] Landing page with branding (marketing homepage, no WebSocket)
+  - [x] Live session discovery (REST-based "Live Now" banner)
+  - [x] Secure URL structure: /, /live, /live/{sessionId}
+  - [x] QR codes → /live/{sessionId} (direct WebSocket)
   - [ ] Mobile responsiveness fixes
-  - [ ] QR code landing page
   - [ ] Error messages
 
 - [ ] **Day 5: Desktop Build**
