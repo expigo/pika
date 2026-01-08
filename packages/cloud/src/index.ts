@@ -760,6 +760,36 @@ app.get("/sessions", (c) => {
     return c.json(sessions);
 });
 
+// Get active sessions for landing page (lightweight check, no WebSocket needed)
+app.get("/api/sessions/active", (c) => {
+    const sessions = Array.from(activeSessions.values());
+
+    if (sessions.length === 0) {
+        return c.json({
+            live: false,
+            sessions: [],
+        });
+    }
+
+    // Return active sessions with basic info
+    const activeSummary = sessions.map((session) => ({
+        sessionId: session.sessionId,
+        djName: session.djName,
+        startedAt: session.startedAt,
+        currentTrack: session.currentTrack ? {
+            title: session.currentTrack.title,
+            artist: session.currentTrack.artist,
+        } : null,
+        listenerCount: sessionListeners.get(session.sessionId)?.size || 0,
+    }));
+
+    return c.json({
+        live: true,
+        count: sessions.length,
+        sessions: activeSummary,
+    });
+});
+
 // Get session track history (last 5 tracks)
 app.get("/api/session/:sessionId/history", async (c) => {
     const sessionId = c.req.param("sessionId");

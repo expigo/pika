@@ -5,7 +5,6 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
-import { slugify } from "@pika/shared";
 import { getConfiguredUrls, getStoredSettings } from "./hooks/useDjSettings";
 
 // Load configuration relative to current environment setting (Dev/Prod)
@@ -65,32 +64,31 @@ export function getWebClientBaseUrl(localIp?: string | null): string {
 
 /**
  * Generate the listener URL for a session
+ * Uses /live/{sessionId} path which opens WebSocket to specific session
  * @param sessionId - The cloud session ID
- * @param djName - Optional DJ name for new URL format
+ * @param djName - Optional DJ name (passed as query param for display)
  * @param localIp - Optional local IP to use for LAN access
  */
 export function getListenerUrl(sessionId: string, djName?: string, localIp?: string | null): string {
     const baseUrl = getWebClientBaseUrl(localIp);
+    const url = new URL(`${baseUrl}/live/${sessionId}`);
     if (djName) {
-        const slug = slugify(djName);
-        return `${baseUrl}/dj/${slug}/s/${sessionId}`;
+        url.searchParams.set("dj", djName);
     }
-    // Fallback to old format for backwards compatibility
-    return `${baseUrl}/s/${sessionId}`;
+    return url.toString();
 }
 
 /**
  * Generate the recap URL for a completed session
  * @param sessionId - The cloud session ID
- * @param djName - Optional DJ name for new URL format
+ * @param djName - Optional DJ name (passed as query param for display)
  * @param localIp - Optional local IP to use for LAN access
  */
 export function getRecapUrl(sessionId: string, djName?: string, localIp?: string | null): string {
     const baseUrl = getWebClientBaseUrl(localIp);
+    const url = new URL(`${baseUrl}/recap/${sessionId}`);
     if (djName) {
-        const slug = slugify(djName);
-        return `${baseUrl}/dj/${slug}/recap/${sessionId}`;
+        url.searchParams.set("dj", djName);
     }
-    // Fallback to old format for backwards compatibility
-    return `${baseUrl}/recap/${sessionId}`;
+    return url.toString();
 }
