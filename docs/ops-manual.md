@@ -35,7 +35,22 @@ bun run db:push
 
 ---
 
-## 🌍 Production Environment (VPS)
+## � Git Strategy & Workflow
+
+**Recommended Branching:**
+*   `main` — **Production Code.** Always deployable.
+*   `dev` — **Integration.** Where features are merged before release.
+*   `feat/xyz` — **Feature Branches.** For specific tasks (e.g., `feat/auth-system`).
+
+**Typical Workflow:**
+1.  **Local Dev:** `git checkout -b feat/dj-auth` → Code → Test `npm run dev`.
+2.  **Save:** `git push origin feat/dj-auth`.
+3.  **Merge:** Open PR on GitHub → Merge to `main`.
+4.  **Deploy:** SSH to VPS → `git pull` → `docker compose ... restart`.
+
+---
+
+## �🌍 Production Environment (VPS)
 
 ### 🚀 Deployment Workflow (Git-based)
 
@@ -65,6 +80,12 @@ Since source code is synced via GitHub:
     ```
 
 ### 🐳 Docker Management
+
+**Force Rebuild & Restart Everything (The "Fix It" Button):**
+```bash
+# Rebuilds images and recreates containers
+docker compose -f docker-compose.prod.yml up -d --build --force-recreate
+```
 
 **View Status:**
 ```bash

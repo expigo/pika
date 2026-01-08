@@ -420,24 +420,24 @@ Future feature (post-MVP):
 
 ### Week 1: Infrastructure Setup
 
-- [ ] **Day 1-2: VPS + Cloudflare Tunnel**
-  - [ ] SSH into mikr.us VPS (IPv6)
-  - [ ] Install Docker + Docker Compose
-  - [ ] Install `cloudflared` tunnel client
-  - [ ] Create Cloudflare account (free)
-  - [ ] Set up tunnel: VPS ← Cloudflare → Internet
+- [x] **Day 1-2: VPS + Cloudflare Tunnel**
+  - [x] SSH into mikr.us VPS (IPv6)
+  - [x] Install Docker + Docker Compose
+  - [x] Install `cloudflared` tunnel client
+  - [x] Create Cloudflare account (free)
+  - [x] Set up tunnel: VPS ← Cloudflare → Internet
 
-- [ ] **Day 3-4: Domain + DNS**
-  - [ ] Purchase domain (check .dance options!)
-  - [ ] Configure DNS in Cloudflare (free)
-  - [ ] Point domain to Cloudflare tunnel
-  - [ ] Test HTTPS works
+- [x] **Day 3-4: Domain + DNS**
+  - [x] Purchase domain (check .dance options!)
+  - [x] Configure DNS in Cloudflare (free)
+  - [x] Point domain to Cloudflare tunnel
+  - [x] Test HTTPS works
 
-- [ ] **Day 5: Deploy Apps**
-  - [ ] Docker Compose for cloud API + web app
-  - [ ] Configure tunnel routing
-  - [ ] Test WebSocket over wss://
-  - [ ] Test from phone browser
+- [x] **Day 5: Deploy Apps**
+  - [x] Docker Compose for cloud API + web app
+  - [x] Configure tunnel routing
+  - [x] Test WebSocket over wss://
+  - [x] Test from phone browser
 
 ### Week 2: Security + DJ Auth
 
