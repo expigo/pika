@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  cloud:
+    image: oven/bun:latest
+    container_name: pika-cloud
+    working_dir: /app/packages/cloud
+    # Just run bun install and start headers
+    command: sh -c "cd /app && bun install && cd packages/cloud && bun run src/index.ts"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - NODE_ENV=production
+      - PORT=3001
+    volumes:
+      - ./:/app
+    ports:
+      - "127.0.0.1:3001:3001"
+    restart: unless-stopped
+
+  web:
+    image: node:20-alpine
+    container_name: pika-web
+    working_dir: /app/packages/web
+    # Install, Build, Start
+    command: sh -c "cd /app && npm install && cd packages/web && npm run build && npm start"
+    environment:
+      - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
+      - NEXT_PUBLIC_CLOUD_API_URL=https://api.pika.stream
+      - NODE_ENV=production
+      - PORT=3000
+    volumes:
+      - ./:/app
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    depends_on:
+      - cloud

@@ -51,9 +51,9 @@ This document outlines the complete plan to launch Pika! MVP for a real-world te
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                       Cloudflare (FREE Tier)                             │
 │                                                                         │
-│   yourdomain.dance           ──► Web App                                │
-│   api.yourdomain.dance       ──► Cloud API + WebSocket                  │
-│   status.yourdomain.dance    ──► Uptime Kuma (optional)                 │
+│   pika.stream           ──► Web App                                │
+│   api.pika.stream       ──► Cloud API + WebSocket                  │
+│   status.pika.stream    ──► Uptime Kuma (optional)                 │
 │                                                                         │
 │   Features:                                                             │
 │   • IPv4 → IPv6 bridging (transparent)                                  │
@@ -75,9 +75,9 @@ This document outlines the complete plan to launch Pika! MVP for a real-world te
 │    ┌───────────────────────────────────────────────────────────────┐   │
 │    │  cloudflared daemon (Cloudflare Tunnel client)                │   │
 │    │      │                                                        │   │
-│    │      ├── yourdomain.dance     → localhost:3000 (Web)         │   │
-│    │      ├── api.yourdomain.dance → localhost:3001 (Cloud API)   │   │
-│    │      └── status.yourdomain.dance → localhost:3003 (Uptime)   │   │
+│    │      ├── pika.stream     → localhost:3000 (Web)         │   │
+│    │      ├── api.pika.stream → localhost:3001 (Cloud API)   │   │
+│    │      └── status.pika.stream → localhost:3003 (Uptime)   │   │
 │    └───────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 │    ┌───────────────────────────────────────────────────────────────┐   │
@@ -116,7 +116,7 @@ This document outlines the complete plan to launch Pika! MVP for a real-world te
 ```
 1. DJ Opens Desktop App
    └── App runs locally on DJ's Mac (Apple Silicon supported ✅)
-   └── Connects to api.yourdomain.dance/ws (WebSocket via Cloudflare)
+   └── Connects to api.pika.stream/ws (WebSocket via Cloudflare)
 
 2. DJ Clicks "Go Live"  
    └── Desktop sends REGISTER_SESSION with DJ token
@@ -130,7 +130,7 @@ This document outlines the complete plan to launch Pika! MVP for a real-world te
    └── Server broadcasts NOW_PLAYING to all dancers
 
 4. Dancers Open URL
-   └── Phone browser loads yourdomain.dance
+   └── Phone browser loads pika.stream
    └── Connects to WebSocket  
    └── Receives current track, can like/vote
 
@@ -275,7 +275,7 @@ Later, hacker tries:
 
 Step 1: Register on website
 ┌─────────────────────────────────┐
-│  yourdomain.dance/dj/register   │
+│  pika.stream/dj/register   │
 │                                 │
 │  DJ Name: [DJ Pikachu]          │
 │  Email:   [pikachu@email.com]   │ ← UNIQUE, checked
@@ -317,7 +317,7 @@ Step 3: Show token (after successful registration)
         ▼
 Step 4: If DJ forgets token, they LOGIN
 ┌─────────────────────────────────┐
-│  yourdomain.dance/dj/login      │
+│  pika.stream/dj/login      │
 │                                 │
 │  Email:   [pikachu@email.com]   │
 │  Password:[**************]      │
@@ -520,18 +520,18 @@ tunnel: pika-tunnel
 credentials-file: /home/user/.cloudflared/<tunnel-id>.json
 
 ingress:
-  - hostname: yourdomain.dance
+  - hostname: pika.stream
     service: http://localhost:3000
-  - hostname: api.yourdomain.dance  
+  - hostname: api.pika.stream  
     service: http://localhost:3001
-  - hostname: status.yourdomain.dance
+  - hostname: status.pika.stream
     service: http://localhost:3003
   - service: http_status:404
 EOF
 
 # Add DNS records (auto)
-cloudflared tunnel route dns pika-tunnel yourdomain.dance
-cloudflared tunnel route dns pika-tunnel api.yourdomain.dance
+cloudflared tunnel route dns pika-tunnel pika.stream
+cloudflared tunnel route dns pika-tunnel api.pika.stream
 
 # Run as service
 sudo cloudflared service install
@@ -561,8 +561,8 @@ services:
       dockerfile: ./packages/web/Dockerfile
     container_name: pika-web
     environment:
-      - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.yourdomain.dance/ws
-      - NEXT_PUBLIC_CLOUD_API_URL=https://api.yourdomain.dance
+      - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
+      - NEXT_PUBLIC_CLOUD_API_URL=https://api.pika.stream
     ports:
       - "127.0.0.1:3000:3000"  # Only localhost
     restart: unless-stopped
