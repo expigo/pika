@@ -5,7 +5,6 @@ services:
     image: oven/bun:latest
     container_name: pika-cloud
     working_dir: /app/packages/cloud
-    # Just run bun install and start headers
     command: sh -c "cd /app && bun install && cd packages/cloud && bun run src/index.ts"
     environment:
       - DATABASE_URL=${DATABASE_URL}
@@ -18,11 +17,11 @@ services:
     restart: unless-stopped
 
   web:
-    image: node:20-alpine
+    image: oven/bun:latest
     container_name: pika-web
     working_dir: /app/packages/web
-    # Install, Build, Start
-    command: sh -c "cd /app && npm install && cd packages/web && npm run build && npm start"
+    # Use Bun for install/build/start to handle workspace:* protocol
+    command: sh -c "cd /app && bun install && cd packages/web && bun run build && bun start"
     environment:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
       - NEXT_PUBLIC_CLOUD_API_URL=https://api.pika.stream
