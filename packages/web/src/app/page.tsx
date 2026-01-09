@@ -324,8 +324,8 @@ export default function LandingPage() {
               <div className="text-sm font-medium text-slate-400">First Architecture</div>
             </div>
             <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
-              <div className="text-3xl font-bold text-white mb-2">Free</div>
-              <div className="text-sm font-medium text-slate-400">For Dancers</div>
+              <div className="text-3xl font-bold text-white mb-2">100%</div>
+              <div className="text-sm font-medium text-slate-400">Community Driven</div>
             </div>
           </div>
         </div>
@@ -349,7 +349,7 @@ export default function LandingPage() {
               href="/dj/register"
               className="bg-white text-slate-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 shadow-xl shadow-white/5"
             >
-              Get Started for Free
+              Start DJing
               <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
@@ -373,14 +373,14 @@ export default function LandingPage() {
 
       {/* FOOTER */}
       <footer className="py-12 px-6 border-t border-slate-800 bg-slate-950 text-center sm:text-left">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-2">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
+          <div className="flex items-center gap-2 mb-4 md:mb-0">
             <Radio className="w-5 h-5 text-red-500" />
             <span className="font-bold text-white text-lg">Pika!</span>
             <span className="text-slate-500 text-sm">© 2026</span>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-8 text-sm text-slate-400 font-medium">
+          <div className="flex flex-wrap justify-center md:justify-end gap-x-8 gap-y-4 text-sm text-slate-400 font-medium">
             <Link href="/dj/login" className="hover:text-white transition-colors">
               DJ Portal
             </Link>
