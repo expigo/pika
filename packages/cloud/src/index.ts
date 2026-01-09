@@ -1164,6 +1164,8 @@ app.get(
         let isListener = false;
         // Track which session this listener is subscribed to
         let subscribedSessionId: string | null = null;
+        // Track if this connection is a DJ and which session they own
+        let djSessionId: string | null = null;
 
         return {
             onOpen(event, ws) {
@@ -1254,6 +1256,9 @@ app.get(
                                 // 💾 Persist to database
                                 await persistSession(sessionId, djName, djUserId);
                                 console.log(`✅ Session ready for polls: ${sessionId}`);
+
+                                // Track this connection as owning this session
+                                djSessionId = sessionId;
 
                                 // Confirm registration to the client
                                 ws.send(JSON.stringify({
@@ -1797,6 +1802,42 @@ app.get(
 
             onClose(event, ws) {
                 console.log("❌ Client disconnected");
+
+                // End DJ session if this was a DJ connection
+                if (djSessionId) {
+                    const session = activeSessions.get(djSessionId);
+                    if (session) {
+                        console.log(`⚠️ DJ disconnected unexpectedly: ${session.djName} (${djSessionId})`);
+
+                        // Persist final tempo votes if track was playing
+                        if (session.currentTrack) {
+                            const feedback = getTempoFeedback(djSessionId);
+                            if (feedback.total > 0) {
+                                console.log(`🎚️ Persisting final tempo votes: ${JSON.stringify(feedback)}`);
+                                persistTempoVotes(djSessionId, session.currentTrack, {
+                                    slower: feedback.slower,
+                                    perfect: feedback.perfect,
+                                    faster: feedback.faster,
+                                });
+                            }
+                            tempoVotes.delete(djSessionId);
+                        }
+
+                        activeSessions.delete(djSessionId);
+                        endSessionInDb(djSessionId);
+                        clearLikesForSession(djSessionId);
+                        sessionListeners.delete(djSessionId);
+                        persistedSessions.delete(djSessionId);
+
+                        // Broadcast session ended to all listeners
+                        const rawWs = ws.raw as ServerWebSocket;
+                        rawWs.publish("live-session", JSON.stringify({
+                            type: "SESSION_ENDED",
+                            sessionId: djSessionId,
+                        }));
+                        console.log(`👋 Session auto-ended: ${session.djName}`);
+                    }
+                }
 
                 // Remove listener from session if this was a listener
                 if (isListener && clientId && subscribedSessionId) {

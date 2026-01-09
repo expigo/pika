@@ -56,7 +56,7 @@ export function getWebClientBaseUrl(localIp?: string | null): string {
 
     // In Dev, support LAN IP
     if (localIp) {
-        return `http://${localIp}:3000`; // Next.js default port
+        return `http://${localIp}:3002`; // Dev server port (see packages/web/package.json)
     }
 
     return WEB_CLIENT_URL;
