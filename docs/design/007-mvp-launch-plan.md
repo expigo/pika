@@ -461,7 +461,31 @@ Future feature (post-MVP):
   - [x] Web registration/login pages ✅ (Completed 2026-01-08)
   - [x] Token auto-sync: validates token & auto-sets DJ name ✅ (Completed 2026-01-08)
 
-### Week 3: Testing + Polish
+### Week 3: Feature Enhancement (v1.1 → MVP)
+
+*Tagged v0.9.0 as stable baseline on 2026-01-09. Promoting high-value v1.1 features to MVP scope.*
+
+- [ ] **Day 1: Quick Wins** (~4 hours)
+  - [ ] Show BPM to dancers (under track title)
+  - [ ] Session picker for multiple DJs
+  - [ ] Improve mobile responsiveness
+
+- [ ] **Day 2: Poll Notifications** (~4 hours)
+  - [ ] Browser Notification API integration
+  - [ ] Permission prompt on first visit
+  - [ ] Fallback: visual pulse/shake animation
+
+- [ ] **Day 3: DJ Announcements** (~4-6 hours)
+  - [ ] Desktop: "Push Announcement" UI
+  - [ ] WebSocket: BROADCAST_ANNOUNCEMENT message
+  - [ ] Web: Announcement overlay/toast for dancers
+
+- [ ] **Day 4: Password Protection** (~4-6 hours)
+  - [ ] Desktop: Session PIN toggle + input
+  - [ ] Cloud: Validate PIN on SUBSCRIBE
+  - [ ] Web: PIN entry UI for protected sessions
+
+### Week 4: Testing + Polish
 
 - [ ] **Day 1-2: Load Testing**
   - [ ] Simulate 50+ concurrent connections
@@ -474,8 +498,8 @@ Future feature (post-MVP):
   - [x] Live session discovery (REST-based "Live Now" banner)
   - [x] Secure URL structure: /, /live, /live/{sessionId}
   - [x] QR codes → /live/{sessionId} (direct WebSocket)
-  - [ ] Mobile responsiveness fixes
   - [ ] Error messages
+  - [ ] Final mobile testing
 
 - [ ] **Day 5: Desktop Build**
   - [ ] Build for Apple Silicon (aarch64)
