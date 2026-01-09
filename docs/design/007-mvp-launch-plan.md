@@ -443,6 +443,7 @@ Future feature (post-MVP):
 
 - [x] **Day 1-2: Security Fixes** ✅ (Completed 2026-01-08)
   - [x] Add message size limit (10KB) — WebSocket rejects messages > 10KB
+  - [x] **Auth/Onboarding cleanup**: The register/login forms are bare-bones. Needs validation and error handling visuals.ages
   - [x] Add input sanitization — Zod schema validation on all messages
   - [x] Fix likesSent per-session scope — Now uses `${sessionId}:${clientId}` key
   - [x] Add session existence check (handles server restarts)
@@ -469,6 +470,11 @@ Future feature (post-MVP):
   - [x] Show BPM to dancers (under track title)
   - [x] Session picker for multiple DJs
   - [x] Improve mobile responsiveness
+
+- [x] **Landing Page Refinement** (High Priority)
+  - [x] Clear value prop for DJs vs. Dancers vs. Organizers.
+  - [x] "How it works" visual section (simple 1-2-3 steps).
+  - [x] SEO basics (meta tags, open graph).
 
 - [ ] **Day 2: Poll Notifications** (~4 hours)
   - [ ] Browser Notification API integration

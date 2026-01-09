@@ -123,7 +123,45 @@ docker compose -f docker-compose.prod.yml down
 
 ---
 
+## 📊 System Monitoring (Beszel)
+
+We use **Beszel** for lightweight tracking of CPU, RAM, Disk, and Docker stats.
+
+### Setup (One-time)
+1.  Navigate to monitoring folder:
+    ```bash
+    cd docker/monitoring
+    ```
+2.  Start the stack:
+    ```bash
+    docker compose up -d
+    ```
+3.  Access Dashboard: `http://anna179.mikrus.xyz:8090`
+    *   Creates account on first login.
+
+---
+
 ## 🔍 Database Operations (Production)
+
+### 🚀 Drizzle Studio (The "Admin Panel")
+
+You can connect your **local** Drizzle Studio to the **production** database securely via SSH Tunnel.
+
+1.  **Open Tunnel (Terminal 1):**
+    ```bash
+    ./scripts/connect-db-prod.sh
+    # Leave this running!
+    ```
+
+2.  **Start Studio (Terminal 2):**
+    ```bash
+    cd packages/cloud
+    
+    # ⚠️ Important: Overwrite DB URL to localhost for the session
+    DATABASE_URL="postgres://pika:pika_password@127.0.0.1:5432/pika_prod" bun run db:studio
+    ```
+
+3.  **Browse:** Open `https://local.drizzle.studio` in your browser. You now have full read/write access to production data.
 
 ### 🚀 Migration Workflow (Best Practices)
 
