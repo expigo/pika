@@ -78,9 +78,16 @@ function HistoryList({ tracks }: { tracks: HistoryTrack[] }) {
                         className="flex items-center justify-between opacity-70 hover:opacity-100 transition-opacity"
                     >
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-300 truncate">
-                                {track.title}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-sm text-slate-300 truncate">
+                                    {track.title}
+                                </p>
+                                {track.bpm && (
+                                    <span className="flex-shrink-0 px-1.5 py-0.5 bg-purple-500/20 rounded text-xs text-purple-400">
+                                        {Math.round(track.bpm)}
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xs text-slate-500 truncate">
                                 {track.artist}
                             </p>
@@ -94,6 +101,7 @@ function HistoryList({ tracks }: { tracks: HistoryTrack[] }) {
         </div>
     );
 }
+
 
 interface LivePlayerProps {
     targetSessionId?: string;
@@ -223,11 +231,20 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                             <p className="text-lg text-slate-400 text-center">
                                 {currentTrack.artist}
                             </p>
+                            {/* BPM Badge */}
+                            {currentTrack.bpm && (
+                                <div className="flex items-center gap-2 mt-3">
+                                    <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full text-sm font-medium text-purple-300">
+                                        {Math.round(currentTrack.bpm)} BPM
+                                    </span>
+                                </div>
+                            )}
                             {djName && (
                                 <p className="text-sm text-slate-500 mt-4">
                                     Live with <span className="text-red-400 font-medium">{djName}</span>
                                 </p>
                             )}
+
 
                             {/* Like Button */}
                             <button
