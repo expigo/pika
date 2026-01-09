@@ -21,7 +21,9 @@ import {
   MessageCircle,
   History,
   Activity,
-  Mail
+  Mail,
+  Download,
+  Cloud
 } from "lucide-react";
 
 // API base URL helper
@@ -118,7 +120,7 @@ export default function LandingPage() {
               href={isMultipleDJs ? "/live" : `/live/${firstSession.sessionId}`}
               className="w-full sm:w-auto bg-white text-red-600 px-5 py-1.5 rounded-full font-bold text-xs sm:text-sm hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
-              {isMultipleDJs ? "Choose Room" : "Join Session"}
+              {isMultipleDJs ? "Choose Room" : "Tune In"}
               <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
             </Link>
           </div>
@@ -156,20 +158,32 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
-            <Link
-              href={isLive ? (isMultipleDJs ? "/live" : `/live/${firstSession?.sessionId}`) : "/live"}
-              className="w-full sm:w-auto px-8 py-4 bg-white text-slate-950 font-bold rounded-xl hover:bg-slate-100 transition-all transform hover:-translate-y-1 shadow-lg shadow-white/10 flex items-center justify-center gap-2"
-            >
-              <Smartphone className="w-5 h-5" />
-              Tune In (Dancer)
-            </Link>
-            <Link
-              href="/dj/register"
-              className="w-full sm:w-auto px-8 py-4 bg-slate-800 text-white font-bold rounded-xl border border-slate-700 hover:bg-slate-700 transition-all flex items-center justify-center gap-2 hover:border-purple-500/50"
-            >
-              <Headphones className="w-5 h-5" />
-              Go Live (DJ)
-            </Link>
+            <div className="flex flex-col items-center gap-2 w-full sm:w-auto">
+              <Link
+                href={isLive ? (isMultipleDJs ? "/live" : `/live/${firstSession?.sessionId}`) : "/live"}
+                className="w-full px-8 py-4 bg-white text-slate-950 font-bold rounded-xl hover:bg-slate-100 transition-all transform hover:-translate-y-1 shadow-lg shadow-white/10 flex items-center justify-center gap-2"
+              >
+                <Smartphone className="w-5 h-5" />
+                Tune In (Dancer)
+              </Link>
+              <span className="text-xs text-slate-500 font-medium tracking-wide">
+                No app needed • Anonymous
+              </span>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 w-full sm:w-auto">
+              <Link
+                href="/dj/register"
+                className="w-full sm:w-auto px-8 py-4 bg-slate-800 text-white font-bold rounded-xl border border-slate-700 hover:bg-slate-700 transition-all flex items-center justify-center gap-2 hover:border-purple-500/50"
+              >
+                <Headphones className="w-5 h-5" />
+                Go Live (DJ)
+              </Link>
+              {/* Spacer to align buttons perfectly even though DJ side has no subtext */}
+              <span className="text-xs text-transparent font-medium tracking-wide selection:bg-transparent">
+                spacer
+              </span>
+            </div>
           </div>
         </div>
       </header>
@@ -292,6 +306,82 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* ⚡ HOW IT WORKS */}
+      <section className="py-20 px-6 bg-slate-900 border-b border-slate-800">
+        <div className="max-w-6xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl font-bold text-white mb-4">How It Works</h2>
+            <p className="text-slate-400">Two sides, one seamless experience.</p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-12 md:gap-24 items-start relative">
+            {/* Divider Line (Desktop) */}
+            <div className="hidden md:block absolute top-12 bottom-12 left-1/2 w-px bg-gradient-to-b from-slate-800 via-purple-500/30 to-slate-800 -translate-x-1/2" />
+
+            {/* DJ FLOW */}
+            <div className="flex flex-col gap-8">
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/10 rounded-full text-purple-400 text-sm font-bold border border-purple-500/20">
+                  <Headphones className="w-4 h-4" />
+                  For the DJ
+                </div>
+              </div>
+
+              <div className="relative flex items-start gap-6 group">
+                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700 shadow-lg shrink-0 group-hover:border-purple-500/50 transition-colors">
+                  <Download className="w-6 h-6 text-purple-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-1">1. Install Desktop App</h4>
+                  <p className="text-slate-400 text-sm">Download Pika! for macOS. It runs alongside VirtualDJ or Serato.</p>
+                </div>
+              </div>
+
+              <div className="relative flex items-start gap-6 group">
+                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700 shadow-lg shrink-0 group-hover:border-purple-500/50 transition-colors">
+                  <Cloud className="w-6 h-6 text-purple-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-1">2. Auto-Sync to Cloud</h4>
+                  <p className="text-slate-400 text-sm">Pika! detects tracks and syncs analysis instantly. You just play music.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* DANCER FLOW */}
+            <div className="flex flex-col gap-8">
+              <div className="text-center mb-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-pink-500/10 rounded-full text-pink-400 text-sm font-bold border border-pink-500/20">
+                  <Smartphone className="w-4 h-4" />
+                  For the Dancer
+                </div>
+              </div>
+
+              <div className="relative flex items-start gap-6 group">
+                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700 shadow-lg shrink-0 group-hover:border-pink-500/50 transition-colors">
+                  <QrCode className="w-6 h-6 text-pink-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-1">1. No App Required</h4>
+                  <p className="text-slate-400 text-sm">Just scan the QR code at the booth. Or visit <b>pika.stream</b> in your browser.</p>
+                </div>
+              </div>
+
+              <div className="relative flex items-start gap-6 group">
+                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700 shadow-lg shrink-0 group-hover:border-pink-500/50 transition-colors">
+                  <Heart className="w-6 h-6 text-pink-400" />
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-white mb-1">2. Vote & Save</h4>
+                  <p className="text-slate-400 text-sm">See track info instantly. Vote on tempo or save songs to your history.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
       {/* 🚀 WCS SPECIALTY */}
       <section className="py-24 px-6 bg-gradient-to-b from-slate-950 to-slate-900 border-b border-slate-800/50">
         <div className="max-w-4xl mx-auto text-center">
@@ -385,7 +475,7 @@ export default function LandingPage() {
               DJ Portal
             </Link>
             <Link href="/live" className="hover:text-white transition-colors">
-              Live Sessions
+              Tune In
             </Link>
             <Link href="/privacy" className="hover:text-white transition-colors">
               Privacy

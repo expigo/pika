@@ -465,10 +465,10 @@ Future feature (post-MVP):
 
 *Tagged v0.9.0 as stable baseline on 2026-01-09. Promoting high-value v1.1 features to MVP scope.*
 
-- [ ] **Day 1: Quick Wins** (~4 hours)
-  - [ ] Show BPM to dancers (under track title)
-  - [ ] Session picker for multiple DJs
-  - [ ] Improve mobile responsiveness
+- [x] **Day 1: Quick Wins** (~4 hours) ✅ (Completed 2026-01-09)
+  - [x] Show BPM to dancers (under track title)
+  - [x] Session picker for multiple DJs
+  - [x] Improve mobile responsiveness
 
 - [ ] **Day 2: Poll Notifications** (~4 hours)
   - [ ] Browser Notification API integration
