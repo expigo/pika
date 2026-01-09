@@ -78,9 +78,16 @@ function HistoryList({ tracks }: { tracks: HistoryTrack[] }) {
                         className="flex items-center justify-between opacity-70 hover:opacity-100 transition-opacity"
                     >
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm text-slate-300 truncate">
-                                {track.title}
-                            </p>
+                            <div className="flex items-center gap-2">
+                                <p className="text-sm text-slate-300 truncate">
+                                    {track.title}
+                                </p>
+                                {track.bpm && (
+                                    <span className="flex-shrink-0 px-1.5 py-0.5 bg-purple-500/20 rounded text-xs text-purple-400">
+                                        {Math.round(track.bpm)}
+                                    </span>
+                                )}
+                            </div>
                             <p className="text-xs text-slate-500 truncate">
                                 {track.artist}
                             </p>
@@ -94,6 +101,7 @@ function HistoryList({ tracks }: { tracks: HistoryTrack[] }) {
         </div>
     );
 }
+
 
 interface LivePlayerProps {
     targetSessionId?: string;
