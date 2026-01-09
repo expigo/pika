@@ -534,6 +534,78 @@ Future feature (post-MVP):
 
 ---
 
+## 7.6 Future Roadmap (Post-MVP)
+
+*Ideas discussed 2026-01-09. Prioritized by value and effort.*
+
+### 🚀 v1.1 - Quick Wins (After First Event)
+
+| Feature | Priority | Effort | Description |
+|---------|----------|--------|-------------|
+| **Show BPM to Dancers** | 🔥 High | Low | Display BPM under track title in listener view |
+| **Session Picker** | 🔥 High | Low | Show "Choose a room" if multiple DJs are live |
+| **Push Notifications for Polls** | 🔥 High | Medium | Alert dancers when poll starts (browser notifications) |
+| **Password-Protected Sessions** | Medium | Medium | DJ sets PIN, dancers must enter to join |
+
+### 🎯 v1.2 - Organizer Features
+
+| Feature | Priority | Effort | Description |
+|---------|----------|--------|-------------|
+| **Organizer Announcements** | 🔥 High | Medium | Push messages to all dancers (schedule changes, room info) |
+| **Event Branding** | Medium | Low | Custom logo/colors for event organizers |
+| **Analytics Dashboard** | Medium | Medium | Event-wide stats (peak listeners, most liked tracks) |
+
+### 🌟 v2.0 - Platform Features
+
+| Feature | Priority | Effort | Description |
+|---------|----------|--------|-------------|
+| **Cloud Track Sync** | High | High | Sync analyzed tracks to cloud (survives reinstalls) |
+| **Shared Analysis Database** | Medium | High | Crowdsourced WCS music database from all DJs |
+| **DJ Profiles & Following** | Low | Medium | Dancers can follow DJs, get notifications |
+| **Mobile App (Native)** | Low | Very High | iOS/Android apps with push notifications |
+
+### 💡 Feature Details
+
+#### Push Notifications for Polls
+When DJ creates a poll, dancers get a notification:
+```
+┌─────────────────────────────────────┐
+│ 🔔 DJ Pikachu                       │
+│    "What vibe next?" - Vote now!    │
+└─────────────────────────────────────┘
+```
+- Uses browser Notification API
+- Requires user permission (prompt on first visit)
+- Fallback: Visual pulse/shake animation on poll card
+
+#### Password Protection
+```
+DJ sets PIN: 1234
+QR code still works normally (pika.stream/live/session123)
+But on join, dancer sees:
+
+┌─────────────────────────┐
+│ 🔒 Protected Session    │
+│                         │
+│ Enter PIN: [____]       │
+│                         │
+│ [Join Session]          │
+└─────────────────────────┘
+```
+
+#### Organizer Announcements
+```
+Organizer Portal                     All Dancers
+───────────────                     ────────────
+[📢 New Announcement]               ┌──────────────────────┐
+"Strictly at 11pm!"          →      │ 📢 EVENT ANNOUNCEMENT│
+[Send to 342 dancers]               │ "Strictly at 11pm!"  │
+                                    │ - Organizer          │
+                                    └──────────────────────┘
+```
+
+---
+
 ## 8. Cloudflare Tunnel Setup
 
 ### 8.1 Installation on VPS
