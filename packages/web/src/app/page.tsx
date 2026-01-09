@@ -157,10 +157,10 @@ export default function LandingPage() {
           </p>
 
           {/* CTAs */}
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
             <Link
               href="/dj/register"
-              className="px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2 text-lg"
+              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 text-lg"
             >
               <Sparkles className="w-5 h-5" />
               Start DJing with Pika!
@@ -168,7 +168,7 @@ export default function LandingPage() {
             {isLive ? (
               <Link
                 href={`/live/${firstSession?.sessionId}`}
-                className="px-8 py-4 bg-white/10 backdrop-blur border border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-colors flex items-center gap-2 text-lg"
+                className="w-full sm:w-auto px-8 py-4 bg-white/10 backdrop-blur border border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-colors flex items-center justify-center gap-2 text-lg"
               >
                 <Radio className="w-5 h-5 text-red-400" />
                 Join Live Session
@@ -176,7 +176,7 @@ export default function LandingPage() {
             ) : (
               <Link
                 href="/live"
-                className="px-8 py-4 bg-white/10 backdrop-blur border border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-colors flex items-center gap-2 text-lg"
+                className="w-full sm:w-auto px-8 py-4 bg-white/10 backdrop-blur border border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-colors flex items-center justify-center gap-2 text-lg"
               >
                 <Music2 className="w-5 h-5" />
                 I&apos;m a Dancer
@@ -200,7 +200,7 @@ export default function LandingPage() {
                 <Heart className="w-6 h-6 text-red-400" />
               </div>
               <h4 className="text-lg font-bold text-white mb-2">Track Likes</h4>
-              <p className="text-slate-400">
+              <p className="text-slate-300">
                 Dancers tap to like tracks in real-time. Know exactly which songs make
                 your floor happy.
               </p>
@@ -212,7 +212,7 @@ export default function LandingPage() {
                 <Gauge className="w-6 h-6 text-purple-400" />
               </div>
               <h4 className="text-lg font-bold text-white mb-2">Tempo Feedback</h4>
-              <p className="text-slate-400">
+              <p className="text-slate-300">
                 Dancers vote Faster/Slower/Perfect. Get instant consensus on
                 tempo preference.
               </p>
@@ -224,7 +224,7 @@ export default function LandingPage() {
                 <QrCode className="w-6 h-6 text-emerald-400" />
               </div>
               <h4 className="text-lg font-bold text-white mb-2">Easy Access</h4>
-              <p className="text-slate-400">
+              <p className="text-slate-300">
                 Dancers scan a QR code and they&apos;re in. No app download,
                 no account needed.
               </p>
