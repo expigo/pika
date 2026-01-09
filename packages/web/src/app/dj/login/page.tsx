@@ -133,16 +133,27 @@ export default function LoginPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 relative">
+            {/* Back Button */}
+            <Link
+                href="/"
+                className="absolute top-6 left-6 text-slate-400 hover:text-white transition-colors flex items-center gap-2 group"
+            >
+                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center group-hover:bg-slate-700 transition-colors">
+                    <ArrowRight className="w-4 h-4 rotate-180" />
+                </div>
+                <span className="text-sm font-medium">Back to Home</span>
+            </Link>
+
             <div className="w-full max-w-md">
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden">
                     {/* Header */}
                     <div className="px-6 py-6 text-center border-b border-slate-700/50">
-                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-blue-500/25">
-                            <LogIn className="w-8 h-8 text-white" />
+                        <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/25">
+                            <LogIn className="w-8 h-8 text-white ml-1" />
                         </div>
-                        <h1 className="text-2xl font-bold text-white">DJ Login</h1>
-                        <p className="text-slate-400 mt-2">Sign in to get your token</p>
+                        <h1 className="text-2xl font-bold text-white">Welcome Back</h1>
+                        <p className="text-slate-400 mt-2">Log in to manage your session</p>
                     </div>
 
                     {/* Form */}
@@ -166,7 +177,7 @@ export default function LoginPage() {
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="dj@example.com"
                                     required
-                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                                 />
                             </div>
                         </div>
@@ -183,7 +194,7 @@ export default function LoginPage() {
                                     onChange={(e) => setPassword(e.target.value)}
                                     placeholder="••••••••"
                                     required
-                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                                 />
                             </div>
                         </div>
@@ -191,7 +202,7 @@ export default function LoginPage() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 px-4 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-500/25 flex items-center justify-center gap-2"
+                            className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2 transform active:scale-[0.98]"
                         >
                             {loading ? (
                                 <span className="animate-pulse">Signing in...</span>
@@ -205,7 +216,7 @@ export default function LoginPage() {
 
                         <p className="text-center text-sm text-slate-500 pt-2">
                             Don&apos;t have an account?{" "}
-                            <Link href="/dj/register" className="text-blue-400 hover:text-blue-300">
+                            <Link href="/dj/register" className="text-purple-400 hover:text-purple-300 transition-colors font-medium">
                                 Create one
                             </Link>
                         </p>

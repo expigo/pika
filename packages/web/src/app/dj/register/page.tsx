@@ -151,7 +151,18 @@ export default function RegisterPage() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 relative">
+            {/* Back Button */}
+            <Link
+                href="/"
+                className="absolute top-6 left-6 text-slate-400 hover:text-white transition-colors flex items-center gap-2 group"
+            >
+                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center group-hover:bg-slate-700 transition-colors">
+                    <ArrowRight className="w-4 h-4 rotate-180" />
+                </div>
+                <span className="text-sm font-medium">Back to Home</span>
+            </Link>
+
             <div className="w-full max-w-md">
                 <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden">
                     {/* Header */}
@@ -159,8 +170,8 @@ export default function RegisterPage() {
                         <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-purple-500/25">
                             <User className="w-8 h-8 text-white" />
                         </div>
-                        <h1 className="text-2xl font-bold text-white">Create DJ Account</h1>
-                        <p className="text-slate-400 mt-2">Register to authenticate your live sessions</p>
+                        <h1 className="text-2xl font-bold text-white">Join the Booth</h1>
+                        <p className="text-slate-400 mt-2">Create your DJ account to go live</p>
                     </div>
 
                     {/* Form */}
@@ -184,7 +195,7 @@ export default function RegisterPage() {
                                     onChange={(e) => setDisplayName(e.target.value)}
                                     placeholder="DJ Pikachu"
                                     required
-                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                                 />
                             </div>
                         </div>
@@ -201,7 +212,7 @@ export default function RegisterPage() {
                                     onChange={(e) => setEmail(e.target.value)}
                                     placeholder="dj@example.com"
                                     required
-                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                                 />
                             </div>
                         </div>
@@ -219,7 +230,7 @@ export default function RegisterPage() {
                                     placeholder="••••••••"
                                     required
                                     minLength={8}
-                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                                 />
                             </div>
                             <p className="text-xs text-slate-500 mt-1">At least 8 characters</p>
@@ -237,7 +248,7 @@ export default function RegisterPage() {
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     placeholder="••••••••"
                                     required
-                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                    className="w-full bg-slate-900/50 border border-slate-700 rounded-xl py-3 pl-11 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                                 />
                             </div>
                         </div>
@@ -245,7 +256,7 @@ export default function RegisterPage() {
                         <button
                             type="submit"
                             disabled={loading}
-                            className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2"
+                            className="w-full py-3 px-4 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-xl transition-all shadow-lg shadow-purple-500/25 flex items-center justify-center gap-2 transform active:scale-[0.98]"
                         >
                             {loading ? (
                                 <span className="animate-pulse">Creating account...</span>
@@ -259,7 +270,7 @@ export default function RegisterPage() {
 
                         <p className="text-center text-sm text-slate-500 pt-2">
                             Already have an account?{" "}
-                            <Link href="/dj/login" className="text-purple-400 hover:text-purple-300">
+                            <Link href="/dj/login" className="text-purple-400 hover:text-purple-300 transition-colors font-medium">
                                 Sign in
                             </Link>
                         </p>
