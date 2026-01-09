@@ -123,21 +123,34 @@ docker compose -f docker-compose.prod.yml down
 
 ---
 
-## 📊 System Monitoring (Beszel)
+## 📊 Monitoring & Status Stack
 
-We use **Beszel** for lightweight tracking of CPU, RAM, Disk, and Docker stats.
+We run a dedicated stack for internal metrics and public status.
 
-### Setup (One-time)
-1.  Navigate to monitoring folder:
+### 1. The Stack
+*   **Beszel (Internal):** CPU/RAM/Docker metrics.
+*   **Uptime Kuma (Public):** Status page (e.g., "API is Operational").
+
+### 2. Setup (One-time)
+1.  Navigate and start:
     ```bash
     cd docker/monitoring
-    ```
-2.  Start the stack:
-    ```bash
     docker compose up -d
     ```
-3.  Access Dashboard: `http://anna179.mikrus.xyz:8090`
-    *   Creates account on first login.
+
+### 3. Cloudflare Tunnel Configuration (Domain Map)
+Since ports are bound to `127.0.0.1` for security, you MUST connect them via Cloudflare Tunnel.
+
+**In Cloudflare Dashboard (Zero Trust > Access > Tunnels):**
+
+| Public Hostname | Service | Local URL (Target) | Access Policy |
+| :--- | :--- | :--- | :--- |
+| `monitor.pika.stream` | **Beszel** | `http://localhost:8090` | **Protected** (Require Email Login) |
+| `status.pika.stream` | **Uptime Kuma** | `http://localhost:3002` | **Public** (No Auth) |
+
+**Notes:**
+*   **monitor:** Use this to see if the VPS is healthy.
+*   **status:** Go here, click "Status Page" (top right), and configure it to show your Pika! API status.
 
 ---
 

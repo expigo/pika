@@ -22,6 +22,16 @@ services:
     container_name: "beszel-hub"
     restart: unless-stopped
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090" # Localhost only (Cloudflare Tunnel target)
     volumes:
       - ./beszel_data:/beszel_data
+
+  # Public Status Page & Incident Monitoring
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3002:3001" # Localhost only (Cloudflare Tunnel target)
+    volumes:
+      - ./uptime-kuma-data:/app/data
