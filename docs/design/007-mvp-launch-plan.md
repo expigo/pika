@@ -505,7 +505,7 @@ Future feature (post-MVP):
 
 ## 7.5 Technical Debt & Known Issues
 
-*Added 2026-01-08 after code review. Updated after auth implementation.*
+*Added 2026-01-08 after code review. Updated 2026-01-09 after production deployment fixes.*
 
 ### 🔴 Critical (Fix Before MVP Event)
 
@@ -513,6 +513,9 @@ Future feature (post-MVP):
 |-------|--------|----------|-------|
 | DJ Token Validation | ✅ Fixed | `index.ts:1191` | Token validated on REGISTER_SESSION |
 | Poll Vote Unique Constraint | ✅ Fixed | `schema.ts:145` | Added unique(pollId, clientId) |
+| Database Migration System | ✅ Fixed | `drizzle/0002_*.sql` | Created idempotent recovery migration |
+| Session Persistence | ✅ Fixed | `drizzle/0002_*.sql` | Added missing dj_user_id column |
+| Docker db:push → db:migrate | ✅ Fixed | `docker-compose.prod.yml` | Non-interactive migrations |
 
 ### 🟡 Important (Fix Soon After)
 
