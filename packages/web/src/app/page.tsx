@@ -12,10 +12,19 @@ import {
   Gauge,
   QrCode,
   Sparkles,
-  CheckCircle2
+  CheckCircle2,
+  Headphones,
+  Calendar,
+  Smartphone,
+  BarChart3,
+  Globe2,
+  MessageCircle,
+  History,
+  Activity,
+  Mail
 } from "lucide-react";
 
-// API base URL
+// API base URL helper
 function getApiBaseUrl(): string {
   if (process.env.NEXT_PUBLIC_CLOUD_API_URL) {
     return process.env.NEXT_PUBLIC_CLOUD_API_URL;
@@ -23,7 +32,7 @@ function getApiBaseUrl(): string {
   if (typeof window !== "undefined") {
     const protocol = window.location.protocol;
     const hostname = window.location.hostname;
-    return `${protocol}//${hostname}:3001`;
+    return `${protocol}//${hostname}:3001`; // Dev fallback
   }
   return "http://localhost:3001";
 }
@@ -49,7 +58,7 @@ export default function LandingPage() {
   const [liveData, setLiveData] = useState<ActiveSessionsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Fetch active sessions on mount (lightweight REST call, no WebSocket)
+  // Fetch active sessions on mount
   useEffect(() => {
     async function checkLiveSessions() {
       try {
@@ -66,9 +75,7 @@ export default function LandingPage() {
     }
 
     checkLiveSessions();
-
-    // Refresh every 30 seconds
-    const interval = setInterval(checkLiveSessions, 30000);
+    const interval = setInterval(checkLiveSessions, 30000); // 30s polling
     return () => clearInterval(interval);
   }, []);
 
@@ -78,291 +85,307 @@ export default function LandingPage() {
   const isMultipleDJs = sessionCount > 1;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
-      {/* Live Session Banner */}
+    <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-purple-500/30">
+
+      {/* 🔴 LIVE BANNER */}
       {isLive && firstSession && (
-        <div className="bg-gradient-to-r from-red-500/90 to-pink-500/90 text-white py-3 px-4">
-          <div className="max-w-5xl mx-auto flex items-center justify-between flex-wrap gap-3">
-            <div className="flex items-center gap-3">
-              <span className="relative flex h-3 w-3">
+        <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg shadow-red-900/20">
+          <div className="max-w-5xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm sm:text-base">
+            <div className="flex items-center gap-3 text-center sm:text-left">
+              <span className="relative flex h-3 w-3 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
               </span>
-              {isMultipleDJs ? (
-                <>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                {isMultipleDJs ? (
                   <span className="font-bold">🔴 {sessionCount} DJs LIVE!</span>
-                  <span className="text-white/90">Multiple rooms available</span>
-                </>
-              ) : (
-                <>
-                  <span className="font-bold">LIVE NOW:</span>
-                  <span>{firstSession.djName} is playing!</span>
-                  {firstSession.currentTrack && (
-                    <span className="text-white/80 hidden sm:inline">
-                      • {firstSession.currentTrack.artist} - {firstSession.currentTrack.title}
-                    </span>
-                  )}
-                  {firstSession.listenerCount > 0 && (
-                    <span className="flex items-center gap-1 text-white/80">
-                      <Users className="w-3 h-3" />
-                      {firstSession.listenerCount}
-                    </span>
-                  )}
-                </>
-              )}
+                ) : (
+                  <>
+                    <span className="font-bold">LIVE NOW:</span>
+                    <span>{firstSession.djName}</span>
+                    {firstSession.currentTrack && (
+                      <span className="opacity-90 hidden sm:inline">
+                        — {firstSession.currentTrack.title}
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
+
             <Link
               href={isMultipleDJs ? "/live" : `/live/${firstSession.sessionId}`}
-              className="bg-white text-red-500 px-4 py-1.5 rounded-full font-bold text-sm hover:bg-white/90 transition-colors flex items-center gap-2"
+              className="w-full sm:w-auto bg-white text-red-600 px-5 py-1.5 rounded-full font-bold text-xs sm:text-sm hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 shadow-sm"
             >
               {isMultipleDJs ? "Choose Room" : "Join Session"}
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
             </Link>
           </div>
         </div>
       )}
 
-
-      {/* Hero Section */}
-      <header className="relative overflow-hidden">
-        {/* Background decoration */}
+      {/* ✨ HERO SECTION */}
+      <header className="relative overflow-hidden pt-12 pb-24 sm:pt-24 sm:pb-32 px-4 sm:px-6 text-center z-10">
+        {/* Background Gradients */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-500/20 rounded-full blur-3xl" />
-          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-pink-500/20 rounded-full blur-3xl" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[100px] mix-blend-screen" />
+          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-pink-600/10 rounded-full blur-[80px] mix-blend-screen" />
         </div>
 
-        <div className="relative max-w-5xl mx-auto px-6 py-20 md:py-32">
-          {/* Logo */}
-          <div className="flex items-center gap-3 mb-8">
-            <div className="relative">
-              <Radio className="w-10 h-10 text-red-500" />
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-            </div>
-            <h1 className="text-4xl font-black text-white">
-              Pika<span className="text-red-500">!</span>
-            </h1>
+        <div className="relative max-w-5xl mx-auto">
+          {/* Logo Badge */}
+          <div className="inline-flex items-center gap-2 bg-slate-800/50 backdrop-blur border border-slate-700 rounded-full px-4 py-1.5 mb-8 shadow-xl hover:border-slate-600 transition-colors">
+            <Radio className="w-4 h-4 text-red-500 animate-pulse" />
+            <span className="text-sm font-semibold text-slate-300 tracking-wide uppercase">Pika! for West Coast Swing</span>
           </div>
 
-          {/* Tagline */}
-          <h2 className="text-4xl md:text-6xl font-bold text-white leading-tight max-w-3xl mb-6">
-            Real-time music feedback for{" "}
-            <span className="bg-gradient-to-r from-purple-400 to-pink-400 text-transparent bg-clip-text">
-              West Coast Swing DJs
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight leading-[1.1] mb-8">
+            The Digital Pulse of <br className="hidden sm:block" />
+            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 text-transparent bg-clip-text">
+              Your Dance Floor
             </span>
-          </h2>
+          </h1>
 
-          <p className="text-xl text-slate-300 max-w-2xl mb-10">
-            Show dancers what&apos;s playing, collect instant feedback on tempo preferences,
-            and build a library of tracks your floor loves.
+          <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed">
+            Bridge the gap between the DJ booth and the dance floor.
+            <strong>Real-time feedback</strong>, <strong>smart playlists</strong>, and <strong>seamless communication</strong> for modern WCS events.
           </p>
 
-          {/* CTAs */}
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
+            <Link
+              href={isLive ? (isMultipleDJs ? "/live" : `/live/${firstSession?.sessionId}`) : "/live"}
+              className="w-full sm:w-auto px-8 py-4 bg-white text-slate-950 font-bold rounded-xl hover:bg-slate-100 transition-all transform hover:-translate-y-1 shadow-lg shadow-white/10 flex items-center justify-center gap-2"
+            >
+              <Smartphone className="w-5 h-5" />
+              Tune In (Dancer)
+            </Link>
             <Link
               href="/dj/register"
-              className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 text-lg"
+              className="w-full sm:w-auto px-8 py-4 bg-slate-800 text-white font-bold rounded-xl border border-slate-700 hover:bg-slate-700 transition-all flex items-center justify-center gap-2 hover:border-purple-500/50"
             >
-              <Sparkles className="w-5 h-5" />
-              Start DJing with Pika!
+              <Headphones className="w-5 h-5" />
+              Go Live (DJ)
             </Link>
-            {isLive ? (
-              <Link
-                href={`/live/${firstSession?.sessionId}`}
-                className="w-full sm:w-auto px-8 py-4 bg-white/10 backdrop-blur border border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-colors flex items-center justify-center gap-2 text-lg"
-              >
-                <Radio className="w-5 h-5 text-red-400" />
-                Join Live Session
-              </Link>
-            ) : (
-              <Link
-                href="/live"
-                className="w-full sm:w-auto px-8 py-4 bg-white/10 backdrop-blur border border-white/20 text-white font-bold rounded-xl hover:bg-white/20 transition-colors flex items-center justify-center gap-2 text-lg"
-              >
-                <Music2 className="w-5 h-5" />
-                I&apos;m a Dancer
-              </Link>
-            )}
           </div>
         </div>
       </header>
 
-      {/* Features Section */}
-      <section className="py-20 px-6">
-        <div className="max-w-5xl mx-auto">
-          <h3 className="text-2xl font-bold text-white text-center mb-12">
-            Everything you need for an amazing dance floor
-          </h3>
+      {/* 🎯 AUDIENCE TRIFECTA */}
+      <section className="py-20 px-4 bg-slate-900/50 border-y border-slate-800">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">A Unified Experience</h2>
+            <p className="text-slate-400 max-w-2xl mx-auto">
+              Pika! isn't just a playlist viewer. It's a complete ecosystem that enhances the event for everyone.
+            </p>
+          </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700/50">
-              <div className="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center mb-4">
-                <Heart className="w-6 h-6 text-red-400" />
+            {/* DJs Card */}
+            <div className="group relative bg-slate-800 rounded-3xl p-8 border border-slate-700 hover:border-purple-500/50 transition-all shadow-2xl hover:shadow-purple-900/20">
+              <div className="absolute -top-6 left-8 w-14 h-14 bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform rotate-3 group-hover:rotate-0">
+                <Headphones className="w-7 h-7 text-white" />
               </div>
-              <h4 className="text-lg font-bold text-white mb-2">Track Likes</h4>
-              <p className="text-slate-300">
-                Dancers tap to like tracks in real-time. Know exactly which songs make
-                your floor happy.
+              <h3 className="text-2xl font-bold text-white mt-8 mb-2">For DJs</h3>
+              <p className="text-purple-300 font-medium mb-6 flex items-center gap-2">
+                <Activity className="w-4 h-4" /> Audio X-Ray
               </p>
+
+              <ul className="space-y-4 text-slate-300">
+                <li className="flex items-start gap-3">
+                  <BarChart3 className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Deep Analysis:</strong> Our sidecar processes every file on your drive.
+                    Get precise BPM, Key, Energy, and Groove metrics instantly.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Users className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Crowd Pulse:</strong> See "Too Fast" or "Too Slow" votes in real-time.
+                    Adjust your set before you lose the floor.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <History className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Set Analytics:</strong> Review your performance after the gig.
+                    Which tracks got the most loves? What cleared the floor?
+                  </span>
+                </li>
+              </ul>
             </div>
 
-            {/* Feature 2 */}
-            <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700/50">
-              <div className="w-12 h-12 rounded-xl bg-purple-500/20 flex items-center justify-center mb-4">
-                <Gauge className="w-6 h-6 text-purple-400" />
+            {/* Dancers Card */}
+            <div className="group relative bg-slate-800 rounded-3xl p-8 border border-slate-700 hover:border-pink-500/50 transition-all shadow-2xl hover:shadow-pink-900/20">
+              <div className="absolute -top-6 left-8 w-14 h-14 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-500/30 group-hover:scale-110 transition-transform -rotate-2 group-hover:rotate-0">
+                <Heart className="w-7 h-7 text-white" />
               </div>
-              <h4 className="text-lg font-bold text-white mb-2">Tempo Feedback</h4>
-              <p className="text-slate-300">
-                Dancers vote Faster/Slower/Perfect. Get instant consensus on
-                tempo preference.
+              <h3 className="text-2xl font-bold text-white mt-8 mb-2">For Dancers</h3>
+              <p className="text-pink-300 font-medium mb-6 flex items-center gap-2">
+                <Sparkles className="w-4 h-4" /> Curate Your Night
               </p>
+
+              <ul className="space-y-4 text-slate-300">
+                <li className="flex items-start gap-3">
+                  <Smartphone className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Zero Friction:</strong> No app store downloads. Just scan a QR code and you're connected in seconds.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Heart className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Save for Later:</strong> "Like" a track to save it to your personal history.
+                    Never ask "What was that song?" again.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Gauge className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Anonymous Voting:</strong> Politely signal if the tempo is drifting.
+                    Your feedback helps the DJ create a better vibe.
+                  </span>
+                </li>
+              </ul>
             </div>
 
-            {/* Feature 3 */}
-            <div className="bg-slate-800/50 backdrop-blur-lg rounded-2xl p-6 border border-slate-700/50">
-              <div className="w-12 h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center mb-4">
-                <QrCode className="w-6 h-6 text-emerald-400" />
+            {/* Organizers Card */}
+            <div className="group relative bg-slate-800 rounded-3xl p-8 border border-slate-700 hover:border-emerald-500/50 transition-all shadow-2xl hover:shadow-emerald-900/20">
+              <div className="absolute -top-6 left-8 w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform rotate-2 group-hover:rotate-0">
+                <Calendar className="w-7 h-7 text-white" />
               </div>
-              <h4 className="text-lg font-bold text-white mb-2">Easy Access</h4>
-              <p className="text-slate-300">
-                Dancers scan a QR code and they&apos;re in. No app download,
-                no account needed.
+              <h3 className="text-2xl font-bold text-white mt-8 mb-2">For Organizers</h3>
+              <p className="text-emerald-300 font-medium mb-6 flex items-center gap-2">
+                <Zap className="w-4 h-4" /> Level Up
               </p>
+
+              <ul className="space-y-4 text-slate-300">
+                <li className="flex items-start gap-3">
+                  <MessageCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Live Announcements:</strong> Need to announce a schedule change or contest?
+                    Push messages directly to every dancer's phone via the DJ screen.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Globe2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Modern Standard:</strong> Elevate your event branding.
+                    Show attendees you care about their musical experience.
+                  </span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Plug & Play:</strong> Compatible with any setup.
+                    Works offline for DJs if venue WiFi fails (local-only mode).
+                  </span>
+                </li>
+              </ul>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works */}
-      <section className="py-20 px-6 bg-slate-800/30">
-        <div className="max-w-5xl mx-auto">
-          <h3 className="text-2xl font-bold text-white text-center mb-12">
-            How It Works
+      {/* 🚀 WCS SPECIALTY */}
+      <section className="py-24 px-6 bg-gradient-to-b from-slate-950 to-slate-900 border-b border-slate-800/50">
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 rounded-full text-amber-500 text-sm font-medium mb-8 border border-amber-500/20">
+            <Radio className="w-4 h-4" />
+            Built for the Community
+          </div>
+
+          <h3 className="text-3xl md:text-5xl font-black text-white mb-8 tracking-tight">
+            Data-Driven. <br />
+            <span className="text-slate-500">Dancer-Approved.</span>
           </h3>
 
-          <div className="grid md:grid-cols-2 gap-12">
-            {/* For DJs */}
-            <div>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-                  <Music2 className="w-5 h-5 text-purple-400" />
-                </div>
-                <h4 className="text-xl font-bold text-white">For DJs</h4>
-              </div>
-              <ol className="space-y-4">
-                {[
-                  "Download the Pika! desktop app",
-                  "Import your music library for BPM analysis",
-                  "Click 'Go Live' when you start your set",
-                  "Display the QR code for dancers",
-                  "See real-time feedback as you play",
-                ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0 text-sm font-bold text-purple-400">
-                      {i + 1}
-                    </span>
-                    <span className="text-slate-300">{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-
-            {/* For Dancers */}
-            <div>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 rounded-full bg-pink-500/20 flex items-center justify-center">
-                  <Users className="w-5 h-5 text-pink-400" />
-                </div>
-                <h4 className="text-xl font-bold text-white">For Dancers</h4>
-              </div>
-              <ol className="space-y-4">
-                {[
-                  "Scan the QR code at the DJ booth",
-                  "See the current track on your phone",
-                  "Tap ❤️ to like songs you love",
-                  'Vote "Faster" or "Slower" for tempo',
-                  "Your feedback helps the DJ adapt!",
-                ].map((step, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <span className="w-6 h-6 rounded-full bg-pink-500/20 flex items-center justify-center flex-shrink-0 text-sm font-bold text-pink-400">
-                      {i + 1}
-                    </span>
-                    <span className="text-slate-300">{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Built for WCS */}
-      <section className="py-20 px-6">
-        <div className="max-w-5xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 rounded-full text-amber-400 text-sm font-medium mb-6">
-            <Zap className="w-4 h-4" />
-            Built specifically for West Coast Swing
-          </div>
-          <h3 className="text-3xl font-bold text-white mb-6">
-            By WCS dancers, for WCS dancers
-          </h3>
-          <p className="text-xl text-slate-300 max-w-2xl mx-auto mb-8">
-            We understand that WCS is unique. Variable tempo, musicality focus,
-            and a community that cares deeply about the music. Pika! is designed
-            with all of this in mind.
+          <p className="text-lg text-slate-300 mb-12 leading-relaxed max-w-2xl mx-auto">
+            West Coast Swing is unique. It demands a wide range of tempos, genres, and energies.
+            Generic DJ tools don't understand that. <strong>Pika! does.</strong>
           </p>
-          <div className="flex flex-wrap justify-center gap-4">
-            {[
-              "BPM-aware track analysis",
-              "Musical key detection",
-              "Session recap & analytics",
-              "Works offline (DJ app)",
-            ].map((feature) => (
-              <div
-                key={feature}
-                className="flex items-center gap-2 px-4 py-2 bg-slate-800/50 rounded-full text-slate-300 text-sm"
-              >
-                <CheckCircle2 className="w-4 h-4 text-green-400" />
-                {feature}
-              </div>
-            ))}
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
+              <div className="text-3xl font-bold text-white mb-2">0ms</div>
+              <div className="text-sm font-medium text-slate-400">Latency Goal</div>
+            </div>
+            <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
+              <div className="text-3xl font-bold text-white mb-2">100%</div>
+              <div className="text-sm font-medium text-slate-400">Privacy Focused</div>
+            </div>
+            <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
+              <div className="text-3xl font-bold text-white mb-2">Offline</div>
+              <div className="text-sm font-medium text-slate-400">First Architecture</div>
+            </div>
+            <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
+              <div className="text-3xl font-bold text-white mb-2">Free</div>
+              <div className="text-sm font-medium text-slate-400">For Dancers</div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-6">
-        <div className="max-w-3xl mx-auto text-center">
+      {/* 🦶 BOTTOM CTA & CONTACT */}
+      <section className="py-24 px-6 relative overflow-hidden">
+        {/* Decorative blur */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[100px]" />
+
+        <div className="relative max-w-3xl mx-auto text-center">
           <h3 className="text-3xl font-bold text-white mb-6">
-            Ready to level up your DJ sets?
+            Ready to change the vibe?
           </h3>
-          <p className="text-xl text-slate-300 mb-8">
-            Join the DJs who are already getting real-time feedback from their dance floor.
+          <p className="text-slate-400 mb-10 text-lg">
+            Join the beta and start shaping the future of WCS events today.
           </p>
-          <Link
-            href="/dj/register"
-            className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold rounded-xl hover:opacity-90 transition-opacity text-lg"
-          >
-            Create Your DJ Account
-            <ArrowRight className="w-5 h-5" />
-          </Link>
+
+          <div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
+            <Link
+              href="/dj/register"
+              className="bg-white text-slate-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 shadow-xl shadow-white/5"
+            >
+              Get Started for Free
+              <ArrowRight className="w-5 h-5" />
+            </Link>
+          </div>
+
+          <div className="border-t border-slate-800 pt-16">
+            <h4 className="text-white font-semibold mb-4 flex items-center justify-center gap-2">
+              <Mail className="w-4 h-4" /> Get in Touch
+            </h4>
+            <p className="text-slate-500 mb-4">
+              Have questions? Want to bring Pika! to your event?
+            </p>
+            <a
+              href="mailto:hello@pika.stream"
+              className="text-purple-400 hover:text-purple-300 font-medium transition-colors text-lg"
+            >
+              hello@pika.stream
+            </a>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-8 px-6 border-t border-slate-800">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+      {/* FOOTER */}
+      <footer className="py-12 px-6 border-t border-slate-800 bg-slate-950 text-center sm:text-left">
+        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-2">
             <Radio className="w-5 h-5 text-red-500" />
-            <span className="font-bold text-white">Pika!</span>
-            <span className="text-slate-500">© 2026</span>
+            <span className="font-bold text-white text-lg">Pika!</span>
+            <span className="text-slate-500 text-sm">© 2026</span>
           </div>
-          <div className="flex items-center gap-6 text-sm text-slate-400">
+
+          <div className="flex flex-wrap justify-center gap-8 text-sm text-slate-400 font-medium">
             <Link href="/dj/login" className="hover:text-white transition-colors">
-              DJ Login
+              DJ Portal
             </Link>
             <Link href="/live" className="hover:text-white transition-colors">
-              Join Session
+              Live Sessions
+            </Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">
+              Privacy
             </Link>
           </div>
         </div>
