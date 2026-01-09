@@ -73,7 +73,9 @@ export default function LandingPage() {
   }, []);
 
   const isLive = liveData?.live && liveData.sessions.length > 0;
+  const sessionCount = liveData?.sessions.length || 0;
   const firstSession = liveData?.sessions[0];
+  const isMultipleDJs = sessionCount > 1;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900">
@@ -86,30 +88,40 @@ export default function LandingPage() {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
               </span>
-              <span className="font-bold">LIVE NOW:</span>
-              <span>{firstSession.djName} is playing!</span>
-              {firstSession.currentTrack && (
-                <span className="text-white/80 hidden sm:inline">
-                  • {firstSession.currentTrack.artist} - {firstSession.currentTrack.title}
-                </span>
-              )}
-              {firstSession.listenerCount > 0 && (
-                <span className="flex items-center gap-1 text-white/80">
-                  <Users className="w-3 h-3" />
-                  {firstSession.listenerCount}
-                </span>
+              {isMultipleDJs ? (
+                <>
+                  <span className="font-bold">🔴 {sessionCount} DJs LIVE!</span>
+                  <span className="text-white/90">Multiple rooms available</span>
+                </>
+              ) : (
+                <>
+                  <span className="font-bold">LIVE NOW:</span>
+                  <span>{firstSession.djName} is playing!</span>
+                  {firstSession.currentTrack && (
+                    <span className="text-white/80 hidden sm:inline">
+                      • {firstSession.currentTrack.artist} - {firstSession.currentTrack.title}
+                    </span>
+                  )}
+                  {firstSession.listenerCount > 0 && (
+                    <span className="flex items-center gap-1 text-white/80">
+                      <Users className="w-3 h-3" />
+                      {firstSession.listenerCount}
+                    </span>
+                  )}
+                </>
               )}
             </div>
             <Link
-              href={`/live/${firstSession.sessionId}`}
+              href={isMultipleDJs ? "/live" : `/live/${firstSession.sessionId}`}
               className="bg-white text-red-500 px-4 py-1.5 rounded-full font-bold text-sm hover:bg-white/90 transition-colors flex items-center gap-2"
             >
-              Join Session
+              {isMultipleDJs ? "Choose Room" : "Join Session"}
               <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
       )}
+
 
       {/* Hero Section */}
       <header className="relative overflow-hidden">
