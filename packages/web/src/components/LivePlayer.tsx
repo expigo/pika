@@ -223,11 +223,20 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                             <p className="text-lg text-slate-400 text-center">
                                 {currentTrack.artist}
                             </p>
+                            {/* BPM Badge */}
+                            {currentTrack.bpm && (
+                                <div className="flex items-center gap-2 mt-3">
+                                    <span className="px-3 py-1 bg-purple-500/20 border border-purple-500/30 rounded-full text-sm font-medium text-purple-300">
+                                        {Math.round(currentTrack.bpm)} BPM
+                                    </span>
+                                </div>
+                            )}
                             {djName && (
                                 <p className="text-sm text-slate-500 mt-4">
                                     Live with <span className="text-red-400 font-medium">{djName}</span>
                                 </p>
                             )}
+
 
                             {/* Like Button */}
                             <button
