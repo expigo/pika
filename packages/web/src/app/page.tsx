@@ -136,8 +136,11 @@ export default function LandingPage() {
         <div className="relative max-w-5xl mx-auto">
           {/* Logo Badge */}
           <div className="inline-flex items-center gap-2 bg-slate-800/50 backdrop-blur border border-slate-700 rounded-full px-4 py-1.5 mb-8 shadow-xl hover:border-slate-600 transition-colors">
-            <Radio className="w-4 h-4 text-red-500 animate-pulse" />
-            <span className="text-sm font-semibold text-slate-300 tracking-wide uppercase">Pika! for West Coast Swing</span>
+            <div className="relative">
+              <Radio className="w-4 h-4 text-red-500" />
+              <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+            </div>
+            <span className="text-xs font-bold text-slate-300 tracking-widest uppercase">Real-time • Interactive • Live</span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight leading-[1.1] mb-8">
