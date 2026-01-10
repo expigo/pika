@@ -3,3 +3,5 @@ src/app/globals.css
 globals.css
 **/globals.css
 packages/desktop
+packages/desktop/**
+**/desktop/**
