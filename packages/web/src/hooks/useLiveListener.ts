@@ -461,8 +461,8 @@ export function useLiveListener(targetSessionId?: string) {
               pollMsg.votes ||
               (isNewPoll
                 ? (new Array(pollMsg.options.length).fill(0) as number[])
-                : prev.activePoll?.votes);
-            const totalVotes = pollMsg.totalVotes ?? (isNewPoll ? 0 : prev.activePoll?.totalVotes);
+                : prev.activePoll?.votes ?? []);
+            const totalVotes = pollMsg.totalVotes ?? (isNewPoll ? 0 : prev.activePoll?.totalVotes ?? 0);
 
             // Use server-provided hasVoted if available, otherwise preserve local state
             const hasVotedOnPoll = pollMsg.hasVoted ?? (isNewPoll ? false : prev.hasVotedOnPoll);
@@ -543,10 +543,10 @@ export function useLiveListener(targetSessionId?: string) {
               hasVotedOnPoll: rejectMsg.reason === "Already voted",
               activePoll: rejectMsg.votes
                 ? {
-                    ...prev.activePoll,
-                    votes: rejectMsg.votes,
-                    totalVotes: rejectMsg.totalVotes ?? prev.activePoll.totalVotes,
-                  }
+                  ...prev.activePoll,
+                  votes: rejectMsg.votes,
+                  totalVotes: rejectMsg.totalVotes ?? prev.activePoll.totalVotes,
+                }
                 : prev.activePoll,
             };
           });
