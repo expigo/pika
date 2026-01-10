@@ -21,6 +21,9 @@
             "recommended": true,
             "a11y": {
                 "recommended": false
+            },
+            "suspicious": {
+                "noArrayIndexKey": "off"
             }
         }
     },
