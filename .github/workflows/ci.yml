@@ -24,14 +24,12 @@ jobs:
       # Check Cloud Package
       - name: Check Cloud Package (Lint & Typecheck)
         run: |
-          cd packages/cloud
-          bun run lint
-          bun run typecheck
+          bun run --filter @pika/cloud lint
+          bun run --filter @pika/cloud typecheck
       
       # Check Web Package
       - name: Check Web Package (Lint & Typecheck & Build)
         run: |
-          cd packages/web
-          bun run lint
-          bun run typecheck
-          bun run build
+          bun run --filter @pika/web lint
+          bun run --filter @pika/web typecheck
+          bun run --filter @pika/web build
