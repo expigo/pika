@@ -531,6 +531,25 @@ Future feature (post-MVP):
   - [ ] Prepare backup hotspot
   - [ ] Rest before event!
 
+### Week 5: Pre-Launch Polish (Added 2026-01-10)
+
+This final sprint addresses critical "Day 1" bugs found during security audit.
+
+**Priority 1: Security Hardening**
+- [ ] **Secure Token Generation**: Switch from `Math.random()` to `crypto.randomUUID()` in `cloud`.
+- [ ] **Hash Tokens**: Store `SHA-256` hash of tokens in DB; do not store raw tokens.
+- [ ] **API Auth Middleware**: Protect all sensitive endpoints (e.g. `/api/auth/me` is open, but writes need guards).
+- [ ] **DB Ghost Track Hygiene**: Normalize Artist/Title before `findOrCreateTrack` to prevent duplicates.
+
+**Priority 2: Connectivity Resilience**
+- [ ] **Session Resume**: Store `currentSessionId` in `localStorage`. If DJ reconnects < 5 mins, RESUME session (don't create new).
+- [ ] **QR Code Safety**: Force QR code to use `https://pika.stream` (public), NOT `localIp` (private VLAN).
+- [ ] **Poll State robustness**: Fix race condition where `id: -1` is not updated correctly if valid poll exists.
+
+**Priority 3: Ops**
+- [ ] **Staging Environment**: Configure GitHub Actions to deploy `main` -> `staging.pika.stream`.
+
+
 ---
 
 ## 7.5 Technical Debt & Known Issues

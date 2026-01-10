@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: pika-staging-db
+    environment:
+      POSTGRES_USER: pika
+      POSTGRES_PASSWORD: pika_staging_password
+      POSTGRES_DB: pika_staging
+    volumes:
+      - postgres_staging_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432" # 5433 for Staging to allow separate SSH tunneling
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U pika -d pika_staging" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  cloud:
+    image: oven/bun:latest
+    container_name: pika-staging-cloud
+    working_dir: /app/packages/cloud
+    command: sh -c "cd /app && bun install && cd packages/cloud && bun run db:migrate && bun run src/index.ts"
+    environment:
+      - DATABASE_URL=postgres://pika:pika_staging_password@db:5432/pika_staging
+      - NODE_ENV=production
+      - PORT=4001
+    volumes:
+      - ./:/app
+    ports:
+      - "127.0.0.1:4001:4001"
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: oven/bun:latest
+    container_name: pika-staging-web
+    working_dir: /app/packages/web
+    command: sh -c "cd /app && bun install && cd packages/web && bun run build && bun start"
+    environment:
+      - NEXT_PUBLIC_CLOUD_WS_URL=wss://staging-api.pika.stream/ws
+      - NEXT_PUBLIC_CLOUD_API_URL=https://staging-api.pika.stream
+      - NODE_ENV=production
+      - PORT=4000
+    volumes:
+      - ./:/app
+    ports:
+      - "127.0.0.1:4000:4000"
+    restart: unless-stopped
+    depends_on:
+      - cloud
+
+volumes:
+  postgres_staging_data:
