@@ -1,0 +1,34 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          # We use a key instead of password for security
+          key: ${{ secrets.VPS_key }} 
+          port: ${{ secrets.VPS_PORT }}
+          script: |
+            echo "🚀 Starting Deployment..."
+            cd /opt/pika/pika
+            
+            # 1. Get latest code
+            git pull origin main
+            
+            # 2. Rebuild and Restart Cloud & Web
+            # We don't restart DB (pika-db) to avoid downtime, unless manual intervention needed
+            docker compose -f docker-compose.prod.yml up -d --build cloud web
+            
+            # 3. Prune old images to save space on your 150GB disk
+            docker image prune -f
+            
+            echo "✅ Deployment Complete!"

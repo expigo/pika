@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  push:
+    branches: [ "main" ]
+
+jobs:
+  check:
+    name: Type Check & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install
+
+      # Check Cloud Package
+      - name: Check Cloud Package (Lint & Typecheck)
+        run: |
+          cd packages/cloud
+          bun run lint
+          bun run typecheck
+      
+      # Check Web Package
+      - name: Check Web Package (Lint & Typecheck & Build)
+        run: |
+          cd packages/web
+          bun run lint
+          bun run typecheck
+          bun run build
