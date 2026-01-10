@@ -3,16 +3,16 @@ services:
     image: postgres:16-alpine
     container_name: pika-staging-db
     environment:
-      POSTGRES_USER: pika
-      POSTGRES_PASSWORD: pika_staging_password
-      POSTGRES_DB: pika_staging
+      POSTGRES_USER: ${DB_USER:-pika}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-pika_staging}
     volumes:
       - postgres_staging_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5433:5432" # 5433 for Staging to allow separate SSH tunneling
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U pika -d pika_staging" ]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-pika} -d ${DB_NAME:-pika_staging}" ]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,7 +23,7 @@ services:
     working_dir: /app/packages/cloud
     command: sh -c "cd /app && bun install && cd packages/cloud && bun run db:migrate && bun run src/index.ts"
     environment:
-      - DATABASE_URL=postgres://pika:pika_staging_password@db:5432/pika_staging
+      - DATABASE_URL=postgres://${DB_USER:-pika}:${DB_PASSWORD}@db:5432/${DB_NAME:-pika_staging}
       - NODE_ENV=production
       - PORT=4001
     volumes:
