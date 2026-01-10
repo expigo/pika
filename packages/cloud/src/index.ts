@@ -509,12 +509,8 @@ function slugify(name: string): string {
 
 // Helper: Generate secure random token
 function generateToken(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let token = "pk_dj_";
-  for (let i = 0; i < 24; i++) {
-    token += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return token;
+  // Use crypto.randomUUID for high-entropy secure token
+  return `pk_dj_${crypto.randomUUID().replace(/-/g, "")}`;
 }
 
 // Helper: Hash password using Bun's built-in bcrypt
@@ -523,6 +519,15 @@ async function hashPassword(password: string): Promise<string> {
     algorithm: "bcrypt",
     cost: 10,
   });
+}
+
+// Helper: Hash token for storage (fast SHA-256 for API tokens)
+// We use SHA-256 because API tokens are already high-entropy.
+// Bcrypt is too slow (100ms) for high-frequency API auth if we ever need it.
+async function hashToken(token: string): Promise<string> {
+  const hash = new Bun.CryptoHasher("sha256");
+  hash.update(token);
+  return hash.digest("hex");
 }
 
 // Helper: Verify password
@@ -535,6 +540,9 @@ async function validateToken(
   token: string,
 ): Promise<{ id: number; displayName: string; email: string; slug: string } | null> {
   try {
+    // Hash the incoming token to look it up in DB
+    const tokenHash = await hashToken(token);
+
     const result = await db
       .select({
         id: schema.djUsers.id,
@@ -544,7 +552,7 @@ async function validateToken(
       })
       .from(schema.djTokens)
       .innerJoin(schema.djUsers, eq(schema.djTokens.djUserId, schema.djUsers.id))
-      .where(eq(schema.djTokens.token, token))
+      .where(eq(schema.djTokens.token, tokenHash)) // Look up by HASH
       .limit(1);
 
     if (result.length === 0) return null;
@@ -555,7 +563,7 @@ async function validateToken(
     // Update last used timestamp (fire-and-forget)
     db.update(schema.djTokens)
       .set({ lastUsed: new Date() })
-      .where(eq(schema.djTokens.token, token))
+      .where(eq(schema.djTokens.token, tokenHash))
       .catch(() => {});
 
     return user;
@@ -637,9 +645,11 @@ app.post("/api/auth/register", async (c) => {
 
     // Generate token
     const token = generateToken();
+    const tokenHash = await hashToken(token); // Store hash, return raw
+
     await db.insert(schema.djTokens).values({
       djUserId: newUser.id,
-      token,
+      token: tokenHash,
       name: "Default",
     });
 
@@ -702,32 +712,18 @@ app.post("/api/auth/login", async (c) => {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
-    // Get existing token or create new one
-    const tokens = await db
-      .select({ token: schema.djTokens.token })
-      .from(schema.djTokens)
-      .where(eq(schema.djTokens.djUserId, user.id))
-      .limit(1);
+    // Always generate a NEW token. We cannot look up existing raw tokens because they are hashed.
+    // This allows multiple active sessions (e.g. desktop app + mobile dashboard).
+    const token = generateToken();
+    const tokenHash = await hashToken(token);
 
-    let token: string;
-    if (tokens.length > 0 && tokens[0]) {
-      token = tokens[0].token;
-      // Update last used
-      await db
-        .update(schema.djTokens)
-        .set({ lastUsed: new Date() })
-        .where(eq(schema.djTokens.token, token));
-    } else {
-      // Create new token
-      token = generateToken();
-      await db.insert(schema.djTokens).values({
-        djUserId: user.id,
-        token,
-        name: "Default",
-      });
-    }
+    await db.insert(schema.djTokens).values({
+      djUserId: user.id,
+      token: tokenHash, // Store hash
+      name: "Default",
+    });
 
-    console.log(`✅ DJ logged in: ${user.displayName}`);
+    console.log(`✅ DJ logged in: ${user.displayName} (New token generated)`);
 
     return c.json({
       success: true,
@@ -737,7 +733,7 @@ app.post("/api/auth/login", async (c) => {
         displayName: user.displayName,
         slug: user.slug,
       },
-      token,
+      token, // Return raw token to user ONE TIME
     });
   } catch (e) {
     console.error("Login error:", e);
@@ -787,13 +783,16 @@ app.post("/api/auth/regenerate-token", async (c) => {
 
   try {
     // Delete old token
-    await db.delete(schema.djTokens).where(eq(schema.djTokens.token, oldToken));
+    const oldTokenHash = await hashToken(oldToken);
+    await db.delete(schema.djTokens).where(eq(schema.djTokens.token, oldTokenHash));
 
     // Create new token
     const newToken = generateToken();
+    const newTokenHash = await hashToken(newToken);
+
     await db.insert(schema.djTokens).values({
       djUserId: user.id,
-      token: newToken,
+      token: newTokenHash, // Store hash
       name: "Default",
     });
 
