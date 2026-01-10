@@ -140,7 +140,15 @@ export function useDjSettings() {
 
   const setServerEnv = useCallback((serverEnv: ServerEnv) => {
     setSettingsState((prev) => {
-      const newSettings = { ...prev, serverEnv };
+      // Security: Clear auth data when switching environments to prevent
+      // using a token from one env in another.
+      const newSettings = {
+        ...prev,
+        serverEnv,
+        authToken: "",
+        djInfo: null,
+        djName: "",
+      };
       saveSettings(newSettings);
       // Reload to ensure all socket connections reconnect to new URL
       window.location.reload();
