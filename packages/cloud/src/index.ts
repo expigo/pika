@@ -427,13 +427,29 @@ async function endSessionInDb(sessionId: string): Promise<void> {
 // ============================================================================
 
 // Health check endpoint
-app.get("/health", (c) => {
-    return c.json({
-        status: "ok",
-        version: PIKA_VERSION,
-        timestamp: new Date().toISOString(),
-        activeSessions: activeSessions.size,
-    });
+app.get("/health", async (c) => {
+    try {
+        // Deep Health Check: Verify DB connection
+        // This is a zero-cost query ("SELECT 1") to ensure the connection pool is alive
+        // Use raw SQL access if available or a simple query
+        await db.execute(sql`SELECT 1`);
+
+        return c.json({
+            status: "ok",
+            version: PIKA_VERSION,
+            timestamp: new Date().toISOString(),
+            activeSessions: activeSessions.size,
+            database: "connected"
+        });
+    } catch (e) {
+        console.error("❌ Health check failed:", e);
+        return c.json({
+            status: "error",
+            version: PIKA_VERSION,
+            timestamp: new Date().toISOString(),
+            error: "Database unavailable"
+        }, 503);
+    }
 });
 
 // ============================================================================
