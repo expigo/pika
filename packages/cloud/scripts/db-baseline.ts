@@ -10,6 +10,7 @@
 
 import postgres from "postgres";
 
+// biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 const DATABASE_URL = process.env["DATABASE_URL"];
 
 if (!DATABASE_URL) {

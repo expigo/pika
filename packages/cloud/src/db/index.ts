@@ -9,6 +9,7 @@ import * as schema from "./schema";
 
 // Database URL from environment (default for local development)
 const DATABASE_URL =
+  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   process.env["DATABASE_URL"] || "postgres://pika:pika@localhost:5433/pika_cloud";
 
 // Create the postgres.js connection

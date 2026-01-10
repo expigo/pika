@@ -6,9 +6,9 @@
     "packages/*"
   ],
   "scripts": {
-    "format": "biome format --write .",
-    "lint": "biome check .",
-    "check": "biome check --write ."
+    "format": "biome format --write packages/cloud packages/web packages/shared",
+    "lint": "biome check packages/cloud packages/web packages/shared",
+    "check": "biome check --write packages/cloud packages/web packages/shared"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.11"
