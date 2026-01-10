@@ -14,17 +14,17 @@ import { z } from "zod";
  * Includes optional fingerprint data for analytics
  */
 export const TrackInfoSchema = z.object({
-    title: z.string(),
-    artist: z.string(),
-    // Core metrics
-    bpm: z.number().optional(),
-    key: z.string().optional(),
-    // Fingerprint metrics (all 0-100 scale)
-    energy: z.number().optional(),
-    danceability: z.number().optional(),
-    brightness: z.number().optional(),
-    acousticness: z.number().optional(),
-    groove: z.number().optional(),
+  title: z.string(),
+  artist: z.string(),
+  // Core metrics
+  bpm: z.number().optional(),
+  key: z.string().optional(),
+  // Fingerprint metrics (all 0-100 scale)
+  energy: z.number().optional(),
+  danceability: z.number().optional(),
+  brightness: z.number().optional(),
+  acousticness: z.number().optional(),
+  groove: z.number().optional(),
 });
 
 export type TrackInfo = z.infer<typeof TrackInfoSchema>;
@@ -33,12 +33,12 @@ export type TrackInfo = z.infer<typeof TrackInfoSchema>;
  * Full track metadata (for library/database)
  */
 export const TrackMetadataSchema = z.object({
-    title: z.string(),
-    artist: z.string(),
-    filePath: z.string().optional(),
-    bpm: z.number().min(0).max(300).optional(),
-    energy: z.number().min(0).max(100).optional(),
-    key: z.string().optional(),
+  title: z.string(),
+  artist: z.string(),
+  filePath: z.string().optional(),
+  bpm: z.number().min(0).max(300).optional(),
+  energy: z.number().min(0).max(100).optional(),
+  key: z.string().optional(),
 });
 
 export type TrackMetadata = z.infer<typeof TrackMetadataSchema>;
@@ -50,12 +50,12 @@ export type TrackMetadata = z.infer<typeof TrackMetadataSchema>;
 /**
  * Analysis result from Python sidecar
  * All metrics use 0-100 scale (DJ-friendly)
- * 
+ *
  * Core metrics:
  * - bpm: Beats per minute (40-200)
  * - energy: Overall loudness/intensity (0-100)
  * - key: Musical key (e.g., "Am", "C", "F#")
- * 
+ *
  * Fingerprint metrics:
  * - danceability: Rhythmic stability, how "danceable" the track is (0-100)
  * - brightness: Spectral brightness, treble presence (0-100)
@@ -63,19 +63,19 @@ export type TrackMetadata = z.infer<typeof TrackMetadataSchema>;
  * - groove: Onset strength, percussive punch (0-100)
  */
 export const AnalysisResultSchema = z.object({
-    // Core metrics
-    bpm: z.number().min(0).max(300).optional().nullable(),
-    energy: z.number().min(0).max(100).optional().nullable(),
-    key: z.string().optional().nullable(),
+  // Core metrics
+  bpm: z.number().min(0).max(300).optional().nullable(),
+  energy: z.number().min(0).max(100).optional().nullable(),
+  key: z.string().optional().nullable(),
 
-    // Fingerprint metrics (all 0-100 scale)
-    danceability: z.number().min(0).max(100).optional().nullable(),
-    brightness: z.number().min(0).max(100).optional().nullable(),
-    acousticness: z.number().min(0).max(100).optional().nullable(),
-    groove: z.number().min(0).max(100).optional().nullable(),
+  // Fingerprint metrics (all 0-100 scale)
+  danceability: z.number().min(0).max(100).optional().nullable(),
+  brightness: z.number().min(0).max(100).optional().nullable(),
+  acousticness: z.number().min(0).max(100).optional().nullable(),
+  groove: z.number().min(0).max(100).optional().nullable(),
 
-    // Error handling
-    error: z.string().optional().nullable(),
+  // Error handling
+  error: z.string().optional().nullable(),
 });
 
 export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
@@ -87,85 +87,85 @@ export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 // --- Client -> Server Messages ---
 
 export const RegisterSessionSchema = z.object({
-    type: z.literal("REGISTER_SESSION"),
-    sessionId: z.string().optional(),
-    djName: z.string().optional(),
+  type: z.literal("REGISTER_SESSION"),
+  sessionId: z.string().optional(),
+  djName: z.string().optional(),
 });
 
 export const BroadcastTrackSchema = z.object({
-    type: z.literal("BROADCAST_TRACK"),
-    sessionId: z.string(),
-    track: TrackInfoSchema,
+  type: z.literal("BROADCAST_TRACK"),
+  sessionId: z.string(),
+  track: TrackInfoSchema,
 });
 
 export const TrackStoppedSchema = z.object({
-    type: z.literal("TRACK_STOPPED"),
-    sessionId: z.string(),
+  type: z.literal("TRACK_STOPPED"),
+  sessionId: z.string(),
 });
 
 export const EndSessionSchema = z.object({
-    type: z.literal("END_SESSION"),
-    sessionId: z.string(),
+  type: z.literal("END_SESSION"),
+  sessionId: z.string(),
 });
 
 export const SubscribeSchema = z.object({
-    type: z.literal("SUBSCRIBE"),
+  type: z.literal("SUBSCRIBE"),
 });
 
 export const SendLikeSchema = z.object({
-    type: z.literal("SEND_LIKE"),
-    payload: z.object({
-        track: TrackInfoSchema,
-    }),
+  type: z.literal("SEND_LIKE"),
+  payload: z.object({
+    track: TrackInfoSchema,
+  }),
 });
 
 // --- Server -> Client Messages ---
 
 export const SessionRegisteredSchema = z.object({
-    type: z.literal("SESSION_REGISTERED"),
-    sessionId: z.string(),
+  type: z.literal("SESSION_REGISTERED"),
+  sessionId: z.string(),
 });
 
 export const SessionStartedSchema = z.object({
-    type: z.literal("SESSION_STARTED"),
-    sessionId: z.string(),
-    djName: z.string(),
+  type: z.literal("SESSION_STARTED"),
+  sessionId: z.string(),
+  djName: z.string(),
 });
 
 export const NowPlayingSchema = z.object({
-    type: z.literal("NOW_PLAYING"),
-    sessionId: z.string(),
-    djName: z.string(),
-    track: TrackInfoSchema,
+  type: z.literal("NOW_PLAYING"),
+  sessionId: z.string(),
+  djName: z.string(),
+  track: TrackInfoSchema,
 });
 
 export const SessionEndedSchema = z.object({
-    type: z.literal("SESSION_ENDED"),
-    sessionId: z.string(),
+  type: z.literal("SESSION_ENDED"),
+  sessionId: z.string(),
 });
 
 export const SessionsListSchema = z.object({
-    type: z.literal("SESSIONS_LIST"),
-    sessions: z.array(
-        z.object({
-            sessionId: z.string(),
-            djName: z.string(),
-            currentTrack: TrackInfoSchema.optional(),
-        })
-    ),
+  type: z.literal("SESSIONS_LIST"),
+  sessions: z.array(
+    z.object({
+      sessionId: z.string(),
+      djName: z.string(),
+      currentTrack: TrackInfoSchema.optional(),
+    }),
+  ),
 });
 
 export const LikeReceivedSchema = z.object({
-    type: z.literal("LIKE_RECEIVED"),
-    payload: z.object({
-        track: TrackInfoSchema,
-    }),
+  type: z.literal("LIKE_RECEIVED"),
+  payload: z.object({
+    track: TrackInfoSchema,
+  }),
 });
 
 export const ListenerCountSchema = z.object({
-    type: z.literal("LISTENER_COUNT"),
-    sessionId: z.string().optional(), // Per-session listener count
-    count: z.number(),
+  type: z.literal("LISTENER_COUNT"),
+  sessionId: z.string().optional(), // Per-session listener count
+  count: z.number(),
 });
 
 // Tempo preference type (includes "clear" for toggle-off)
@@ -174,24 +174,24 @@ export type TempoPreference = z.infer<typeof TempoPreferenceSchema>;
 
 // Client -> Server: Dancer sends tempo preference
 export const SendTempoRequestSchema = z.object({
-    type: z.literal("SEND_TEMPO_REQUEST"),
-    sessionId: z.string(),
-    preference: TempoPreferenceSchema,
+  type: z.literal("SEND_TEMPO_REQUEST"),
+  sessionId: z.string(),
+  preference: TempoPreferenceSchema,
 });
 
 // Server -> DJ: Aggregated tempo feedback
 export const TempoFeedbackSchema = z.object({
-    type: z.literal("TEMPO_FEEDBACK"),
-    faster: z.number(),   // count of "faster" votes
-    slower: z.number(),   // count of "slower" votes
-    perfect: z.number(),  // count of "perfect" votes
-    total: z.number(),    // total votes
+  type: z.literal("TEMPO_FEEDBACK"),
+  faster: z.number(), // count of "faster" votes
+  slower: z.number(), // count of "slower" votes
+  perfect: z.number(), // count of "perfect" votes
+  total: z.number(), // total votes
 });
 
 // Server -> Clients: Reset tempo votes (track changed)
 export const TempoResetSchema = z.object({
-    type: z.literal("TEMPO_RESET"),
-    sessionId: z.string(),
+  type: z.literal("TEMPO_RESET"),
+  sessionId: z.string(),
 });
 
 // ============================================================================
@@ -200,82 +200,82 @@ export const TempoResetSchema = z.object({
 
 // DJ -> Server: Start a new poll
 export const StartPollSchema = z.object({
-    type: z.literal("START_POLL"),
-    sessionId: z.string(),
-    question: z.string(),
-    options: z.array(z.string()).min(2).max(5), // 2-5 options
-    durationSeconds: z.number().min(30).max(300).optional(), // 30s to 5min, optional
+  type: z.literal("START_POLL"),
+  sessionId: z.string(),
+  question: z.string(),
+  options: z.array(z.string()).min(2).max(5), // 2-5 options
+  durationSeconds: z.number().min(30).max(300).optional(), // 30s to 5min, optional
 });
 
 // DJ -> Server: End poll early
 export const EndPollSchema = z.object({
-    type: z.literal("END_POLL"),
-    pollId: z.number(),
+  type: z.literal("END_POLL"),
+  pollId: z.number(),
 });
 
 // DJ -> Server: Cancel poll (by session, used when poll ID not yet assigned)
 export const CancelPollSchema = z.object({
-    type: z.literal("CANCEL_POLL"),
-    sessionId: z.string(),
+  type: z.literal("CANCEL_POLL"),
+  sessionId: z.string(),
 });
 
 // Dancer -> Server: Vote on a poll
 export const VoteOnPollSchema = z.object({
-    type: z.literal("VOTE_ON_POLL"),
-    pollId: z.number(),
-    optionIndex: z.number(),
-    clientId: z.string(),
+  type: z.literal("VOTE_ON_POLL"),
+  pollId: z.number(),
+  optionIndex: z.number(),
+  clientId: z.string(),
 });
 
 // Server -> Dancers: New poll started
 export const PollStartedSchema = z.object({
-    type: z.literal("POLL_STARTED"),
-    pollId: z.number(),
-    question: z.string(),
-    options: z.array(z.string()),
-    endsAt: z.string().optional(), // ISO timestamp when poll auto-closes
+  type: z.literal("POLL_STARTED"),
+  pollId: z.number(),
+  question: z.string(),
+  options: z.array(z.string()),
+  endsAt: z.string().optional(), // ISO timestamp when poll auto-closes
 });
 
 // Server -> DJ: Live poll results update
 export const PollUpdateSchema = z.object({
-    type: z.literal("POLL_UPDATE"),
-    pollId: z.number(),
-    votes: z.array(z.number()), // Vote count per option [12, 8, 5]
-    totalVotes: z.number(),
+  type: z.literal("POLL_UPDATE"),
+  pollId: z.number(),
+  votes: z.array(z.number()), // Vote count per option [12, 8, 5]
+  totalVotes: z.number(),
 });
 
 // Server -> All: Poll has ended
 export const PollEndedSchema = z.object({
-    type: z.literal("POLL_ENDED"),
-    pollId: z.number(),
-    results: z.array(z.number()), // Final vote count per option
-    totalVotes: z.number(),
-    winnerIndex: z.number(), // Index of option with most votes
+  type: z.literal("POLL_ENDED"),
+  pollId: z.number(),
+  results: z.array(z.number()), // Final vote count per option
+  totalVotes: z.number(),
+  winnerIndex: z.number(), // Index of option with most votes
 });
 
 // Server -> All: Poll ID updated (temp ID -> DB ID)
 export const PollIdUpdatedSchema = z.object({
-    type: z.literal("POLL_ID_UPDATED"),
-    oldPollId: z.number(),
-    newPollId: z.number(),
+  type: z.literal("POLL_ID_UPDATED"),
+  oldPollId: z.number(),
+  newPollId: z.number(),
 });
 
 // Server -> Client: Vote rejected
 export const VoteRejectedSchema = z.object({
-    type: z.literal("VOTE_REJECTED"),
-    pollId: z.number(),
-    reason: z.string(),
-    votes: z.array(z.number()).optional(),
-    totalVotes: z.number().optional(),
+  type: z.literal("VOTE_REJECTED"),
+  pollId: z.number(),
+  reason: z.string(),
+  votes: z.array(z.number()).optional(),
+  totalVotes: z.number().optional(),
 });
 
 // Server -> Client: Vote confirmed
 export const VoteConfirmedSchema = z.object({
-    type: z.literal("VOTE_CONFIRMED"),
-    pollId: z.number(),
-    optionIndex: z.number(),
-    votes: z.array(z.number()),
-    totalVotes: z.number(),
+  type: z.literal("VOTE_CONFIRMED"),
+  pollId: z.number(),
+  optionIndex: z.number(),
+  votes: z.array(z.number()),
+  totalVotes: z.number(),
 });
 
 // ============================================================================
@@ -286,18 +286,18 @@ export const VoteConfirmedSchema = z.object({
  * All client -> server messages
  */
 export const ClientMessageSchema = z.discriminatedUnion("type", [
-    RegisterSessionSchema,
-    BroadcastTrackSchema,
-    TrackStoppedSchema,
-    EndSessionSchema,
-    SubscribeSchema,
-    SendLikeSchema,
-    SendTempoRequestSchema,
-    // Polls
-    StartPollSchema,
-    EndPollSchema,
-    CancelPollSchema,
-    VoteOnPollSchema,
+  RegisterSessionSchema,
+  BroadcastTrackSchema,
+  TrackStoppedSchema,
+  EndSessionSchema,
+  SubscribeSchema,
+  SendLikeSchema,
+  SendTempoRequestSchema,
+  // Polls
+  StartPollSchema,
+  EndPollSchema,
+  CancelPollSchema,
+  VoteOnPollSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -306,23 +306,23 @@ export type ClientMessage = z.infer<typeof ClientMessageSchema>;
  * All server -> client messages
  */
 export const ServerMessageSchema = z.discriminatedUnion("type", [
-    SessionRegisteredSchema,
-    SessionStartedSchema,
-    NowPlayingSchema,
-    SessionEndedSchema,
-    SessionsListSchema,
-    LikeReceivedSchema,
-    ListenerCountSchema,
-    TempoFeedbackSchema,
-    TempoResetSchema,
-    TrackStoppedSchema, // Can also come from server
-    // Polls
-    PollStartedSchema,
-    PollUpdateSchema,
-    PollEndedSchema,
-    PollIdUpdatedSchema,
-    VoteRejectedSchema,
-    VoteConfirmedSchema,
+  SessionRegisteredSchema,
+  SessionStartedSchema,
+  NowPlayingSchema,
+  SessionEndedSchema,
+  SessionsListSchema,
+  LikeReceivedSchema,
+  ListenerCountSchema,
+  TempoFeedbackSchema,
+  TempoResetSchema,
+  TrackStoppedSchema, // Can also come from server
+  // Polls
+  PollStartedSchema,
+  PollUpdateSchema,
+  PollEndedSchema,
+  PollIdUpdatedSchema,
+  VoteRejectedSchema,
+  VoteConfirmedSchema,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
@@ -330,10 +330,7 @@ export type ServerMessage = z.infer<typeof ServerMessageSchema>;
 /**
  * All WebSocket messages
  */
-export const WebSocketMessageSchema = z.union([
-    ClientMessageSchema,
-    ServerMessageSchema,
-]);
+export const WebSocketMessageSchema = z.union([ClientMessageSchema, ServerMessageSchema]);
 
 export type WebSocketMessage = z.infer<typeof WebSocketMessageSchema>;
 
@@ -345,19 +342,19 @@ export type WebSocketMessage = z.infer<typeof WebSocketMessageSchema>;
  * Safely parse a WebSocket message from raw JSON string
  */
 export function parseWebSocketMessage(data: string): WebSocketMessage | null {
-    try {
-        const parsed = JSON.parse(data);
-        const result = WebSocketMessageSchema.safeParse(parsed);
-        return result.success ? result.data : null;
-    } catch {
-        return null;
-    }
+  try {
+    const parsed = JSON.parse(data);
+    const result = WebSocketMessageSchema.safeParse(parsed);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Safely parse an analysis result from raw JSON
  */
 export function parseAnalysisResult(data: unknown): AnalysisResult | null {
-    const result = AnalysisResultSchema.safeParse(data);
-    return result.success ? result.data : null;
+  const result = AnalysisResultSchema.safeParse(data);
+  return result.success ? result.data : null;
 }

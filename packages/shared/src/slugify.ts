@@ -12,58 +12,60 @@
  *   "John   Doe" → "john-doe"
  */
 export function slugify(name: string): string {
-    return name
-        .toLowerCase()
-        // Normalize unicode characters (é → e, ñ → n)
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        // Replace spaces and underscores with hyphens
-        .replace(/[\s_]+/g, "-")
-        // Remove non-alphanumeric except hyphens
-        .replace(/[^a-z0-9-]/g, "")
-        // Collapse multiple hyphens
-        .replace(/-+/g, "-")
-        // Remove leading/trailing hyphens
-        .replace(/^-+|-+$/g, "");
+  return (
+    name
+      .toLowerCase()
+      // Normalize unicode characters (é → e, ñ → n)
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      // Replace spaces and underscores with hyphens
+      .replace(/[\s_]+/g, "-")
+      // Remove non-alphanumeric except hyphens
+      .replace(/[^a-z0-9-]/g, "")
+      // Collapse multiple hyphens
+      .replace(/-+/g, "-")
+      // Remove leading/trailing hyphens
+      .replace(/^-+|-+$/g, "")
+  );
 }
 
 /**
  * Reserved slugs that cannot be used as DJ names
  */
 export const RESERVED_SLUGS = new Set([
-    "admin",
-    "api",
-    "dj",
-    "live",
-    "recap",
-    "s",
-    "session",
-    "settings",
-    "about",
-    "privacy",
-    "terms",
-    "help",
-    "support",
-    "login",
-    "logout",
-    "register",
-    "signup",
-    "dashboard",
-    "profile",
-    "account",
-    "user",
-    "users",
-    "event",
-    "events",
-    "organizer",
-    "organizers",
+  "admin",
+  "api",
+  "dj",
+  "live",
+  "recap",
+  "s",
+  "session",
+  "settings",
+  "about",
+  "privacy",
+  "terms",
+  "help",
+  "support",
+  "login",
+  "logout",
+  "register",
+  "signup",
+  "dashboard",
+  "profile",
+  "account",
+  "user",
+  "users",
+  "event",
+  "events",
+  "organizer",
+  "organizers",
 ]);
 
 /**
  * Check if a slug is reserved
  */
 export function isReservedSlug(slug: string): boolean {
-    return RESERVED_SLUGS.has(slug.toLowerCase());
+  return RESERVED_SLUGS.has(slug.toLowerCase());
 }
 
 /**
@@ -71,23 +73,23 @@ export function isReservedSlug(slug: string): boolean {
  * Returns null if valid, or an error message if invalid
  */
 export function validateDjSlug(name: string): string | null {
-    const slug = slugify(name);
+  const slug = slugify(name);
 
-    if (slug.length === 0) {
-        return "DJ name cannot be empty";
-    }
+  if (slug.length === 0) {
+    return "DJ name cannot be empty";
+  }
 
-    if (slug.length < 2) {
-        return "DJ name must be at least 2 characters";
-    }
+  if (slug.length < 2) {
+    return "DJ name must be at least 2 characters";
+  }
 
-    if (slug.length > 32) {
-        return "DJ name must be 32 characters or less";
-    }
+  if (slug.length > 32) {
+    return "DJ name must be 32 characters or less";
+  }
 
-    if (isReservedSlug(slug)) {
-        return `"${name}" is a reserved name. Please choose another.`;
-    }
+  if (isReservedSlug(slug)) {
+    return `"${name}" is a reserved name. Please choose another.`;
+  }
 
-    return null;
+  return null;
 }

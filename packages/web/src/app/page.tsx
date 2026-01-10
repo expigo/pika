@@ -1,30 +1,30 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import Link from "next/link";
 import {
-  Radio,
-  Music2,
+  Activity,
+  ArrowRight,
+  BarChart3,
+  Calendar,
+  CheckCircle2,
+  Cloud,
+  Download,
+  Gauge,
+  Globe2,
+  Headphones,
   Heart,
+  History,
+  Mail,
+  MessageCircle,
+  Music2,
+  QrCode,
+  Radio,
+  Smartphone,
+  Sparkles,
   Users,
   Zap,
-  ArrowRight,
-  Gauge,
-  QrCode,
-  Sparkles,
-  CheckCircle2,
-  Headphones,
-  Calendar,
-  Smartphone,
-  BarChart3,
-  Globe2,
-  MessageCircle,
-  History,
-  Activity,
-  Mail,
-  Download,
-  Cloud
 } from "lucide-react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 
 // API base URL helper
 function getApiBaseUrl(): string {
@@ -88,7 +88,6 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-purple-500/30">
-
       {/* 🔴 LIVE BANNER */}
       {isLive && firstSession && (
         <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg shadow-red-900/20">
@@ -142,7 +141,9 @@ export default function LandingPage() {
               <Radio className="w-4 h-4 text-red-500" />
               <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
             </div>
-            <span className="text-xs font-bold text-slate-300 tracking-widest uppercase">Real-time • Interactive • Live</span>
+            <span className="text-xs font-bold text-slate-300 tracking-widest uppercase">
+              Real-time • Interactive • Live
+            </span>
           </div>
 
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight leading-[1.1] mb-8">
@@ -154,13 +155,16 @@ export default function LandingPage() {
 
           <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed">
             Bridge the gap between the DJ booth and the dance floor.
-            <strong>Real-time feedback</strong>, <strong>smart playlists</strong>, and <strong>seamless communication</strong> for modern WCS events.
+            <strong>Real-time feedback</strong>, <strong>smart playlists</strong>, and{" "}
+            <strong>seamless communication</strong> for modern WCS events.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
             <div className="flex flex-col items-center gap-2 w-full sm:w-auto">
               <Link
-                href={isLive ? (isMultipleDJs ? "/live" : `/live/${firstSession?.sessionId}`) : "/live"}
+                href={
+                  isLive ? (isMultipleDJs ? "/live" : `/live/${firstSession?.sessionId}`) : "/live"
+                }
                 className="w-full px-8 py-4 bg-white text-slate-950 font-bold rounded-xl hover:bg-slate-100 transition-all transform hover:-translate-y-1 shadow-lg shadow-white/10 flex items-center justify-center gap-2"
               >
                 <Smartphone className="w-5 h-5" />
@@ -194,7 +198,8 @@ export default function LandingPage() {
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">A Unified Experience</h2>
             <p className="text-slate-400 max-w-2xl mx-auto">
-              Pika! isn't just a playlist viewer. It's a complete ecosystem that enhances the event for everyone.
+              Pika! isn't just a playlist viewer. It's a complete ecosystem that enhances the event
+              for everyone.
             </p>
           </div>
 
@@ -227,8 +232,8 @@ export default function LandingPage() {
                 <li className="flex items-start gap-3">
                   <History className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Set Analytics:</strong> Review your performance after the gig.
-                    Which tracks got the most loves? What cleared the floor?
+                    <strong>Set Analytics:</strong> Review your performance after the gig. Which
+                    tracks got the most loves? What cleared the floor?
                   </span>
                 </li>
               </ul>
@@ -248,14 +253,15 @@ export default function LandingPage() {
                 <li className="flex items-start gap-3">
                   <Smartphone className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Zero Friction:</strong> No app store downloads. Just scan a QR code and you're connected in seconds.
+                    <strong>Zero Friction:</strong> No app store downloads. Just scan a QR code and
+                    you're connected in seconds.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Heart className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Save for Later:</strong> "Like" a track to save it to your personal history.
-                    Never ask "What was that song?" again.
+                    <strong>Save for Later:</strong> "Like" a track to save it to your personal
+                    history. Never ask "What was that song?" again.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
@@ -282,22 +288,22 @@ export default function LandingPage() {
                 <li className="flex items-start gap-3">
                   <MessageCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Live Announcements:</strong> Need to announce a schedule change or contest?
-                    Push messages directly to every dancer's phone via the DJ screen.
+                    <strong>Live Announcements:</strong> Need to announce a schedule change or
+                    contest? Push messages directly to every dancer's phone via the DJ screen.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Globe2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Modern Standard:</strong> Elevate your event branding.
-                    Show attendees you care about their musical experience.
+                    <strong>Modern Standard:</strong> Elevate your event branding. Show attendees
+                    you care about their musical experience.
                   </span>
                 </li>
                 <li className="flex items-start gap-3">
                   <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                   <span>
-                    <strong>Plug & Play:</strong> Compatible with any setup.
-                    Works offline for DJs if venue WiFi fails (local-only mode).
+                    <strong>Plug & Play:</strong> Compatible with any setup. Works offline for DJs
+                    if venue WiFi fails (local-only mode).
                   </span>
                 </li>
               </ul>
@@ -333,7 +339,9 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h4 className="text-lg font-bold text-white mb-1">1. Install Desktop App</h4>
-                  <p className="text-slate-400 text-sm">Download Pika! for macOS. It runs alongside VirtualDJ or Serato.</p>
+                  <p className="text-slate-400 text-sm">
+                    Download Pika! for macOS. It runs alongside VirtualDJ or Serato.
+                  </p>
                 </div>
               </div>
 
@@ -343,7 +351,9 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h4 className="text-lg font-bold text-white mb-1">2. Auto-Sync to Cloud</h4>
-                  <p className="text-slate-400 text-sm">Pika! detects tracks and syncs analysis instantly. You just play music.</p>
+                  <p className="text-slate-400 text-sm">
+                    Pika! detects tracks and syncs analysis instantly. You just play music.
+                  </p>
                 </div>
               </div>
             </div>
@@ -363,7 +373,9 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h4 className="text-lg font-bold text-white mb-1">1. No App Required</h4>
-                  <p className="text-slate-400 text-sm">Just scan the QR code at the booth. Or visit <b>pika.stream</b> in your browser.</p>
+                  <p className="text-slate-400 text-sm">
+                    Just scan the QR code at the booth. Or visit <b>pika.stream</b> in your browser.
+                  </p>
                 </div>
               </div>
 
@@ -373,11 +385,12 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <h4 className="text-lg font-bold text-white mb-1">2. Vote & Save</h4>
-                  <p className="text-slate-400 text-sm">See track info instantly. Vote on tempo or save songs to your history.</p>
+                  <p className="text-slate-400 text-sm">
+                    See track info instantly. Vote on tempo or save songs to your history.
+                  </p>
                 </div>
               </div>
             </div>
-
           </div>
         </div>
       </section>
@@ -427,9 +440,7 @@ export default function LandingPage() {
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[100px]" />
 
         <div className="relative max-w-3xl mx-auto text-center">
-          <h3 className="text-3xl font-bold text-white mb-6">
-            Ready to change the vibe?
-          </h3>
+          <h3 className="text-3xl font-bold text-white mb-6">Ready to change the vibe?</h3>
           <p className="text-slate-400 mb-10 text-lg">
             Join the beta and start shaping the future of WCS events today.
           </p>

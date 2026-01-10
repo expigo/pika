@@ -8,13 +8,14 @@ import postgres from "postgres";
 import * as schema from "./schema";
 
 // Database URL from environment (default for local development)
-const DATABASE_URL = process.env["DATABASE_URL"] || "postgres://pika:pika@localhost:5433/pika_cloud";
+const DATABASE_URL =
+  process.env["DATABASE_URL"] || "postgres://pika:pika@localhost:5433/pika_cloud";
 
 // Create the postgres.js connection
 const client = postgres(DATABASE_URL, {
-    max: 10, // Connection pool size
-    idle_timeout: 60,
-    connect_timeout: 30,
+  max: 10, // Connection pool size
+  idle_timeout: 60,
+  connect_timeout: 30,
 });
 
 // Create drizzle instance with schema

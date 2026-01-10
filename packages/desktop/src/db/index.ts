@@ -8,13 +8,13 @@ let dbInstance: SqliteRemoteDatabase<typeof schema> | null = null;
 let initPromise: Promise<void> | null = null;
 
 async function initializeDb(): Promise<void> {
-    if (sqliteInstance) return;
+  if (sqliteInstance) return;
 
-    try {
-        sqliteInstance = await Database.load("sqlite:pika.db");
+  try {
+    sqliteInstance = await Database.load("sqlite:pika.db");
 
-        // Create tracks table
-        await sqliteInstance.execute(`
+    // Create tracks table
+    await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS tracks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 file_path TEXT NOT NULL UNIQUE,
@@ -32,16 +32,16 @@ async function initializeDb(): Promise<void> {
             );
         `);
 
-        // Migration: Add duration column if it doesn't exist (for existing databases)
-        try {
-            await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN duration INTEGER;`);
-            console.log("Migration: Added duration column to tracks table");
-        } catch {
-            // Column already exists, ignore error
-        }
+    // Migration: Add duration column if it doesn't exist (for existing databases)
+    try {
+      await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN duration INTEGER;`);
+      console.log("Migration: Added duration column to tracks table");
+    } catch {
+      // Column already exists, ignore error
+    }
 
-        // Create sessions table (Logbook)
-        await sqliteInstance.execute(`
+    // Create sessions table (Logbook)
+    await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS sessions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 uuid TEXT NOT NULL UNIQUE,
@@ -53,16 +53,16 @@ async function initializeDb(): Promise<void> {
             );
         `);
 
-        // Migration: Add cloud_session_id column if it doesn't exist (for existing databases)
-        try {
-            await sqliteInstance.execute(`ALTER TABLE sessions ADD COLUMN cloud_session_id TEXT;`);
-            console.log("Migration: Added cloud_session_id column to sessions table");
-        } catch {
-            // Column already exists, ignore error
-        }
+    // Migration: Add cloud_session_id column if it doesn't exist (for existing databases)
+    try {
+      await sqliteInstance.execute(`ALTER TABLE sessions ADD COLUMN cloud_session_id TEXT;`);
+      console.log("Migration: Added cloud_session_id column to sessions table");
+    } catch {
+      // Column already exists, ignore error
+    }
 
-        // Create plays table (Track history within sessions)
-        await sqliteInstance.execute(`
+    // Create plays table (Track history within sessions)
+    await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS plays (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 session_id INTEGER NOT NULL,
@@ -77,8 +77,8 @@ async function initializeDb(): Promise<void> {
             );
         `);
 
-        // Create saved_sets table
-        await sqliteInstance.execute(`
+    // Create saved_sets table
+    await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS saved_sets (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -88,8 +88,8 @@ async function initializeDb(): Promise<void> {
             );
         `);
 
-        // Create saved_set_tracks table
-        await sqliteInstance.execute(`
+    // Create saved_set_tracks table
+    await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS saved_set_tracks (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 set_id INTEGER NOT NULL,
@@ -100,74 +100,71 @@ async function initializeDb(): Promise<void> {
             );
         `);
 
-        console.log("Database initialized successfully");
-    } catch (e) {
-        console.error("Failed to initialize database:", e);
-        throw e;
-    }
+    console.log("Database initialized successfully");
+  } catch (e) {
+    console.error("Failed to initialize database:", e);
+    throw e;
+  }
 }
 
 // Export function to get SQLite connection
 export async function getSqlite() {
-    if (!initPromise) {
-        initPromise = initializeDb();
-    }
-    await initPromise;
-    if (!sqliteInstance) {
-        throw new Error("Database not initialized");
-    }
-    return sqliteInstance;
+  if (!initPromise) {
+    initPromise = initializeDb();
+  }
+  await initPromise;
+  if (!sqliteInstance) {
+    throw new Error("Database not initialized");
+  }
+  return sqliteInstance;
 }
 
 // Helper function to convert snake_case to camelCase
 function snakeToCamel(str: string): string {
-    return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
 }
 
 // Map row column names from snake_case to camelCase
 function mapRowColumns(row: Record<string, unknown>): Record<string, unknown> {
-    const mapped: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(row)) {
-        mapped[snakeToCamel(key)] = value;
-    }
-    return mapped;
+  const mapped: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(row)) {
+    mapped[snakeToCamel(key)] = value;
+  }
+  return mapped;
 }
 
 // Create drizzle instance - lazy initialization
 function createDrizzle(): SqliteRemoteDatabase<typeof schema> {
-    return drizzle(
-        async (sql, params, method) => {
-            const sqlite = await getSqlite();
-            try {
-                // For write operations (INSERT, UPDATE, DELETE), use execute()
-                // For read operations (SELECT), use select()
-                if (method === "run") {
-                    await sqlite.execute(sql, params);
-                    return { rows: [] };
-                }
+  return drizzle(
+    async (sql, params, method) => {
+      const sqlite = await getSqlite();
+      try {
+        // For write operations (INSERT, UPDATE, DELETE), use execute()
+        // For read operations (SELECT), use select()
+        if (method === "run") {
+          await sqlite.execute(sql, params);
+          return { rows: [] };
+        }
 
-                const rows: Record<string, unknown>[] = await sqlite.select(
-                    sql,
-                    params
-                );
-                // Map column names from snake_case to camelCase for Drizzle
-                const mappedRows = rows.map(mapRowColumns);
-                return { rows: mappedRows };
-            } catch (e: unknown) {
-                console.error("Error from sqlite proxy server: ", e);
-                throw e;
-            }
-        },
-        { schema }
-    );
+        const rows: Record<string, unknown>[] = await sqlite.select(sql, params);
+        // Map column names from snake_case to camelCase for Drizzle
+        const mappedRows = rows.map(mapRowColumns);
+        return { rows: mappedRows };
+      } catch (e: unknown) {
+        console.error("Error from sqlite proxy server: ", e);
+        throw e;
+      }
+    },
+    { schema },
+  );
 }
 
 // Export db getter - creates instance on first use
 export function getDb(): SqliteRemoteDatabase<typeof schema> {
-    if (!dbInstance) {
-        dbInstance = createDrizzle();
-    }
-    return dbInstance;
+  if (!dbInstance) {
+    dbInstance = createDrizzle();
+  }
+  return dbInstance;
 }
 
 // For backward compatibility - export db as a getter

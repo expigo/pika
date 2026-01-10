@@ -24,21 +24,21 @@ let cachedLocalIp: string | null = null;
  * This allows QR codes to work on phones/tablets on the same network
  */
 export async function getLocalIp(): Promise<string | null> {
-    if (cachedLocalIp) {
-        return cachedLocalIp;
-    }
+  if (cachedLocalIp) {
+    return cachedLocalIp;
+  }
 
-    try {
-        const ip = await invoke<string | null>("get_local_ip");
-        if (ip) {
-            cachedLocalIp = ip;
-            console.log("[Config] Local network IP:", ip);
-        }
-        return ip;
-    } catch (e) {
-        console.warn("[Config] Failed to get local IP:", e);
-        return null;
+  try {
+    const ip = await invoke<string | null>("get_local_ip");
+    if (ip) {
+      cachedLocalIp = ip;
+      console.log("[Config] Local network IP:", ip);
     }
+    return ip;
+  } catch (e) {
+    console.warn("[Config] Failed to get local IP:", e);
+    return null;
+  }
 }
 
 /**
@@ -47,19 +47,19 @@ export async function getLocalIp(): Promise<string | null> {
  * For DEV: Try to use local IP for LAN access if available, else localhost
  */
 export function getWebClientBaseUrl(localIp?: string | null): string {
-    const settings = getStoredSettings();
+  const settings = getStoredSettings();
 
-    // In Production, ignore local IP, always use the public domain
-    if (settings.serverEnv === "prod") {
-        return WEB_CLIENT_URL;
-    }
-
-    // In Dev, support LAN IP
-    if (localIp) {
-        return `http://${localIp}:3002`; // Dev server port (see packages/web/package.json)
-    }
-
+  // In Production, ignore local IP, always use the public domain
+  if (settings.serverEnv === "prod") {
     return WEB_CLIENT_URL;
+  }
+
+  // In Dev, support LAN IP
+  if (localIp) {
+    return `http://${localIp}:3002`; // Dev server port (see packages/web/package.json)
+  }
+
+  return WEB_CLIENT_URL;
 }
 
 /**
@@ -69,13 +69,17 @@ export function getWebClientBaseUrl(localIp?: string | null): string {
  * @param djName - Optional DJ name (passed as query param for display)
  * @param localIp - Optional local IP to use for LAN access
  */
-export function getListenerUrl(sessionId: string, djName?: string, localIp?: string | null): string {
-    const baseUrl = getWebClientBaseUrl(localIp);
-    const url = new URL(`${baseUrl}/live/${sessionId}`);
-    if (djName) {
-        url.searchParams.set("dj", djName);
-    }
-    return url.toString();
+export function getListenerUrl(
+  sessionId: string,
+  djName?: string,
+  localIp?: string | null,
+): string {
+  const baseUrl = getWebClientBaseUrl(localIp);
+  const url = new URL(`${baseUrl}/live/${sessionId}`);
+  if (djName) {
+    url.searchParams.set("dj", djName);
+  }
+  return url.toString();
 }
 
 /**
@@ -85,10 +89,10 @@ export function getListenerUrl(sessionId: string, djName?: string, localIp?: str
  * @param localIp - Optional local IP to use for LAN access
  */
 export function getRecapUrl(sessionId: string, djName?: string, localIp?: string | null): string {
-    const baseUrl = getWebClientBaseUrl(localIp);
-    const url = new URL(`${baseUrl}/recap/${sessionId}`);
-    if (djName) {
-        url.searchParams.set("dj", djName);
-    }
-    return url.toString();
+  const baseUrl = getWebClientBaseUrl(localIp);
+  const url = new URL(`${baseUrl}/recap/${sessionId}`);
+  if (djName) {
+    url.searchParams.set("dj", djName);
+  }
+  return url.toString();
 }

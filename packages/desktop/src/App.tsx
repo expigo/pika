@@ -1,25 +1,26 @@
 import { PIKA_VERSION } from "@pika/shared";
-import { useSidecar } from "./hooks/useSidecar";
-import { useLiveSession } from "./hooks/useLiveSession";
-import { LibraryImporter } from "./components/LibraryImporter";
+import { Calendar, LayoutGrid, Maximize2 } from "lucide-react";
+import { Toaster } from "sonner";
 import { AnalyzerStatus } from "./components/AnalyzerStatus";
 import { LibraryBrowser } from "./components/LibraryBrowser";
-import { SetCanvas } from "./components/SetCanvas";
+import { LibraryImporter } from "./components/LibraryImporter";
 import { LiveControl } from "./components/LiveControl";
 import { LivePerformanceMode } from "./components/LivePerformanceMode";
 import { Logbook } from "./components/Logbook";
-import { Toaster } from "sonner";
-import { Maximize2, LayoutGrid, Calendar } from "lucide-react";
-import { useDjSettings, getStoredSettings } from "./hooks/useDjSettings";
+import { SetCanvas } from "./components/SetCanvas";
+import { getStoredSettings, useDjSettings } from "./hooks/useDjSettings";
+import { useLiveSession } from "./hooks/useLiveSession";
+import { useSidecar } from "./hooks/useSidecar";
 import "./App.css";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 type ViewMode = "builder" | "logbook";
 
 function App() {
   const { status, baseUrl, healthData, error, restart } = useSidecar();
-  const { isLive, listenerCount, tempoFeedback, activePoll, startPoll, endPoll, sessionId } = useLiveSession();
+  const { isLive, listenerCount, tempoFeedback, activePoll, startPoll, endPoll, sessionId } =
+    useLiveSession();
   const {
     setServerEnv,
     djName,
@@ -28,7 +29,7 @@ function App() {
     isValidating,
     validationError,
     setAuthToken,
-    clearToken
+    clearToken,
   } = useDjSettings();
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
@@ -36,8 +37,7 @@ function App() {
   const [tokenInput, setTokenInput] = useState(getStoredSettings().authToken || "");
 
   // Check if we're in Tauri
-  const inTauri =
-    typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
   const refreshTracks = () => {
     if (!inTauri) return;
@@ -124,18 +124,12 @@ function App() {
       {status !== "ready" && status !== "browser" && (
         <div style={styles.statusBanner}>
           {status === "starting" && (
-            <span style={styles.statusText}>
-              ⏳ Starting analysis engine...
-            </span>
+            <span style={styles.statusText}>⏳ Starting analysis engine...</span>
           )}
           {status === "error" && (
             <>
               <span style={styles.statusError}>⚠️ {error}</span>
-              <button
-                type="button"
-                onClick={restart}
-                style={styles.retryButton}
-              >
+              <button type="button" onClick={restart} style={styles.retryButton}>
                 Retry
               </button>
             </>
@@ -143,11 +137,7 @@ function App() {
           {status === "idle" && (
             <>
               <span style={styles.statusText}>Engine stopped</span>
-              <button
-                type="button"
-                onClick={restart}
-                style={styles.retryButton}
-              >
+              <button type="button" onClick={restart} style={styles.retryButton}>
                 Start
               </button>
             </>
@@ -166,7 +156,8 @@ function App() {
       {/* Settings panel - hidden by default */}
       <details style={styles.debugSection}>
         <summary style={styles.debugSummary}>
-          ⚙️ Settings {isAuthenticated && <span style={styles.authBadge}>✓ {djInfo?.displayName}</span>}
+          ⚙️ Settings{" "}
+          {isAuthenticated && <span style={styles.authBadge}>✓ {djInfo?.displayName}</span>}
         </summary>
         <div style={styles.debugPanel}>
           {/* DJ Account */}
@@ -203,11 +194,7 @@ function App() {
                     pika.stream/dj/{djInfo.slug}
                   </a>
                 </div>
-                <button
-                  type="button"
-                  onClick={clearToken}
-                  style={styles.logoutBtn}
-                >
+                <button type="button" onClick={clearToken} style={styles.logoutBtn}>
                   Sign Out
                 </button>
               </div>
@@ -232,9 +219,7 @@ function App() {
                     {isValidating ? "..." : "Connect"}
                   </button>
                 </div>
-                {validationError && (
-                  <p style={styles.errorText}>{validationError}</p>
-                )}
+                {validationError && <p style={styles.errorText}>{validationError}</p>}
                 <p style={styles.tokenHint}>
                   Enter your DJ token to authenticate sessions.{" "}
                   <a
@@ -267,11 +252,11 @@ function App() {
           </div>
 
           {/* Debug Info (collapsed) */}
-          <details style={{ marginTop: '1rem' }}>
-            <summary style={{ cursor: 'pointer', color: '#64748b', fontSize: '0.75rem' }}>
+          <details style={{ marginTop: "1rem" }}>
+            <summary style={{ cursor: "pointer", color: "#64748b", fontSize: "0.75rem" }}>
               🔧 Debug Info
             </summary>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem' }}>
+            <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.5rem" }}>
               <div>inTauri={String(inTauri)}</div>
               <div>Status: {status}</div>
               <div>Base URL: {baseUrl ?? "null"}</div>

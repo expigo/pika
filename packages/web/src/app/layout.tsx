@@ -14,7 +14,8 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Pika! - Real-time DJ Feedback for WCS",
-  description: "The intelligent companion for West Coast Swing DJs and Dancers. Real-time track info, tempo voting, and analytics.",
+  description:
+    "The intelligent companion for West Coast Swing DJs and Dancers. Real-time track info, tempo voting, and analytics.",
   icons: {
     icon: "/favicon.ico",
   },
@@ -27,11 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-      </body>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>{children}</body>
     </html>
   );
 }

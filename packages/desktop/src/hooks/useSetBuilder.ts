@@ -1,166 +1,165 @@
-import { create } from "zustand";
 import { arrayMove } from "@dnd-kit/sortable";
+import { create } from "zustand";
+import { type SavedSet, savedSetRepository } from "../db/repositories/savedSetRepository";
 import type { Track } from "../db/repositories/trackRepository";
-import { savedSetRepository, type SavedSet } from "../db/repositories/savedSetRepository";
 
 interface SetStore {
-    // Current working set
-    activeSet: Track[];
-    currentSetId: number | null;  // ID if loaded from saved set
-    currentSetName: string | null;
+  // Current working set
+  activeSet: Track[];
+  currentSetId: number | null; // ID if loaded from saved set
+  currentSetName: string | null;
 
-    // Saved sets list
-    savedSets: SavedSet[];
+  // Saved sets list
+  savedSets: SavedSet[];
 
-    // Actions for current set
-    addTrack: (track: Track) => void;
-    removeTrack: (id: number) => void;
-    reorderTracks: (oldIndex: number, newIndex: number) => void;
-    clearSet: () => void;
+  // Actions for current set
+  addTrack: (track: Track) => void;
+  removeTrack: (id: number) => void;
+  reorderTracks: (oldIndex: number, newIndex: number) => void;
+  clearSet: () => void;
 
-    // Actions for save/load
-    loadSavedSets: () => Promise<void>;
-    loadSet: (setId: number) => Promise<void>;
-    saveCurrentSet: (name: string) => Promise<number>;
-    updateCurrentSet: () => Promise<void>;
-    deleteSavedSet: (setId: number) => Promise<void>;
+  // Actions for save/load
+  loadSavedSets: () => Promise<void>;
+  loadSet: (setId: number) => Promise<void>;
+  saveCurrentSet: (name: string) => Promise<number>;
+  updateCurrentSet: () => Promise<void>;
+  deleteSavedSet: (setId: number) => Promise<void>;
 }
 
 export const useSetStore = create<SetStore>((set, get) => ({
-    activeSet: [],
-    currentSetId: null,
-    currentSetName: null,
-    savedSets: [],
+  activeSet: [],
+  currentSetId: null,
+  currentSetName: null,
+  savedSets: [],
 
-    addTrack: (track) =>
-        set((state) => {
-            // Prevent duplicates based on ID
-            if (state.activeSet.some((t) => t.id === track.id)) {
-                return state;
-            }
-            return { activeSet: [...state.activeSet, track] };
-        }),
-
-    removeTrack: (id) =>
-        set((state) => ({
-            activeSet: state.activeSet.filter((t) => t.id !== id),
-        })),
-
-    reorderTracks: (oldIndex, newIndex) =>
-        set((state) => ({
-            activeSet: arrayMove(state.activeSet, oldIndex, newIndex),
-        })),
-
-    clearSet: () => set({
-        activeSet: [],
-        currentSetId: null,
-        currentSetName: null
+  addTrack: (track) =>
+    set((state) => {
+      // Prevent duplicates based on ID
+      if (state.activeSet.some((t) => t.id === track.id)) {
+        return state;
+      }
+      return { activeSet: [...state.activeSet, track] };
     }),
 
-    // Load list of saved sets
-    loadSavedSets: async () => {
-        try {
-            const sets = await savedSetRepository.getAllSets();
-            set({ savedSets: sets });
-        } catch (e) {
-            console.error("Failed to load saved sets:", e);
-        }
-    },
+  removeTrack: (id) =>
+    set((state) => ({
+      activeSet: state.activeSet.filter((t) => t.id !== id),
+    })),
 
-    // Load a specific saved set
-    loadSet: async (setId: number) => {
-        try {
-            const savedSet = await savedSetRepository.getSetWithTracks(setId);
-            if (savedSet) {
-                set({
-                    activeSet: savedSet.tracks,
-                    currentSetId: savedSet.id,
-                    currentSetName: savedSet.name,
-                });
-            }
-        } catch (e) {
-            console.error("Failed to load set:", e);
-        }
-    },
+  reorderTracks: (oldIndex, newIndex) =>
+    set((state) => ({
+      activeSet: arrayMove(state.activeSet, oldIndex, newIndex),
+    })),
 
-    // Save current set as new
-    saveCurrentSet: async (name: string) => {
-        const { activeSet } = get();
-        const trackIds = activeSet.map((t) => t.id);
+  clearSet: () =>
+    set({
+      activeSet: [],
+      currentSetId: null,
+      currentSetName: null,
+    }),
 
-        const newSetId = await savedSetRepository.saveSet(name, trackIds);
+  // Load list of saved sets
+  loadSavedSets: async () => {
+    try {
+      const sets = await savedSetRepository.getAllSets();
+      set({ savedSets: sets });
+    } catch (e) {
+      console.error("Failed to load saved sets:", e);
+    }
+  },
 
-        // Update state
+  // Load a specific saved set
+  loadSet: async (setId: number) => {
+    try {
+      const savedSet = await savedSetRepository.getSetWithTracks(setId);
+      if (savedSet) {
         set({
-            currentSetId: newSetId,
-            currentSetName: name,
+          activeSet: savedSet.tracks,
+          currentSetId: savedSet.id,
+          currentSetName: savedSet.name,
         });
+      }
+    } catch (e) {
+      console.error("Failed to load set:", e);
+    }
+  },
 
-        // Refresh saved sets list
-        await get().loadSavedSets();
+  // Save current set as new
+  saveCurrentSet: async (name: string) => {
+    const { activeSet } = get();
+    const trackIds = activeSet.map((t) => t.id);
 
-        return newSetId;
-    },
+    const newSetId = await savedSetRepository.saveSet(name, trackIds);
 
-    // Update existing set with current tracks
-    updateCurrentSet: async () => {
-        const { activeSet, currentSetId } = get();
-        if (!currentSetId) return;
+    // Update state
+    set({
+      currentSetId: newSetId,
+      currentSetName: name,
+    });
 
-        const trackIds = activeSet.map((t) => t.id);
-        await savedSetRepository.updateSetTracks(currentSetId, trackIds);
+    // Refresh saved sets list
+    await get().loadSavedSets();
 
-        // Refresh saved sets list
-        await get().loadSavedSets();
-    },
+    return newSetId;
+  },
 
-    // Delete a saved set
-    deleteSavedSet: async (setId: number) => {
-        const { currentSetId } = get();
+  // Update existing set with current tracks
+  updateCurrentSet: async () => {
+    const { activeSet, currentSetId } = get();
+    if (!currentSetId) return;
 
-        await savedSetRepository.deleteSet(setId);
+    const trackIds = activeSet.map((t) => t.id);
+    await savedSetRepository.updateSetTracks(currentSetId, trackIds);
 
-        // If we deleted the currently loaded set, clear the reference
-        if (currentSetId === setId) {
-            set({
-                currentSetId: null,
-                currentSetName: null,
-            });
-        }
+    // Refresh saved sets list
+    await get().loadSavedSets();
+  },
 
-        // Refresh saved sets list
-        await get().loadSavedSets();
-    },
+  // Delete a saved set
+  deleteSavedSet: async (setId: number) => {
+    const { currentSetId } = get();
+
+    await savedSetRepository.deleteSet(setId);
+
+    // If we deleted the currently loaded set, clear the reference
+    if (currentSetId === setId) {
+      set({
+        currentSetId: null,
+        currentSetName: null,
+      });
+    }
+
+    // Refresh saved sets list
+    await get().loadSavedSets();
+  },
 }));
 
 // Derived calculations
 export function getSetStats(tracks: Track[]) {
-    const totalTracks = tracks.length;
+  const totalTracks = tracks.length;
 
-    // Calculate average energy
-    const tracksWithEnergy = tracks.filter((t) => t.energy !== null);
-    const avgEnergy =
-        tracksWithEnergy.length > 0
-            ? tracksWithEnergy.reduce((sum, t) => sum + (t.energy ?? 0), 0) /
-            tracksWithEnergy.length
-            : 0;
+  // Calculate average energy
+  const tracksWithEnergy = tracks.filter((t) => t.energy !== null);
+  const avgEnergy =
+    tracksWithEnergy.length > 0
+      ? tracksWithEnergy.reduce((sum, t) => sum + (t.energy ?? 0), 0) / tracksWithEnergy.length
+      : 0;
 
-    // Calculate average BPM
-    const tracksWithBpm = tracks.filter((t) => t.bpm !== null);
-    const avgBpm =
-        tracksWithBpm.length > 0
-            ? tracksWithBpm.reduce((sum, t) => sum + (t.bpm ?? 0), 0) /
-            tracksWithBpm.length
-            : 0;
+  // Calculate average BPM
+  const tracksWithBpm = tracks.filter((t) => t.bpm !== null);
+  const avgBpm =
+    tracksWithBpm.length > 0
+      ? tracksWithBpm.reduce((sum, t) => sum + (t.bpm ?? 0), 0) / tracksWithBpm.length
+      : 0;
 
-    // Calculate total duration
-    const tracksWithDuration = tracks.filter((t) => t.duration !== null);
-    const totalDuration = tracksWithDuration.reduce((sum, t) => sum + (t.duration ?? 0), 0);
+  // Calculate total duration
+  const tracksWithDuration = tracks.filter((t) => t.duration !== null);
+  const totalDuration = tracksWithDuration.reduce((sum, t) => sum + (t.duration ?? 0), 0);
 
-    return {
-        totalTracks,
-        avgEnergy: Math.round(avgEnergy),
-        avgBpm: Math.round(avgBpm * 10) / 10,
-        totalDuration,
-    };
+  return {
+    totalTracks,
+    avgEnergy: Math.round(avgEnergy),
+    avgBpm: Math.round(avgBpm * 10) / 10,
+    totalDuration,
+  };
 }
