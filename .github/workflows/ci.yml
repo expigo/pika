@@ -21,15 +21,16 @@ jobs:
       - name: Install Dependencies
         run: bun install
 
-      # Check Cloud Package
-      - name: Check Cloud Package (Lint & Typecheck)
-        run: |
-          bun run --filter @pika/cloud lint
-          bun run --filter @pika/cloud typecheck
+      # Global Lint (Faster & Covers everything)
+      - name: Global Lint (Biome)
+        run: bun run lint
+
+      # Type Check Cloud
+      - name: Type Check Cloud
+        run: bun run --filter @pika/cloud typecheck
       
-      # Check Web Package
-      - name: Check Web Package (Lint & Typecheck & Build)
+      # Web Build & Type Check
+      - name: Type Check & Build Web
         run: |
-          bun run --filter @pika/web lint
           bun run --filter @pika/web typecheck
           bun run --filter @pika/web build
