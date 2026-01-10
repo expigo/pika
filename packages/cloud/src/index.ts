@@ -10,7 +10,7 @@ import {
     type TrackInfo,
 } from "@pika/shared";
 import { db, schema } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
