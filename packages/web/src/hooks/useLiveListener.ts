@@ -461,8 +461,8 @@ export function useLiveListener(targetSessionId?: string) {
               pollMsg.votes ||
               (isNewPoll
                 ? (new Array(pollMsg.options.length).fill(0) as number[])
-                : prev.activePoll!.votes);
-            const totalVotes = pollMsg.totalVotes ?? (isNewPoll ? 0 : prev.activePoll!.totalVotes);
+                : prev.activePoll?.votes);
+            const totalVotes = pollMsg.totalVotes ?? (isNewPoll ? 0 : prev.activePoll?.totalVotes);
 
             // Use server-provided hasVoted if available, otherwise preserve local state
             const hasVotedOnPoll = pollMsg.hasVoted ?? (isNewPoll ? false : prev.hasVotedOnPoll);
@@ -628,7 +628,7 @@ export function useLiveListener(targetSessionId?: string) {
     };
     // Note: fetchHistory is stable (no deps), don't include in deps array to avoid infinite loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetSessionId]);
+  }, [targetSessionId, fetchHistory, state.sessionId]);
 
   // Send a like for the current track (returns true if sent, false if already liked)
   const sendLike = useCallback(

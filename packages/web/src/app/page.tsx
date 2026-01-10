@@ -15,7 +15,6 @@ import {
   History,
   Mail,
   MessageCircle,
-  Music2,
   QrCode,
   Radio,
   Smartphone,
@@ -58,7 +57,7 @@ interface ActiveSessionsResponse {
 
 export default function LandingPage() {
   const [liveData, setLiveData] = useState<ActiveSessionsResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [_isLoading, setIsLoading] = useState(true);
 
   // Fetch active sessions on mount
   useEffect(() => {

@@ -6,7 +6,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Clock,
   Heart,
   Music2,
   Radio,

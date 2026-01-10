@@ -5,7 +5,6 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Clock,
   Heart,
   Music2,
   Radio,
@@ -137,7 +136,7 @@ export default function RecapPage() {
           text: `Check out this DJ set: ${recap?.trackCount} tracks played!`,
           url,
         });
-      } catch (e) {
+      } catch (_e) {
         // User cancelled or error
       }
     } else {

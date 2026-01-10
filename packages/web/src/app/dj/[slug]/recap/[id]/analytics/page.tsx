@@ -7,7 +7,6 @@ import {
   Area,
   AreaChart,
   Bar,
-  BarChart,
   CartesianGrid,
   ComposedChart,
   Legend,
@@ -96,7 +95,7 @@ interface ChartDataPoint {
 }
 
 // Calculate tempo sentiment score (-1 to +1, where -1 = all slower, +1 = all faster)
-function getTempoSentiment(tempo: TempoData | null): number {
+function _getTempoSentiment(tempo: TempoData | null): number {
   if (!tempo) return 0;
   const total = tempo.slower + tempo.perfect + tempo.faster;
   if (total === 0) return 0;
@@ -114,7 +113,7 @@ function formatTime(dateString: string): string {
 
 // Truncate text
 function truncate(text: string, maxLength: number): string {
-  return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
+  return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 }
 
 export default function AnalyticsPage({
@@ -221,7 +220,7 @@ export default function AnalyticsPage({
     (max, d) => (d.likes > max.likes ? d : max),
     chartData[0],
   );
-  const mostEngagedTrack = chartData.reduce(
+  const _mostEngagedTrack = chartData.reduce(
     (max, d) => (d.totalEngagement > max.totalEngagement ? d : max),
     chartData[0],
   );

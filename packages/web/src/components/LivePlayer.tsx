@@ -1,19 +1,6 @@
 "use client";
 
-import {
-  Check,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Heart,
-  Music2,
-  Radio,
-  Share2,
-  Users,
-  Wifi,
-  WifiOff,
-  X,
-} from "lucide-react";
+import { Check, Clock, Heart, Music2, Radio, Share2, Users, Wifi, WifiOff, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
@@ -161,7 +148,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
             : `Join the live session with ${djName}!`,
           url: shareUrl,
         });
-      } catch (e) {
+      } catch (_e) {
         // User cancelled or error, show QR as fallback
         setShowQR(true);
       }

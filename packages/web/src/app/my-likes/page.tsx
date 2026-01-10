@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Calendar, Heart, Music2, Radio, User } from "lucide-react";
+import { ArrowLeft, Calendar, Heart, Radio, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -84,7 +84,7 @@ export default function MyLikesPage() {
   const [likes, setLikes] = useState<LikesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [clientId, setClientId] = useState<string | null>(null);
+  const [_clientId, setClientId] = useState<string | null>(null);
 
   useEffect(() => {
     const id = getClientId();

@@ -37,7 +37,7 @@ export default function LivePage() {
   useEffect(() => {
     const fetchSessions = async () => {
       try {
-        const apiUrl = process.env["NEXT_PUBLIC_CLOUD_API_URL"] || "http://localhost:3001";
+        const apiUrl = process.env.NEXT_PUBLIC_CLOUD_API_URL || "http://localhost:3001";
         const response = await fetch(`${apiUrl}/api/sessions/active`);
         if (response.ok) {
           const data: SessionsResponse = await response.json();
