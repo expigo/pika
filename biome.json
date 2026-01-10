@@ -40,6 +40,11 @@
             "lineWidth": 100
         }
     },
+    "css": {
+        "parser": {
+            "allowWrongSyntax": true
+        }
+    },
     "javascript": {
         "formatter": {
             "quoteStyle": "double",
