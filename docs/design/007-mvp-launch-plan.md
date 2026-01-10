@@ -538,11 +538,20 @@ Future feature (post-MVP):
   - [x] **API Auth Middleware**: Protect all sensitive endpoints (e.g. `/api/auth/me` verifies tokens).
   - [x] **Clear Auth on Switch**: Prevent cross-environment pollution in Desktop App.
   - [x] **Credential Cleanup**: Removed hardcoded secrets from `docker-compose.staging.yml`.
+  
 
-- [ ] **Connectivity Resilience**:
-  - [ ] Implement `reconnect logic` with exponential backoff in `useLiveListener` and `useLiveSession`.
-  - [ ] Add `state reconciliation` on reconnect (fetch latest state from API).
-  - [ ] Offline Mode: Queue "Likes" and "Votes" locally and sync when online.
+- [ ] **Connectivity & Offline Resilience**:
+  - [ ] **Socket Recovery (Reconnect Logic)**: Implement exponential backoff for WebSocket reconnection handling (client-side).
+  - [ ] **Data Sync (State Reconciliation)**: Fetch authoritative state from API after socket reconnection to resolve any missed events (likes, votes).
+  - [ ] **Offline Mode (Queueing)**: Implement local queue for "Likes" and "Votes" to support offline interaction; sync when connectivity restores.
+
+- [ ] **Data Hygiene & Stability**:
+  - [ ] **DB Ghost Track Hygiene**: Normalize Artist/Title (trim, casing) before `findOrCreateTrack` to strictly prevent duplicate entries.
+  - [ ] **Poll State Robustness**: Fix race condition/logic where `id: -1` (idle state) incorrectly overrides an active poll state on client update.
+
+- [ ] **Session & UX**:
+  - [ ] **Session Resume (UI Persistence)**: Store `currentSessionId` in `localStorage`. If DJ restarts app/refreshes within 5 mins, automatically rejoin the existing session instead of creating a new one.
+  - [ ] **QR Code Safety**: Force Desktop App to generate QR codes using the public URL (`https://pika.stream`) instead of potentially private/unreachable LAN IPs.
 
 - [ ] **Production Prep**:
   - [x] Database Backup Scripts (`scripts/backup-db.sh`).
