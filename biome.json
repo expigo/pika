@@ -6,13 +6,7 @@
         "useIgnoreFile": true
     },
     "files": {
-        "ignoreUnknown": false,
-        "ignore": [
-            "node_modules",
-            "dist",
-            ".bun",
-            "target"
-        ]
+        "ignoreUnknown": false
     },
     "formatter": {
         "enabled": true,
@@ -20,9 +14,6 @@
         "indentWidth": 2,
         "lineEnding": "lf",
         "lineWidth": 100
-    },
-    "organizeImports": {
-        "enabled": true
     },
     "linter": {
         "enabled": true,
