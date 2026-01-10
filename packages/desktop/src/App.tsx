@@ -247,6 +247,7 @@ function App() {
               style={styles.envSelect}
             >
               <option value="prod">Production (pika.stream)</option>
+              <option value="staging">Staging (staging.pika.stream)</option>
               <option value="dev">Development (localhost)</option>
             </select>
           </div>

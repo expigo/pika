@@ -14,7 +14,7 @@ import { useCallback, useState } from "react";
 
 const STORAGE_KEY = "pika_dj_settings";
 
-export type ServerEnv = "dev" | "prod";
+export type ServerEnv = "dev" | "prod" | "staging";
 
 // Validated DJ info from token
 export interface DjInfo {
@@ -66,6 +66,9 @@ function getApiBaseUrl(): string {
   const settings = loadSettings();
   if (settings.serverEnv === "prod") {
     return "https://api.pika.stream";
+  }
+  if (settings.serverEnv === "staging") {
+    return "https://staging-api.pika.stream";
   }
   return "http://localhost:3001";
 }
@@ -245,6 +248,14 @@ export function getConfiguredUrls() {
       wsUrl: "wss://api.pika.stream/ws",
       webUrl: "https://pika.stream",
       apiUrl: "https://api.pika.stream",
+    };
+  }
+
+  if (settings.serverEnv === "staging") {
+    return {
+      wsUrl: "wss://staging-api.pika.stream/ws",
+      webUrl: "https://staging.pika.stream",
+      apiUrl: "https://staging-api.pika.stream",
     };
   }
 
