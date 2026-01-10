@@ -531,23 +531,31 @@ Future feature (post-MVP):
   - [ ] Prepare backup hotspot
   - [ ] Rest before event!
 
-### Week 5: Pre-Launch Polish (Added 2026-01-10)
+### Week 5: Pre-Launch Polish (In Progress)
+- [x] **Security Hardening**:
+  - [x] **Secure Token Generation**: Switch from `Math.random()` to `crypto.randomUUID()` in `cloud`.
+  - [x] **Hash Tokens**: Store `SHA-256` hash of tokens in DB; do not store raw tokens.
+  - [x] **API Auth Middleware**: Protect all sensitive endpoints (e.g. `/api/auth/me` verifies tokens).
+  - [x] **Clear Auth on Switch**: Prevent cross-environment pollution in Desktop App.
+  - [x] **Credential Cleanup**: Removed hardcoded secrets from `docker-compose.staging.yml`.
+  
 
-This final sprint addresses critical "Day 1" bugs found during security audit.
+- [ ] **Connectivity & Offline Resilience**:
+  - [ ] **Socket Recovery (Reconnect Logic)**: Implement exponential backoff for WebSocket reconnection handling (client-side).
+  - [ ] **Data Sync (State Reconciliation)**: Fetch authoritative state from API after socket reconnection to resolve any missed events (likes, votes).
+  - [ ] **Offline Mode (Queueing)**: Implement local queue for "Likes" and "Votes" to support offline interaction; sync when connectivity restores.
 
-**Priority 1: Security Hardening**
-- [ ] **Secure Token Generation**: Switch from `Math.random()` to `crypto.randomUUID()` in `cloud`.
-- [ ] **Hash Tokens**: Store `SHA-256` hash of tokens in DB; do not store raw tokens.
-- [ ] **API Auth Middleware**: Protect all sensitive endpoints (e.g. `/api/auth/me` is open, but writes need guards).
-- [ ] **DB Ghost Track Hygiene**: Normalize Artist/Title before `findOrCreateTrack` to prevent duplicates.
+- [ ] **Data Hygiene & Stability**:
+  - [ ] **DB Ghost Track Hygiene**: Normalize Artist/Title (trim, casing) before `findOrCreateTrack` to strictly prevent duplicate entries.
+  - [ ] **Poll State Robustness**: Fix race condition/logic where `id: -1` (idle state) incorrectly overrides an active poll state on client update.
 
-**Priority 2: Connectivity Resilience**
-- [ ] **Session Resume**: Store `currentSessionId` in `localStorage`. If DJ reconnects < 5 mins, RESUME session (don't create new).
-- [ ] **QR Code Safety**: Force QR code to use `https://pika.stream` (public), NOT `localIp` (private VLAN).
-- [ ] **Poll State robustness**: Fix race condition where `id: -1` is not updated correctly if valid poll exists.
+- [ ] **Session & UX**:
+  - [ ] **Session Resume (UI Persistence)**: Store `currentSessionId` in `localStorage`. If DJ restarts app/refreshes within 5 mins, automatically rejoin the existing session instead of creating a new one.
+  - [ ] **QR Code Safety**: Force Desktop App to generate QR codes using the public URL (`https://pika.stream`) instead of potentially private/unreachable LAN IPs.
 
-**Priority 3: Ops**
-- [ ] **Staging Environment**: Configure GitHub Actions to deploy `main` -> `staging.pika.stream`.
+- [ ] **Production Prep**:
+  - [x] Database Backup Scripts (`scripts/backup-db.sh`).
+  - [ ] Final "Go / No-Go" decision.
 
 
 ---
@@ -580,6 +588,7 @@ This final sprint addresses critical "Day 1" bugs found during security audit.
 |-------|--------|----------|-------|
 | WebSocket Rate Limiting | ⏳ Pending | `index.ts:830` | DoS protection |
 | DJ Profile Query Optimization | ⏳ Pending | `index.ts:1055` | Loads all sessions |
+| **Old Token Cleanup Job** | ⏳ Pending | `cron task` | Delete tokens where `lastUsed` > 30 days to keep DB light |
 
 ---
 
@@ -789,3 +798,6 @@ Complexity: Medium. Value: High. **Worth doing after MVP validated.**
 | | | - Added: Network/venue recommendations |
 | | | - Removed: Nginx (Cloudflare handles SSL) |
 | | | - Added: Future cloud library feature notes |
+| 1.2.0 | 2026-01-10 | - Completed Staging Environment Setup |
+| | | - Completed Security Hardening (Hashing, Rotation, Secure Envs) |
+| | | - Added Connectivity Resilience Plan |
