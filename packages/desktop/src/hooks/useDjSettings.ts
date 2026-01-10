@@ -10,7 +10,7 @@
  * 5. Next app launch → token is still there, name is synced
  */
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_KEY = "pika_dj_settings";
 
@@ -51,9 +51,17 @@ function loadSettings(): DjSettings {
   return DEFAULT_SETTINGS;
 }
 
+// Custom event to sync settings across hook instances
+const SETTINGS_UPDATED_EVENT = "pika:settings-updated";
+
+function dispatchSettingsUpdate() {
+  window.dispatchEvent(new Event(SETTINGS_UPDATED_EVENT));
+}
+
 function saveSettings(settings: DjSettings): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
+    dispatchSettingsUpdate(); // Notify all listeners
   } catch (e) {
     console.error("Failed to save DJ settings:", e);
   }
@@ -113,6 +121,15 @@ export function useDjSettings() {
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Sync settings across hook instances (e.g. between App and LiveControl)
+  useEffect(() => {
+    const handleUpdate = () => {
+      setSettingsState(loadSettings());
+    };
+    window.addEventListener(SETTINGS_UPDATED_EVENT, handleUpdate);
+    return () => window.removeEventListener(SETTINGS_UPDATED_EVENT, handleUpdate);
+  }, []);
+
   const setDjName = useCallback((djName: string) => {
     setSettingsState((prev) => {
       const newSettings = { ...prev, djName };
@@ -123,7 +140,15 @@ export function useDjSettings() {
 
   const setServerEnv = useCallback((serverEnv: ServerEnv) => {
     setSettingsState((prev) => {
-      const newSettings = { ...prev, serverEnv };
+      // Security: Clear auth data when switching environments to prevent
+      // using a token from one env in another.
+      const newSettings = {
+        ...prev,
+        serverEnv,
+        authToken: "",
+        djInfo: null,
+        djName: "",
+      };
       saveSettings(newSettings);
       // Reload to ensure all socket connections reconnect to new URL
       window.location.reload();

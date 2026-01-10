@@ -49,8 +49,8 @@ export async function getLocalIp(): Promise<string | null> {
 export function getWebClientBaseUrl(localIp?: string | null): string {
   const settings = getStoredSettings();
 
-  // In Production, ignore local IP, always use the public domain
-  if (settings.serverEnv === "prod") {
+  // In Production or Staging, ignore local IP, always use the public domain
+  if (settings.serverEnv === "prod" || settings.serverEnv === "staging") {
     return WEB_CLIENT_URL;
   }
 
