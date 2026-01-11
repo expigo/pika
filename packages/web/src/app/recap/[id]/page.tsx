@@ -9,10 +9,8 @@ import {
   Music2,
   Radio,
   Share2,
-  TrendingUp,
   User,
 } from "lucide-react";
-import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -86,18 +84,6 @@ function formatDuration(start: string, end: string): string {
   const hours = Math.floor(diffMins / 60);
   const mins = diffMins % 60;
   return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-}
-
-// Convert DJ name to slug
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
 }
 
 export default function RecapPage() {
@@ -249,25 +235,6 @@ export default function RecapPage() {
             </div>
           </div>
         </div>
-
-        {/* Analytics Link */}
-        <Link
-          href={`/dj/${slugify(recap.djName)}/recap/${sessionId}/analytics`}
-          className="block bg-gradient-to-r from-purple-500/10 to-pink-500/10 backdrop-blur-xl rounded-2xl border border-purple-500/30 hover:border-purple-500/50 p-4 mb-6 transition-all hover:shadow-lg hover:shadow-purple-500/10"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <TrendingUp className="w-6 h-6 text-purple-400" />
-              <div>
-                <div className="font-semibold text-white">View Analytics</div>
-                <div className="text-sm text-slate-400">
-                  Detailed engagement charts & tempo analysis
-                </div>
-              </div>
-            </div>
-            <span className="text-purple-400">→</span>
-          </div>
-        </Link>
 
         {/* Track List */}
         <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden">

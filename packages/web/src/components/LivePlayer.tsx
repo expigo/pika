@@ -1,8 +1,21 @@
 "use client";
 
-import { Check, Clock, Heart, Music2, Radio, Share2, Users, Wifi, WifiOff, X } from "lucide-react";
+import {
+  ArrowRight,
+  Check,
+  Clock,
+  Heart,
+  Music2,
+  Radio,
+  Share2,
+  Users,
+  Wifi,
+  WifiOff,
+  X,
+} from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 
 // Format relative time (e.g., "2m ago")
@@ -102,7 +115,8 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     status,
     currentTrack,
     djName,
-    sessionId,
+    // sessionId, // Unused
+
     history,
     listenerCount,
     sendLike,
@@ -379,17 +393,24 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
               </p>
             </>
           ) : isTargetedSession ? (
-            // Targeted session not found or ended
-            <>
+            // Session Ended - Show Recap
+            <div className="flex flex-col items-center">
               <div className="w-16 h-16 rounded-full bg-slate-700/50 flex items-center justify-center mb-4">
-                <Radio className="w-8 h-8 text-slate-500" />
+                <Check className="w-8 h-8 text-green-400" />
               </div>
-              <p className="text-lg text-slate-400 text-center">Session not active</p>
-              <p className="text-sm text-slate-500 mt-2 text-center max-w-xs">
-                This session hasn&apos;t started yet or has ended
+              <p className="text-xl font-bold text-white text-center">Session Ended</p>
+              <p className="text-sm text-slate-500 mt-2 mb-6 text-center max-w-xs">
+                Catch up on what you missed in the recap!
               </p>
-              {sessionId && <p className="text-xs text-slate-600 mt-4 font-mono">{sessionId}</p>}
-            </>
+
+              <Link
+                href={`/recap/${targetSessionId}`}
+                className="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-xl text-white font-semibold transition-colors shadow-lg shadow-purple-900/20"
+              >
+                View Recap
+                <ArrowRight className="w-4 h-4" />
+              </Link>
+            </div>
           ) : (
             <>
               <div className="w-16 h-16 rounded-full bg-slate-700/50 flex items-center justify-center mb-4">

@@ -1047,11 +1047,22 @@ app.get("/api/session/:sessionId/recap", async (c) => {
     );
 
     // Calculate session stats
-    // firstTrack and lastTrack are no longer needed for duration calculation
-
+    const lastTrack = tracks[tracks.length - 1];
     const startTime = dbSession.startedAt;
-    // If session is still active (endedAt is null), use current time for duration calculation
-    const endTime = dbSession.endedAt || new Date();
+
+    // Calculate effective end time to prevent "zombie sessions" (forgotten open sessions)
+    // If session is ended in DB, use that.
+    // If not ended: use last track time + 5 minutes (padding).
+    // Fallback to current time only if no tracks exist.
+    let endTime: Date;
+    if (dbSession.endedAt) {
+      endTime = dbSession.endedAt;
+    } else if (lastTrack) {
+      // For active/forgotten sessions, assume it ends 5 mins after last track start
+      endTime = new Date(new Date(lastTrack.playedAt).getTime() + 5 * 60 * 1000);
+    } else {
+      endTime = new Date();
+    }
 
     return c.json({
       sessionId,
