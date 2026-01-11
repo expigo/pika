@@ -1058,8 +1058,12 @@ app.get("/api/session/:sessionId/recap", async (c) => {
     if (dbSession.endedAt) {
       endTime = dbSession.endedAt;
     } else if (lastTrack) {
-      // For active/forgotten sessions, assume it ends 5 mins after last track start
-      endTime = new Date(new Date(lastTrack.playedAt).getTime() + 5 * 60 * 1000);
+      // For active/forgotten sessions:
+      // Cap duration at 5 mins after last track start to handle forgotten sessions.
+      // But if current time is BEFORE that cap (i.e. truly active), use current time.
+      const cap = new Date(new Date(lastTrack.playedAt).getTime() + 5 * 60 * 1000);
+      const now = new Date();
+      endTime = now < cap ? now : cap;
     } else {
       endTime = new Date();
     }

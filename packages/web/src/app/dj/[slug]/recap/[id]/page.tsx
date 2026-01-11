@@ -80,6 +80,7 @@ function formatDuration(start: string, end: string): string {
   const diffMs = endDate.getTime() - startDate.getTime();
   const diffMins = Math.floor(diffMs / 60000);
 
+  if (diffMins < 1) return "1 min";
   if (diffMins < 60) return `${diffMins} min`;
   const hours = Math.floor(diffMins / 60);
   const mins = diffMins % 60;
