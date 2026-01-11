@@ -202,7 +202,10 @@ export function Logbook() {
   const handleCopyRecapLink = useCallback(async () => {
     if (!sessionDetails?.session.cloudSessionId) return;
 
-    const recapUrl = getRecapUrl(sessionDetails.session.cloudSessionId);
+    const recapUrl = getRecapUrl(
+      sessionDetails.session.cloudSessionId,
+      sessionDetails.session.djIdentity,
+    );
     await navigator.clipboard.writeText(recapUrl);
     setRecapCopied(true);
     toast.success("Recap link copied to clipboard!");

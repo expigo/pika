@@ -174,7 +174,7 @@ export default function DjProfilePage({ params }: DjPageProps) {
               {profile.sessions.map((session) => (
                 <Link
                   key={session.id}
-                  href={`/dj/${slug}/recap/${session.id}`}
+                  href={`/recap/${session.id}`}
                   className="px-6 py-4 flex items-center gap-4 hover:bg-slate-700/20 transition-colors group"
                 >
                   <div className="flex-1 min-w-0">

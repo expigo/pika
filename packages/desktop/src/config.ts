@@ -82,17 +82,30 @@ export function getListenerUrl(
   return url.toString();
 }
 
+// Convert DJ name to slug
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\s_]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 /**
  * Generate the recap URL for a completed session
  * @param sessionId - The cloud session ID
- * @param djName - Optional DJ name (passed as query param for display)
+ * @param djName - Optional DJ name (passed for slugified URL)
  * @param localIp - Optional local IP to use for LAN access
  */
 export function getRecapUrl(sessionId: string, djName?: string, localIp?: string | null): string {
   const baseUrl = getWebClientBaseUrl(localIp);
-  const url = new URL(`${baseUrl}/recap/${sessionId}`);
+
   if (djName) {
-    url.searchParams.set("dj", djName);
+    return `${baseUrl}/dj/${slugify(djName)}/recap/${sessionId}`;
   }
-  return url.toString();
+
+  return `${baseUrl}/recap/${sessionId}`;
 }

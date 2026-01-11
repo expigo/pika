@@ -1660,6 +1660,7 @@ app.get(
                     JSON.stringify({
                       type: "NOW_PLAYING",
                       sessionId: targetSession,
+                      djName: session.djName || "DJ",
                       track: session.currentTrack,
                     }),
                   );
