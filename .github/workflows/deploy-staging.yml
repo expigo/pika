@@ -29,12 +29,7 @@ jobs:
             if [ ! -d ".git" ]; then
               echo "Cloning repository for the first time..."
               # Clone only the staging branch
-              git clone -b staging git@github.com:USER/REPO.git . || git clone -b staging https://github.com/USER/REPO.git . 
-              # NOTE: User needs to update the repo URL in the script or ensure simple git pull works if pre-configured
-              # SIMPLIFIED: Assuming the folder might already exist or we just sync files like specific rsync? 
-              # Actually, the user's Prod deploy does "git pull origin main". 
-              # This assumes the repo was cloned MANUALLY once.
-              # I will stick to "git pull" assuming manual setup first, as per Ops Manual.
+              git clone -b staging git@github.com:expigo/pika.git . || git clone -b staging https://github.com/expigo/pika.git .
             fi
             
             # 1. Get latest code
@@ -44,7 +39,7 @@ jobs:
             
             # 2. Rebuild and Restart Staging Services
             # We use project-name 'pika-staging' to avoid conflict with prod default project
-            docker compose -f docker-compose.staging.yml -p pika-staging up -d --build
+            docker compose -f docker-compose.staging.yml -p pika-staging up -d --build --force-recreate
             
             # 3. Prune old images
             docker image prune -f
