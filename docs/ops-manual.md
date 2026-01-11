@@ -274,6 +274,50 @@ docker compose -f docker-compose.prod.yml exec cloud bun -e "
 "
 ```
 
+### 🧪 Testing Critical Migrations (Integration Test)
+
+When modifying existing tables with data (e.g., adding `NOT NULL` columns), run this Integration Test to prove the migration logic works without data loss.
+
+**1. Start Ephemeral DB:**
+```bash
+docker run --name pika-test-db -e POSTGRES_PASSWORD=test -p 5434:5432 -d postgres:17-alpine
+```
+
+**2. Seed Data (Pre-Migration State):**
+```bash
+# Apply only base migrations (0000-0002) - Temporarily hide new files
+mkdir -p packages/cloud/drizzle_hold
+mv packages/cloud/drizzle/0003*.sql packages/cloud/drizzle_hold/
+# Note: You might need to temporarily edit meta/_journal.json too
+
+DATABASE_URL=postgres://postgres:test@localhost:5434/postgres bun run db:migrate
+
+# Insert mock data (Old Schema)
+docker exec pika-test-db psql -U postgres -d postgres -c "INSERT INTO sessions (id, dj_name, started_at) VALUES ('s1', 'DJ', NOW()); INSERT INTO played_tracks (id, session_id, artist, title, played_at) VALUES (1, 's1', 'A', 'T', NOW()); INSERT INTO likes (session_id, track_artist, track_title) VALUES ('s1', 'A', 'T');"
+```
+
+**3. Apply New Migration:**
+```bash
+# Restore files
+mv packages/cloud/drizzle_hold/*.sql packages/cloud/drizzle/
+
+# Run migration
+DATABASE_URL=postgres://postgres:test@localhost:5434/postgres bun run db:migrate
+```
+
+**4. Verify Data (Post-Migration State):**
+```bash
+# Check if data survived and transformed correctly
+docker exec pika-test-db psql -U postgres -d postgres -c "SELECT * FROM likes;"
+# Expect: played_track_id to be populated
+```
+
+**5. Cleanup:**
+```bash
+docker rm -f pika-test-db
+rmdir packages/cloud/drizzle_hold
+```
+
 ### 🔌 Connecting to Prod DB
 
 **Interactive SQL Shell (psql):**
