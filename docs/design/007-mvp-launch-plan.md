@@ -581,6 +581,8 @@ Future feature (post-MVP):
 | Memory: `sessionListeners` not cleaned | ✅ Fixed | `index.ts:1008` | Cleaned on END_SESSION |
 | Memory: `persistedSessions` not cleaned | ✅ Fixed | `index.ts:1009` | Cleaned on END_SESSION |
 | Missing DB Indexes | ⏳ Pending | `schema.ts` | Performance at scale |
+| **Redundant Metadata** | 🔴 Todo | `schema.ts` | Link `likes` to `played_tracks.id` (Fix orphan data) |
+| **JSON Schema Type** | 🔴 Todo | `schema.ts` | Use `json` type for Polls options (Prevent dirty data) |
 
 ### 🟢 Nice to Have
 
@@ -621,6 +623,7 @@ Future feature (post-MVP):
 | **Shared Analysis Database** | Medium | High | Crowdsourced WCS music database from all DJs |
 | **DJ Profiles & Following** | Low | Medium | Dancers can follow DJs, get notifications |
 | **Mobile App (Native)** | Low | Very High | iOS/Android apps with push notifications |
+| **Global Track Identity** | High | Very High | "Pika! Pulse" Charts (Canonical Track IDs) |
 
 ### 💡 Feature Details
 
