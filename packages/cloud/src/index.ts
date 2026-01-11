@@ -1412,7 +1412,7 @@ app.get(
                   JSON.stringify({
                     type: "NOW_PLAYING",
                     sessionId: message.sessionId,
-                    djName: session.djName,
+                    djName: session.djName || "DJ",
                     track: message.track,
                   }),
                 );
