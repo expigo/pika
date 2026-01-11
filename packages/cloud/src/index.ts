@@ -5,7 +5,7 @@ import {
   WebSocketMessageSchema,
 } from "@pika/shared";
 import type { ServerWebSocket } from "bun";
-import { eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
@@ -242,7 +242,7 @@ async function createPollInDb(
       .values({
         sessionId,
         question,
-        options: JSON.stringify(options),
+        options, // Drizzle handles JSON array automatically
         status: "active",
         currentTrackArtist: currentTrack?.artist ?? null,
         currentTrackTitle: currentTrack?.title ?? null,
@@ -395,12 +395,35 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
  * @param clientId - The client who liked it (for "my likes" feature)
  */
 async function persistLike(track: TrackInfo, sessionId?: string, clientId?: string): Promise<void> {
+  if (!sessionId) return;
+
   try {
+    // 1. Find the specific "play instance" of this track in this session.
+    const [playedTrack] = await db
+      .select({ id: schema.playedTracks.id })
+      .from(schema.playedTracks)
+      .where(
+        and(
+          eq(schema.playedTracks.sessionId, sessionId),
+          eq(schema.playedTracks.artist, track.artist),
+          eq(schema.playedTracks.title, track.title),
+        ),
+      )
+      .orderBy(desc(schema.playedTracks.playedAt))
+      .limit(1);
+
+    if (!playedTrack) {
+      console.warn(
+        `⚠️ Orphan like prevented: "${track.title}" not found in played_tracks for session ${sessionId}`,
+      );
+      return;
+    }
+
+    // 2. Insert the like with strict Foreign Key
     await db.insert(schema.likes).values({
-      sessionId: sessionId ?? null,
+      sessionId: sessionId,
       clientId: clientId ?? null,
-      trackArtist: track.artist,
-      trackTitle: track.title,
+      playedTrackId: playedTrack.id,
     });
     console.log(`💾 Like persisted: ${track.title} (client: ${clientId?.substring(0, 20)}...)`);
   } catch (e) {
@@ -932,21 +955,14 @@ app.get("/api/session/:sessionId/recap", async (c) => {
     const totalLikes = likesResult[0]?.count || 0;
 
     // Get per-track like counts
-    const { and } = await import("drizzle-orm");
-    const trackLikeCounts = new Map<string, number>();
+    const trackLikeCounts = new Map<number, number>(); // Map<playedTrackId, count>
 
     for (const track of tracks) {
       const likeCount = await db
         .select({ count: count() })
         .from(schema.likes)
-        .where(
-          and(
-            eq(schema.likes.sessionId, sessionId),
-            eq(schema.likes.trackArtist, track.artist),
-            eq(schema.likes.trackTitle, track.title),
-          ),
-        );
-      trackLikeCounts.set(`${track.artist}:${track.title}`, likeCount[0]?.count || 0);
+        .where(eq(schema.likes.playedTrackId, track.id));
+      trackLikeCounts.set(track.id, likeCount[0]?.count || 0);
     }
 
     // Get per-track tempo votes
@@ -997,7 +1013,7 @@ app.get("/api/session/:sessionId/recap", async (c) => {
           .where(eq(schema.pollVotes.pollId, poll.id))
           .groupBy(schema.pollVotes.optionIndex);
 
-        const options = JSON.parse(poll.options) as string[];
+        const options = poll.options as string[];
         const voteCounts = new Array(options.length).fill(0) as number[];
 
         for (const v of votes) {
@@ -1056,7 +1072,7 @@ app.get("/api/session/:sessionId/recap", async (c) => {
           acousticness: t.acousticness,
           groove: t.groove,
           playedAt: t.playedAt,
-          likes: trackLikeCounts.get(`${t.artist}:${t.title}`) || 0,
+          likes: trackLikeCounts.get(t.id) || 0,
           tempo: tempoData
             ? {
                 slower: tempoData.slower,
@@ -1100,11 +1116,12 @@ app.get("/api/client/:clientId/likes", async (c) => {
       .select({
         id: schema.likes.id,
         sessionId: schema.likes.sessionId,
-        trackArtist: schema.likes.trackArtist,
-        trackTitle: schema.likes.trackTitle,
+        trackArtist: schema.playedTracks.artist,
+        trackTitle: schema.playedTracks.title,
         createdAt: schema.likes.createdAt,
       })
       .from(schema.likes)
+      .innerJoin(schema.playedTracks, eq(schema.likes.playedTrackId, schema.playedTracks.id))
       .where(eq(schema.likes.clientId, clientId))
       .orderBy(desc(schema.likes.createdAt))
       .limit(100); // Reasonable limit

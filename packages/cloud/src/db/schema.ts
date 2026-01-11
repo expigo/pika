@@ -3,7 +3,7 @@
  * PostgreSQL schema for session persistence, played tracks, and likes.
  */
 
-import { integer, pgTable, serial, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { integer, json, pgTable, serial, text, timestamp, unique } from "drizzle-orm/pg-core";
 
 // ============================================================================
 // DJ Users & Authentication
@@ -84,8 +84,10 @@ export const likes = pgTable("likes", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id").references(() => sessions.id),
   clientId: text("client_id"), // Browser-based identity for "my likes"
-  trackArtist: text("track_artist").notNull(),
-  trackTitle: text("track_title").notNull(),
+
+  playedTrackId: integer("played_track_id")
+    .notNull()
+    .references(() => playedTracks.id, { onDelete: "cascade" }), // Link to specific play instance
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -125,7 +127,7 @@ export const polls = pgTable("polls", {
     .notNull()
     .references(() => sessions.id),
   question: text("question").notNull(),
-  options: text("options").notNull(), // JSON array: ["Pop", "Blues", "Electro"]
+  options: json("options").$type<string[]>().notNull(), // JSON array: ["Pop", "Blues", "Electro"]
   status: text("status").notNull().default("active"), // active, closed
   // Track context: what was playing when poll was created
   currentTrackArtist: text("current_track_artist"),
