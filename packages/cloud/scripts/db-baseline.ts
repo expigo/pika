@@ -25,6 +25,7 @@ const sql = postgres(DATABASE_URL);
 const BASELINE_MIGRATIONS = [
   "0000_nervous_hannibal_king", // Initial schema (sessions, tracks, likes)
   "0001_brief_inhumans", // DJ auth (dj_users, dj_tokens, polls, tempo_votes)
+  "0002_schema_recovery", // Recover schema drift
 ];
 
 async function baseline() {
