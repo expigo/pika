@@ -915,6 +915,8 @@ app.get("/api/session/:sessionId/recap", async (c) => {
       .select({
         id: schema.sessions.id,
         djName: schema.sessions.djName,
+        startedAt: schema.sessions.startedAt,
+        endedAt: schema.sessions.endedAt,
       })
       .from(schema.sessions)
       .where(eq(schema.sessions.id, sessionId))
@@ -1045,16 +1047,17 @@ app.get("/api/session/:sessionId/recap", async (c) => {
     );
 
     // Calculate session stats
-    const firstTrack = tracks[0];
-    const lastTrack = tracks[tracks.length - 1];
-    const startTime = firstTrack?.playedAt;
-    const endTime = lastTrack?.playedAt;
+    // firstTrack and lastTrack are no longer needed for duration calculation
+
+    const startTime = dbSession.startedAt;
+    // If session is still active (endedAt is null), use current time for duration calculation
+    const endTime = dbSession.endedAt || new Date();
 
     return c.json({
       sessionId,
       djName: dbSession?.djName || "DJ",
-      startedAt: startTime,
-      endedAt: endTime,
+      startedAt: startTime?.toISOString(),
+      endedAt: endTime?.toISOString(),
       trackCount: tracks.length,
       totalLikes,
       tracks: tracks.map((t, index) => {
