@@ -18,7 +18,7 @@ jobs:
             platform: linux
           - os: windows-latest
             platform: windows
-          - os: macos-latest
+          - os: macos-14
             platform: macos
 
     steps:
@@ -33,7 +33,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+          targets: ${{ matrix.platform == 'macos' && 'aarch64-apple-darwin' || '' }}
 
       # 2. Setup Python & Build Sidecar (Reusing logic from build-desktop.yml)
       - name: Install uv
@@ -68,7 +68,6 @@ jobs:
           releaseBody: "See the assets to download this version and install."
           releaseDraft: true
           prerelease: false
-          projectPath: packages/desktop
-          args: ${{ matrix.platform == 'macos' && '--target aarch64-apple-darwin' || '' }} 
+          projectPath: packages/desktop 
 
       # Note: tauri-action automatically uploads artifacts to the Release.
