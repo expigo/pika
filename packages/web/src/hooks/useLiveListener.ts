@@ -167,6 +167,29 @@ export function useLiveListener(targetSessionId?: string) {
     }
   }, []);
 
+  // Fetch full session state (track, polls, etc) from REST API to ensure we are in sync
+  // Defined at top level to avoid React Hook violation
+  const fetchSessionState = useCallback(async (sessionId: string) => {
+    try {
+      const baseUrl = getApiBaseUrl();
+      const response = await fetch(`${baseUrl}/api/session/${sessionId}/state`);
+      if (response.ok) {
+        const data = await response.json();
+        // Update local state with latest from server
+        setState((prev) => ({
+          ...prev,
+          currentTrack: data.currentTrack || null,
+          activePoll: data.activePoll || null,
+          // If server says we voted, trust it
+          hasVotedOnPoll: data.hasVotedOnPoll ?? prev.hasVotedOnPoll,
+        }));
+        console.log("[Listener] Synced state for session:", sessionId);
+      }
+    } catch (e) {
+      console.error("[Listener] Failed to sync state:", e);
+    }
+  }, []);
+
   useEffect(() => {
     const wsUrl = getWebSocketUrl();
     const clientId = getOrCreateClientId();
@@ -187,18 +210,24 @@ export function useLiveListener(targetSessionId?: string) {
     socket.onopen = () => {
       console.log("[Listener] Connected to cloud");
       setState((prev) => ({ ...prev, status: "connected" }));
-      // Send SUBSCRIBE with persistent clientId for like tracking and sessionId for listener count
+
+      // Resubscribe logic
+      // We always send SUBSCRIBE on connect/reconnect to ensure server knows we are here
+      const sessionToSubscribe = targetSessionId || discoveredSessionRef.current;
+
       socket.send(
         JSON.stringify({
           type: "SUBSCRIBE",
           clientId,
-          sessionId: targetSessionId, // Include session for per-session listener count
+          sessionId: sessionToSubscribe,
         }),
       );
 
-      // If targeting a specific session, fetch its history immediately
-      if (targetSessionId) {
-        fetchHistory(targetSessionId);
+      // If we have a session context, force a state sync via REST
+      // This handles cases where we missed messages while offline
+      if (sessionToSubscribe) {
+        fetchHistory(sessionToSubscribe);
+        fetchSessionState(sessionToSubscribe);
       }
     };
 
@@ -625,7 +654,7 @@ export function useLiveListener(targetSessionId?: string) {
     };
     // Note: fetchHistory is stable (no deps), don't include in deps array to avoid infinite loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetSessionId, fetchHistory, state.sessionId]);
+  }, [targetSessionId, fetchHistory, state.sessionId, fetchSessionState]);
 
   // Send a like for the current track (returns true if sent, false if already liked)
   const sendLike = useCallback(

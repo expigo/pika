@@ -19,8 +19,17 @@ type ViewMode = "builder" | "logbook";
 
 function App() {
   const { status, baseUrl, healthData, error, restart } = useSidecar();
-  const { isLive, listenerCount, tempoFeedback, activePoll, startPoll, endPoll, sessionId } =
-    useLiveSession();
+  const {
+    isLive,
+    status: liveSessionStatus,
+    listenerCount,
+    tempoFeedback,
+    activePoll,
+    startPoll,
+    endPoll,
+    sessionId,
+    forceSync,
+  } = useLiveSession();
   const {
     setServerEnv,
     djName,
@@ -61,6 +70,8 @@ function App() {
           onEndPoll={endPoll}
           sessionId={sessionId}
           djName={djName}
+          liveStatus={liveSessionStatus}
+          onForceSync={forceSync}
         />
       )}
 

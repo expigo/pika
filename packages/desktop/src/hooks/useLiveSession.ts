@@ -697,6 +697,48 @@ export function useLiveSession() {
     useLiveStore.getState().setActivePoll(null);
   }, []);
 
+  // Force sync state to cloud (Panic Button)
+  const forceSync = useCallback(() => {
+    if (!isLiveFlag || !currentSessionId || !socketInstance) {
+      console.log("[Live] Cannot sync - not live");
+      return;
+    }
+
+    console.log("[Live] Forcing state sync...");
+    toast("Syncing state...", { icon: "🔄" });
+
+    // 1. Resend current track
+    const currentTrack = virtualDjWatcher.getCurrentTrack();
+    if (currentTrack) {
+      // Force broadcast even if key matches, by resetting lastBroadcastedTrackKey
+      lastBroadcastedTrackKey = null;
+      broadcastTrack(currentSessionId, toTrackInfo(currentTrack));
+      console.log("[Live] Resent track:", currentTrack.title);
+    }
+
+    // 2. Resend active poll
+    const poll = useLiveStore.getState().activePoll;
+    if (poll) {
+      // Resend poll start or update
+      if (poll.id >= 0) {
+        // If it has an ID, maybe just send an update or nothing?
+        // Actually, if server lost state, we might need to "restart" it.
+        // But for now let's assume server mostly kept state and we just want to ensure client is active.
+        // Let's just send the track for now, as that's the most critical "missing" piece usually.
+        // Actually, let's re-send the poll start just in case.
+        sendMessage({
+          type: "START_POLL",
+          sessionId: currentSessionId,
+          question: poll.question,
+          options: poll.options,
+          // We don't know original duration, so maybe omit?
+        });
+      }
+    }
+
+    toast.success("State synced!");
+  }, []);
+
   // Cleanup on unmount (only cleanup socket, not state - state is global)
   useEffect(() => {
     return () => {
@@ -723,5 +765,6 @@ export function useLiveSession() {
     clearNowPlaying,
     startPoll,
     endPoll: endCurrentPoll,
+    forceSync,
   };
 }

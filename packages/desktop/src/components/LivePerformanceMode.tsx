@@ -12,6 +12,7 @@ import {
   Heart,
   Music,
   QrCode,
+  RefreshCcw,
   Square,
   StickyNote,
   Users,
@@ -22,6 +23,8 @@ import { useEffect, useState } from "react";
 import { getListenerUrl } from "../config";
 import type { PlayReaction } from "../db/schema";
 import { useActivePlay } from "../hooks/useActivePlay";
+import type { LiveStatus } from "../hooks/useLiveSession";
+import { NetworkHealthIndicator } from "./NetworkHealthIndicator";
 
 // Poll countdown timer component
 function PollCountdown({ endsAt }: { endsAt: string }) {
@@ -93,6 +96,8 @@ interface Props {
   onEndPoll?: () => void;
   sessionId?: string | null;
   djName?: string;
+  liveStatus?: LiveStatus;
+  onForceSync?: () => void;
 }
 
 export function LivePerformanceMode({
@@ -105,6 +110,8 @@ export function LivePerformanceMode({
   onEndPoll,
   sessionId,
   djName,
+  liveStatus = "live",
+  onForceSync,
 }: Props) {
   const { currentPlay, recentPlays, loading, updateReaction, updateNotes, playCount } =
     useActivePlay(1000); // Poll every 1 second for responsiveness
@@ -177,6 +184,30 @@ export function LivePerformanceMode({
               <Heart size={14} fill="#ef4444" color="#ef4444" />
               {liveLikes}
             </span>
+          )}
+
+          {/* Network Health & Panic Button */}
+          <NetworkHealthIndicator
+            status={
+              liveStatus === "live"
+                ? "connected"
+                : liveStatus === "connecting"
+                  ? "connecting"
+                  : "disconnected"
+            }
+            latency={0} // TODO: Implement real latency
+          />
+
+          {onForceSync && (
+            <button
+              type="button"
+              onClick={onForceSync}
+              style={{ ...styles.qrButton, padding: "0.4rem 0.8rem", marginLeft: "0.5rem" }}
+              title="Force State Sync (Panic Button)"
+            >
+              <RefreshCcw size={14} />
+              <span style={{ fontSize: "0.8rem" }}>Sync</span>
+            </button>
           )}
         </div>
 

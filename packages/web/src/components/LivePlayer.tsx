@@ -17,6 +17,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
+import { ConnectionStatusIndicator } from "./ConnectionStatus";
 
 // Format relative time (e.g., "2m ago")
 function formatRelativeTime(dateString?: string): string {
@@ -174,6 +175,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <ConnectionStatusIndicator status={status} />
       {/* Main Card */}
       <div className="w-full max-w-md bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden">
         {/* Header */}
