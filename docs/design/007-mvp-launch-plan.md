@@ -583,6 +583,7 @@ Future feature (post-MVP):
 | **WebSocket Crash** | ✅ Fixed | `cloud/index.ts` | Missing `djName` in payload |
 | **Hydration Error** | ✅ Fixed | `web/layout.tsx` | Suppressed body attributes (extensions) |
 | **Live Player Recap** | ✅ Fixed | `web/LivePlayer.tsx` | "View Recap" button after session ends |
+| **VDJ History Watcher** | ✅ Fixed | `desktop/lib.rs` | Dynamic detection of active file (Midnight fix) |
 
 ### 🟡 Important (Fix Soon After)
 
