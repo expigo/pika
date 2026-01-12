@@ -68,4 +68,12 @@ How do dancers find `http://192.168.0.15:3000`?
 - [ ] **UI Switch:** "Go Offline" toggle in Settings.
 
 ## 7. Migration Strategy
-We will reuse 90% of the code. The `packages/web` frontend is already capable of connecting to any URL via `NEXT_PUBLIC_CLOUD_API_URL`. In Offline Mode, we just serve a build of the web app where this variable points to `window.location.origin` instead of `api.pika.stream`.
+We will reuse 90% of the code. The `packages/web` frontend is already capable of connecting to any URL via `NEXT_PUBLIC_CLOUD_API_URL`. 
+
+**Status Update (Jan 2026):**
+The frontend is now **Bunker-Ready**. We have implemented:
+- **Robust Reconnection:** Heartbeat monitor ensures connection recovery.
+- **Offline Queue:** Likes are gathered locally and bulk-sent when connection returns.
+- **Session Scoping:** Persistence is handled safely per session.
+
+In Offline Mode, we just serve a build where the API URL points to the local desktop IP.

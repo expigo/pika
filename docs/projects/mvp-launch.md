@@ -45,10 +45,11 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] Hydration Error Fix.
     *   [x] Live Player Recap Button.
     *   [x] VDJ History Watcher Fix.
-*   [ ] **Connectivity & Resilience**:
-    *   [ ] **Socket Recovery**: Implementation exponential backoff for reconnection.
-    *   [ ] **Data Sync**: Fetch state after reconnection.
-    *   [ ] **Offline Queue**: Queue likes/votes when offline.
+*   [x] **Connectivity & Resilience**:
+    *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
+    *   [x] **Data Sync**: `fetchSessionState` ensures state recovery on reconnect.
+    *   [x] **Offline Queue**: Likes are queued and flushed faithfully.
+    *   [x] **Data Integrity**: Likes are session-scoped (no phantom likes).
 *   [ ] **Data Hygiene**:
     *   [ ] **Ghost Track Fix**: Normalize Artist/Title before DB insertion.
     *   [ ] **Poll State Fix**: Fix race condition for idle vs active poll state.

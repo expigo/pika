@@ -38,6 +38,10 @@ Simple binary positive feedback.
 ### D. Listener Count 👥
 Real-time counter of connected *unique* `clientId`s.
 
+### E. Resilience Features 🛡️
+*   **Offline Queue:** If a dancer likes a track while offline, it is queued and automatically flushed when the connection is restored.
+*   **Session Scoping:** Likes are persisted in `localStorage` scoped to the `sessionId`. This prevents "Phantom Likes" when joining new sessions or reconnecting.
+
 ## 3. Data Structures
 
 Defined in `packages/shared/src/schemas.ts`.
@@ -66,4 +70,4 @@ export const SendTempoRequestSchema = z.object({
     *   Polls: 1 per poll.
     *   **Missing:** Rate limiting for connection floods or spamming updates.
 *   **"Vibe Check" Grid:** Original design had a 4-button grid. Current implementation effectively splits this into "Tempo" (3 buttons) and "Like" (1 button).
-*   **Persistence:** Polls are saved to DB, but `tempoVotes` appear to be in-memory only? (Need to verify persistence of tempo votes).
+*   **Persistence:** Polls are saved to DB. Likes constitute a session-scoped local state for the user.
