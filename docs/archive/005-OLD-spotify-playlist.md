@@ -1,9 +1,9 @@
 # Design Document 005: Spotify Playlist Generation
 
-**Status**: Draft  
+**Status**: Planned (Post-MVP)  
 **Created**: 2026-01-04  
-**Author**: AI Assistant  
-**Related**: [004-account-system-roadmap.md](./004-account-system-roadmap.md)
+**Author**: Antigravity  
+**Related**: [011-future-infrastructure-roadmap.md](./011-future-infrastructure-roadmap.md)
 
 ## Overview
 

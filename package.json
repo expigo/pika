@@ -6,6 +6,8 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "test": "bun test",
     "format": "biome format --write packages/cloud packages/web packages/shared",
     "lint": "biome check packages/cloud packages/web packages/shared",
     "check": "biome check --write packages/cloud packages/web packages/shared"

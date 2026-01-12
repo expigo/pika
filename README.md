@@ -1,171 +1,99 @@
-# **Pika\! ⚡️**
+# Pika! ⚡️
 
 **The Bionic Suit for West Coast Swing DJs.**
 
-Version: 0.0.1 (MVP)  
-Status: Active Development  
-License: Apache-2.0
+**Version:** 0.9.0 (MVP Pre-Launch)
+**Status:** Active Development
+**License:** Apache-2.0
 
-## **1\. Project Vision**
+## 🎯 Project Vision
 
-**Pika\!** is a local-first, intelligent companion application for West Coast Swing (WCS) DJs. It bridges the gap between a DJ's offline music library and the dancers on the floor.
+**Pika!** is an intelligent companion for West Coast Swing (WCS) DJs. It bridges the gap between your local music library and the dancers on the floor.
 
-### **The Core Problem**
+*   **For DJs:** Get "X-Ray Vision" into your library with local audio analysis (BPM, Key, Energy).
+*   **For Dancers:** See what's playing in real-time on your phone, vote on tempo, and interact with the DJ.
 
-* **For DJs:** "Flying blind." DJs rely on memory to guess if two songs share the same energy or mood. Transition planning is intuition-based rather than data-driven.  
-* **For Dancers:** "Disconnection." Dancers love the music but often don't know what is playing or who the DJ is.
+## 📚 Documentation
 
-### **The Solution**
+We maintain comprehensive documentation in the `docs/` directory:
 
-* **Desktop App (The Brain):** Gives DJs "X-Ray Vision" into their library. It analyzes local MP3s for **Energy**, **BPM**, **Danceability**, and **Mood**, visualizing the "flow" of a set before it happens.  
-* **Cloud Link (The Voice):** A real-time bridge that broadcasts the "Now Playing" track to a public web page, allowing dancers to see track info and history instantly via QR code.
+*   **[Roadmap & Master Index](docs/ROADMAP.md)** (Start Here)
+*   **[MVP Launch Plan](docs/projects/mvp-launch.md)** (Active Project)
+*   **[Deployment Guide](docs/architecture/deployment.md)**
+*   **[Operations Manual](docs/ops-manual.md)**
 
-## **2\. System Architecture ("The Split Brain")**
+## 🏗️ System Architecture
 
-Pika\! operates as two distinct brains connected by a secure bridge.
+Pika! is a monorepo built with **Bun Workspaces**:
 
-### **🧠 A. Desktop Brain (Local Intelligence)**
+| Package | Path | Tech Stack | Description |
+| :--- | :--- | :--- | :--- |
+| **Desktop** | `packages/desktop` | Tauri v2, React 19, Python Sidecar | The DJ's local command center. Analyzes audio and broadcasts "Now Playing". |
+| **Cloud** | `packages/cloud` | Bun, Hono, WebSocket | The real-time relay server. Connects Desktop to Web. |
+| **Web** | `packages/web` | Next.js 15, Tailwind 4 | The mobile-first view for dancers. |
+| **Shared** | `packages/shared` | TypeScript | Shared Zod schemas and types. |
 
-* **Stack:** Tauri 2.9 (Rust) \+ React 19 \+ Python 3.13 Sidecar.  
-* **Role:** The DJ's offline command center.  
-* **Data Flow:**  
-  1. **React UI** requests analysis for a track.  
-  2. **Tauri (Rust)** relays the request to the **Python Sidecar** via HTTP (localhost).  
-  3. **Python** processes audio (librosa/essentia) and returns JSON metadata.  
-  4. **Tauri** saves the result to **SQLite** (local DB).
+### Data Flow
+1.  **Desktop App** reads track info (from VirtualDJ or files).
+2.  **Python Sidecar** analyzes audio locally (BPM, Key, Energy).
+3.  **Desktop App** pushes metadata to **Cloud** via WebSocket (`wss://api.pika.stream`).
+4.  **Cloud** broadcasts update to all connected **Web** clients (`https://pika.stream`).
 
-### **☁️ B. Cloud Brain (The Relay)**
+## 🚀 Getting Started
 
-* **Stack:** Bun 1.2 \+ Hono \+ Postgres.  
-* **Role:** The public broadcasting system.  
-* **Data Flow:**  
-  1. **Desktop App** detects a new track playing in VirtualDJ.  
-  2. **Desktop App** pushes a signed payload to **Cloud** via **WebSocket**.  
-  3. **Cloud** broadcasts the update to all connected Web Clients (Dancers).
+### Prerequisites
+*   **Bun** v1.2+
+*   **Rust** (for Tauri)
+*   **Python 3.12+** & **uv** (for Analysis Sidecar)
+*   **Docker** (for Cloud DB/Dev)
 
-### **🔄 C. The Bridge (Shared Types)**
+### Installation
 
-* We use **Hono RPC** to share TypeScript definitions between Desktop and Cloud.  
-* **Benefit:** If we change the API on the Cloud, the Desktop code will throw a type error *before* we even run it.
-
-## **3\. Technology Stack (2025 Edition)**
-
-| Component | Technology | Version | Purpose |
-| :---- | :---- | :---- | :---- |
-| **Monorepo** | **Bun Workspaces** | 1.2+ | High-speed package management. |
-| **Language** | **TypeScript** | 5.7+ | Strict typing across the entire stack. |
-| **Desktop Core** | **Tauri** | 2.9 | Native OS interactions & window management. |
-| **Desktop UI** | **React** | 19.0 | UI components (React Compiler enabled). |
-| **Analysis** | **Python** | **3.13** | Audio signal processing (Sidecar). |
-| **Cloud API** | **Hono** | 4.x | Lightweight Edge-ready web server. |
-| **Databases** | **SQLite / Postgres** | \- | Local / Cloud storage (managed by **Drizzle**). |
-| **Formatting** | **Biome** | 1.9+ | Linting & Formatting. |
-
-## **4\. Key MVP Features (Detailed)**
-
-### **🎵 A. Intelligent Library Management**
-
-* **VirtualDJ Sync:** Automatically watches the VirtualDJ Database (database.xml) and History (history.m3u).  
-* **Incremental Analysis:** Only analyzes new files. Hashes files to prevent re-analyzing duplicates.  
-* **Metadata Enrichment:** Extracts ID3 tags but overlays them with computed metrics.
-
-### **🔬 B. The Audio Analysis Engine (Python Sidecar)**
-
-Using librosa and essentia, we extract:
-
-1. **BPM & Beat Grid:** Precise tempo detection tailored for WCS ranges (80-130 BPM).  
-2. **Energy Profile (RMS):** not just a single number, but an "Energy Contour" (array of floats) to visualize the song's build-ups and drops.  
-3. **Danceability:** Rhythm regularity score (0.0 \- 1.0).  
-4. **Key Detection:** Musical key for harmonic mixing (Camelot notation).
-
-### **📈 C. The "Set Architect" (UI)**
-
-* **Drag-and-Drop Canvas:** A linear timeline where DJs can arrange tracks.  
-* **The "Energy Wave":** A continuous line graph visualizing the energy flow of the entire playlist.  
-  * *Goal:* Avoid "Energy Cliffs" (sudden drops that kill the floor).  
-* **Transition Alerts:** Visual warning icons if:  
-  * BPM gap \> 5%.  
-  * Harmonic clash (Key is incompatible).
-
-### **📡 D. Live Broadcasting ("The Voice")**
-
-* **Real-Time Trigger:** Detects when a new line is written to VirtualDJ's history.m3u.  
-* **Instant Push:** Sends CurrentTrack payload to Bun Cloud via WebSocket.  
-* **Dancer View (Web):**  
-  * Mobile-first responsive design.  
-  * "Now Playing" with Album Art.  
-  * "History" list of the last 10 tracks.  
-  * "Like" button for dancers to signal favorite tracks (Stored in Cloud DB).
-
-## **5\. Project Structure (Monorepo)**
-
-pika/  
-├── package.json          \# Bun Workspaces config  
-├── biome.json            \# Linter rules  
-├── packages/  
-│   ├── desktop/          \# 🖥️ Tauri App  
-│   │   ├── src-tauri/    \# Rust Core & Sidecar Config  
-│   │   ├── src/          \# React UI Code  
-│   │   └── python-src/   \# 🐍 Python Analysis Engine  
-│   ├── cloud/            \# ☁️ Hono WebSocket Server  
-│   │   ├── src/          \# API & WebSocket logic  
-│   │   └── drizzle/      \# Postgres schemas  
-│   └── shared/           \# 🔗 Shared TypeScript Types  
-│       └── src/          \# RPC Types & Zod Schemas  
-└── README.md             \# You are here
-
-## **6\. Getting Started**
-
-### **Prerequisites**
-
-1. **Bun:** curl \-fsSL https://bun.sh/install | bash  
-2. **Rust:** curl \--proto '=https' \--tlsv1.2 \-sSf https://sh.rustup.rs | sh  
-3. **Python 3.13:** Install via pyenv or system package manager.  
-4. **UV (Python Tool):** curl \-LsSf https://astral.sh/uv/install.sh | sh
-
-### **Installation**
-
-\# 1\. Clone the repo  
-git clone \[https://github.com/expigo/pika.git\](https://github.com/expigo/pika.git)  
+```bash
+# 1. Clone the repo
+git clone https://github.com/expigo/pika.git
 cd pika
 
-\# 2\. Install Node/Bun dependencies (Root)  
+# 2. Install dependencies (Root)
 bun install
 
-\# 3\. Setup Python Environment (Desktop)  
-cd packages/desktop/python-src  
-uv venv  
-uv pip install \-r requirements.txt
+# 3. Setup Python Environment (Desktop)
+cd packages/desktop/python-src
+uv venv
+uv pip install -r requirements.txt
+```
 
-### **Development Commands**
+### 🌍 Development Strategy ("Mixed Mode")
 
-Run these in separate terminals:
+We use a practical approach for local development to balance speed and parity:
 
-\# Terminal 1: Start the Cloud Server (Mock Mode)  
-bun run \--filter cloud dev
+*   **Infrastructure (Docker):** We run PostgreSQL and Redis in Docker to ensure environment parity with production.
+*   **Application Code (Bare Metal):** We run the Desktop, Cloud, and Web apps directly on the host (using `bun`) for maximum velocity, HMR, and debugging support.
 
-\# Terminal 2: Start the Desktop App (Tauri \+ React \+ Python)  
-bun run \--filter desktop tauri dev
+1.  **Start Infrastructure:**
+    ```bash
+    docker compose up -d
+    ```
 
-## **7\. Development Workflow (Antigravity Guide)**
 
-We use an AI-assisted workflow. Follow these steps when asking the Agent to build features.
+2.  **Start Applications (Separate Terminals):**
+    ```bash
+    # Terminal 1: Cloud Server
+    bun run --filter @pika/cloud dev
 
-1. **Reference the Constitution:** Ensure CONTEXT.md is active.  
-2. **Plan First:** Ask the Agent to "Plan the feature" before writing code.  
-3. **Strict Boundaries:**  
-   * If working on **UI**, tell the Agent: *"Focus on packages/desktop/src."*  
-   * If working on **Audio**, tell the Agent: *"Focus on packages/desktop/python-src."*  
-   * If working on **API**, tell the Agent: *"Focus on packages/cloud."*
+    # Terminal 2: Web Client
+    bun run --filter @pika/web dev
 
-### **Key Commands for the Agent**
+    # Terminal 3: Desktop App
+    bun run --filter @pika/desktop dev
+    ```
 
-* **Test:** bun test  
-* **Format:** bunx biome check \--apply .  
-* **Typecheck:** bun x tsc \--noEmit
+> 💡 **Troubleshooting:** See the [Operations Manual](docs/ops-manual.md) for detailed debugging steps, database management, and common issues.
 
-## **8\. Contribution Guidelines**
 
-* **Commits:** Use Conventional Commits (e.g., feat: add energy visualizer, fix: websocket reconnection).  
-* **Code Style:** Do not configure ESLint or Prettier. Use **Biome** defaults.  
-* **Dependency Management:** Always use bun add or bun add \-d. Never use npm or yarn.
+
+## 🧪 Testing & Quality
+
+*   **Format:** `bun run format` (Biome)
+*   **Lint:** `bun run lint` (Biome)
+*   **Test:** `bun test`

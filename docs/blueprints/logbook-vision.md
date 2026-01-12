@@ -1,6 +1,6 @@
 # Design Doc 003: The Logbook & Analytics (The Memory)
 
-**Status:** APPROVED
+**Status:** Partially Implemented (See `docs/architecture/logbook-data.md`)
 **Date:** 2026-01-03
 **Author:** Antigravity
 

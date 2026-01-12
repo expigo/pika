@@ -1,4 +1,7 @@
-# Pika! - Offline Mode ("The Bunker")
+# Design Document 009: Offline Mode ("The Bunker")
+**Status:** Planned (Future)
+**Version:** 1.0.0
+
 ## "When the internet fails, the beat goes on."
 
 ## 1. The Problem

@@ -1,6 +1,6 @@
 # Design Document 008: Pika! Vision - Roadmap to 10/10
 
-**Version:** 1.0.0
+**Version:** 1.0.1
 **Created:** 2026-01-09
 **Status:** Vision / Future Roadmap
 **Goal:** Elevate Pika! from a "Great Utility" (8.5/10) to an "Industry Standard Ecosystem" (10/10).
@@ -9,7 +9,7 @@
 
 ## 1. Executive Summary
 
-This document captures the high-level vision for Pika!'s evolution beyond the MVP. While the MVP focuses on core utility (identifying songs), the 10/10 version focuses on **Robustness** (working anywhere) and **Community** (connecting people).
+This document captures the high-level vision for Pika!'s evolution beyond the MVP. While the MVP focuses on core utility (identifying songs), the 10/10 version focuses on **Robustness** (working anywhere), **Community** (connecting people), and **Enhanced DJ Experience**.
 
 ## 2. Infrastructure: The "Bunker" Standard (Robustness)
 
@@ -75,18 +75,32 @@ This document captures the high-level vision for Pika!'s evolution beyond the MV
 
 ---
 
-## 4. Prioritization Matrix
+## 4. DJ Experience: The Bionic Suit
+
+### 4.1 🔵 Performance Mode (Expanded)
+*The current "Performance Mode" is just the start.*
+*   **Vision:** A completely customizable heads-up display (HUD).
+*   **Features:**
+    *   **Live Waveform:** Real-time visualizer of the incoming audio stream from VirtualDJ.
+    *   **Dancer Heatmap:** A grid showing "Vibe Checks" from the floor in real-time.
+    *   **Request Queue:** Moderated song requests that can be dragged into VirtualDJ.
+*   **Impact:** DJ feels like a pilot in a cockpit.
+
+---
+
+## 5. Prioritization Matrix
 
 | Feature | Difficulty | Impact | Category | Suggested Phase |
 | :--- | :--- | :--- | :--- | :--- |
 | **Personalized Night Recap** | 🟢 Easy | ❤️ High | Engagement | v1.1 / v1.2 |
 | **Traffic Light System** | 🟡 Medium | ✨ High | Social | v1.5 |
+| **Performance Mode Expansion** | 🟡 Medium | 🤩 Medium | Experience | v1.5 |
 | **Offline / LAN Mode** | 🔴 Hard | 🚀 Critical | Infrastructure | v2.0 |
 | **Zero-Latency Sync** | 🔴 Hard | 🤩 Medium | Polish | v2.x |
 
 ---
 
-## 5. Next Steps
+## 6. Next Steps
 
 1.  **Validate**: Survey dancers/DJs if "Offline Mode" is a blocker for them (or if 4G is usually fine).
 2.  **Prototype**: Build "Night Recap" as the first step towards 10/10—it's low hanging fruit that adds high emotional value.
