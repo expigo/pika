@@ -1,0 +1,74 @@
+name: Release Desktop App
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Build Installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # 1. Setup Environment (Node/Bun/Rust)
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      # 2. Setup Python & Build Sidecar (Reusing logic from build-desktop.yml)
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.10"
+
+      - name: Setup Python venv
+        working-directory: packages/desktop/python-src
+        run: uv venv .venv
+
+      - name: Install Python Dependencies
+        working-directory: packages/desktop/python-src
+        run: uv pip install --python .venv -r requirements.txt
+
+      - name: Build Sidecar
+        working-directory: packages/desktop
+        run: bun run build:sidecar
+
+      # 3. Build Web App (Next.js/React)
+      - name: Install Node Dependencies
+        run: bun install
+
+      # 4. Build Tauri App
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Pika! Desktop ${{ github.ref_name }}"
+          releaseBody: "See the assets to download this version and install."
+          releaseDraft: true
+          prerelease: false
+          projectPath: packages/desktop
+          args: ${{ matrix.platform == 'macos' && '--target aarch64-apple-darwin' || '' }} 
+
+      # Note: tauri-action automatically uploads artifacts to the Release.
