@@ -50,14 +50,14 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
     *   [x] **Data Sync**: `fetchSessionState` ensures state recovery on reconnect.
     *   [x] **Offline Queue (Web)**: Likes are queued and flushed faithfully.
-    *   [ ] **Offline Queue (Desktop)**: **CRITICAL MISSING.** Queue track updates when offline to prevent history gaps.
+    *   [x] **Offline Queue (Desktop)**: **DONE.** Offline SQLite queue implemented (`OfflineQueueRepository`). Persists across restarts.
     *   [x] **Data Integrity**: Likes are session-scoped (no phantom likes).
 *   [ ] **Data Hygiene**:
-    *   [ ] **Ghost Track Fix**: Normalize Artist/Title before DB insertion.
+    *   [x] **Ghost Track Fix**: `normalizeTrack` utility implemented in `@pika/shared`.
     *   [ ] **Poll State Fix**: Fix race condition for idle vs active poll state.
 *   [ ] **Session UX**:
     *   [ ] **Session Resume**: Sticky `currentSessionId` in localStorage.
-    *   [ ] **Safe QR Codes**: Generate QR codes using public URL, not local IP.
+    *   [x] **Safe QR Codes**: Smart generation (public URL in prod, local IP in dev).
     *   [ ] **Landing Page**: Add "How It Works" visual section and clear value props.
     *   [ ] **Poll Notifications**: Browser Notification API integration.
     *   [ ] **DJ Announcements**: Push announcement UI and overlay.
@@ -70,8 +70,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **Dry Run**: 30-minute practice session with 5 users.
 
 ### C. Desktop Build & Distribution
-*   [ ] **Build**: `bun run build` for macOS Apple Silicon.
-    *   *Note:* Implement GitHub Actions Matrix to automate builds for Windows/Linux/Mac.
+*   [x] **Build**: `release-desktop.yml` implements Build Matrix (Mac/Win/Linux).
+    *   *Note:* CI/CD is ready to generate artifacts on tag push.
 *   [ ] **Distribute**: Upload `.dmg` to private Google Drive for DJ Pikachu.
 *   [ ] **Docs**: Write a simple 1-page PDF manual for the DJ.
 

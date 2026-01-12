@@ -15,12 +15,13 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 ## 1. 🚨 Critical Tech Debt (Immediate Action)
 *Focus: Stability, Data Integrity, and Developer Velocity.*
 
+
 | Feature | Value | Complexity | Priority | Notes |
 | :--- | :---: | :---: | :---: | :--- |
-| **CI/CD: Automated Migrations** | **10** | 3 | **CRITICAL** | **Prevents production crash.** Must run `db:migrate` before app start. Fixes "Race Condition". |
-| **Desktop Offline Queue** | **10** | 7 | **CRITICAL** | **Prevents data loss.** Tracks played during WiFi drop must be queued. Current: Dropped. |
-| **PyInstaller Build Matrix** | **9** | 5 | **HIGH** | **Required for release.** Cannot distribute Mac/Win apps without this CI change. |
-| **Ghost Track Data Fix** | **8** | 4 | **HIGH** | **Data hygiene.** Normalize "Artist - Title" strings before DB insert to prevent fragmentation. |
+| **CI/CD: Automated Migrations** | **10** | 3 | **DONE** | **Prevents production crash.** Implemented auto-migrate on start. |
+| **Desktop Offline Queue** | **10** | 7 | **DONE** | **Prevents data loss.** Implemented persistent SQLite queue (`offline_queue`). |
+| **PyInstaller Build Matrix** | **9** | 5 | **DONE** | **Required for release.** GitHub Action `release-desktop.yml` created. |
+| **Ghost Track Data Fix** | **8** | 4 | **DONE** | **Data hygiene.** `normalizeTrack` implemented in `@pika/shared`. |
 
 ---
 

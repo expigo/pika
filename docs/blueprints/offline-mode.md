@@ -78,10 +78,10 @@ The frontend is **Bunker-Ready**. We have implemented:
 - **Offline Queue:** Likes are gathered locally and bulk-sent when connection returns.
 - **Session Scoping:** Persistence is handled safely per session.
 
-### Desktop Client (DJ) - Readiness: 2/10 🔴
-The broadcaster is **NOT Ready**.
-- **Critical Issue:** Track broadcasts are dropped if the socket is not OPEN.
-- **Consequence:** Gaps in history log if Wi-Fi flickers.
-- **Action Item:** Implement `PendingUpdateQueue` (similar to web) to retry failed broadcasts.
+### Desktop Client (DJ) - Readiness: 8/10 🟢
+The broadcaster is **Server-Ready** (Connectivity Wise).
+- **Socket Recovery:** Robust logic implemented.
+- **Offline Queue:** `OfflineQueueRepository` (SQLite) persists failed updates and flushes them on reconnect.
+- **Pending:** Logic to actually *serve* the web assets in standalone mode (currently still relies on Cloud URL unless we switch to full Bunker architecture).
 
 In Offline Mode, we just serve a build where the API URL points to the local desktop IP.
