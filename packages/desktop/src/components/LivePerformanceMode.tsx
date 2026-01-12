@@ -195,7 +195,7 @@ export function LivePerformanceMode({
                   ? "connecting"
                   : "disconnected"
             }
-            latency={0} // TODO: Implement real latency
+            pingEndpoint="https://pika.stream/api/health" // TODO: Make dynamic based on env
           />
 
           {onForceSync && (

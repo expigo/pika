@@ -1,22 +1,52 @@
-import { useMemo } from "react";
 import { Activity, WifiOff } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
 interface Props {
   status: ConnectionStatus;
-  latency?: number; // In milliseconds
-  lastPing?: number; // Timestamp of last ping
+  latency?: number; // External latency (if available)
+  pingEndpoint?: string; // Optional endpoint to ping for latency
 }
 
-export function NetworkHealthIndicator({ status, latency = 0 }: Props) {
-  // Determine health state
+export function NetworkHealthIndicator({ status, latency: externalLatency, pingEndpoint }: Props) {
+  const [measuredLatency, setMeasuredLatency] = useState<number | null>(null);
+
+  // Ping loop
+  useEffect(() => {
+    if (!pingEndpoint || status !== "connected") {
+      setMeasuredLatency(null);
+      return;
+    }
+
+    const checkLatency = async () => {
+      const start = performance.now();
+      try {
+        await fetch(pingEndpoint, { method: "HEAD", cache: "no-store" });
+        const end = performance.now();
+        setMeasuredLatency(Math.round(end - start));
+      } catch (e) {
+        // Ping failed
+        setMeasuredLatency(null);
+      }
+    };
+
+    // Check immediately
+    checkLatency();
+
+    // Loop
+    const interval = setInterval(checkLatency, 5000); // Every 5 seconds
+    return () => clearInterval(interval);
+  }, [pingEndpoint, status]);
+
+  const displayLatency = externalLatency || measuredLatency || 0;
+
   const health = useMemo(() => {
     if (status !== "connected") return "critical";
-    if (latency > 500) return "poor";
-    if (latency > 200) return "fair";
+    if (displayLatency > 500) return "poor";
+    if (displayLatency > 200) return "fair";
     return "good";
-  }, [status, latency]);
+  }, [status, displayLatency]);
 
   const color = {
     good: "#22c55e", // Green
@@ -40,7 +70,7 @@ export function NetworkHealthIndicator({ status, latency = 0 }: Props) {
     <div style={styles.container}>
       <div style={{ ...styles.badge, borderColor: color, color }}>
         <Activity size={14} />
-        <span>{latency}ms</span>
+        <span>{displayLatency}ms</span>
       </div>
     </div>
   );

@@ -229,6 +229,30 @@ export function useLiveListener(targetSessionId?: string) {
         fetchHistory(sessionToSubscribe);
         fetchSessionState(sessionToSubscribe);
       }
+
+      // Flush pending likes
+      if (pendingLikesRef.current.size > 0) {
+        console.log("[Listener] Flushing pending likes:", pendingLikesRef.current.size);
+        for (const item of pendingLikesRef.current) {
+          try {
+            const { track, sessionId } = JSON.parse(item);
+            // Only send if we have a session ID
+            if (sessionId) {
+              socket.send(
+                JSON.stringify({
+                  type: "SEND_LIKE",
+                  clientId: clientId,
+                  sessionId: sessionId,
+                  payload: { track },
+                }),
+              );
+            }
+          } catch (e) {
+            console.error("[Listener] Failed to flush pending like:", e);
+          }
+        }
+        pendingLikesRef.current.clear();
+      }
     };
 
     socket.onmessage = (event) => {
@@ -647,14 +671,35 @@ export function useLiveListener(targetSessionId?: string) {
 
     socket.onerror = () => {
       console.error("[Listener] Connection error");
+      // Don't set disconnected here, let onclose handle it or wait for retry
     };
 
+    // Handle browser offline/online events for immediate UI feedback
+    const handleOffline = () => {
+      console.log("[Listener] Browser went offline");
+      setState((prev) => ({ ...prev, status: "disconnected" }));
+    };
+
+    const handleOnline = () => {
+      console.log("[Listener] Browser went online");
+      // Socket will reconnect automatically, but we can set status to connecting
+      setState((prev) => ({ ...prev, status: "connecting" }));
+    };
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+
     return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
       socket.close();
     };
     // Note: fetchHistory is stable (no deps), don't include in deps array to avoid infinite loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [targetSessionId, fetchHistory, state.sessionId, fetchSessionState]);
+
+  // Queue for offline likes
+  const pendingLikesRef = useRef<Set<string>>(new Set());
 
   // Send a like for the current track (returns true if sent, false if already liked)
   const sendLike = useCallback(
@@ -667,6 +712,14 @@ export function useLiveListener(targetSessionId?: string) {
         return false;
       }
 
+      // Optimistically mark as liked and persist to localStorage
+      const newLikedTracks = new Set([...state.likedTracks, trackKey]);
+      setState((prev) => ({
+        ...prev,
+        likedTracks: newLikedTracks,
+      }));
+      saveLikedTracks(newLikedTracks);
+
       if (socketRef.current?.readyState === WebSocket.OPEN && state.sessionId) {
         socketRef.current.send(
           JSON.stringify({
@@ -676,19 +729,13 @@ export function useLiveListener(targetSessionId?: string) {
             payload: { track },
           }),
         );
-
-        // Optimistically mark as liked and persist to localStorage
-        const newLikedTracks = new Set([...state.likedTracks, trackKey]);
-        setState((prev) => ({
-          ...prev,
-          likedTracks: newLikedTracks,
-        }));
-        saveLikedTracks(newLikedTracks);
-
         console.log("[Listener] Sent like for:", track.title);
-        return true;
+      } else {
+        // Offline? Queue it!
+        console.log("[Listener] Offline, queuing like for:", track.title);
+        pendingLikesRef.current.add(JSON.stringify({ track, sessionId: state.sessionId }));
       }
-      return false;
+      return true;
     },
     [state.likedTracks, state.sessionId],
   );
