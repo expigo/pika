@@ -151,15 +151,22 @@ fn read_virtualdj_history() -> Result<Option<HistoryTrack>, String> {
     // Get home directory
     let home = std::env::var("HOME").map_err(|e| e.to_string())?;
     
-    // Build today's history file path
-    let today = chrono::Local::now();
-    let filename = today.format("%Y-%m-%d.m3u").to_string();
-    let history_path = std::path::PathBuf::from(&home)
+    let history_dir = std::path::PathBuf::from(&home)
         .join("Library")
         .join("Application Support")
         .join("VirtualDJ")
-        .join("History")
-        .join(&filename);
+        .join("History");
+    
+    // Find the most recently modified .m3u file
+    // This handles the "midnight crossover" where VDJ might keep writing to yesterday's file,
+    // or conversely, if the system date changes but we want the *actual* active file.
+    let history_path = std::fs::read_dir(&history_dir)
+        .map_err(|e| format!("Failed to read history directory: {}", e))?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file() && path.extension().map_or(false, |ext| ext == "m3u"))
+        .max_by_key(|path| std::fs::metadata(path).and_then(|m| m.modified()).ok())
+        .ok_or_else(|| "No history files found".to_string())?;
     
     // Read the file
     let content = match std::fs::read_to_string(&history_path) {
