@@ -14,6 +14,7 @@ import { useSidecar } from "./hooks/useSidecar";
 import "./App.css";
 
 import { useEffect, useState } from "react";
+import { getLocalIp } from "./config";
 
 type ViewMode = "builder" | "logbook";
 
@@ -44,6 +45,12 @@ function App() {
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("builder");
   const [tokenInput, setTokenInput] = useState(getStoredSettings().authToken || "");
+  const [localIp, setLocalIp] = useState<string | null>(null);
+
+  // Fetch local IP once on mount
+  useEffect(() => {
+    getLocalIp().then(setLocalIp);
+  }, []);
 
   // Check if we're in Tauri
   const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -73,6 +80,7 @@ function App() {
           liveStatus={liveSessionStatus}
           onForceSync={forceSync}
           baseUrl={baseUrl}
+          localIp={localIp}
         />
       )}
 

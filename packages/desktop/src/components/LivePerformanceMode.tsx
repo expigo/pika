@@ -21,6 +21,7 @@ import {
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { getListenerUrl } from "../config";
+import { getStoredSettings } from "../hooks/useDjSettings";
 import type { PlayReaction } from "../db/schema";
 import { useActivePlay } from "../hooks/useActivePlay";
 import type { LiveStatus } from "../hooks/useLiveSession";
@@ -96,9 +97,11 @@ interface Props {
   onEndPoll?: () => void;
   sessionId?: string | null;
   djName?: string;
+
   liveStatus?: LiveStatus;
   onForceSync?: () => void;
   baseUrl?: string | null;
+  localIp?: string | null;
 }
 
 export function LivePerformanceMode({
@@ -114,7 +117,18 @@ export function LivePerformanceMode({
   liveStatus = "live",
   onForceSync,
   baseUrl,
+  localIp,
 }: Props) {
+  const settings = getStoredSettings();
+  const domainText =
+    settings.serverEnv === "prod"
+      ? "pika.stream"
+      : settings.serverEnv === "staging"
+        ? "staging.pika.stream"
+        : localIp
+          ? `${localIp}:3002`
+          : "localhost:3002";
+  const qrUrl = sessionId ? getListenerUrl(sessionId, djName, localIp) : "";
   const { currentPlay, recentPlays, loading, updateReaction, updateNotes, playCount } =
     useActivePlay(1000); // Poll every 1 second for responsiveness
 
@@ -572,7 +586,7 @@ export function LivePerformanceMode({
                 margin: "1rem 0",
               }}
             >
-              <QRCodeSVG value={getListenerUrl(sessionId, djName)} size={300} level="H" />
+              <QRCodeSVG value={qrUrl} size={300} level="H" />
             </div>
 
             <p
@@ -585,7 +599,7 @@ export function LivePerformanceMode({
                 borderRadius: "8px",
               }}
             >
-              pika.stream
+              {domainText}
             </p>
 
             <button
