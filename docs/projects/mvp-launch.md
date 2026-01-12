@@ -29,6 +29,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [x] **Database:** Turso (Production) connected.
 *   [x] **SSL:** Managed by Cloudflare Edge.
 *   [x] **CI/CD:** `deploy.yml` pipeline active.
+*   [ ] **Reliability:** Automate DB Migrations in `deploy` or `start` script (Fix Race Condition).
 
 ## 3. Implementation Checklist (Remaining)
 
@@ -48,7 +49,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [x] **Connectivity & Resilience**:
     *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
     *   [x] **Data Sync**: `fetchSessionState` ensures state recovery on reconnect.
-    *   [x] **Offline Queue**: Likes are queued and flushed faithfully.
+    *   [x] **Offline Queue (Web)**: Likes are queued and flushed faithfully.
+    *   [ ] **Offline Queue (Desktop)**: **CRITICAL MISSING.** Queue track updates when offline to prevent history gaps.
     *   [x] **Data Integrity**: Likes are session-scoped (no phantom likes).
 *   [ ] **Data Hygiene**:
     *   [ ] **Ghost Track Fix**: Normalize Artist/Title before DB insertion.
@@ -69,6 +71,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 
 ### C. Desktop Build & Distribution
 *   [ ] **Build**: `bun run build` for macOS Apple Silicon.
+    *   *Note:* Implement GitHub Actions Matrix to automate builds for Windows/Linux/Mac.
 *   [ ] **Distribute**: Upload `.dmg` to private Google Drive for DJ Pikachu.
 *   [ ] **Docs**: Write a simple 1-page PDF manual for the DJ.
 

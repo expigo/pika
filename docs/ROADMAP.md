@@ -9,8 +9,14 @@ This is the central index for the Pika! project, tracking active development, fu
 
 ## 📂 Active Projects
 *   **[MVP Launch Plan](projects/mvp-launch.md)** - *High Priority*
+*   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
+    *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
     *   Status: **In Progress** (Security & UX Polish)
+    *   **New Priorities:**
+        *   CI/CD: Automate DB Migrations (prevent race conditions).
+        *   Desktop: Implement Offline Queue (store plays when offline).
+        *   Build: GitHub Actions Matrix for Cross-Platform Release.
 
 ---
 

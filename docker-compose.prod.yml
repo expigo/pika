@@ -22,7 +22,7 @@ services:
     image: oven/bun:latest
     container_name: pika-cloud
     working_dir: /app/packages/cloud
-    command: sh -c "cd /app && bun install && cd packages/cloud && bun run db:migrate && bun run src/index.ts"
+    command: sh -c "cd /app && bun install && cd packages/cloud && bun run start:prod"
     environment:
       - DATABASE_URL=postgres://pika:pika_password@db:5432/pika_prod
       - NODE_ENV=production

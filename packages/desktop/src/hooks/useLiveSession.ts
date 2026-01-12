@@ -109,10 +109,49 @@ let lastBroadcastedTrackKey: string | null = null; // Prevent duplicate cloud br
 let skipInitialTrackBroadcast = false; // Explicit flag to skip initial track broadcast
 let lastProcessedLikeKey: string | null = null; // Prevent duplicate like notifications
 
-function sendMessage(message: object) {
+const messageQueue: { timestamp: number; payload: object }[] = [];
+
+function flushQueue() {
+  if (messageQueue.length === 0) return;
+
+  console.log(`[Live] Flushing ${messageQueue.length} queued messages...`);
+  if (messageQueue.length > 5) {
+    toast(`Syncing ${messageQueue.length} updates...`, { icon: "🔄" });
+  }
+
+  // Process all queued messages
+  // We use a clone to avoid infinite loops if send fails immediately
+  const queueToFlush = [...messageQueue];
+  messageQueue.length = 0; // Clear original queue
+
+  queueToFlush.forEach((item) => {
+    if (socketInstance?.readyState === WebSocket.OPEN) {
+      socketInstance.send(JSON.stringify(item.payload));
+      console.log("[Live] Flushed:", (item.payload as any).type);
+    } else {
+      // If it failed again, push back to queue?
+      // For simplicity in MVP, we re-queue if still closed, but we checked OPEN above.
+      // If we are here, it means socket closed MID-FLUSH.
+      messageQueue.push(item);
+    }
+  });
+}
+
+function sendMessage(message: any) {
   if (socketInstance?.readyState === WebSocket.OPEN) {
     socketInstance.send(JSON.stringify(message));
     console.log("[Live] Sent:", message);
+  } else {
+    // Queue the message if we are "supposed" to be live
+    if (isLiveFlag) {
+      console.log("[Live] Socket offline - Queuing message:", message.type);
+      messageQueue.push({ timestamp: Date.now(), payload: message });
+
+      // Only toast for "important" updates to avoid spam
+      if (message.type === "BROADCAST_TRACK") {
+        toast("Offline: Track queued for sync", { icon: "📡" });
+      }
+    }
   }
 }
 
@@ -324,7 +363,9 @@ export function useLiveSession() {
       }
 
       // Send to cloud if live (with deduplication) - uses enriched track with fingerprint
-      if (isLiveFlag && socketInstance?.readyState === WebSocket.OPEN && currentSessionId) {
+      // Send to cloud if live (with deduplication) - uses enriched track with fingerprint
+      // We removed the readystate check so sendMessage can queue it if offline!
+      if (isLiveFlag && currentSessionId) {
         broadcastTrack(currentSessionId, toTrackInfo(enrichedTrack));
       }
     },
@@ -432,6 +473,9 @@ export function useLiveSession() {
             djName: getDjName(),
             ...(token ? { token } : {}), // Include token if available
           });
+
+          // Flush any pending messages from offline time
+          flushQueue();
 
           // Send initial track if available AND user chose to include it
           // The skipInitialTrackBroadcast flag is set based on user's choice
@@ -617,6 +661,7 @@ export function useLiveSession() {
     currentPlayIdRef = null;
     processedTrackKeys.clear();
     lastBroadcastedTrackKey = null;
+    messageQueue.length = 0; // Clear offline queue
   }, [reset]);
 
   // Clear now playing

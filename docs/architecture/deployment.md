@@ -5,7 +5,7 @@ This document describes the *current* and *verified* deployment architecture for
 ## 1. Overview
 
 Pika! is a distributed application with three distinct components:
-1.  **Desktop App:** (Client-side) Runs on the DJ's laptop (Tauri).
+1.  **Desktop App:** (Client-side) Runs on the DJ's laptop (Tauri). Built via **PyInstaller + Tauri** (Requires GitHub Actions Matrix for Cross-Platform support).
 2.  **Web Client:** (Client-side) Runs on dancers' phones (Next.js PWA).
 3.  **Cloud Server:** (Server-side) Central hub for WebSockets and API (Bun).
 
@@ -88,6 +88,7 @@ Configuration is handled via Environment Variables.
 
 We have automated workflows in `.github/workflows/`:
 *   `deploy.yml`: Deploys to Production on push to `main`.
+    *   *Note:* Should include **Entrypoint Migrations** (`bun run db:migrate`) before app startup to avoid race conditions.
 *   `deploy-staging.yml`: Deploys to Staging environment.
 
 ## 7. Known Limitations

@@ -71,9 +71,17 @@ How do dancers find `http://192.168.0.15:3000`?
 We will reuse 90% of the code. The `packages/web` frontend is already capable of connecting to any URL via `NEXT_PUBLIC_CLOUD_API_URL`. 
 
 **Status Update (Jan 2026):**
-The frontend is now **Bunker-Ready**. We have implemented:
+
+### Web Client (Dancers) - Readiness: 8/10 🟢
+The frontend is **Bunker-Ready**. We have implemented:
 - **Robust Reconnection:** Heartbeat monitor ensures connection recovery.
 - **Offline Queue:** Likes are gathered locally and bulk-sent when connection returns.
 - **Session Scoping:** Persistence is handled safely per session.
+
+### Desktop Client (DJ) - Readiness: 2/10 🔴
+The broadcaster is **NOT Ready**.
+- **Critical Issue:** Track broadcasts are dropped if the socket is not OPEN.
+- **Consequence:** Gaps in history log if Wi-Fi flickers.
+- **Action Item:** Implement `PendingUpdateQueue` (similar to web) to retry failed broadcasts.
 
 In Offline Mode, we just serve a build where the API URL points to the local desktop IP.

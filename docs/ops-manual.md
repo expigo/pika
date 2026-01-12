@@ -235,6 +235,26 @@ docker compose -f docker-compose.prod.yml exec cloud \
 | Review generated SQL before applying | Skip the review step |
 | Run migrations after every deploy | Assume schema is up to date |
 
+### 🚨 Production Warning: The Race Condition
+**Problem:** If you deploy new code (expecting new columns) *before* running migrations, the app will crash on startup.
+**Solution:** Use the **Entrypoint Migration** pattern.
+1.  Update `package.json` to run migrations before start:
+    ```json
+    "scripts": {
+      "start:prod": "bun run db:migrate && bun run src/index.ts"
+    }
+    ```
+2.  Or use a `run_once` container in `docker-compose.prod.yml` that runs `bun run db:migrate` before the main app starts.
+
+3. Or add CI Pipeline Step (Deploy Phase) Add a step in deploy.yml after the pull but before the restart.
+    ```
+    # In deploy.yml ssh script:
+    git pull origin main
+    # Run migration using a temporary container or exec if container is up
+    docker compose -f docker-compose.prod.yml run --rm cloud bun run db:migrate
+    docker compose -f docker-compose.prod.yml up -d --build --force-recreate
+    ```
+
 ### 🆘 Troubleshooting Migrations
 
 **"Relation already exists" Error:**
