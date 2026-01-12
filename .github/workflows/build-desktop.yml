@@ -2,7 +2,7 @@ name: Build Desktop Sidecar
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "staging"]
     paths:
       - "packages/desktop/python-src/**"
       - "packages/desktop/scripts/build-sidecar.ts"
