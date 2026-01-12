@@ -16,6 +16,9 @@ import { z } from "zod";
 export const TrackInfoSchema = z.object({
   title: z.string(),
   artist: z.string(),
+  // Raw metadata (optional, for reference)
+  rawTitle: z.string().optional(),
+  rawArtist: z.string().optional(),
   // Core metrics
   bpm: z.number().optional(),
   key: z.string().optional(),

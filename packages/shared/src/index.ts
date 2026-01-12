@@ -48,4 +48,4 @@ export {
   validateDjSlug,
 } from "./slugify";
 
-export { getTrackKey } from "./utils";
+export { getTrackKey, normalizeTrack } from "./utils";
