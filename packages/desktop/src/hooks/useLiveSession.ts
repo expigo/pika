@@ -1,4 +1,4 @@
-import { parseWebSocketMessage, type TrackInfo } from "@pika/shared";
+import { normalizeTrack, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { useCallback, useEffect, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
@@ -127,7 +127,8 @@ function flushQueue() {
   queueToFlush.forEach((item) => {
     if (socketInstance?.readyState === WebSocket.OPEN) {
       socketInstance.send(JSON.stringify(item.payload));
-      console.log("[Live] Flushed:", (item.payload as any).type);
+      // item.payload is 'object', so we cast to unknown then read type
+      console.log("[Live] Flushed:", (item.payload as { type: string }).type);
     } else {
       // If it failed again, push back to queue?
       // For simplicity in MVP, we re-queue if still closed, but we checked OPEN above.
@@ -137,7 +138,7 @@ function flushQueue() {
   });
 }
 
-function sendMessage(message: any) {
+function sendMessage(message: { type: string; [key: string]: unknown }) {
   if (socketInstance?.readyState === WebSocket.OPEN) {
     socketInstance.send(JSON.stringify(message));
     console.log("[Live] Sent:", message);
@@ -209,7 +210,12 @@ interface DbTrackInfo {
  * Find or create a track in the database by artist/title
  * Returns the track with fingerprint data for broadcasting
  */
-async function findOrCreateTrack(artist: string, title: string): Promise<DbTrackInfo> {
+async function findOrCreateTrack(
+  artist: string,
+  title: string,
+  rawArtist?: string,
+  rawTitle?: string,
+): Promise<DbTrackInfo> {
   const allTracks = await trackRepository.getAllTracks();
   const normalizedArtist = normalizeText(artist);
   const normalizedTitle = normalizeText(title);
@@ -240,6 +246,8 @@ async function findOrCreateTrack(artist: string, title: string): Promise<DbTrack
     filePath: `ghost://${artist}/${title}`,
     artist,
     title,
+    rawArtist,
+    rawTitle,
   });
 
   return {
@@ -276,7 +284,12 @@ async function recordPlay(
   processedTrackKeys.add(trackKey);
 
   try {
-    const dbTrack = await findOrCreateTrack(track.artist, track.title);
+    const dbTrack = await findOrCreateTrack(
+      track.artist,
+      track.title,
+      track.rawArtist,
+      track.rawTitle,
+    );
     const timestamp = Math.floor(Date.now() / 1000);
 
     const play = await sessionRepository.addPlay(currentDbSessionId, dbTrack.id, timestamp);
@@ -319,23 +332,37 @@ export function useLiveSession() {
   // Handle track changes from VirtualDJ
   const handleTrackChange = useCallback(
     async (track: NowPlayingTrack) => {
-      console.log("[Live] Track changed:", track.artist, "-", track.title);
+      // Data Hygiene: Normalize track metadata immediately
+      // Data Hygiene: Normalize track metadata immediately
+      const { artist: cleanArtist, title: cleanTitle } = normalizeTrack(track.artist, track.title);
+      // Keep raw data in the object for DB storage
+      const normalizedTrack = {
+        ...track,
+        artist: cleanArtist,
+        title: cleanTitle,
+        rawArtist: track.artist,
+        rawTitle: track.title,
+      };
+
+      console.log("[Live] Track changed (raw):", track.artist, "-", track.title);
+      console.log("[Live] Track normalized:", cleanArtist, "-", cleanTitle);
+
       console.log(
         "[Live] State check - isLiveFlag:",
         isLiveFlag,
         "currentDbSessionId:",
         currentDbSessionId,
       );
-      setNowPlaying(track);
+      setNowPlaying(normalizedTrack);
 
       // Reset tempo feedback when track changes (server also resets)
       setTempoFeedback(null);
 
       // Record to database and get fingerprint data
-      let enrichedTrack = track;
+      let enrichedTrack = normalizedTrack;
       if (isLiveFlag && currentDbSessionId) {
         console.log("[Live] Recording play to database...");
-        const result = await recordPlay(track);
+        const result = await recordPlay(normalizedTrack);
         console.log("[Live] Play recorded:", result?.playId);
         if (result) {
           currentPlayIdRef = result.playId; // Update singleton ref for likes
@@ -343,7 +370,7 @@ export function useLiveSession() {
 
           // Enrich track with fingerprint data from database
           enrichedTrack = {
-            ...track,
+            ...normalizedTrack,
             bpm: result.trackInfo.bpm ?? undefined,
             key: result.trackInfo.key ?? undefined,
             energy: result.trackInfo.energy ?? undefined,

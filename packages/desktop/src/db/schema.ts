@@ -26,6 +26,10 @@ export const tracks = sqliteTable("tracks", {
 
   // Analysis status
   analyzed: int("analyzed", { mode: "boolean" }).default(false),
+
+  // Raw metadata for reference
+  rawArtist: text("raw_artist"),
+  rawTitle: text("raw_title"),
 });
 
 // ============================================================================

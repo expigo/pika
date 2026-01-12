@@ -364,6 +364,9 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
         sessionId,
         artist: track.artist,
         title: track.title,
+        // Raw metadata
+        rawArtist: track.rawArtist,
+        rawTitle: track.rawTitle,
         // Core metrics
         bpm: track.bpm ?? null,
         key: track.key ?? null,

@@ -126,16 +126,20 @@ export const trackRepository = {
     filePath: string;
     artist?: string | null;
     title?: string | null;
+    rawArtist?: string | null;
+    rawTitle?: string | null;
     bpm?: number | null;
     key?: string | null;
   }): Promise<number> {
     const sqlite = await getSqlite();
     await sqlite.execute(
-      `INSERT INTO tracks (file_path, artist, title, bpm, key, analyzed) VALUES (?, ?, ?, ?, ?, 0)`,
+      `INSERT INTO tracks (file_path, artist, title, raw_artist, raw_title, bpm, key, analyzed) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
       [
         track.filePath,
         track.artist ?? null,
         track.title ?? null,
+        track.rawArtist ?? null,
+        track.rawTitle ?? null,
         track.bpm ?? null,
         track.key ?? null,
       ],

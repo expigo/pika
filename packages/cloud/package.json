@@ -4,7 +4,7 @@
   "type": "module",
   "main": "./src/index.ts",
   "scripts": {
-    "dev": "bun run --hot src/index.ts",
+    "dev": "bun run db:migrate && bun run --hot src/index.ts",
     "start": "bun run src/index.ts",
     "start:prod": "bun run db:migrate && bun run src/index.ts",
     "lint": "biome check .",
