@@ -2,8 +2,8 @@
 
 **Version:** 1.1.0
 **Created:** 2026-01-07
-**Updated:** 2026-01-07
-**Status:** Active
+**Updated:** 2026-01-12
+**Status:** Pre-Launch Polish
 **Target Event:** ~1 month from now
 
 ---
@@ -573,6 +573,16 @@ Future feature (post-MVP):
 | Database Migration System | ✅ Fixed | `drizzle/0002_*.sql` | Created idempotent recovery migration |
 | Session Persistence | ✅ Fixed | `drizzle/0002_*.sql` | Added missing dj_user_id column |
 | Docker db:push → db:migrate | ✅ Fixed | `docker-compose.prod.yml` | Non-interactive migrations |
+
+### 🟢 Resolved in Staging (2026-01-12)
+
+| Issue | Status | Location | Notes |
+|-------|--------|----------|-------|
+| **Recap Duration** | ✅ Fixed | `cloud/index.ts` | "0 min" and Zombie session fix |
+| **Recap Privacy Links** | ✅ Fixed | `web`, `desktop` | Public vs DJ Analytics differentiation |
+| **WebSocket Crash** | ✅ Fixed | `cloud/index.ts` | Missing `djName` in payload |
+| **Hydration Error** | ✅ Fixed | `web/layout.tsx` | Suppressed body attributes (extensions) |
+| **Live Player Recap** | ✅ Fixed | `web/LivePlayer.tsx` | "View Recap" button after session ends |
 
 ### 🟡 Important (Fix Soon After)
 
