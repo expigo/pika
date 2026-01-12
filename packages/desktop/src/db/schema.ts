@@ -126,3 +126,16 @@ export const savedSetTracks = sqliteTable("saved_set_tracks", {
   /** Position in the set (0-indexed) */
   position: int("position").notNull(),
 });
+// ============================================================================
+// Offline Queue Table - Persist messages when valid connection is lost
+// ============================================================================
+
+export const offlineQueue = sqliteTable("offline_queue", {
+  id: int("id").primaryKey({ autoIncrement: true }),
+
+  /** JSON payload of the message */
+  payload: text("payload").notNull(),
+
+  /** Unix timestamp when message was queued */
+  createdAt: int("created_at").notNull(),
+});

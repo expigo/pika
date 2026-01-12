@@ -109,33 +109,46 @@ let lastBroadcastedTrackKey: string | null = null; // Prevent duplicate cloud br
 let skipInitialTrackBroadcast = false; // Explicit flag to skip initial track broadcast
 let lastProcessedLikeKey: string | null = null; // Prevent duplicate like notifications
 
-const messageQueue: { timestamp: number; payload: object }[] = [];
+import { offlineQueueRepository } from "../db/repositories/offlineQueueRepository";
 
-function flushQueue() {
-  if (messageQueue.length === 0) return;
+// ... (imports)
 
-  console.log(`[Live] Flushing ${messageQueue.length} queued messages...`);
-  if (messageQueue.length > 5) {
-    toast(`Syncing ${messageQueue.length} updates...`, { icon: "🔄" });
-  }
+// Replaced in-memory queue with DB repository
+// const messageQueue: { timestamp: number; payload: object }[] = [];
 
-  // Process all queued messages
-  // We use a clone to avoid infinite loops if send fails immediately
-  const queueToFlush = [...messageQueue];
-  messageQueue.length = 0; // Clear original queue
+async function flushQueue() {
+  try {
+    const queue = await offlineQueueRepository.getAll();
+    if (queue.length === 0) return;
 
-  queueToFlush.forEach((item) => {
-    if (socketInstance?.readyState === WebSocket.OPEN) {
-      socketInstance.send(JSON.stringify(item.payload));
-      // item.payload is 'object', so we cast to unknown then read type
-      console.log("[Live] Flushed:", (item.payload as { type: string }).type);
-    } else {
-      // If it failed again, push back to queue?
-      // For simplicity in MVP, we re-queue if still closed, but we checked OPEN above.
-      // If we are here, it means socket closed MID-FLUSH.
-      messageQueue.push(item);
+    console.log(`[Live] Flushing ${queue.length} queued messages...`);
+    if (queue.length > 5) {
+      toast(`Syncing ${queue.length} updates...`, { icon: "🔄" });
     }
-  });
+
+    const idsToDelete: number[] = [];
+
+    // Process queue sequentially to maintain order
+    for (const item of queue) {
+      if (socketInstance?.readyState === WebSocket.OPEN) {
+        socketInstance.send(JSON.stringify(item.payload));
+        // item.payload is 'object', so we cast to unknown then read type
+        console.log("[Live] Flushed:", (item.payload as { type: string }).type);
+        idsToDelete.push(item.id);
+      } else {
+        // Socket closed mid-flush, stop processing
+        break;
+      }
+    }
+
+    // Clean up successfully sent messages
+    if (idsToDelete.length > 0) {
+      await offlineQueueRepository.deleteMany(idsToDelete);
+      console.log(`[Live] Removed ${idsToDelete.length} flushed messages from DB`);
+    }
+  } catch (e) {
+    console.error("[Live] Failed to flush queue:", e);
+  }
 }
 
 function sendMessage(message: { type: string; [key: string]: unknown }) {
@@ -145,8 +158,12 @@ function sendMessage(message: { type: string; [key: string]: unknown }) {
   } else {
     // Queue the message if we are "supposed" to be live
     if (isLiveFlag) {
-      console.log("[Live] Socket offline - Queuing message:", message.type);
-      messageQueue.push({ timestamp: Date.now(), payload: message });
+      console.log("[Live] Socket offline - Queuing persistent message:", message.type);
+
+      // Fire and forget enqueue to avoid blocking UI
+      offlineQueueRepository.enqueue(message).catch((e) => {
+        console.error("[Live] Failed to persist offline message:", e);
+      });
 
       // Only toast for "important" updates to avoid spam
       if (message.type === "BROADCAST_TRACK") {
@@ -688,7 +705,6 @@ export function useLiveSession() {
     currentPlayIdRef = null;
     processedTrackKeys.clear();
     lastBroadcastedTrackKey = null;
-    messageQueue.length = 0; // Clear offline queue
   }, [reset]);
 
   // Clear now playing

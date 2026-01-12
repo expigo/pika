@@ -100,6 +100,15 @@ async function initializeDb(): Promise<void> {
             );
         `);
 
+    // Create offline_queue table
+    await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS offline_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                payload TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            );
+        `);
+
     console.log("Database initialized successfully");
   } catch (e) {
     console.error("Failed to initialize database:", e);
