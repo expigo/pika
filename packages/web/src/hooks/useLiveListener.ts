@@ -1,6 +1,6 @@
 "use client";
 
-import { parseWebSocketMessage, type TrackInfo } from "@pika/shared";
+import { getTrackKey, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 
@@ -83,10 +83,6 @@ interface LiveState {
 }
 
 const MAX_HISTORY = 5;
-
-function getTrackKey(track: TrackInfo): string {
-  return `${track.artist}:${track.title}`;
-}
 
 // ============================================================================
 // Persist liked tracks in localStorage (per session)

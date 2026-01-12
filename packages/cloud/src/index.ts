@@ -3,6 +3,8 @@ import {
   type TrackInfo,
   type WebSocketMessage,
   WebSocketMessageSchema,
+  getTrackKey,
+  slugify,
 } from "@pika/shared";
 import type { ServerWebSocket } from "bun";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -90,10 +92,6 @@ function removeListener(sessionId: string, clientId: string): boolean {
 // This survives page reloads, so users can't abuse by refreshing
 // Map: `${sessionId}:${clientId}` -> Set<trackKey>
 const likesSent = new Map<string, Set<string>>();
-
-function getTrackKey(track: TrackInfo): string {
-  return `${track.artist}:${track.title}`;
-}
 
 // ============================================================================
 // Tempo Feedback Tracking
@@ -519,16 +517,6 @@ app.get("/health", async (c) => {
 // ============================================================================
 
 // Helper: Generate URL-safe slug from DJ name
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 // Helper: Generate secure random token
 function generateToken(): string {
