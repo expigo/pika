@@ -85,35 +85,41 @@ interface LiveState {
 const MAX_HISTORY = 5;
 
 // ============================================================================
-// Persist liked tracks in localStorage (per session)
+// Persist liked tracks in localStorage (scoped by session)
 // ============================================================================
-const LIKED_TRACKS_KEY = "pika_liked_tracks";
+const LIKED_TRACKS_KEY = "pika_liked_tracks_v2";
 
-function loadLikedTracks(): Set<string> {
-  if (typeof window === "undefined") return new Set();
-  try {
-    const stored = localStorage.getItem(LIKED_TRACKS_KEY);
-    if (stored) {
-      return new Set(JSON.parse(stored));
-    }
-  } catch (e) {
-    console.error("Failed to load liked tracks:", e);
-  }
-  return new Set();
+interface LikedTracksStorage {
+  [sessionId: string]: string[];
 }
 
-function saveLikedTracks(tracks: Set<string>): void {
-  if (typeof window === "undefined") return;
+function getStoredLikes(sessionId: string | null): Set<string> {
+  if (typeof window === "undefined" || !sessionId) return new Set();
   try {
-    localStorage.setItem(LIKED_TRACKS_KEY, JSON.stringify([...tracks]));
+    const raw = localStorage.getItem(LIKED_TRACKS_KEY);
+    if (!raw) return new Set();
+
+    const data = JSON.parse(raw) as LikedTracksStorage;
+    const sessionLikes = data[sessionId];
+
+    return Array.isArray(sessionLikes) ? new Set(sessionLikes) : new Set();
+  } catch (e) {
+    console.error("Failed to load liked tracks:", e);
+    return new Set();
+  }
+}
+
+function persistLikes(sessionId: string, tracks: Set<string>): void {
+  if (typeof window === "undefined" || !sessionId) return;
+  try {
+    const raw = localStorage.getItem(LIKED_TRACKS_KEY);
+    const data: LikedTracksStorage = raw ? JSON.parse(raw) : {};
+
+    data[sessionId] = [...tracks];
+    localStorage.setItem(LIKED_TRACKS_KEY, JSON.stringify(data));
   } catch (e) {
     console.error("Failed to save liked tracks:", e);
   }
-}
-
-function clearLikedTracks(): void {
-  if (typeof window === "undefined") return;
-  localStorage.removeItem(LIKED_TRACKS_KEY);
 }
 
 /**
@@ -130,7 +136,7 @@ export function useLiveListener(targetSessionId?: string) {
     // If targeting a specific session, set it immediately
     sessionId: targetSessionId ?? null,
     history: [],
-    likedTracks: loadLikedTracks(), // Restore from localStorage
+    likedTracks: new Set(), // Will load via effect when sessionId is known
     listenerCount: 0,
     tempoVote: null,
     activePoll: null,
@@ -190,6 +196,20 @@ export function useLiveListener(targetSessionId?: string) {
     }
   }, []);
 
+  // Load persisted likes when session ID becomes available or changes
+  useEffect(() => {
+    if (state.sessionId) {
+      const storedLikes = getStoredLikes(state.sessionId);
+      if (storedLikes.size > 0) {
+        console.log(`[Listener] Restored ${storedLikes.size} likes for session ${state.sessionId}`);
+        setState((prev) => ({ ...prev, likedTracks: storedLikes }));
+      } else {
+        // Ensure we clear likes if switching to a new session that has none
+        setState((prev) => ({ ...prev, likedTracks: new Set() }));
+      }
+    }
+  }, [state.sessionId]);
+
   useEffect(() => {
     const wsUrl = getWebSocketUrl();
     const clientId = getOrCreateClientId();
@@ -230,29 +250,36 @@ export function useLiveListener(targetSessionId?: string) {
         fetchSessionState(sessionToSubscribe);
       }
 
-      // Flush pending likes
-      if (pendingLikesRef.current.size > 0) {
-        console.log("[Listener] Flushing pending likes:", pendingLikesRef.current.size);
-        for (const item of pendingLikesRef.current) {
-          try {
-            const { track, sessionId } = JSON.parse(item);
-            // Only send if we have a session ID
-            if (sessionId) {
-              socket.send(
-                JSON.stringify({
-                  type: "SEND_LIKE",
-                  clientId: clientId,
-                  sessionId: sessionId,
-                  payload: { track },
-                }),
-              );
+      // Flush pending likes with a small delay to ensure socket is ready and server processing
+      setTimeout(() => {
+        if (pendingLikesRef.current.size > 0) {
+          console.log("[Listener] Flushing pending likes:", pendingLikesRef.current.size);
+          for (const item of pendingLikesRef.current) {
+            try {
+              const { track, sessionId } = JSON.parse(item);
+              // Only send if we have a session ID
+              if (sessionId && socket.readyState === WebSocket.OPEN) {
+                socket.send(
+                  JSON.stringify({
+                    type: "SEND_LIKE",
+                    clientId,
+                    sessionId: sessionId,
+                    payload: { track },
+                  }),
+                );
+                console.log("[Listener] Flushed like for:", track.title);
+              } else {
+                console.warn(
+                  "[Listener] Could not flush like - missing session or socket not open",
+                );
+              }
+            } catch (e) {
+              console.error("[Listener] Failed to flush pending like:", e);
             }
-          } catch (e) {
-            console.error("[Listener] Failed to flush pending like:", e);
           }
+          pendingLikesRef.current.clear();
         }
-        pendingLikesRef.current.clear();
-      }
+      }, 1000); // 1s delay for safety
     };
 
     socket.onmessage = (event) => {
@@ -264,16 +291,7 @@ export function useLiveListener(targetSessionId?: string) {
 
       console.log("[Listener] Received:", message);
 
-      // Self-healing: If we are receiving messages, we MUST be connected
-      // This fixes the issue where the "Reconnecting" badge gets stuck if onopen raced with other events
-      if (state.status !== "connected") {
-        console.log(
-          "[Listener] Received message while status was",
-          state.status,
-          "- forcing connected",
-        );
-        setState((prev) => ({ ...prev, status: "connected" }));
-      }
+      // (Self-healing removed in favor of heartbeat monitor)
 
       switch (message.type) {
         case "SESSIONS_LIST": {
@@ -442,7 +460,7 @@ export function useLiveListener(targetSessionId?: string) {
           }
 
           // Clear liked tracks for new session
-          clearLikedTracks();
+          // (No need to clear storage, just local state)
 
           setState((prev) => {
             // Only reset if this is for our session
@@ -697,12 +715,50 @@ export function useLiveListener(targetSessionId?: string) {
       setState((prev) => ({ ...prev, status: "connecting" }));
     };
 
+    // Heartbeat: Monitor actual socket state vs React state
+    // This handles edge cases where onclose/onopen might be missed or raced
+    // Actually, `state.status` in interval closure will be stale if we don't use a ref or careful dependency.
+    // simpler: use a ref for status, OR check socket.readyState and dispatch updates safely.
+    // Better: let's use a function that checks statusRef if we had one.
+    // For now, I'll allow the interval to run only if we rely on `socketRef.current`.
+    // But inside setInterval, `state.status` is stale.
+    // I need to use `setState` callback to check current state.
+
+    const heartbeat = setInterval(() => {
+      const socket = socketRef.current;
+      if (!socket) return;
+
+      setState((prev) => {
+        if (socket.readyState === WebSocket.OPEN && prev.status !== "connected") {
+          console.log(
+            "[Listener] Heartbeat: Socket is OPEN but state was",
+            prev.status,
+            "- syncing",
+          );
+          return { ...prev, status: "connected" };
+        }
+        if (
+          (socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) &&
+          prev.status === "connected"
+        ) {
+          console.log(
+            "[Listener] Heartbeat: Socket is CLOSED/CLOSING but state was",
+            prev.status,
+            "- syncing",
+          );
+          return { ...prev, status: "disconnected" };
+        }
+        return prev;
+      });
+    }, 3000);
+
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online", handleOnline);
 
     return () => {
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
+      clearInterval(heartbeat);
       socket.close();
     };
     // Note: fetchHistory is stable (no deps), don't include in deps array to avoid infinite loop
@@ -729,7 +785,10 @@ export function useLiveListener(targetSessionId?: string) {
         ...prev,
         likedTracks: newLikedTracks,
       }));
-      saveLikedTracks(newLikedTracks);
+
+      if (state.sessionId) {
+        persistLikes(state.sessionId, newLikedTracks);
+      }
 
       if (socketRef.current?.readyState === WebSocket.OPEN && state.sessionId) {
         socketRef.current.send(

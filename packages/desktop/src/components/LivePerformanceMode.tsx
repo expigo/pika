@@ -197,7 +197,7 @@ export function LivePerformanceMode({
                   ? "connecting"
                   : "disconnected"
             }
-            pingEndpoint={`${baseUrl || ""}/api/health`}
+            pingEndpoint={baseUrl ? `${baseUrl}/health` : undefined}
           />
 
           {onForceSync && (
