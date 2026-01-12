@@ -1,8 +1,10 @@
 # Design Doc 004: Account System Roadmap
 
-**Status:** APPROVED
+**Status:** DEPRECATED (Superseded by `011-future-infrastructure-roadmap.md`)
 **Date:** 2026-01-04
 **Author:** Antigravity
+
+> **⚠️ WARNING:** This document contains outdated information (e.g., Magic Links). Please refer to **Design Doc 011** for the current plan (Email + Password + Token).
 
 ---
 

@@ -1,6 +1,6 @@
 # Design Doc 002: Social Signals & Voting (Blurring the Line)
 
-**Status:** APPROVED
+**Status:** Partially Implemented (See `docs/architecture/social-signals.md`)
 **Date:** 2026-01-03
 **Author:** Antigravity
 

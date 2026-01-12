@@ -1,131 +1,63 @@
-# Pika! Development Roadmap 2026
+# Pika! Project Master Index & Roadmap
 
-```
-                    Q1 2026                          Q2 2026                          Q3 2026
-    ┌────────────────────────────────────┬────────────────────────────────────┬────────────────────────────────┐
-    │                                    │                                    │                                │
-    │  ╔══════════════════════════════╗  │  ╔══════════════════════════════╗  │  ╔════════════════════════════╗│
-    │  ║  PHASE 0: MVP ✅ COMPLETE    ║  │  ║  PHASE 2: ACCOUNTS           ║  │  ║  PHASE 3: ORGANIZATIONS   ║│
-    │  ╠══════════════════════════════╣  │  ╠══════════════════════════════╣  │  ╠════════════════════════════╣│
-    │  ║ ✅ Live sessions             ║  │  ║ ⬜ Auth.js setup             ║  │  ║ ⬜ Dance school profiles   ║│
-    │  ║ ✅ Likes & tempo feedback    ║  │  ║ ⬜ User registration         ║  │  ║ ⬜ Event management        ║│
-    │  ║ ✅ Polls with timer          ║  │  ║ ⬜ Role-based access         ║  │  ║ ⬜ DJ booking system       ║│
-    │  ║ ✅ Session analytics         ║  │  ║ ⬜ DJ profiles               ║  │  ║ ⬜ Student management      ║│
-    │  ║ ✅ Desktop DJ app            ║  │  ║ ⬜ Desktop app login         ║  │  ║ ⬜ Multi-DJ events         ║│
-    │  ╚══════════════════════════════╝  │  ╚══════════════════════════════╝  │  ╚════════════════════════════╝│
-    │                                    │                                    │                                │
-    │  ╔══════════════════════════════╗  │  ╔══════════════════════════════╗  │  ╔════════════════════════════╗│
-    │  ║  PHASE 1: SECURITY 🔒       ║  │  ║  PHASE 4: PRODUCTION         ║  │  ║  PHASE 5: SCALE           ║│
-    │  ╠══════════════════════════════╣  │  ╠══════════════════════════════╣  │  ╠════════════════════════════╣│
-    │  ║ 🔴 DJ authentication        ║  │  ║ 🟡 VPS deployment            ║  │  ║ ⬜ Redis cluster           ║│
-    │  ║ 🟠 Input sanitization       ║  │  ║ 🟡 Redis hot state           ║  │  ║ ⬜ Horizontal scaling      ║│
-    │  ║ 🟠 Message size limits      ║  │  ║ 🟡 CI/CD pipeline            ║  │  ║ ⬜ CDN for assets          ║│
-    │  ║ 🟡 Connection rate limits   ║  │  ║ 🟡 Monitoring                ║  │  ║ ⬜ Mobile PWA              ║│
-    │  ║ 🟡 Fix likesSent scope      ║  │  ║ 🟡 Automated backups         ║  │  ║ ⬜ API rate limiting       ║│
-    │  ╚══════════════════════════════╝  │  ╚══════════════════════════════╝  │  ╚════════════════════════════╝│
-    │                                    │                                    │                                │
-    │   January      February   March    │   April        May        June     │   July      August   September │
-    └────────────────────────────────────┴────────────────────────────────────┴────────────────────────────────┘
+This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-    Legend: ✅ Done   🔴 Critical   🟠 High   🟡 Medium   ⬜ Planned
-```
-
-## Milestone Timeline
-
-### 🎯 M1: Production Ready (End of January)
-- [ ] Security hardening complete
-- [ ] VPS deployed with HTTPS
-- [ ] Basic monitoring in place
-- [ ] First real event usage
-
-### 🎯 M2: Account System (End of March)
-- [ ] User registration/login working
-- [ ] DJ profiles with custom URLs
-- [ ] Desktop app authenticated
-- [ ] Dancer "My Likes" linked to account
-
-### 🎯 M3: Organizations (End of June)
-- [ ] Dance schools can register
-- [ ] Events can be created/managed
-- [ ] DJs can be invited to events
-- [ ] Event-specific analytics
-
-### 🎯 M4: Scale Ready (End of September)
-- [ ] Handle 1000+ concurrent users
-- [ ] Multi-server deployment ready
-- [ ] Mobile PWA launched
-- [ ] Premium features defined
+**Current Focus:** [MVP Launch Prep](projects/mvp-launch.md)
+**Status:** Pre-Launch Polish
 
 ---
 
-## Priority Matrix
-
-```
-                    HIGH IMPACT
-                        │
-    ┌───────────────────┼───────────────────┐
-    │                   │                   │
-    │   DO FIRST        │   SCHEDULE        │
-    │                   │                   │
-    │ • DJ Auth         │ • Account System  │
-    │ • VPS Deploy      │ • Organizations   │
-    │ • Security Fixes  │ • Mobile PWA      │
-    │                   │                   │
-LOW ├───────────────────┼───────────────────┤ HIGH
-EFFORT                  │                   EFFORT
-    │                   │                   │
-    │   QUICK WINS      │   CONSIDER        │
-    │                   │                   │
-    │ • Message Limits  │ • Redis Migration │
-    │ • Input Sanitize  │ • Native App      │
-    │ • Fix likesSent   │ • API v2          │
-    │                   │                   │
-    └───────────────────┼───────────────────┘
-                        │
-                    LOW IMPACT
-```
+## 📂 Active Projects
+*   **[MVP Launch Plan](projects/mvp-launch.md)** - *High Priority*
+    *   Tracks the remaining tasks for the initial real-world deployment.
+    *   Status: **In Progress** (Security & UX Polish)
 
 ---
 
-## Resource Requirements
-
-| Phase | Effort | Team Size | Duration |
-|-------|--------|-----------|----------|
-| Phase 1: Security | 40 hours | 1 dev | 2 weeks |
-| Phase 2: Accounts | 160 hours | 1-2 devs | 6 weeks |
-| Phase 3: Orgs | 200 hours | 2 devs | 8 weeks |
-| Phase 4: Production | 80 hours | 1 dev | 3 weeks |
-| Phase 5: Scale | 120 hours | 2 devs | 6 weeks |
+## 🏛️ Architecture Documentation
+*   [**Authentication**](architecture/auth-system.md) - DJ accounts, token management, security.
+*   [**Deployment**](architecture/deployment.md) - VPS, Cloudflare Tunnel, CI/CD, Docker.
+*   [**Audio Analysis**](architecture/audio-analysis.md) - Local Python sidecar, librosa integration.
+*   [**Social Signals**](architecture/social-signals.md) - Likes, Votes, Listener Counts.
+*   [**Logbook Data**](architecture/logbook-data.md) - Session history, Cloud analytics.
 
 ---
 
-## Risk Assessment
+## 🔮 Blueprints (Future Plans)
 
-| Risk | Impact | Likelihood | Mitigation |
-|------|--------|------------|------------|
-| Security breach | 🔴 High | Medium | Phase 1 priority |
-| Data loss | 🔴 High | Low | Turso + backups |
-| VPS limits | 🟠 Medium | Medium | Monitor usage |
-| OAuth setup delays | 🟡 Low | Medium | Start with email |
-| Desktop auth complexity | 🟡 Low | High | Use popup flow |
+### Core Roadmap
+*   [**Account System Vision**](blueprints/account-system-vision.md) - Future dancer accounts & organizations.
+*   [**Long Term Vision (Roadmap to 1.0)**](blueprints/long-term-vision.md) - The path from MVP to V1.
+
+### Features
+*   [**Offline Mode**](blueprints/offline-mode.md) - Queueing interactions when venue WiFi fails.
+*   [**Pika! Charts**](blueprints/pika-charts.md) - "Billboard" for West Coast Swing music.
+*   [**Spotify Integration**](blueprints/spotify-integration-vision.md) - Auto-export setlists to Spotify.
+*   [**Social Signals Vision**](blueprints/social-signals-vision.md) - Advanced voting & interaction ideas.
+*   [**Logbook Vision**](blueprints/logbook-vision.md) - Advanced post-session analytics.
 
 ---
 
-## Success Metrics
+## 📅 High-Level Timeline (2026)
 
-### Phase 1-2 (Q1)
-- [ ] 0 security incidents
-- [ ] 99% uptime
-- [ ] 100+ registered DJs
-- [ ] 1000+ registered dancers
+### Q1: The Launch 🚀
+*   **Goal:** Successfully run pilot event with DJ Pikachu.
+*   **Key Tech:** VPS, Cloudflare, Basic Auth.
+*   **Status:** [MVP Launch Plan](projects/mvp-launch.md)
 
-### Phase 3-4 (Q2)
-- [ ] 10+ dance schools
-- [ ] 50+ events managed
-- [ ] 5000+ active dancers
-- [ ] <100ms WebSocket latency
+### Q2: Accounts & Community 👥
+*   **Goal:** Allow Dancers to save history; Organize Events.
+*   **Key Tech:** Auth.js, Postgres Roles, "Organizations".
+*   **Ref:** [Account System Vision](blueprints/account-system-vision.md)
 
-### Phase 5 (Q3)
-- [ ] 1000+ concurrent connections
-- [ ] Multi-region availability
-- [ ] Revenue from premium tiers
+### Q3: Ecosystem & Scale 🌍
+*   **Goal:** Global Charts, Public API, Mobile App.
+*   **Key Tech:** Redis Cluster, React Native, Public API keys.
+*   **Ref:** [Pika! Charts](blueprints/pika-charts.md)
+
+---
+
+## 🛠️ Operational Guides
+*   [**Ops Manual**](ops-manual.md) - How to run, debug, and manage the system.
+*   [**API Reference**](api-reference.md) - (Planned)
+

@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** December 29, 2025  
-**Version:** 0.0.1 (MVP Phase)
+**Date:** January 12, 2026
+**Version:** 0.1.0 (MVP Phase)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -12,17 +12,22 @@ This document is designed to get a new developer up to speed with the **Pika!** 
 **Pika!** is a hybrid Local/Cloud system for West Coast Swing DJs. It monitors local DJ software (VirtualDJ) and broadcasts the "Now Playing" track to a real-time cloud server for dancers to see.
 
 ### The "Split Brain" Architecture
-The system is divided into two distinct environments (monorepo via **Bun Workspaces**):
+The system is divided into three distinct environments (monorepo via **Bun Workspaces**):
 
 1.  **Desktop (The Broadcaster)** - `@pika/desktop`
     *   **Tech:** Tauri 2.0 (Rust), React 19, TypeScript, Vite.
-    *   **Role:** Runs locally on the DJ's laptop. Watches filesystem for track changes and pushes data to the cloud.
+    *   **Role:** Runs locally on the DJ's laptop. Watches filesystem for track changes, performs audio analysis (Python), and pushes data to the cloud.
     *   **Key Service:** `VirtualDjWatcher` (polls `history.m3u` / `database.xml`).
 
-2.  **Cloud (The Relay)** - `@pika/cloud`
-    *   **Tech:** Hono Server running on Bun.
-    *   **Role:** A lightweight WebSocket relay. It receives data from **Desktop** and broadcasts it to **Listeners**.
-    *   **Key Concept:** Pub/Sub model using Bun's native `subscribe`/`publish`.
+2.  **Cloud (The Relay & Brain)** - `@pika/cloud`
+    *   **Tech:** Hono Server running on Bun, Drizzle ORM, Postgres.
+    *   **Role:** A unified backend handling WebSockets, REST API, and Database persistence.
+    *   **Capabilities:** Real-time broadcasting, Session management, Auth (DJs), Voting/Polling system.
+
+3.  **Web (The Face)** - `@pika/web`
+    *   **Tech:** Next.js 16, React 19, TailwindCSS 4.
+    *   **Role:** The public-facing interface for Dancers and the Landing Page.
+    *   **Features:** Live "Now Playing" view, History, Voting/Polls, and DJ Registration.
 
 ---
 
@@ -33,47 +38,54 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
 
 ### Why Hono + Bun?
 *   **Performance:** Bun provides extremely fast startup and WebSocket performance.
-*   **Simplicity:** Hono's API allows us to run a unified HTTP + WebSocket server in a single file (`index.ts`), simplifying deployment.
+*   **Unified Server:** Hono allows us to run HTTP (REST) and WebSockets on the same port in a single instance.
 *   **Native WebSockets:** We use `Bun.serve({ websocket: ... })` which is more performant than the Node.js `ws` library.
 
-### Why Polling for VirtualDJ?
-VirtualDJ does not have a reliable "Webhook" or "Push" API for track changes. We implemented a `VirtualDjWatcher` service that polls the history file (default: 2s interval). This is robust and file-system agnostic.
+### Why Next.js for Web?
+*   **SEO:** Critical for the landing page and viral sharing of "Live" links.
+*   **Server Actions:** Simplifies data fetching for the "History" and "Auth" flows.
 
 ---
 
 ## 3. Current Implementation Status
 
 ### ✅ Implemented & Working
-*   **Desktop <-> Cloud Connection:** `useLiveSession` hook successfully manages WebSocket connections, reconnects on failure (`reconnecting-websocket`), and handles the "Go Live" lifecycle.
-*   **Session Management:**
-    *   Session IDs are generated locally and persisted in `localStorage`.
-    *   DJs register via `REGISTER_SESSION` message.
-*   **Track Broadcasting:**
-    *   When `VirtualDjWatcher` detects a change => `BROADCAST_TRACK` => Cloud => `NOW_PLAYING` (broadcast).
-*   **Feedback Loop:** The system supports a "Like" mechanism where listeners can send feedback, and the Desktop App displays a Toast notification.
+*   **Desktop <-> Cloud Connection:** `useLiveSession` hook manages WebSocket connections, reconnects on failure (`reconnecting-websocket`), and handles the "Go Live" lifecycle.
+*   **Full Authentication:** 
+    *   DJs can Register/Login (`/api/auth`).
+    *   Secure password hashing (Bcrypt) and API Tokens (SHA-256).
+*   **Web Interface (Dancers):**
+    *   Responsive "Live" view for dancers (`/live/[sessionId]`).
+    *   Real-time "Now Playing" updates.
+    *   Tempo Voting (Faster/Slower).
+    *   Polls/Questions pushed by DJ.
+*   **Persistence:**
+    *   Postgres DB stores Sessions, Played Tracks, Likes, and Tempo Votes.
+*   **Feedback Loop:** "Like" mechanism and Tempo Feedback are fully functional and persist to DB.
 
 ### 🚧 WIP / Missing
-*   **Listener Frontend:** There is currently NO user-facing web interface for the dancers. The API exists (`GET /sessions`, `ws://...`), but there is no `index.html` or React app for the public to view the current track.
-    *   *Note:* Accessing the cloud URL via a browser currently returns JSON, not a websocket client.
-*   **Secure Auth:** Currently any client can register as a DJ. No authentication tokens are enforced yet.
+*   **DJ Dashboard (Web):** While DJs can register, a full web-based dashboard for them to manage past sets or edit profile details is incomplete.
+*   **Offline Mode Polish:** Desktop app handles offline analysis well, but the UI for "Queued Updates" when reconnecting to internet needs refinement.
+*   **Advanced Analytics:** We collect the data (Energy, BPM, Votes), but we don't yet have a visualization suite for DJs to review their performance post-gig.
 
 ---
 
 ## 4. Key Data Flows
 
 ### A. The "Go Live" Sequence
-1.  **User Action:** Click "Go Live" in Desktop UI.
-2.  **Hook:** `useLiveSession.ts` initializes.
-3.  **Connection:** Connects to `ws://localhost:3001/ws` (or env var).
-4.  **Registration:** Sends `{ type: "REGISTER_SESSION", djName: "..." }`.
-5.  **Confirmation:** Server responds with `SESSION_REGISTERED`.
+1.  **User Action:** DJ logs in and clicks "Go Live" in Desktop UI.
+2.  **Auth:** Desktop authenticates via JWT/Token with Cloud.
+3.  **Connection:** Connects to `ws://api.pika.stream/ws`.
+4.  **Registration:** Sends `{ type: "REGISTER_SESSION", token: "..." }`.
+5.  **Confirmation:** Server validates token, creates Session in DB, and responds `SESSION_REGISTERED`.
 
 ### B. The "Now Playing" Loop
 1.  **VirtualDJ:** Writes new line to history file.
 2.  **Watcher:** `virtualDjWatcher.ts` reads file diff.
 3.  **Event:** Fires `onTrackChange` callback.
 4.  **Upload:** `useLiveSession` sends `{ type: "BROADCAST_TRACK", track: { ... } }`.
-5.  **Broadcast:** Cloud server executes `rawWs.publish("live-session", payload)` to all subscribers.
+5.  **Persistence:** Cloud saves track and audio metrics to Postgres.
+6.  **Broadcast:** Cloud server publishes to all subscribed Web Clients.
 
 ---
 
@@ -83,26 +95,29 @@ VirtualDJ does not have a reliable "Webhook" or "Push" API for track changes. We
 pika/
 ├── packages/
 │   ├── desktop/
-│   │   ├── src/hooks/useLiveSession.ts  <-- MAIN LOGIC for Broadcasting
+│   │   ├── src/hooks/useLiveSession.ts   <-- Broadcasting Logic
 │   │   ├── src/services/virtualDjInfo.ts <-- File watching logic
-│   │   └── src-tauri/                   <-- Rust backend config
+│   │   ├── src-tauri/                    <-- Rust backend config
+│   │   └── python-src/                   <-- Audio Analysis (Sidecar)
 │   │
 │   ├── cloud/
-│   │   ├── src/index.ts                 <-- MAIN LOGIC for Server/Relay
-│   │   └── src/drizzle/                 <-- Database schemas
+│   │   ├── src/index.ts                  <-- Unified Backend (WS + API)
+│   │   └── src/db/                       <-- Drizzle Schemas
+│   │
+│   ├── web/
+│   │   ├── src/app/live/                 <-- Dancer View
+│   │   └── src/app/page.tsx              <-- Landing Page
 ```
 
 ---
 
 ## 6. Development Tips
 
-*   **Running the Stack:** You need two terminals.
-    1.  `cd packages/cloud && bun run dev`
-    2.  `cd packages/desktop && bun run dev`
+*   **Running the Stack:** Use the monorepo scripts.
+    *   Run All: `bun run dev` (from root) - Starts Cloud, Web, and Desktop.
+    *   Just Cloud: `bun run --filter @pika/cloud dev`
 *   **Mobile Testing:**
-    *   To test with a phone, the phone must be on the same Wi-Fi.
-    *   **Crucial:** You cannot just open the URL in Safari. You must build a simple client or use a WebSocket tester app on the phone to verify the stream until the Frontend is built.
-*   **Port Config:**
-    *   Cloud defaults to `:3001`.
-    *   Desktop has a `.env` support for `VITE_CLOUD_WS_URL` if you need to point to a specific IP (e.g., `ws://192.168.1.50:3001/ws`).
-
+    *   Cloud defaults to `:3001`, Web to `:3002`.
+    *   To test on phone, ensure your phone and computer are on the same Wi-Fi and use your local IP (e.g., `192.168.1.x:3002`).
+*   **Database:**
+    *   Cloud depends on a Postgres connection. Ensure `DATABASE_URL` is set in `packages/cloud/.env`.

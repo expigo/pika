@@ -1,21 +1,21 @@
-# Design Document 006: Infrastructure, Security & Account System Roadmap
+# Design Document 011: Future Infrastructure & Security Roadmap
 
-**Version:** 1.0.1
+**Version:** 1.1.0
 **Created:** 2026-01-07
-**Updated:** 2026-01-07
-**Status:** Planning
+**Updated:** 2026-01-12
+**Status:** Planning (Post-MVP)
 
 ---
 
 ## 1. Executive Summary
 
-This document outlines the current state of Pika!'s WebSocket infrastructure, identifies security and architectural issues, and presents a roadmap for implementing a full account system with role-based access control. It also covers deployment strategy for the mikr.us VPS (4GB RAM, 150GB storage).
+This document identifies security and architectural enhancements for the **Post-MVP** phase. It outlines the path to a robust multi-role platform (Organizers, Dance Schools).
 
-**Tech Stack:**
+**Tech Stack (Current):**
 - **Desktop App:** Tauri v2 + React + Vite
-- **Web App:** Next.js 15
+- **Web App:** Next.js 16.1 (WebSockets + REST)
 - **Cloud Server:** Bun + Hono
-- **Database:** Turso (libSQL)
+- **Database:** PostgreSQL (via Docker/VPS)
 
 ---
 
@@ -31,41 +31,35 @@ This document outlines the current state of Pika!'s WebSocket infrastructure, id
 | Optimistic Updates | ✅ Implemented | With server confirmation |
 | Auto-Reconnection | ✅ Implemented | ReconnectingWebSocket library |
 | Pub/Sub Broadcasting | ✅ Implemented | Bun native pub/sub |
+| **DJ Authentication** | ✅ Implemented | Token-based (Bcrypt + SHA-256) |
 
 ### 2.2 Identified Issues Checklist
 
-#### 🔴 Critical Priority
+#### 🔴 Critical Priority (Post-MVP)
 
 | Issue | Status | Effort | Description |
 |-------|--------|--------|-------------|
-| No DJ Authentication | ⬜ TODO | Medium | Anyone can create sessions |
-| ClientId Spoofable | ⬜ TODO | High | localStorage-based ID can be cleared |
+| ClientId Spoofable | ⬜ TODO | High | localStorage-based ID can be cleared/spoofed |
+| No Input Sanitization | ⬜ TODO | Low | XSS risk in poll questions |
+| No Connection Limits | ⬜ TODO | Low | DoS via connection flooding |
 
 #### 🟠 High Priority
 
 | Issue | Status | Effort | Description |
 |-------|--------|--------|-------------|
-| In-Memory State Loss | ⬜ TODO | High | Server restart loses active sessions |
-| No Input Sanitization | ⬜ TODO | Low | XSS risk in poll questions |
-| No Message Size Limits | ⬜ TODO | Low | Memory exhaustion risk |
+| In-Memory State Loss | ⬜ TODO | High | Server restart loses active sessions/polls |
+| Global `likesSent.clear()` | ⬜ TODO | Low | Affects all sessions on end (Scope needed) |
+| Poll Timer `setTimeout` | ⬜ TODO | Medium | Timer lost on restart |
 
-#### 🟡 Medium Priority
-
-| Issue | Status | Effort | Description |
-|-------|--------|--------|-------------|
-| Global likesSent.clear() | ⬜ TODO | Low | Affects all sessions on end |
-| No Connection Limits | ⬜ TODO | Low | DoS via connection flooding |
-| Poll Timer setTimeout | ⬜ TODO | Medium | Lost on restart |
-| Desktop/Web Schema Drift | ⬜ TODO | Medium | Potential type mismatches |
-
-#### ✅ Completed
+#### ✅ Completed / Resolved
 
 | Issue | Status | When | Description |
 |-------|--------|------|-------------|
-| Likes not in recap | ✅ Fixed | 2026-01-07 | Session ID mismatch |
+| **Message Size Limit** | ✅ Fixed | 2026-01-12 | 10KB limit enforced in WebSocket handler |
+| **No DJ Authentication** | ✅ Fixed | 2026-01-08 | Full email/pass/token auth system added |
+| Likes not in recap | ✅ Fixed | 2026-01-07 | Session ID mismatch resolved |
 | Poll vote after refresh | ✅ Fixed | 2026-01-07 | Added VOTE_REJECTED/CONFIRMED |
 | New user sees no track | ✅ Fixed | 2026-01-07 | NOW_PLAYING on subscribe |
-| DJ poll timer display | ✅ Fixed | 2026-01-07 | Added endsAt to optimistic poll |
 
 ---
 
