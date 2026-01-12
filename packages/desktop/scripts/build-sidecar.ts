@@ -104,6 +104,10 @@ function checkPythonVenv(): void {
   }
 
   if (!existsSync(pyinstallerPath)) {
+    // DEBUG: List contents of bin dir to debug CI issues
+    const binPath = join(PYTHON_VENV, process.platform === "win32" ? "Scripts" : "bin");
+    logContents(binPath);
+
     throw new Error(
       `PyInstaller not found in venv at: ${pyinstallerPath}\n` +
         "Please run:\n" +
@@ -111,7 +115,20 @@ function checkPythonVenv(): void {
     );
   }
 
+  // DEBUG: List contents of bin dir if we suspect issues
+  // logContents(join(PYTHON_VENV, process.platform === "win32" ? "Scripts" : "bin"));
+
   console.log(`✅ Found PyInstaller at: ${pyinstallerPath}`);
+}
+
+function logContents(path: string) {
+  if (existsSync(path)) {
+    console.log(`📂 Contents of ${path}:`);
+    const { readdirSync } = require("node:fs");
+    console.log(readdirSync(path));
+  } else {
+    console.log(`❌ Directory not found: ${path}`);
+  }
 }
 
 /**
