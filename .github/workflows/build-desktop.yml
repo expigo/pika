@@ -37,14 +37,11 @@ jobs:
 
       - name: Setup Python venv
         working-directory: packages/desktop/python-src
-        run: |
-          uv venv .venv
-          echo "VIRTUAL_ENV=$(pwd)/.venv" >> $GITHUB_ENV
-          echo "$(pwd)/.venv/bin" >> $GITHUB_PATH
+        run: uv venv .venv
 
       - name: Install Dependencies
         working-directory: packages/desktop/python-src
-        run: uv pip install -r requirements.txt
+        run: uv pip install --python .venv -r requirements.txt
 
       - name: Build Sidecar
         working-directory: packages/desktop
