@@ -72,6 +72,7 @@ function App() {
           djName={djName}
           liveStatus={liveSessionStatus}
           onForceSync={forceSync}
+          baseUrl={baseUrl}
         />
       )}
 

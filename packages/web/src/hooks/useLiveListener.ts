@@ -264,6 +264,17 @@ export function useLiveListener(targetSessionId?: string) {
 
       console.log("[Listener] Received:", message);
 
+      // Self-healing: If we are receiving messages, we MUST be connected
+      // This fixes the issue where the "Reconnecting" badge gets stuck if onopen raced with other events
+      if (state.status !== "connected") {
+        console.log(
+          "[Listener] Received message while status was",
+          state.status,
+          "- forcing connected",
+        );
+        setState((prev) => ({ ...prev, status: "connected" }));
+      }
+
       switch (message.type) {
         case "SESSIONS_LIST": {
           if (message.sessions && message.sessions.length > 0) {

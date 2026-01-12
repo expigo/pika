@@ -98,6 +98,7 @@ interface Props {
   djName?: string;
   liveStatus?: LiveStatus;
   onForceSync?: () => void;
+  baseUrl?: string | null;
 }
 
 export function LivePerformanceMode({
@@ -112,6 +113,7 @@ export function LivePerformanceMode({
   djName,
   liveStatus = "live",
   onForceSync,
+  baseUrl,
 }: Props) {
   const { currentPlay, recentPlays, loading, updateReaction, updateNotes, playCount } =
     useActivePlay(1000); // Poll every 1 second for responsiveness
@@ -195,7 +197,7 @@ export function LivePerformanceMode({
                   ? "connecting"
                   : "disconnected"
             }
-            pingEndpoint="https://pika.stream/api/health" // TODO: Make dynamic based on env
+            pingEndpoint={`${baseUrl || ""}/api/health`}
           />
 
           {onForceSync && (
