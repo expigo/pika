@@ -2,7 +2,13 @@ name: Deploy to Production
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - "main"
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
 
 jobs:
   deploy:

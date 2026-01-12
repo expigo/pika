@@ -2,7 +2,13 @@ name: Deploy to Staging
 
 on:
   push:
-    branches: [ "staging" ]
+    branches:
+      - staging
+    paths-ignore:
+      - 'docs/**'
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
 
 jobs:
   deploy:
