@@ -3,7 +3,7 @@
  * Common types, schemas, and utilities shared between desktop, cloud, and web packages.
  */
 
-export const PIKA_VERSION = "0.1.5";
+export const PIKA_VERSION = "0.1.6";
 
 // Re-export all schemas and types from schemas.ts
 export {
