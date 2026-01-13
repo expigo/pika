@@ -113,6 +113,8 @@ export const EndSessionSchema = z.object({
 
 export const SubscribeSchema = z.object({
   type: z.literal("SUBSCRIBE"),
+  sessionId: z.string().optional(), // Session to subscribe to (for listener tracking)
+  clientId: z.string().optional(), // Client identifier (for unique listener count)
 });
 
 export const SendLikeSchema = z.object({

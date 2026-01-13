@@ -68,8 +68,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Download Page**: Smart GitHub Release integration for Desktop downloads.
     *   [x] **"Thank You" Rain**: Interactive confetti (Canon Mode) + Performance Mode UI Polish.
     *   [x] **UI Polish**: Fixed selection highlighting and database migration stability.
-    *   [ ] **Poll Notifications**: Browser Notification API integration.
-    *   [ ] **DJ Announcements**: Push announcement UI and overlay.
+    *   [ ] **Poll Alerts**: In-app toast + vibration pulse (no permission required). See [PWA Blueprint](../blueprints/pwa-architecture.md) for future push strategy.
+    *   [ ] **DJ Announcements**: In-app overlay banner (push notifications via PWA later).
 *   [ ] **Account Features (MVP Scope)**:
     *   [ ] **Password Protection**: DJ PIN for sessions (optional).
 
