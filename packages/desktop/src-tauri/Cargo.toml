@@ -1,6 +1,6 @@
 [package]
 name = "pika-desktop"
-version = "0.1.0-rc.4"
+version = "0.1.4"
 description = "Pika! Desktop Application"
 authors = ["you"]
 edition = "2021"
