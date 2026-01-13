@@ -25,6 +25,34 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 
 ---
 
+## 1.5. 🔐 Security Hardening (Jan 2026 Audit)
+*Focus: Pre-Launch Security Fixes (2 High, 4 Medium severity items identified).*
+
+| Feature | Value | Complexity | Priority | Notes |
+| :--- | :---: | :---: | :---: | :--- |
+| **CORS Hardening** | **10** | 2 | **🚨 CRITICAL** | Restrict origins to `pika.stream` only. Currently fully permissive `cors()`. |
+| **Auth Rate Limiting** | **10** | 3 | **🚨 CRITICAL** | Add `hono-rate-limiter` (5 req/15min) on `/api/auth/*`. Prevents brute force. |
+| **Secrets to Env Vars** | **8** | 2 | **HIGH** | Move `POSTGRES_PASSWORD` from hardcoded in `docker-compose.prod.yml` to env. |
+| **Email Validation** | **5** | 1 | **MED** | Upgrade to Zod `.email()` validator. Currently only checks for `@`. |
+| **WebSocket Session Ownership** | **7** | 4 | **MED** | Track connection ownership to prevent session ID spoofing. |
+| **CSRF on Login** | **5** | 2 | **MED** | Add custom header check for REST auth endpoints. |
+| **CSP Headers** | **4** | 2 | **LOW** | Add Content-Security-Policy via Next.js middleware. |
+
+---
+
+## 1.6. 🏗️ Code Quality (Engineering Assessment)
+*Focus: Maintainability and Developer Velocity. Composite Score: 8.4/10.*
+
+| Observation | Impact | Complexity | Priority | Notes |
+| :--- | :---: | :---: | :---: | :--- |
+| **Split Cloud Backend** | Architecture | 5 | **HIGH** | `index.ts` is 2100+ lines. Split into `routes/auth.ts`, `routes/session.ts`, `services/broadcast.ts`. |
+| **Decompose useLiveSession** | Maintainability | 4 | **MED** | 877-line hook should be split into smaller custom hooks. |
+| **Add E2E Tests** | Quality | 6 | **HIGH** | Only `utils.test.ts` exists. Need critical path coverage (Go Live → Broadcast → View). |
+| **WebSocket Message Tests** | Reliability | 3 | **MED** | Test Zod schema parsing and edge cases. |
+
+
+---
+
 ## 2. ✨ MVP Polish (Launch Readiness)
 *Focus: User Experience and First Impressions.*
 
@@ -63,19 +91,41 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 
 ## 5. Development Plan (Sequenced)
 
-### Phase 1: The "Stability Fix" (This Week)
-1.  **CI/CD Migrations:** Modify `package.json` `start` script.
-2.  **PyInstaller Matrix:** Create `.github/workflows/build-desktop.yml`.
-3.  **Desktop Offline Queue:** Implement `PendingUpdateQueue` in `useLiveSession.ts`.
+### Phase 1: The "Stability Fix" ✅ COMPLETE
+1.  ✅ **CI/CD Migrations:** Modify `package.json` `start` script.
+2.  ✅ **PyInstaller Matrix:** Create `.github/workflows/build-desktop.yml`.
+3.  ✅ **Desktop Offline Queue:** Implement `PendingUpdateQueue` in `useLiveSession.ts`.
 
-### Phase 2: The "Launch Polish" (Next 2 Weeks)
-1.  **Ghost Data Fix:** Add normalization logic in `packages/shared`.
-2.  **QR Codes:** Switch to dynamic generation based on environment.
-3.  **Landing Page:** Design & implement "How it works".
+### Phase 2: The "Launch Polish" ✅ COMPLETE
+1.  ✅ **Ghost Data Fix:** Add normalization logic in `packages/shared`.
+2.  ✅ **QR Codes:** Switch to dynamic generation based on environment.
+3.  ✅ **Landing Page:** Design & implement "How it works".
+4.  ✅ **"Thank You" Rain:** Confetti feedback system implemented.
+
+### Phase 2.5: The "Security Hardening" 🔐 **CURRENT**
+*Added after Jan 2026 Security Audit. Must complete before launch.*
+
+1.  [ ] **CORS Restriction:** Update `packages/cloud/src/index.ts` line 24:
+    ```typescript
+    app.use("*", cors({
+      origin: ["https://pika.stream", "https://api.pika.stream"],
+      credentials: true,
+    }));
+    ```
+2.  [ ] **Rate Limiting:** Install `hono-rate-limiter` and protect auth routes.
+3.  [ ] **Secrets Migration:** Move `POSTGRES_PASSWORD` to `.env` file.
+4.  [ ] **Email Validation:** Update registration to use Zod `.email()`.
 
 ### Phase 3: The "Account Era" (Post-Launch)
 1.  **Auth.js Setup:** Scaffolding for Dancer/DJ login.
 2.  **Redis:** Migration of state.
+
+### Phase 4: Code Quality Sprint (Post-Launch)
+*Recommendations from Jan 2026 Engineering Assessment. Score: 8.4/10.*
+
+1.  [ ] **Split Cloud Backend:** Decompose `index.ts` into `routes/` and `services/`.
+2.  [ ] **Add E2E Tests:** Cover critical user paths.
+3.  [ ] **Decompose Hooks:** Split `useLiveSession.ts` into smaller hooks.
 
 ---
 
@@ -83,6 +133,9 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 
 | Date | Change | Context |
 | :--- | :--- | :--- |
+| **2026-01-13** | Added Security Hardening Phase 2.5 | Security Audit identified 2 High, 4 Medium issues. CORS and Rate Limiting are blockers. |
+| **2026-01-13** | Added Code Quality Phase 4 | Engineering Assessment (8.4/10). Decomposition and testing recommendations. |
+| **2026-01-13** | Added Section 1.5 (Security) and 1.6 (Quality) | Audit findings integrated into feature matrix. |
 | **2026-01-12** | Added "Native App" as Low Priority | User prefers PWA approach over full React Native rewrite. |
 | **2026-01-12** | Added "Account System" as Phased | See `blueprints/account-system-vision.md` for iterative plan. |
 | **2026-01-12** | Created Document | Initial prioritization of roadmap items. |

@@ -34,11 +34,16 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 ## 3. Implementation Checklist (Remaining)
 
 ### A. Pre-Launch Polish (Security & UX)
-*   [x] **Security Hardening**:
+*   [ ] **Security Hardening (Audit Jan 2026)**:
     *   [x] Secure Token Generation (`crypto.randomUUID`).
     *   [x] Hash Tokens in DB (`SHA-256`).
     *   [x] Middleware protection for sensitive routes.
     *   [x] Clear Auth on Switch: Prevent cross-env pollution.
+    *   [ ] 🚨 **CORS Hardening**: Restrict origins to `pika.stream` and `api.pika.stream` (currently permissive).
+    *   [ ] 🚨 **Rate Limiting**: Add `hono-rate-limiter` on `/api/auth/*` endpoints (5 req/15min).
+    *   [ ] **Secrets Management**: Move hardcoded DB passwords in `docker-compose.prod.yml` to env vars.
+    *   [ ] **Email Validation**: Upgrade to Zod `.email()` validator (currently only checks for `@`).
+    *   [ ] **WebSocket Session Ownership**: Track connection ownership to prevent session hijacking.
 *   [x] **Performance & Stability (Completed)**:
     *   [x] Recap Duration Fix ("0 min" bug).
     *   [x] Recap Privacy Links (Public vs DJ Analytics).
@@ -83,14 +88,37 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **JSON Schema**: Use `json` type for Polls options.
 *   [ ] **DB Indexes**: Add missing indexes for performance.
 *   [ ] **Old Token Cleanup**: Cron job to delete unused tokens > 30 days.
+*   [ ] **Split Cloud Backend**: Decompose `index.ts` (2100+ lines) into modular routes (`routes/auth.ts`, `routes/session.ts`, etc.).
+*   [ ] **Add E2E Tests**: Cover critical path (Go Live → Broadcast → Dancer View).
 
 ## 4. Known Risks
 
+### Operational Risks
 *   **Venue WiFi:** If venue WiFi blocks WebSockets, DJ must use Hotspot.
 *   **Database Limits:** Turso free tier is generous (500M reads), but we monitor closely.
 *   **State Loss:** Server restart clears active session Map (until Redis implemented).
 
+### Security Risks (Identified in Jan 2026 Audit)
+*   🟠 **Open CORS:** Currently `cors()` with no origin restrictions allows any website to call API.
+*   🟠 **No Auth Rate Limiting:** Brute force attacks on `/api/auth/login` are not throttled.
+*   🟡 **Hardcoded Secrets:** `docker-compose.prod.yml` contains `POSTGRES_PASSWORD: pika_password`.
+*   🟡 **Session Hijacking Vector:** Any client knowing a session ID could theoretically inject fake tracks.
+
+### Code Quality Observations (Engineering Assessment Jan 2026)
+*   **Monolithic Files:** `packages/cloud/src/index.ts` at 2100+ lines needs decomposition.
+*   **Large Hooks:** `useLiveSession.ts` at 877 lines could be split into smaller hooks.
+*   **Test Coverage Gap:** Only `utils.test.ts` in shared package; critical paths lack automated tests.
+
 ## 5. Post-MVP Roadmap (Quick Look)
-*   [ ] **Redis:** For persistent session state.
+*   [ ] **Redis:** For persistent session state (zero-downtime deploys).
 *   [ ] **Organizer Role:** For event branding.
 *   [ ] **Native App:** For push notifications.
+*   [ ] **CSP Headers:** Add Content Security Policy via Next.js middleware.
+*   [ ] **WebSocket Connection Rate Limiting:** Prevent rapid connect/disconnect abuse.
+
+## 6. Audit Trail
+
+| Date | Audit | Findings | Ref |
+| :--- | :--- | :--- | :--- |
+| **2026-01-13** | Security Audit | 0 Critical, 2 High, 4 Medium, 3 Low | `security-audit.md` |
+| **2026-01-13** | Engineering Assessment | Composite Score: 8.4/10 | `engineering-assessment.md` |

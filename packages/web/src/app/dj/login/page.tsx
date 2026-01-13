@@ -41,7 +41,10 @@ export default function LoginPage() {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Requested-With": "Pika", // CSRF protection
+        },
         body: JSON.stringify({ email, password }),
       });
 

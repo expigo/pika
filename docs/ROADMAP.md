@@ -12,20 +12,35 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   Status: **In Progress** (Security & UX Polish)
-    *   **New Priorities:**
-        *   CI/CD: Automate DB Migrations (prevent race conditions).
-        *   Desktop: Implement Offline Queue (store plays when offline).
-        *   Build: GitHub Actions Matrix for Cross-Platform Release.
+    *   Status: **Security Hardening** (Phase 2.5)
+    *   **Current Priorities (Jan 2026 Audit):**
+        *   🚨 Security: CORS Hardening (currently permissive).
+        *   🚨 Security: Rate Limiting on Auth Endpoints.
+        *   Code Quality: Split monolithic cloud backend (2100+ lines).
+        *   Testing: Add E2E tests for critical paths.
 
 ---
 
 ## 🏛️ Architecture Documentation
 *   [**Authentication**](architecture/auth-system.md) - DJ accounts, token management, security.
+*   [**Security**](architecture/security.md) - Threat model, vulnerabilities, remediation plans.
 *   [**Deployment**](architecture/deployment.md) - VPS, Cloudflare Tunnel, CI/CD, Docker.
 *   [**Audio Analysis**](architecture/audio-analysis.md) - Local Python sidecar, librosa integration.
 *   [**Social Signals**](architecture/social-signals.md) - Likes, Votes, Listener Counts.
 *   [**Logbook Data**](architecture/logbook-data.md) - Session history, Cloud analytics.
+
+---
+
+## 🔐 Security & Quality
+*   **Latest Audit:** January 13, 2026
+*   **Security Score:** 7.5/10 (2 High, 4 Medium, 3 Low findings)
+*   **Engineering Score:** 8.4/10 (Composite assessment)
+
+| Audit | Date | Findings | Status |
+| :--- | :--- | :--- | :--- |
+| Security Audit | 2026-01-13 | CORS, Rate Limiting gaps | Open |
+| Engineering Assessment | 2026-01-13 | Code decomposition needed | Open |
+
 
 ---
 

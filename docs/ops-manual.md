@@ -413,9 +413,81 @@ cat backup.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U pi
 
 ---
 
+## 🔐 Security Operations
+
+### Pre-Launch Security Checklist
+
+Before launching to production, verify these items:
+
+| Item | Command / Location | Expected |
+| :--- | :--- | :--- |
+| CORS Restricted | `grep -n "cors()" packages/cloud/src/index.ts` | Should specify origin array |
+| Rate Limiting Active | `grep -n "rateLimiter" packages/cloud/src/index.ts` | Should find import and usage |
+| No Hardcoded Secrets | `grep -n "pika_password" docker-compose.prod.yml` | Should find `${POSTGRES_PASSWORD}` |
+| Tokens Hashed | `grep -n "hashToken" packages/cloud/src/index.ts` | Should find SHA-256 hashing |
+
+### Security Verification Commands
+
+**Check CORS Configuration:**
+```bash
+curl -H "Origin: https://evil.com" -I https://api.pika.stream/health
+# Should NOT see Access-Control-Allow-Origin: *
+```
+
+**Check Rate Limiting (Auth):**
+```bash
+# Try 6 failed logins, 6th should be blocked
+for i in {1..6}; do 
+  curl -X POST https://api.pika.stream/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"test@test.com","password":"wrong"}' 
+done
+# Last request should return 429 Too Many Requests
+```
+
+**Check Token Security:**
+```bash
+# Tokens should be hashed in DB
+docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
+  "SELECT id, LEFT(token, 10) || '...' as token_preview, last_used FROM dj_tokens LIMIT 5;"
+# token_preview should show hashed value (hex), not pk_dj_
+```
+
+### Incident Response
+
+**If Credentials Compromised:**
+1. Rotate affected DJ tokens:
+   ```sql
+   DELETE FROM dj_tokens WHERE dj_user_id = <affected_user_id>;
+   ```
+2. Force password reset (manual DB update required).
+3. Check for suspicious session activity in logs.
+
+**If Rate Limiting Not Working:**
+1. Verify Cloudflare is forwarding IP correctly:
+   ```bash
+   # Check for CF-Connecting-IP header in logs
+   docker compose -f docker-compose.prod.yml logs cloud | grep "CF-Connecting-IP"
+   ```
+2. Restart cloud service to reload rate limiter config.
+
+### Security Audit References
+
+| Audit | Date | Score | Document |
+| :--- | :--- | :--- | :--- |
+| Full Security Audit | 2026-01-13 | 7.5/10 | `docs/architecture/security.md` |
+| Engineering Assessment | 2026-01-13 | 8.4/10 | `DEVELOPER_HANDOVER.md` |
+
+---
+
 ## 📂 Key File Locations (VPS)
 
 *   **Project Root:** `/opt/pika/pika`
 *   **Env Config:** `/opt/pika/pika/.env` (Ensure this is not committed to Git!)
 *   **Logs (Docker):** `/var/lib/docker/containers/...` (Managed by Docker)
 *   **DB Data:** `postgres_data` volume (Persists across restarts)
+*   **Security Docs:** `/opt/pika/pika/docs/architecture/security.md`
+
+---
+
+*Last Updated: January 13, 2026*

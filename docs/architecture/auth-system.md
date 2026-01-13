@@ -57,11 +57,78 @@ export const djTokens = pgTable("dj_tokens", {
 
 ## 5. Security Measures
 
-*   **Token Format:** `pk_dj_<uuid_no_dashes>` (High entropy).
-*   **Rate Limiting:** Use of `SHA-256` ensures token validation is fast (<1ms) compared to bcrypt (>100ms), preventing DoS on the WebSocket handshake.
+### ✅ Implemented (Verified Jan 2026 Audit)
 
-## 6. Known Limitations
+| Measure | Status | Details |
+| :--- | :---: | :--- |
+| **Token Entropy** | ✅ Pass | `pk_dj_<uuid>` format provides 122 bits of entropy via `crypto.randomUUID()`. |
+| **Password Hashing** | ✅ Pass | bcrypt cost 10 via `Bun.password.hash()`. Industry standard. |
+| **Token Storage** | ✅ Pass | SHA-256 hashed before DB storage. Raw token returned only once. |
+| **SQL Injection** | ✅ Pass | All queries use Drizzle ORM with parameterized statements. |
+| **Slug Validation** | ✅ Pass | Reserved slugs blocked (`admin`, `api`, `live`, etc.). |
 
+### 🚨 Required Fixes (Pre-Launch)
+
+| Issue | Severity | Fix | Location |
+| :--- | :---: | :--- | :--- |
+| **No Rate Limiting** | 🟠 HIGH | Add `hono-rate-limiter` (5 req/15min per IP). | `/api/auth/*` |
+| **Permissive CORS** | 🟠 HIGH | Restrict origins to `pika.stream` only. | `app.use("*", cors())` line 24 |
+| **Basic Email Check** | 🟡 MED | Only checks for `@`. Use Zod `.email()`. | `index.ts` line 612 |
+| **No CSRF on REST** | 🟡 MED | Add custom header check or SameSite cookies. | Auth endpoints |
+
+### Implementation: Rate Limiting
+
+```typescript
+// packages/cloud/src/index.ts
+import { rateLimiter } from "hono-rate-limiter";
+
+const authLimiter = rateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 5,
+  keyGenerator: (c) => c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown",
+});
+
+app.post("/api/auth/login", authLimiter, async (c) => { ... });
+app.post("/api/auth/register", authLimiter, async (c) => { ... });
+```
+
+### Implementation: CORS Restriction
+
+```typescript
+// packages/cloud/src/index.ts (replace line 24)
+app.use("*", cors({
+  origin: [
+    "https://pika.stream",
+    "https://api.pika.stream",
+    ...(process.env.NODE_ENV === "development" ? ["http://localhost:3000", "http://localhost:3002"] : []),
+  ],
+  credentials: true,
+}));
+```
+
+## 6. Known Limitations & Vulnerabilities
+
+### Functional Limitations
 *   **No Email Verification:** Users can register with fake emails.
 *   **No Password Reset:** If a DJ forgets their password, they are locked out (needs manual DB intervention).
 *   **Single Role:** Only "DJ" role exists. No Admins or Organizers yet.
+*   **Password Complexity:** Only minimum length (8) enforced. No max length or blocklist.
+
+### Security Vulnerabilities (Jan 2026 Audit)
+
+| Vulnerability | Risk | Status | Remediation |
+| :--- | :---: | :---: | :--- |
+| **Brute Force Login** | 🟠 High | Open | Add rate limiting (5 req/15min). |
+| **Cross-Origin Requests** | 🟠 High | Open | Restrict CORS origins. |
+| **WebSocket Session Spoofing** | 🟡 Med | Open | Track connection ownership. |
+| **Secrets in Version Control** | 🟡 Med | Open | Move DB password to env vars. |
+
+## 7. Audit History
+
+| Date | Auditor | Scope | Findings |
+| :--- | :--- | :--- | :--- |
+| **2026-01-13** | Security Lead | Full codebase | 0 Critical, 2 High, 4 Medium, 3 Low |
+
+---
+
+*Last Updated: January 13, 2026*

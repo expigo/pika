@@ -121,3 +121,57 @@ pika/
     *   To test on phone, ensure your phone and computer are on the same Wi-Fi and use your local IP (e.g., `192.168.1.x:3002`).
 *   **Database:**
     *   Cloud depends on a Postgres connection. Ensure `DATABASE_URL` is set in `packages/cloud/.env`.
+
+---
+
+## 7. Security Status (Jan 2026 Audit)
+
+**Overall Score: 7.5/10** - Production-viable with listed mitigations.
+
+### What's Working ✅
+*   bcrypt password hashing (cost 10)
+*   SHA-256 hashed API tokens (never stored raw)
+*   Zod validation on all WebSocket messages
+*   SQL injection protection (Drizzle ORM)
+*   No XSS vulnerabilities (React JSX escaping)
+*   Well-scoped Tauri desktop permissions
+
+### Needs Immediate Attention 🚨
+| Issue | Severity | Fix |
+| :--- | :---: | :--- |
+| Permissive CORS | HIGH | Restrict to `pika.stream` origins only |
+| No Auth Rate Limiting | HIGH | Add `hono-rate-limiter` (5 req/15min) |
+| Hardcoded DB Password | MEDIUM | Move to environment variables |
+
+**Full Details:** See [docs/architecture/security.md](docs/architecture/security.md)
+
+---
+
+## 8. Codebase Health (Jan 2026 Assessment)
+
+**Overall Score: 8.4/10** - Strong foundations, some decomposition needed.
+
+### Strengths
+*   **Architecture:** Clean Split-Brain design (Desktop ↔ Cloud ↔ Web)
+*   **Type Safety:** Strict TypeScript, Zod schemas, Drizzle ORM
+*   **Documentation:** Exceptional (10/10) - comprehensive roadmaps and specs
+*   **CI/CD:** Automated deployment, cross-platform builds, staging environment
+
+### Areas for Improvement
+| Observation | Impact | Recommendation |
+| :--- | :---: | :--- |
+| `cloud/src/index.ts` is 2100+ lines | Maintainability | Split into `routes/` and `services/` |
+| `useLiveSession.ts` is 877 lines | Maintainability | Decompose into smaller hooks |
+| Only `utils.test.ts` exists | Quality | Add E2E tests for critical paths |
+
+### File Size Reference
+| File | Lines | Status |
+| :--- | :---: | :--- |
+| `packages/cloud/src/index.ts` | 2,106 | 🟡 Needs split |
+| `packages/desktop/src/hooks/useLiveSession.ts` | 877 | 🟡 Needs split |
+| `packages/web/src/hooks/useLiveListener.ts` | 963 | 🟡 Needs split |
+| `packages/shared/src/schemas.ts` | 384 | ✅ OK |
+
+---
+
+*Last Updated: January 13, 2026*

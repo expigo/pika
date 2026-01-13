@@ -4,7 +4,7 @@ services:
     container_name: pika-db
     environment:
       POSTGRES_USER: pika
-      POSTGRES_PASSWORD: pika_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pika_secure_change_me}
       POSTGRES_DB: pika_prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -24,7 +24,7 @@ services:
     working_dir: /app/packages/cloud
     command: sh -c "cd /app && bun install && cd packages/cloud && bun run start:prod"
     environment:
-      - DATABASE_URL=postgres://pika:pika_password@db:5432/pika_prod
+      - DATABASE_URL=postgres://pika:${POSTGRES_PASSWORD:-pika_secure_change_me}@db:5432/pika_prod
       - NODE_ENV=production
       - PORT=3001
     volumes:

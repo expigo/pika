@@ -12,6 +12,7 @@ import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { rateLimiter } from "hono-rate-limiter";
 import { db, schema } from "./db";
 
 // Create WebSocket upgrader for Hono + Bun
@@ -21,7 +22,33 @@ const app = new Hono();
 
 // Middleware
 app.use("*", logger());
-app.use("*", cors());
+app.use(
+  "*",
+  cors({
+    // In development, allow any origin for local network testing
+    // In production, restrict to known domains
+    origin:
+      process.env.NODE_ENV === "development"
+        ? "*" // Allow all origins in dev (for local IP testing like 192.168.x.x)
+        : [
+            "https://pika.stream",
+            "https://api.pika.stream",
+            "https://staging.pika.stream",
+            "https://staging-api.pika.stream",
+          ],
+    credentials: process.env.NODE_ENV !== "development", // credentials require specific origins
+  }),
+);
+
+// Rate limiter for auth endpoints (5 requests per 15 minutes)
+const authLimiter = rateLimiter({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  limit: 5,
+  standardHeaders: "draft-6",
+  keyGenerator: (c) =>
+    c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For")?.split(",")[0] || "unknown",
+  handler: (c) => c.json({ error: "Too many attempts. Try again later." }, 429),
+});
 
 // Active sessions store (for WebSocket connections - in-memory)
 interface LiveSession {
@@ -591,7 +618,7 @@ async function validateToken(
  * POST /api/auth/register
  * Register a new DJ account
  */
-app.post("/api/auth/register", async (c) => {
+app.post("/api/auth/register", authLimiter, async (c) => {
   try {
     const body = await c.req.json();
     const { email, password, displayName } = body as {
@@ -692,7 +719,13 @@ app.post("/api/auth/register", async (c) => {
  * POST /api/auth/login
  * Login with email and password, returns token
  */
-app.post("/api/auth/login", async (c) => {
+app.post("/api/auth/login", authLimiter, async (c) => {
+  // 🔐 CSRF Protection: Require custom header (browsers won't send this cross-origin)
+  const requestedWith = c.req.header("X-Requested-With");
+  if (requestedWith !== "Pika") {
+    return c.json({ error: "Invalid request" }, 403);
+  }
+
   try {
     const body = await c.req.json();
     const { email, password } = body as { email?: string; password?: string };
@@ -782,7 +815,7 @@ app.get("/api/auth/me", async (c) => {
  * POST /api/auth/regenerate-token
  * Generate a new token (invalidates old one)
  */
-app.post("/api/auth/regenerate-token", async (c) => {
+app.post("/api/auth/regenerate-token", authLimiter, async (c) => {
   const authHeader = c.req.header("Authorization");
   if (!authHeader?.startsWith("Bearer ")) {
     return c.json({ error: "Authorization token required" }, 401);
@@ -1382,6 +1415,14 @@ app.get(
             }
 
             case "BROADCAST_TRACK": {
+              // 🔐 Security: Verify this connection owns the session
+              if (djSessionId !== message.sessionId) {
+                console.warn(
+                  `⚠️ Unauthorized broadcast attempt: connection owns ${djSessionId || "none"}, tried to broadcast to ${message.sessionId}`,
+                );
+                return;
+              }
+
               const session = activeSessions.get(message.sessionId);
               if (session) {
                 // 🎚️ Persist tempo votes for the PREVIOUS track (if any)
