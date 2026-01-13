@@ -28,7 +28,9 @@ async function initializeDb(): Promise<void> {
                 acousticness REAL,
                 groove REAL,
                 duration INTEGER,
-                analyzed INTEGER DEFAULT 0
+                analyzed INTEGER DEFAULT 0,
+                raw_artist TEXT,
+                raw_title TEXT
             );
         `);
 
@@ -36,6 +38,20 @@ async function initializeDb(): Promise<void> {
     try {
       await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN duration INTEGER;`);
       console.log("Migration: Added duration column to tracks table");
+    } catch {
+      // Column already exists, ignore error
+    }
+
+    // Migration: Add raw_artist and raw_title columns (Ghost Data fix)
+    try {
+      await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN raw_artist TEXT;`);
+      console.log("Migration: Added raw_artist column to tracks table");
+    } catch {
+      // Column already exists, ignore error
+    }
+    try {
+      await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN raw_title TEXT;`);
+      console.log("Migration: Added raw_title column to tracks table");
     } catch {
       // Column already exists, ignore error
     }

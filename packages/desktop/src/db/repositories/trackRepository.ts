@@ -1,7 +1,10 @@
 import type { AnalysisResult } from "@pika/shared";
-import { eq, sql } from "drizzle-orm";
+import { type InferInsertModel, eq, sql } from "drizzle-orm";
 import { db, getSqlite } from "../index";
 import { tracks } from "../schema";
+
+// Type-safe insert model from schema (exclude ID for auto-increment)
+type NewTrack = Omit<InferInsertModel<typeof tracks>, "id">;
 
 // Helper type matching the Rust output
 export interface VirtualDJTrack {
@@ -67,10 +70,13 @@ export const trackRepository = {
     for (let i = 0; i < tracksList.length; i += CHUNK_SIZE) {
       const chunk = tracksList.slice(i, i + CHUNK_SIZE);
 
-      const values = chunk.map((t) => ({
+      const values: NewTrack[] = chunk.map((t) => ({
         filePath: t.file_path,
         artist: t.artist ?? null,
         title: t.title ?? null,
+        // Populate raw fields with initial data (critical fix for schema match)
+        rawArtist: t.artist ?? null,
+        rawTitle: t.title ?? null,
         // Parse BPM, handle potentially empty or invalid strings
         bpm: t.bpm ? Number.parseFloat(t.bpm) || null : null,
         key: t.key ?? null,
@@ -95,6 +101,8 @@ export const trackRepository = {
             // Use excluded.* to reference the new values being inserted
             artist: sql`excluded.artist`,
             title: sql`excluded.title`,
+            rawArtist: sql`excluded.raw_artist`, // Update raw fields as well
+            rawTitle: sql`excluded.raw_title`,
             bpm: sql`excluded.bpm`,
             key: sql`excluded.key`,
             duration: sql`excluded.duration`,

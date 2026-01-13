@@ -29,6 +29,7 @@ const targets = [
   { path: "packages/web/package.json", type: "json" },
   { path: "packages/desktop/src-tauri/tauri.conf.json", type: "json" },
   { path: "packages/desktop/src-tauri/Cargo.toml", type: "toml" },
+  { path: "packages/shared/src/index.ts", type: "ts-const" },
 ];
 
 let updatedCount = 0;
@@ -50,6 +51,12 @@ for (const target of targets) {
       // A simple regex approach: replace the first occurrence of version = "..."
       // This is usually safe for the package version at the top.
       newContent = content.replace(/^version\s*=\s*"[^"]+"/m, `version = "${newVersion}"`);
+    } else if (target.type === "ts-const") {
+      // replace export const PIKA_VERSION = "x.y.z";
+      newContent = content.replace(
+        /export const PIKA_VERSION = "[^"]+";/,
+        `export const PIKA_VERSION = "${newVersion}";`,
+      );
     }
 
     if (content !== newContent) {

@@ -529,6 +529,8 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                     opacity: inSet ? 0.5 : 1,
                     background: isSelected ? "rgba(59, 130, 246, 0.2)" : "transparent",
                     cursor: "pointer",
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
                   }}
                 >
                   <td style={styles.td}>

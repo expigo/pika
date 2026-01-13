@@ -51,6 +51,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] Hydration Error Fix.
     *   [x] Live Player Recap Button.
     *   [x] VDJ History Watcher Fix.
+    *   [x] **Track Import Crash Fix**: Added DB migration for `raw_artist`/`raw_title` columns.
 *   [x] **Connectivity & Resilience**:
     *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
     *   [x] **Data Sync**: `fetchSessionState` ensures state recovery on reconnect.
