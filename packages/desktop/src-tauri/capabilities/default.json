@@ -40,6 +40,12 @@
         },
         {
           "url": "http://127.0.0.1:*"
+        },
+        {
+          "url": "https://api.pika.stream/*"
+        },
+        {
+          "url": "https://staging-api.pika.stream/*"
         }
       ]
     }

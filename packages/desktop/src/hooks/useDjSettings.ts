@@ -10,6 +10,7 @@
  * 5. Next app launch → token is still there, name is synced
  */
 
+import { fetch } from "@tauri-apps/plugin-http"; // Use Tauri HTTP to bypass CORS
 import { useCallback, useEffect, useState } from "react";
 
 const STORAGE_KEY = "pika_dj_settings";
