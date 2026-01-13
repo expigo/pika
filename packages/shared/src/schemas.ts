@@ -282,6 +282,22 @@ export const VoteConfirmedSchema = z.object({
 });
 
 // ============================================================================
+// Reaction Schemas
+// ============================================================================
+
+export const SendReactionSchema = z.object({
+  type: z.literal("SEND_REACTION"),
+  sessionId: z.string(),
+  reaction: z.literal("thank_you"),
+});
+
+export const ReactionReceivedSchema = z.object({
+  type: z.literal("REACTION_RECEIVED"),
+  sessionId: z.string(),
+  reaction: z.literal("thank_you"),
+});
+
+// ============================================================================
 // Combined Message Schemas
 // ============================================================================
 
@@ -301,6 +317,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   EndPollSchema,
   CancelPollSchema,
   VoteOnPollSchema,
+  // Reactions
+  SendReactionSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -326,6 +344,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   PollIdUpdatedSchema,
   VoteRejectedSchema,
   VoteConfirmedSchema,
+  // Reactions
+  ReactionReceivedSchema,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

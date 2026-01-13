@@ -19,13 +19,15 @@ import {
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getListenerUrl } from "../config";
 import { getStoredSettings } from "../hooks/useDjSettings";
 import type { PlayReaction } from "../db/schema";
 import { useActivePlay } from "../hooks/useActivePlay";
 import type { LiveStatus } from "../hooks/useLiveSession";
 import { NetworkHealthIndicator } from "./NetworkHealthIndicator";
+import confetti from "canvas-confetti";
+import { subscribeToReactions } from "../hooks/useLiveSession";
 
 // Poll countdown timer component
 function PollCountdown({ endsAt }: { endsAt: string }) {
@@ -141,8 +143,125 @@ export function LivePerformanceMode({
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [pollDuration, setPollDuration] = useState<number | null>(null); // Duration in seconds, null = no limit
 
+  // Confetti state refs
+  const confettiIntervalRef = useRef(null as unknown as ReturnType<typeof setInterval> | null);
+  const confettiEndTimeRef = useRef(0); // Track when the current rain should stop
+  const reactionTimestampsRef = useRef<number[]>([]); // Track reaction times for velocity
+
   // QR Code Modal
   const [showQrModal, setShowQrModal] = useState(false);
+
+  // Constants for velocity detection
+  const REACTION_WINDOW_MS = 3000;
+  const CANNON_THRESHOLD = 5;
+
+  // Cannon burst effect (one-shot from bottom)
+  const fireCannon = () => {
+    console.log("🚀 CANNON MODE!");
+    const count = 200;
+    const defaults = {
+      origin: { y: 1 }, // Bottom of screen
+      startVelocity: 45,
+      spread: 100,
+      ticks: 100,
+      zIndex: 99999,
+    };
+
+    // Left cannon
+    confetti({
+      ...defaults,
+      particleCount: count,
+      origin: { x: 0.1, y: 1 },
+      angle: 60,
+      colors: ["#a78bfa", "#f472b6", "#fbbf24", "#22c55e"],
+    });
+    // Right cannon
+    confetti({
+      ...defaults,
+      particleCount: count,
+      origin: { x: 0.9, y: 1 },
+      angle: 120,
+      colors: ["#a78bfa", "#f472b6", "#fbbf24", "#22c55e"],
+    });
+  };
+
+  // Gentle rain effect (continuous from top)
+  const ensureRainLoop = (rainDuration: number) => {
+    const now = Date.now();
+
+    // If already raining, just extend the time
+    if (now < confettiEndTimeRef.current) {
+      confettiEndTimeRef.current = now + rainDuration;
+      return;
+    }
+
+    // Start new rain
+    confettiEndTimeRef.current = now + rainDuration;
+
+    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 99999 };
+    const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+    // Clear any existing interval just in case
+    if (confettiIntervalRef.current) clearInterval(confettiIntervalRef.current);
+
+    confettiIntervalRef.current = setInterval(() => {
+      const timeLeft = confettiEndTimeRef.current - Date.now();
+
+      if (timeLeft <= 0) {
+        if (confettiIntervalRef.current) {
+          clearInterval(confettiIntervalRef.current);
+          confettiIntervalRef.current = null;
+        }
+        return;
+      }
+
+      const particleCount = 40 * (timeLeft / rainDuration);
+
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+        colors: ["#a78bfa", "#f472b6", "#fbbf24"],
+      });
+      confetti({
+        ...defaults,
+        particleCount,
+        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+        colors: ["#a78bfa", "#f472b6", "#fbbf24"],
+      });
+    }, 250);
+  };
+
+  // Reaction Subscription (Confetti with Velocity Tracking)
+  useEffect(() => {
+    return subscribeToReactions((reaction) => {
+      if (reaction === "thank_you") {
+        const now = Date.now();
+        const rainDuration = 3000;
+
+        // Add timestamp and filter old ones
+        reactionTimestampsRef.current.push(now);
+        reactionTimestampsRef.current = reactionTimestampsRef.current.filter(
+          (t) => t > now - REACTION_WINDOW_MS,
+        );
+
+        const velocity = reactionTimestampsRef.current.length;
+        console.log(`🎉 Reaction received! Velocity: ${velocity}`);
+
+        if (velocity >= CANNON_THRESHOLD) {
+          // High intensity! Fire cannon AND extend rain
+          fireCannon();
+          ensureRainLoop(rainDuration);
+          // Clear timestamps after cannon to require "re-building" heat
+          reactionTimestampsRef.current = [];
+        } else {
+          // Low intensity - just gentle rain
+          ensureRainLoop(rainDuration);
+        }
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleReaction = async (reaction: PlayReaction) => {
     await updateReaction(reaction);

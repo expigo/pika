@@ -936,5 +936,27 @@ export function useLiveListener(targetSessionId?: string) {
     [state.activePoll, state.hasVotedOnPoll],
   );
 
-  return { ...state, sendLike, hasLiked, sendTempoRequest, voteOnPoll };
+  // Send reaction (e.g. "thank_you")
+  const sendReaction = useCallback(
+    (reaction: "thank_you"): boolean => {
+      if (!state.sessionId) return false;
+
+      if (socketRef.current?.readyState === WebSocket.OPEN) {
+        socketRef.current.send(
+          JSON.stringify({
+            type: "SEND_REACTION",
+            clientId: getOrCreateClientId(),
+            sessionId: state.sessionId,
+            reaction,
+          }),
+        );
+        console.log("[Listener] Sent reaction:", reaction);
+        return true;
+      }
+      return false;
+    },
+    [state.sessionId],
+  );
+
+  return { ...state, sendLike, hasLiked, sendTempoRequest, voteOnPoll, sendReaction };
 }

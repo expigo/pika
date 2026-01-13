@@ -127,10 +127,12 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     activePoll,
     hasVotedOnPoll,
     voteOnPoll,
+    sendReaction,
   } = useLiveListener(targetSessionId);
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [votingOption, setVotingOption] = useState<number | null>(null);
+  const [thanksText, setThanksText] = useState("Send Thanks 🦄");
 
   const isConnected = status === "connected";
   const hasTrack = currentTrack !== null;
@@ -268,6 +270,18 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 />
               </button>
               <p className="text-xs text-slate-500 mt-2">{isLiked ? "Liked! ❤️" : "Tap to like"}</p>
+
+              {/* Thank You Button */}
+              <button
+                onClick={() => {
+                  sendReaction("thank_you");
+                  setThanksText("Thanks sent! 🦄");
+                  setTimeout(() => setThanksText("Send Thanks 🦄"), 2000);
+                }}
+                className="mt-4 px-6 py-2 bg-gradient-to-r from-purple-500/20 to-pink-500/20 hover:from-purple-500/30 hover:to-pink-500/30 border border-purple-500/30 rounded-full text-purple-300 text-sm font-medium transition-all active:scale-95"
+              >
+                {thanksText}
+              </button>
 
               {/* Tempo Preference Buttons */}
               <div className="mt-6 flex items-center gap-2">

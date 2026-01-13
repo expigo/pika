@@ -109,6 +109,16 @@ let lastBroadcastedTrackKey: string | null = null; // Prevent duplicate cloud br
 let skipInitialTrackBroadcast = false; // Explicit flag to skip initial track broadcast
 let lastProcessedLikeKey: string | null = null; // Prevent duplicate like notifications
 
+type ReactionCallback = (reaction: "thank_you") => void;
+const reactionListeners = new Set<ReactionCallback>();
+
+export function subscribeToReactions(callback: ReactionCallback) {
+  reactionListeners.add(callback);
+  return () => {
+    reactionListeners.delete(callback);
+  };
+}
+
 import { offlineQueueRepository } from "../db/repositories/offlineQueueRepository";
 
 // ... (imports)
@@ -641,6 +651,14 @@ export function useLiveSession() {
             setTimeout(() => {
               useLiveStore.getState().setActivePoll(null);
             }, 5000); // 5 second delay to see results
+          }
+
+          // Handle reactions
+          if (message.type === "REACTION_RECEIVED") {
+            console.log("[Live] Reaction received:", message.reaction);
+            reactionListeners.forEach((cb) => {
+              cb(message.reaction);
+            });
           }
         };
 

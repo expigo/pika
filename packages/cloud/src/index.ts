@@ -1550,6 +1550,23 @@ app.get(
               break;
             }
 
+            case "SEND_REACTION": {
+              if (message.reaction === "thank_you") {
+                rawWs.publish(
+                  "live-session",
+                  JSON.stringify({
+                    type: "REACTION_RECEIVED",
+                    sessionId: message.sessionId,
+                    reaction: "thank_you",
+                  }),
+                );
+                console.log(
+                  `🦄 Thank You received from ${clientId} in session ${message.sessionId}`,
+                );
+              }
+              break;
+            }
+
             case "SEND_TEMPO_REQUEST": {
               const { sessionId: targetSessionId, preference } = message;
 
