@@ -109,33 +109,49 @@ export default function () {
         switch (msg.type) {
           case "NOW_PLAYING":
             // 50% chance to like the track
-            if (Math.random() < 0.5) {
+            if (Math.random() < 0.5 && msg.track) {
               sleep(Math.random() * 2); // Random delay 0-2s
               socket.send(
                 JSON.stringify({
-                  type: "LIKE_TRACK",
+                  type: "SEND_LIKE",
+                  payload: {
+                    track: {
+                      title: msg.track.title || "Unknown",
+                      artist: msg.track.artist || "Unknown",
+                    },
+                  },
+                }),
+              );
+              messagesSent.add(1);
+            }
+
+            // 60% chance to vote on tempo (slower/perfect/faster)
+            if (Math.random() < 0.6) {
+              sleep(Math.random() * 10); // Random delay 0-10s (thinking time)
+              const tempoOptions = ["slower", "perfect", "faster"];
+              const randomTempo = tempoOptions[Math.floor(Math.random() * tempoOptions.length)];
+              socket.send(
+                JSON.stringify({
+                  type: "SEND_TEMPO_REQUEST",
                   sessionId: SESSION_ID,
-                  clientId: clientId,
-                  trackKey: msg.track ? `${msg.track.artist}:${msg.track.title}` : "unknown",
+                  preference: randomTempo,
                 }),
               );
               messagesSent.add(1);
             }
             break;
 
-          case "POLL_CREATED":
+          case "POLL_STARTED":
             // 80% participate in polls
-            if (Math.random() < 0.8 && msg.poll?.options?.length > 0) {
+            if (Math.random() < 0.8 && msg.options?.length > 0) {
               sleep(Math.random() * 5); // Random delay 0-5s
-              const randomOption =
-                msg.poll.options[Math.floor(Math.random() * msg.poll.options.length)];
+              const randomOptionIndex = Math.floor(Math.random() * msg.options.length);
               socket.send(
                 JSON.stringify({
-                  type: "POLL_VOTE",
-                  sessionId: SESSION_ID,
+                  type: "VOTE_ON_POLL",
+                  pollId: msg.pollId,
+                  optionIndex: randomOptionIndex,
                   clientId: clientId,
-                  pollId: msg.poll.id,
-                  optionId: randomOption.id,
                 }),
               );
               messagesSent.add(1);
@@ -148,9 +164,9 @@ export default function () {
               sleep(Math.random() * 2); // Burst within 2s
               socket.send(
                 JSON.stringify({
-                  type: "THANK_YOU",
+                  type: "SEND_REACTION",
                   sessionId: SESSION_ID,
-                  clientId: clientId,
+                  reaction: "thank_you",
                 }),
               );
               messagesSent.add(1);

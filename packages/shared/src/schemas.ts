@@ -119,6 +119,8 @@ export const SubscribeSchema = z.object({
 
 export const SendLikeSchema = z.object({
   type: z.literal("SEND_LIKE"),
+  sessionId: z.string().optional(), // Explicit session targeting
+  clientId: z.string().optional(), // For server-side tracking
   payload: z.object({
     track: TrackInfoSchema,
   }),

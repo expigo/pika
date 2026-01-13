@@ -415,9 +415,9 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
     console.error("❌ Failed to persist track:", e);
   }
 }
-
 /**
- * Persist like to database (fire-and-forget)
+ * Persist like to database with retry logic
+ * Handles race condition where like arrives before track is persisted
  * @param track - The track that was liked
  * @param sessionId - The session ID (for context)
  * @param clientId - The client who liked it (for "my likes" feature)
@@ -425,38 +425,55 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
 async function persistLike(track: TrackInfo, sessionId?: string, clientId?: string): Promise<void> {
   if (!sessionId) return;
 
-  try {
-    // 1. Find the specific "play instance" of this track in this session.
-    const [playedTrack] = await db
-      .select({ id: schema.playedTracks.id })
-      .from(schema.playedTracks)
-      .where(
-        and(
-          eq(schema.playedTracks.sessionId, sessionId),
-          eq(schema.playedTracks.artist, track.artist),
-          eq(schema.playedTracks.title, track.title),
-        ),
-      )
-      .orderBy(desc(schema.playedTracks.playedAt))
-      .limit(1);
+  const maxRetries = 3;
+  const retryDelays = [100, 200, 400]; // Exponential backoff in ms
 
-    if (!playedTrack) {
-      console.warn(
-        `⚠️ Orphan like prevented: "${track.title}" not found in played_tracks for session ${sessionId}`,
-      );
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      // 1. Find the specific "play instance" of this track in this session.
+      const [playedTrack] = await db
+        .select({ id: schema.playedTracks.id })
+        .from(schema.playedTracks)
+        .where(
+          and(
+            eq(schema.playedTracks.sessionId, sessionId),
+            eq(schema.playedTracks.artist, track.artist),
+            eq(schema.playedTracks.title, track.title),
+          ),
+        )
+        .orderBy(desc(schema.playedTracks.playedAt))
+        .limit(1);
+
+      if (playedTrack) {
+        // 2. Insert the like with strict Foreign Key
+        await db.insert(schema.likes).values({
+          sessionId: sessionId,
+          clientId: clientId ?? null,
+          playedTrackId: playedTrack.id,
+        });
+        console.log(
+          `💾 Like persisted: ${track.title} (client: ${clientId?.substring(0, 20)}...${attempt > 0 ? `, attempt ${attempt + 1}` : ""})`,
+        );
+        return;
+      }
+
+      // Track not found - wait and retry if not last attempt
+      if (attempt < maxRetries - 1) {
+        console.log(
+          `⏳ Like waiting for track: "${track.title}" (retry ${attempt + 1}/${maxRetries})`,
+        );
+        await new Promise((r) => setTimeout(r, retryDelays[attempt]));
+      }
+    } catch (e) {
+      console.error("❌ Failed to persist like:", e);
       return;
     }
-
-    // 2. Insert the like with strict Foreign Key
-    await db.insert(schema.likes).values({
-      sessionId: sessionId,
-      clientId: clientId ?? null,
-      playedTrackId: playedTrack.id,
-    });
-    console.log(`💾 Like persisted: ${track.title} (client: ${clientId?.substring(0, 20)}...)`);
-  } catch (e) {
-    console.error("❌ Failed to persist like:", e);
   }
+
+  // All retries exhausted - log for monitoring
+  console.error(
+    `❌ Like lost after ${maxRetries} retries: "${track.title}" - track never appeared in played_tracks`,
+  );
 }
 
 /**
