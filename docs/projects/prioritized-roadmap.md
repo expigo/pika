@@ -32,7 +32,7 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | :--- | :---: | :---: | :---: | :--- |
 | **Safe QR Codes** | **8** | 2 | **DONE** | **Fixes UX.** Secured logic: Prod always uses `pika.stream`. Dev uses Local IP (robust offline detection added). |
 | **Poll State Sync Fix** | **7** | 5 | **DONE** | **Robustness.** Retry logic implemented to ensure session exists before poll creation. |
-| **Landing Page "How-To"** | **7** | 3 | **MED** | Add visual section explaining to Dancers *why* they should scan the QR. |
+| **Landing Page "How-To"** | **7** | 3 | **DONE** | **Visual Polish.** Added "How It Works" visual section and smart `/download` page. |
 | **Session Resume UX** | **6** | 3 | **DONE** | Sticky `sessionId` in `localStorage` prevents context loss on refresh. |
 | **"Thank You" Rain** | **8** | 3 | **HIGH** | **User Delight.** Dancers click "Thank You" -> Confetti rains on DJ screen. End-of-night ritual. |
 

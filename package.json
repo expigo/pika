@@ -1,6 +1,6 @@
 {
   "name": "pika",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "workspaces": [
     "packages/*"
@@ -10,7 +10,8 @@
     "test": "bun test",
     "format": "biome format --write packages/cloud packages/web packages/shared",
     "lint": "biome check packages/cloud packages/web packages/shared",
-    "check": "biome check --write packages/cloud packages/web packages/shared"
+    "check": "biome check --write packages/cloud packages/web packages/shared",
+    "bump": "bun scripts/bump-version.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.3.11"

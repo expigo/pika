@@ -6,7 +6,6 @@ import {
   BarChart3,
   Calendar,
   CheckCircle2,
-  Cloud,
   Download,
   Gauge,
   Globe2,
@@ -15,7 +14,6 @@ import {
   History,
   Mail,
   MessageCircle,
-  QrCode,
   Radio,
   Smartphone,
   Sparkles,
@@ -27,14 +25,27 @@ import { useEffect, useState } from "react";
 
 // API base URL helper
 function getApiBaseUrl(): string {
+  // 1. Prefer process.env if explicitly set (and likely correct in prod)
+  // BUT for local development/LAN testing, we might want to override if the env var is stale.
+  // A safer check: if window location is available, and we are not on the "configured" host, use window location
+  // to avoid CORS or timeout issues on LAN.
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    const isLocalOrLan =
+      hostname === "localhost" ||
+      hostname.startsWith("192.168.") ||
+      hostname.startsWith("10.") ||
+      hostname.startsWith("172.");
+
+    if (isLocalOrLan) {
+      return `${window.location.protocol}//${hostname}:3001`;
+    }
+  }
+
   if (process.env.NEXT_PUBLIC_CLOUD_API_URL) {
     return process.env.NEXT_PUBLIC_CLOUD_API_URL;
   }
-  if (typeof window !== "undefined") {
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    return `${protocol}//${hostname}:3001`; // Dev fallback
-  }
+
   return "http://localhost:3001";
 }
 
@@ -314,79 +325,117 @@ export default function LandingPage() {
       {/* ⚡ HOW IT WORKS */}
       <section className="py-20 px-6 bg-slate-900 border-b border-slate-800">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold text-white mb-4">How It Works</h2>
-            <p className="text-slate-400">Two sides, one seamless experience.</p>
+          <div className="text-center mb-20">
+            <h2 className="text-4xl sm:text-5xl font-black text-white mb-6 tracking-tight">
+              Start in Seconds
+            </h2>
+            <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
+              No complex setup. No app store downloads. Pika! is designed for instant connection.
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-12 md:gap-24 items-start relative">
-            {/* Divider Line (Desktop) */}
-            <div className="hidden md:block absolute top-12 bottom-12 left-1/2 w-px bg-gradient-to-b from-slate-800 via-purple-500/30 to-slate-800 -translate-x-1/2" />
+          <div className="grid md:grid-cols-2 gap-12 md:gap-24 relative items-stretch">
+            {/* DJ FLOW CARD */}
+            <div className="bg-slate-950/50 rounded-3xl p-8 sm:p-12 border border-slate-800 relative overflow-hidden group hover:border-purple-500/30 transition-colors h-full flex flex-col">
+              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Headphones className="w-32 h-32 text-purple-500 transform rotate-12" />
+              </div>
 
-            {/* DJ FLOW */}
-            <div className="flex flex-col gap-8">
-              <div className="text-center mb-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-purple-500/10 rounded-full text-purple-400 text-sm font-bold border border-purple-500/20">
+              <div className="relative z-10 flex flex-col h-full">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-purple-500/10 rounded-full text-purple-400 text-sm font-bold border border-purple-500/20 mb-8">
                   <Headphones className="w-4 h-4" />
                   For the DJ
                 </div>
-              </div>
 
-              <div className="relative flex items-start gap-6 group">
-                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700 shadow-lg shrink-0 group-hover:border-purple-500/50 transition-colors">
-                  <Download className="w-6 h-6 text-purple-400" />
-                </div>
-                <div>
-                  <h4 className="text-lg font-bold text-white mb-1">1. Install Desktop App</h4>
-                  <p className="text-slate-400 text-sm">
-                    Download Pika! for macOS. It runs alongside VirtualDJ or Serato.
-                  </p>
-                </div>
-              </div>
+                <div className="space-y-10 flex-1 flex flex-col">
+                  <div className="flex gap-6">
+                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 text-purple-400 font-bold text-xl shadow-lg">
+                      1
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-bold text-white mb-2">Install Desktop App</h4>
+                      <p className="text-slate-400 leading-relaxed">
+                        Download the lightweight Pika! sidecar for macOS. It runs quietly alongside
+                        VirtualDJ or Serato.
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="relative flex items-start gap-6 group">
-                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700 shadow-lg shrink-0 group-hover:border-purple-500/50 transition-colors">
-                  <Cloud className="w-6 h-6 text-purple-400" />
-                </div>
-                <div>
-                  <h4 className="text-lg font-bold text-white mb-1">2. Auto-Sync to Cloud</h4>
-                  <p className="text-slate-400 text-sm">
-                    Pika! detects tracks and syncs analysis instantly. You just play music.
-                  </p>
+                  <div className="flex gap-6">
+                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 text-purple-400 font-bold text-xl shadow-lg">
+                      2
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-bold text-white mb-2">Instant Sync</h4>
+                      <p className="text-slate-400 leading-relaxed">
+                        Pika! automatically detects your tracks and syncs analysis to the cloud. You
+                        focus on mixing; we handle the data.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-auto pt-8 border-t border-slate-800/50">
+                    <Link
+                      href="/download"
+                      className="inline-flex items-center gap-2 text-purple-400 font-bold hover:text-purple-300 transition-colors"
+                    >
+                      <Download className="w-5 h-5" />
+                      Download for macOS
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* DANCER FLOW */}
-            <div className="flex flex-col gap-8">
-              <div className="text-center mb-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-pink-500/10 rounded-full text-pink-400 text-sm font-bold border border-pink-500/20">
+            {/* DANCER FLOW CARD */}
+            <div className="bg-slate-950/50 rounded-3xl p-8 sm:p-12 border border-slate-800 relative overflow-hidden group hover:border-pink-500/30 transition-colors h-full flex flex-col">
+              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+                <Smartphone className="w-32 h-32 text-pink-500 transform -rotate-12" />
+              </div>
+
+              <div className="relative z-10 flex flex-col h-full">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-pink-500/10 rounded-full text-pink-400 text-sm font-bold border border-pink-500/20 mb-8">
                   <Smartphone className="w-4 h-4" />
                   For the Dancer
                 </div>
-              </div>
 
-              <div className="relative flex items-start gap-6 group">
-                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700 shadow-lg shrink-0 group-hover:border-pink-500/50 transition-colors">
-                  <QrCode className="w-6 h-6 text-pink-400" />
-                </div>
-                <div>
-                  <h4 className="text-lg font-bold text-white mb-1">1. No App Required</h4>
-                  <p className="text-slate-400 text-sm">
-                    Just scan the QR code at the booth. Or visit <b>pika.stream</b> in your browser.
-                  </p>
-                </div>
-              </div>
+                <div className="space-y-10 flex-1 flex flex-col">
+                  <div className="flex gap-6">
+                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 text-pink-400 font-bold text-xl shadow-lg">
+                      1
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-bold text-white mb-2">Scan & Go</h4>
+                      <p className="text-slate-400 leading-relaxed">
+                        Scan the QR code at the DJ booth or visit{" "}
+                        <span className="font-mono text-pink-400">pika.stream</span>. No account or
+                        download required.
+                      </p>
+                    </div>
+                  </div>
 
-              <div className="relative flex items-start gap-6 group">
-                <div className="w-12 h-12 bg-slate-800 rounded-xl flex items-center justify-center border border-slate-700 shadow-lg shrink-0 group-hover:border-pink-500/50 transition-colors">
-                  <Heart className="w-6 h-6 text-pink-400" />
-                </div>
-                <div>
-                  <h4 className="text-lg font-bold text-white mb-1">2. Vote & Save</h4>
-                  <p className="text-slate-400 text-sm">
-                    See track info instantly. Vote on tempo or save songs to your history.
-                  </p>
+                  <div className="flex gap-6">
+                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 text-pink-400 font-bold text-xl shadow-lg">
+                      2
+                    </div>
+                    <div>
+                      <h4 className="text-xl font-bold text-white mb-2">Interact Live</h4>
+                      <p className="text-slate-400 leading-relaxed">
+                        See what's playing, vote on tempo, and "Like" tracks to build your personal
+                        history for later.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-auto pt-8 border-t border-slate-800/50">
+                    <Link
+                      href="/live"
+                      className="inline-flex items-center gap-2 text-pink-400 font-bold hover:text-pink-300 transition-colors"
+                    >
+                      <Radio className="w-5 h-5" />
+                      See who is live now
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>

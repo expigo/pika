@@ -58,7 +58,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **Session UX**:
     *   [x] **Session Resume**: Sticky `currentSessionId` in localStorage.
     *   [x] **Safe QR Codes**: Smart generation (public URL in prod, local IP in dev).
-    *   [ ] **Landing Page**: Add "How It Works" visual section and clear value props.
+    *   [x] **Landing Page**: Add "How It Works" visual section and clear value props.
+    *   [x] **Download Page**: Smart GitHub Release integration for Desktop downloads.
     *   [ ] **Poll Notifications**: Browser Notification API integration.
     *   [ ] **DJ Announcements**: Push announcement UI and overlay.
 *   [ ] **Account Features (MVP Scope)**:
@@ -72,6 +73,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 ### C. Desktop Build & Distribution
 *   [x] **Build**: `release-desktop.yml` implements Build Matrix (Mac/Win/Linux).
     *   *Note:* CI/CD is ready to generate artifacts on tag push.
+    *   [x] **Pipeline Verfication**: Build confirmed working; release page fetching artifacts correctly.
 *   [ ] **Distribute**: Upload `.dmg` to private Google Drive for DJ Pikachu.
 *   [ ] **Docs**: Write a simple 1-page PDF manual for the DJ.
 
