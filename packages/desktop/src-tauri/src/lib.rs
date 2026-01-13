@@ -148,18 +148,32 @@ pub struct HistoryTrack {
 
 #[tauri::command]
 fn read_virtualdj_history() -> Result<Option<HistoryTrack>, String> {
-    // Get home directory
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
-    
-    let history_dir = std::path::PathBuf::from(&home)
-        .join("Library")
-        .join("Application Support")
-        .join("VirtualDJ")
-        .join("History");
+    // Determine home directory securely across OS
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "Could not determine home directory".to_string())?;
+
+    let path = std::path::PathBuf::from(&home);
+
+    // Potential history locations (Priority order)
+    let candidates = vec![
+        // 1. Standard Documents location (Windows & macOS Modern)
+        path.join("Documents").join("VirtualDJ").join("History"),
+        
+        // 2. macOS Legacy / Root location
+        path.join("Library").join("Application Support").join("VirtualDJ").join("History"),
+    ];
+
+    // Find first existing directory
+    let history_dir = candidates.into_iter()
+        .find(|p| p.exists())
+        .ok_or_else(|| "VirtualDJ History folder not found".to_string())?;
+
+    println!("[VDJ] Reading history from: {:?}", history_dir);
     
     // Find the most recently modified .m3u file
     // This handles the "midnight crossover" where VDJ might keep writing to yesterday's file,
-    // or conversely, if the system date changes but we want the *actual* active file.
+    // or conversely, if the system date changes but we want the actual active file.
     let history_path = std::fs::read_dir(&history_dir)
         .map_err(|e| format!("Failed to read history directory: {}", e))?
         .filter_map(|entry| entry.ok())
