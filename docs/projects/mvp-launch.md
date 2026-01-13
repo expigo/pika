@@ -54,9 +54,9 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Data Integrity**: Likes are session-scoped (no phantom likes).
 *   [ ] **Data Hygiene**:
     *   [x] **Ghost Track Fix**: `normalizeTrack` utility implemented in `@pika/shared`.
-    *   [ ] **Poll State Fix**: Fix race condition for idle vs active poll state.
+    *   [x] **Poll State Fix**: Retry logic (`ensureSessionPersisted`) prevents race conditions during creation.
 *   [ ] **Session UX**:
-    *   [ ] **Session Resume**: Sticky `currentSessionId` in localStorage.
+    *   [x] **Session Resume**: Sticky `currentSessionId` in localStorage.
     *   [x] **Safe QR Codes**: Smart generation (public URL in prod, local IP in dev).
     *   [ ] **Landing Page**: Add "How It Works" visual section and clear value props.
     *   [ ] **Poll Notifications**: Browser Notification API integration.

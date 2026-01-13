@@ -128,13 +128,29 @@ function persistLikes(sessionId: string, tracks: Set<string>): void {
  * @param targetSessionId - Optional. If provided, only listen to this specific session.
  *                          If undefined, auto-join the first active session.
  */
+// ============================================================================
+// Persist last active session ID
+// ============================================================================
+const LAST_SESSION_KEY = "pika_last_session_id";
+
+function getStoredSessionId(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(LAST_SESSION_KEY);
+}
+
+/**
+ * Hook for listening to live DJ sessions via WebSocket.
+ *
+ * @param targetSessionId - Optional. If provided, only listen to this specific session.
+ *                          If undefined, auto-join the first active session.
+ */
 export function useLiveListener(targetSessionId?: string) {
   const [state, setState] = useState<LiveState>(() => ({
     status: "connecting",
     currentTrack: null,
     djName: null,
-    // If targeting a specific session, set it immediately
-    sessionId: targetSessionId ?? null,
+    // Priority: 1. URL Param (targetSessionId) -> 2. LocalStorage (Resume) -> 3. Null (Auto-join)
+    sessionId: targetSessionId ?? getStoredSessionId() ?? null,
     history: [],
     likedTracks: new Set(), // Will load via effect when sessionId is known
     listenerCount: 0,
@@ -199,6 +215,9 @@ export function useLiveListener(targetSessionId?: string) {
   // Load persisted likes when session ID becomes available or changes
   useEffect(() => {
     if (state.sessionId) {
+      // Persist this as the last active session for resume capability
+      localStorage.setItem(LAST_SESSION_KEY, state.sessionId);
+
       const storedLikes = getStoredLikes(state.sessionId);
       if (storedLikes.size > 0) {
         console.log(`[Listener] Restored ${storedLikes.size} likes for session ${state.sessionId}`);
