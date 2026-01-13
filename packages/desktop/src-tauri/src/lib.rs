@@ -217,16 +217,7 @@ fn read_virtualdj_history() -> Result<Option<HistoryTrack>, String> {
 /// Returns the first non-loopback IPv4 address found
 #[tauri::command]
 fn get_local_ip() -> Option<String> {
-    use std::net::UdpSocket;
-    
-    // This is a common trick to find the local IP:
-    // We create a UDP socket and "connect" to an external address
-    // Then we get the local address of this socket
-    // The connection doesn't actually send any data
-    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
-    socket.connect("8.8.8.8:80").ok()?;
-    let addr = socket.local_addr().ok()?;
-    Some(addr.ip().to_string())
+    local_ip_address::local_ip().ok().map(|ip| ip.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
