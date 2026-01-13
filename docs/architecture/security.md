@@ -156,7 +156,7 @@ app.use("*", cors({
 
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
-| 🟠 OPEN | HIGH | Before Launch |
+| 🟢 CLOSED | HIGH | Fixed in v0.1.0+ |
 
 ### 4.2 CSRF Protection
 
@@ -257,12 +257,12 @@ The Python analysis sidecar:
 
 | # | Vulnerability | Severity | Status | Owner |
 | :---: | :--- | :---: | :---: | :--- |
-| 1 | Permissive CORS | 🟠 HIGH | Open | Backend |
-| 2 | No Auth Rate Limiting | 🟠 HIGH | Open | Backend |
-| 3 | Hardcoded DB Password | 🟡 MED | Open | DevOps |
-| 4 | WebSocket Session Ownership | 🟡 MED | Open | Backend |
-| 5 | Basic Email Validation | 🟡 MED | Open | Backend |
-| 6 | No CSRF on REST | 🟡 MED | Open | Backend |
+| 1 | Permissive CORS | 🟠 HIGH | **Fixed** | Backend |
+| 2 | No Auth Rate Limiting | 🟠 HIGH | **Fixed** | Backend |
+| 3 | Hardcoded DB Password | 🟡 MED | **Fixed** | DevOps |
+| 4 | WebSocket Session Ownership | 🟡 MED | **Fixed** | Backend |
+| 5 | Basic Email Validation | 🟡 MED | **Fixed** | Backend |
+| 6 | No CSRF on REST | 🟡 MED | **Fixed** | Backend |
 | 7 | No CSP Headers | 🔵 LOW | Open | Frontend |
 | 8 | No WS Connection Rate Limit | 🔵 LOW | Open | Backend |
 | 9 | No Password Max Length | 🔵 LOW | Open | Backend |
@@ -271,7 +271,7 @@ The Python analysis sidecar:
 
 | Phase | Items | Target |
 | :--- | :--- | :--- |
-| **Pre-Launch** | #1, #2 | Before pilot event |
+| **Pre-Launch** | #1, #2, #3, #4, #5, #6 | **COMPLETED** |
 | **Post-Launch (30 days)** | #3, #4, #5, #6 | Q1 2026 |
 | **Best Practices** | #7, #8, #9 | Q2 2026 |
 

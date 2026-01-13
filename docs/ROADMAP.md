@@ -3,7 +3,7 @@
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
 **Current Focus:** [MVP Launch Prep](projects/mvp-launch.md)
-**Status:** Pre-Launch Polish
+**Status:** Launch Candidate (v0.1.5)
 
 ---
 
@@ -12,10 +12,10 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   Status: **Security Hardening** (Phase 2.5)
+    *   Status: **Launch Ready** (Security Hardened)
     *   **Current Priorities (Jan 2026 Audit):**
-        *   🚨 Security: CORS Hardening (currently permissive).
-        *   🚨 Security: Rate Limiting on Auth Endpoints.
+        *   ✅ Security: CORS Hardening (Restricted to pika.stream).
+        *   ✅ Security: Rate Limiting on Auth Endpoints.
         *   Code Quality: Split monolithic cloud backend (2100+ lines).
         *   Testing: Add E2E tests for critical paths.
 
@@ -38,7 +38,7 @@ This is the central index for the Pika! project, tracking active development, fu
 
 | Audit | Date | Findings | Status |
 | :--- | :--- | :--- | :--- |
-| Security Audit | 2026-01-13 | CORS, Rate Limiting gaps | Open |
+| Security Audit | 2026-01-13 | CORS, Rate Limiting gaps | **Resolved** |
 | Engineering Assessment | 2026-01-13 | Code decomposition needed | Open |
 
 

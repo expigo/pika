@@ -30,12 +30,12 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 
 | Feature | Value | Complexity | Priority | Notes |
 | :--- | :---: | :---: | :---: | :--- |
-| **CORS Hardening** | **10** | 2 | **🚨 CRITICAL** | Restrict origins to `pika.stream` only. Currently fully permissive `cors()`. |
-| **Auth Rate Limiting** | **10** | 3 | **🚨 CRITICAL** | Add `hono-rate-limiter` (5 req/15min) on `/api/auth/*`. Prevents brute force. |
-| **Secrets to Env Vars** | **8** | 2 | **HIGH** | Move `POSTGRES_PASSWORD` from hardcoded in `docker-compose.prod.yml` to env. |
-| **Email Validation** | **5** | 1 | **MED** | Upgrade to Zod `.email()` validator. Currently only checks for `@`. |
-| **WebSocket Session Ownership** | **7** | 4 | **MED** | Track connection ownership to prevent session ID spoofing. |
-| **CSRF on Login** | **5** | 2 | **MED** | Add custom header check for REST auth endpoints. |
+| **CORS Hardening** | **10** | 2 | **DONE** | **🚨 CRITICAL** Restrict origins to `pika.stream` only. Implemented in v0.1.0+. |
+| **Auth Rate Limiting** | **10** | 3 | **DONE** | **🚨 CRITICAL** Added `hono-rate-limiter` (5 req/15min) on `/api/auth/*`. |
+| **Secrets to Env Vars** | **8** | 2 | **DONE** | **HIGH** Moved `POSTGRES_PASSWORD` from hardcoded in `docker-compose.prod.yml` to env. |
+| **Email Validation** | **5** | 1 | **DONE** | **MED** Upgraded to Zod `.email()` validator. |
+| **WebSocket Session Ownership** | **7** | 4 | **DONE** | **MED** Track connection ownership to prevent session ID spoofing. |
+| **CSRF on Login** | **5** | 2 | **DONE** | **MED** Add custom header check for REST auth endpoints. |
 | **CSP Headers** | **4** | 2 | **LOW** | Add Content-Security-Policy via Next.js middleware. |
 
 ---
@@ -135,7 +135,8 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | :--- | :--- | :--- |
 | **2026-01-13** | Added Security Hardening Phase 2.5 | Security Audit identified 2 High, 4 Medium issues. CORS and Rate Limiting are blockers. |
 | **2026-01-13** | Added Code Quality Phase 4 | Engineering Assessment (8.4/10). Decomposition and testing recommendations. |
-| **2026-01-13** | Added Section 1.5 (Security) and 1.6 (Quality) | Audit findings integrated into feature matrix. |
+| **2026-01-13** | **Release v0.1.5 (Launch Candidate)** | Implemented "Thank You" Rain, Auto-Migrations, and Critical Security Hardening. |
+| **2026-01-13** | Added Security Hardening Phase 2.5 | Security Audit identified 2 High, 4 Medium issues. CORS and Rate Limiting are blockers. |
 | **2026-01-12** | Added "Native App" as Low Priority | User prefers PWA approach over full React Native rewrite. |
 | **2026-01-12** | Added "Account System" as Phased | See `blueprints/account-system-vision.md` for iterative plan. |
 | **2026-01-12** | Created Document | Initial prioritization of roadmap items. |

@@ -174,4 +174,28 @@ pika/
 
 ---
 
+## 9. Critical Knowledge Base (Lessons Learned)
+
+### A. Desktop SQLite Migrations
+The desktop app uses a local \`pika.db\` SQLite file. Unlike the cloud Postgres (which uses \`drizzle-kit\`), the desktop app **cannot** rely on Drizzle for auto-migrations.
+**Rule:** Any schema change to \`sqliteTable\` in \`schema.ts\` MUST have a corresponding \`ALTER TABLE\` statement in \`packages/desktop/src/db/index.ts\` inside \`initializeDb\`.
+**Why:** User databases persist across updates. If you only update \`CREATE TABLE\`, existing users will crash with \"Failed query\" errors.
+
+### B. Versioning & Releases
+We use a unified versioning script: \`bun run bump <version>\`.
+**Component:** \`scripts/bump-version.ts\`
+**Targets:**
+*   All \`package.json\` files.
+*   \`cargo.toml\` and \`tauri.conf.json\`.
+*   **CRITICAL:** \`packages/shared/src/index.ts\` (export const PIKA_VERSION).
+If the shared constant desyncs from the main package version, the UI will display the wrong version and debugging becomes a nightmare.
+
+### C. Windows MSI Compatibility
+The Windows installer (WiX) is **extremely strict** about version formats.
+*   **Allowed:** \`0.1.5\` (Major.Minor.Patch)
+*   **Forbidden:** \`0.1.5-rc.1\`, \`0.1.5-beta\`
+**Workaround:** For beta/RC builds intended for Windows, bump the Patch version (e.g., \`0.1.4\` -> \`0.1.5\`) instead of using SemVer pre-release tags." 
+
+---
+
 *Last Updated: January 13, 2026*

@@ -66,7 +66,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Safe QR Codes**: Smart generation (public URL in prod, local IP in dev).
     *   [x] **Landing Page**: Add "How It Works" visual section and clear value props.
     *   [x] **Download Page**: Smart GitHub Release integration for Desktop downloads.
-    *   [x] **"Thank You" Rain**: Interactive confetti feedback for DJ Performance Mode.
+    *   [x] **"Thank You" Rain**: Interactive confetti (Canon Mode) + Performance Mode UI Polish.
+    *   [x] **UI Polish**: Fixed selection highlighting and database migration stability.
     *   [ ] **Poll Notifications**: Browser Notification API integration.
     *   [ ] **DJ Announcements**: Push announcement UI and overlay.
 *   [ ] **Account Features (MVP Scope)**:
