@@ -3,7 +3,7 @@
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
 **Current Focus:** [MVP Launch Prep](projects/mvp-launch.md)
-**Status:** Launch Candidate (v0.1.5)
+**Status:** Launch Candidate (v0.1.6)
 
 ---
 
