@@ -107,7 +107,49 @@ let currentPlayIdRef: number | null = null; // Track current play for likes
 const processedTrackKeys = new Set<string>(); // Track which tracks we've already recorded
 let lastBroadcastedTrackKey: string | null = null; // Prevent duplicate cloud broadcasts
 let skipInitialTrackBroadcast = false; // Explicit flag to skip initial track broadcast
-let lastProcessedLikeKey: string | null = null; // Prevent duplicate like notifications
+
+// Like batching: collect likes and show batched toast
+const LIKE_BATCH_THRESHOLD = 5; // Show toast after this many likes
+const LIKE_BATCH_TIMEOUT_MS = 3000; // Or after this many ms (for small events)
+let pendingLikeCount = 0;
+let pendingLikeTrackTitle: string | null = null;
+let likeBatchTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushLikeBatch() {
+  if (pendingLikeCount > 0 && pendingLikeTrackTitle) {
+    const count = pendingLikeCount;
+    const title = pendingLikeTrackTitle;
+    const message = count === 1 ? `Someone liked "${title}"` : `${count} people liked "${title}"`;
+    toast(message, { icon: "❤️", duration: 3000 });
+    console.log(`[Live] Like batch flushed: ${count} likes for "${title}"`);
+  }
+  pendingLikeCount = 0;
+  pendingLikeTrackTitle = null;
+  if (likeBatchTimer) {
+    clearTimeout(likeBatchTimer);
+    likeBatchTimer = null;
+  }
+}
+
+function addToPendingLikes(trackTitle: string) {
+  // If track changed, flush previous batch first
+  if (pendingLikeTrackTitle && pendingLikeTrackTitle !== trackTitle) {
+    flushLikeBatch();
+  }
+
+  pendingLikeTrackTitle = trackTitle;
+  pendingLikeCount++;
+
+  // Start timer on first like
+  if (!likeBatchTimer) {
+    likeBatchTimer = setTimeout(flushLikeBatch, LIKE_BATCH_TIMEOUT_MS);
+  }
+
+  // Flush immediately if we hit threshold
+  if (pendingLikeCount >= LIKE_BATCH_THRESHOLD) {
+    flushLikeBatch();
+  }
+}
 
 type ReactionCallback = (reaction: "thank_you") => void;
 const reactionListeners = new Set<ReactionCallback>();
@@ -557,37 +599,27 @@ export function useLiveSession() {
             console.log("[Live] Session registered:", message.sessionId);
           }
 
-          // Handle likes from listeners (with deduplication)
+          // Handle likes from listeners (batched notifications)
           if (message.type === "LIKE_RECEIVED") {
             const track = message.payload?.track;
             if (track) {
-              // Create a unique key for this like to prevent duplicates
-              const likeKey = `${track.artist}:${track.title}:${Math.floor(Date.now() / 1000)}`;
+              console.log("[Live] Like received for:", track.title);
 
-              // Skip if we've already processed a like for this track in the last second
-              if (lastProcessedLikeKey === likeKey) {
-                console.log("[Live] Skipping duplicate like notification for:", track.title);
+              // Add to pending batch for toast notification
+              addToPendingLikes(track.title);
+
+              // Store EVERY like in the database (no deduplication here)
+              if (currentPlayIdRef) {
+                sessionRepository
+                  .incrementDancerLikes(currentPlayIdRef)
+                  .then(() => {
+                    console.log("[Live] Like stored for play ID:", currentPlayIdRef);
+                  })
+                  .catch((e) => {
+                    console.error("[Live] Failed to store like:", e);
+                  });
               } else {
-                lastProcessedLikeKey = likeKey;
-                console.log("[Live] Like received for:", track.title);
-                toast(`Someone liked "${track.title}"`, {
-                  icon: "❤️",
-                  duration: 3000,
-                });
-
-                // Store the like in the database
-                if (currentPlayIdRef) {
-                  sessionRepository
-                    .incrementDancerLikes(currentPlayIdRef)
-                    .then(() => {
-                      console.log("[Live] Like stored for play ID:", currentPlayIdRef);
-                    })
-                    .catch((e) => {
-                      console.error("[Live] Failed to store like:", e);
-                    });
-                } else {
-                  console.warn("[Live] No current play ID to store like");
-                }
+                console.warn("[Live] No current play ID to store like");
               }
             }
           }
