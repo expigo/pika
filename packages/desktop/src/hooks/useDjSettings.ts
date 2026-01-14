@@ -93,6 +93,7 @@ export async function validateTokenWithServer(token: string): Promise<DjInfo | n
     const response = await fetch(`${baseUrl}/api/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
+        "X-Pika-Client": "pika-desktop", // CSRF protection
       },
     });
 

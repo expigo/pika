@@ -50,6 +50,37 @@ const authLimiter = rateLimiter({
   handler: (c) => c.json({ error: "Too many attempts. Try again later." }, 429),
 });
 
+// CSRF protection: Require X-Pika-Client header on state-changing requests
+// This helps prevent cross-site request forgery by requiring a custom header
+// that browsers won't send automatically from third-party sites
+import type { Context, Next } from "hono";
+
+const VALID_CLIENTS = ["pika-web", "pika-desktop", "pika-e2e"] as const;
+
+const csrfCheck = async (c: Context, next: Next) => {
+  const method = c.req.method;
+
+  // Only check state-changing methods
+  if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
+    const clientHeader = c.req.header("X-Pika-Client");
+
+    // In development/test, allow requests without header for easier debugging
+    if (process.env.NODE_ENV !== "development" && process.env.NODE_ENV !== "test") {
+      if (
+        !clientHeader ||
+        !VALID_CLIENTS.includes(clientHeader as (typeof VALID_CLIENTS)[number])
+      ) {
+        return c.json({ error: "Invalid client" }, 403);
+      }
+    }
+  }
+
+  await next();
+};
+
+// Apply CSRF check to auth routes
+app.use("/api/auth/*", csrfCheck);
+
 // Active sessions store (for WebSocket connections - in-memory)
 interface LiveSession {
   sessionId: string;

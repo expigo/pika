@@ -55,7 +55,10 @@ export default function RegisterPage() {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/auth/register`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "X-Pika-Client": "pika-web", // CSRF protection
+        },
         body: JSON.stringify({ email, password, displayName }),
       });
 

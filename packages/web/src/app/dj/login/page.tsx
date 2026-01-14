@@ -43,7 +43,7 @@ export default function LoginPage() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Requested-With": "Pika", // CSRF protection
+          "X-Pika-Client": "pika-web", // CSRF protection
         },
         body: JSON.stringify({ email, password }),
       });
