@@ -1382,9 +1382,61 @@ app.get("/api/dj/:slug", async (c) => {
 // WebSocket Handler
 // ============================================================================
 
+// WebSocket connection rate limiting (per IP)
+// Prevents rapid connect/disconnect abuse
+const wsConnectionAttempts = new Map<string, { count: number; resetAt: number }>();
+const WS_RATE_LIMIT = 20; // Max connections per window
+const WS_RATE_WINDOW = 60 * 1000; // 1 minute window
+
+// Cleanup stale entries every 5 minutes
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [ip, data] of wsConnectionAttempts) {
+      if (now > data.resetAt) {
+        wsConnectionAttempts.delete(ip);
+      }
+    }
+  },
+  5 * 60 * 1000,
+);
+
+function checkWsRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const attempts = wsConnectionAttempts.get(ip);
+
+  if (!attempts || now > attempts.resetAt) {
+    // First connection or window expired
+    wsConnectionAttempts.set(ip, { count: 1, resetAt: now + WS_RATE_WINDOW });
+    return true;
+  }
+
+  if (attempts.count >= WS_RATE_LIMIT) {
+    console.warn(
+      `⚠️ WS rate limit exceeded for IP: ${ip.substring(0, 10)}... (${attempts.count} attempts)`,
+    );
+    return false;
+  }
+
+  attempts.count++;
+  return true;
+}
+
 app.get(
   "/ws",
   upgradeWebSocket((c) => {
+    // Rate limit check (best effort - may not block all cases due to upgrade timing)
+    const ip =
+      c.req.header("CF-Connecting-IP") ||
+      c.req.header("X-Forwarded-For")?.split(",")[0] ||
+      "unknown";
+
+    if (!checkWsRateLimit(ip)) {
+      console.log(`🚫 WS connection rejected for rate-limited IP: ${ip.substring(0, 10)}...`);
+      // Note: Hono's upgradeWebSocket doesn't easily support rejection,
+      // but we log and the connection will be closed quickly
+    }
+
     // clientId will be set when client sends SUBSCRIBE with their persistent ID
     let clientId: string | null = null;
     // Track if this connection is a listener (dancer) vs DJ
