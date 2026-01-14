@@ -835,6 +835,28 @@ export function useLiveSession() {
     useLiveStore.getState().setActivePoll(null);
   }, []);
 
+  // Send announcement to dancers
+  const sendAnnouncement = useCallback((message: string, durationSeconds?: number) => {
+    if (!isLiveFlag || !currentSessionId) {
+      console.log("[Live] Cannot send announcement - not live");
+      return;
+    }
+
+    sendMessage({
+      type: "SEND_ANNOUNCEMENT",
+      sessionId: currentSessionId,
+      message,
+      durationSeconds,
+    });
+
+    toast.success(`📢 Announcement sent!`);
+    console.log(
+      "[Live] Announcement sent:",
+      message,
+      durationSeconds ? `(${durationSeconds}s timer)` : "",
+    );
+  }, []);
+
   // Force sync state to cloud (Panic Button)
   const forceSync = useCallback(() => {
     if (!isLiveFlag || !currentSessionId || !socketInstance) {
@@ -903,6 +925,7 @@ export function useLiveSession() {
     clearNowPlaying,
     startPoll,
     endPoll: endCurrentPoll,
+    sendAnnouncement,
     forceSync,
   };
 }

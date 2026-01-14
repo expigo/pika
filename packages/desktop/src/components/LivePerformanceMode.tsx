@@ -10,6 +10,7 @@ import {
   Flame,
   Gauge,
   Heart,
+  Megaphone,
   Music,
   QrCode,
   RefreshCcw,
@@ -97,6 +98,7 @@ interface Props {
   activePoll?: ActivePoll | null;
   onStartPoll?: (question: string, options: string[], durationSeconds?: number) => void;
   onEndPoll?: () => void;
+  onSendAnnouncement?: (message: string, durationSeconds?: number) => void;
   sessionId?: string | null;
   djName?: string;
 
@@ -114,6 +116,7 @@ export function LivePerformanceMode({
   activePoll,
   onStartPoll,
   onEndPoll,
+  onSendAnnouncement,
   sessionId,
   djName,
   liveStatus = "live",
@@ -142,6 +145,11 @@ export function LivePerformanceMode({
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState(["", ""]);
   const [pollDuration, setPollDuration] = useState<number | null>(null); // Duration in seconds, null = no limit
+
+  // Announcement state
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
+  const [announcementText, setAnnouncementText] = useState("");
+  const [announcementDuration, setAnnouncementDuration] = useState<number | null>(null);
 
   // Confetti state refs
   const confettiIntervalRef = useRef(null as unknown as ReturnType<typeof setInterval> | null);
@@ -424,63 +432,84 @@ export function LivePerformanceMode({
         )}
       </main>
 
-      {/* Footer - Reaction Controls */}
+      {/* Footer - Reaction Controls (Reorganized: DJ-focused | Public-facing) */}
       <footer style={styles.footer}>
-        <button
-          type="button"
-          onClick={() => handleReaction("peak")}
-          style={{
-            ...styles.reactionButton,
-            ...styles.peakButton,
-            ...(currentPlay?.reaction === "peak" ? styles.activeButton : {}),
-          }}
-          disabled={!currentPlay}
-        >
-          <Flame size={32} />
-          <span>Peak</span>
-        </button>
+        {/* DJ-Focused Group (Private annotations) */}
+        <div style={styles.buttonGroup}>
+          <button
+            type="button"
+            onClick={() => handleReaction("peak")}
+            style={{
+              ...styles.reactionButton,
+              ...styles.peakButton,
+              ...(currentPlay?.reaction === "peak" ? styles.activeButton : {}),
+            }}
+            disabled={!currentPlay}
+          >
+            <Flame size={32} />
+            <span>Peak</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={() => handleReaction("brick")}
-          style={{
-            ...styles.reactionButton,
-            ...styles.brickButton,
-            ...(currentPlay?.reaction === "brick" ? styles.activeButton : {}),
-          }}
-          disabled={!currentPlay}
-        >
-          <Square size={32} />
-          <span>Brick</span>
-        </button>
+          <button
+            type="button"
+            onClick={() => handleReaction("brick")}
+            style={{
+              ...styles.reactionButton,
+              ...styles.brickButton,
+              ...(currentPlay?.reaction === "brick" ? styles.activeButton : {}),
+            }}
+            disabled={!currentPlay}
+          >
+            <Square size={32} />
+            <span>Brick</span>
+          </button>
 
-        <button
-          type="button"
-          onClick={openNoteModal}
-          style={{
-            ...styles.reactionButton,
-            ...styles.noteButton,
-            ...(currentPlay?.notes ? styles.hasNote : {}),
-          }}
-          disabled={!currentPlay}
-        >
-          <StickyNote size={32} />
-          <span>Note</span>
-        </button>
+          <button
+            type="button"
+            onClick={openNoteModal}
+            style={{
+              ...styles.reactionButton,
+              ...styles.noteButton,
+              ...(currentPlay?.notes ? styles.hasNote : {}),
+            }}
+            disabled={!currentPlay}
+          >
+            <StickyNote size={32} />
+            <span>Note</span>
+          </button>
+        </div>
 
-        <button
-          type="button"
-          onClick={() => setShowPollModal(true)}
-          style={{
-            ...styles.reactionButton,
-            ...styles.pollButton,
-            ...(activePoll ? styles.activeButton : {}),
-          }}
-          disabled={!!activePoll}
-        >
-          <BarChart2 size={32} />
-          <span>Poll</span>
-        </button>
+        {/* Divider */}
+        <div style={styles.footerDivider} />
+
+        {/* Public-Facing Group (Goes to dancers) */}
+        <div style={styles.buttonGroup}>
+          <button
+            type="button"
+            onClick={() => setShowPollModal(true)}
+            style={{
+              ...styles.reactionButton,
+              ...styles.pollButton,
+              ...(activePoll ? styles.activeButton : {}),
+            }}
+            disabled={!!activePoll}
+          >
+            <BarChart2 size={32} />
+            <span>Poll</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowAnnouncementModal(true)}
+            style={{
+              ...styles.reactionButton,
+              ...styles.announceButton,
+            }}
+          >
+            <Megaphone size={32} />
+            <span>Announce</span>
+          </button>
+        </div>
       </footer>
 
       {/* Recent Plays (Mini Timeline) - Shows previous plays, not current */}
@@ -728,6 +757,97 @@ export function LivePerformanceMode({
             >
               Done
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Announcement Modal */}
+      {showAnnouncementModal && (
+        <div style={styles.modalOverlay} onClick={() => setShowAnnouncementModal(false)}>
+          <div style={styles.pollModal} onClick={(e) => e.stopPropagation()}>
+            <h3 style={styles.modalTitle}>📢 Send Announcement</h3>
+            <p style={styles.modalSubtitle}>Broadcast a message to all dancers</p>
+
+            <div style={{ position: "relative" }}>
+              <textarea
+                value={announcementText}
+                onChange={(e) => setAnnouncementText(e.target.value.slice(0, 200))}
+                placeholder="Last dance in 5 minutes!"
+                style={{ ...styles.textarea, minHeight: "80px" }}
+                autoFocus
+              />
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: "8px",
+                  right: "12px",
+                  fontSize: "0.75rem",
+                  color: announcementText.length > 180 ? "#ef4444" : "#71717a",
+                }}
+              >
+                {announcementText.length}/200
+              </span>
+            </div>
+
+            {/* Duration Selector */}
+            <div style={styles.durationSection}>
+              <label style={styles.pollLabel}>Show countdown timer? (optional)</label>
+              <div style={styles.durationButtons}>
+                {[
+                  { label: "No timer", value: null },
+                  { label: "5 min", value: 300 },
+                  { label: "15 min", value: 900 },
+                  { label: "30 min", value: 1800 },
+                ].map((opt) => (
+                  <button
+                    key={opt.label}
+                    type="button"
+                    onClick={() => setAnnouncementDuration(opt.value)}
+                    style={{
+                      ...styles.durationButton,
+                      ...(announcementDuration === opt.value ? styles.durationButtonActive : {}),
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={styles.modalActions}>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAnnouncementModal(false);
+                  setAnnouncementText("");
+                  setAnnouncementDuration(null);
+                }}
+                style={styles.cancelButton}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (announcementText.trim()) {
+                    onSendAnnouncement?.(
+                      announcementText.trim(),
+                      announcementDuration ?? undefined,
+                    );
+                    setShowAnnouncementModal(false);
+                    setAnnouncementText("");
+                    setAnnouncementDuration(null);
+                  }
+                }}
+                style={{
+                  ...styles.saveButton,
+                  background: "linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)",
+                }}
+                disabled={!announcementText.trim()}
+              >
+                Send Announcement
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1062,6 +1182,25 @@ const styles: Record<string, React.CSSProperties> = {
   pollButton: {
     background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
   },
+
+  // Button groups for footer
+  buttonGroup: {
+    display: "flex",
+    gap: "1rem",
+  },
+  footerDivider: {
+    width: "2px",
+    background: "#3f3f46",
+    alignSelf: "stretch",
+    margin: "0.5rem 0",
+  },
+
+  // Announcement button
+  announceButton: {
+    background: "linear-gradient(135deg, #f59e0b 0%, #ea580c 100%)",
+    color: "#fff",
+  },
+
   pollModal: {
     background: "#18181b",
     padding: "2rem",

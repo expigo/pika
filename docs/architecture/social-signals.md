@@ -6,6 +6,9 @@ This document describes the *current* implementation of the social interaction s
 
 The Social Signals system turns the audience from passive listeners into active participants. It runs entirely on the **Cloud** server (`packages/cloud`) and interacts with the **Web** client (`packages/web`).
 
+> [!TIP]
+> For deep technical details on the synchronization transport, offline queue, and connection handling, see [Realtime Infrastructure](./realtime-infrastructure.md).
+
 **Key Components:**
 *   **WebSockets:** Real-time bidirectional communication.
 *   **Active Polling:** DJ-initiated questions.

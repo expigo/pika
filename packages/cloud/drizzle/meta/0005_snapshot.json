@@ -53,12 +53,8 @@
           "name": "dj_tokens_dj_user_id_dj_users_id_fk",
           "tableFrom": "dj_tokens",
           "tableTo": "dj_users",
-          "columnsFrom": [
-            "dj_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dj_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -68,9 +64,7 @@
         "dj_tokens_token_unique": {
           "name": "dj_tokens_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -126,16 +120,12 @@
         "dj_users_email_unique": {
           "name": "dj_users_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "dj_users_slug_unique": {
           "name": "dj_users_slug_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "slug"
-          ]
+          "columns": ["slug"]
         }
       },
       "policies": {},
@@ -184,12 +174,8 @@
           "name": "likes_session_id_sessions_id_fk",
           "tableFrom": "likes",
           "tableTo": "sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -197,12 +183,8 @@
           "name": "likes_played_track_id_played_tracks_id_fk",
           "tableFrom": "likes",
           "tableTo": "played_tracks",
-          "columnsFrom": [
-            "played_track_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["played_track_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -309,12 +291,8 @@
           "name": "played_tracks_session_id_sessions_id_fk",
           "tableFrom": "played_tracks",
           "tableTo": "sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -367,12 +345,8 @@
           "name": "poll_votes_poll_id_polls_id_fk",
           "tableFrom": "poll_votes",
           "tableTo": "polls",
-          "columnsFrom": [
-            "poll_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["poll_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -382,10 +356,7 @@
         "poll_votes_poll_id_client_id_unique": {
           "name": "poll_votes_poll_id_client_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "poll_id",
-            "client_id"
-          ]
+          "columns": ["poll_id", "client_id"]
         }
       },
       "policies": {},
@@ -459,12 +430,8 @@
           "name": "polls_session_id_sessions_id_fk",
           "tableFrom": "polls",
           "tableTo": "sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -517,12 +484,8 @@
           "name": "sessions_dj_user_id_dj_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "dj_users",
-          "columnsFrom": [
-            "dj_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["dj_user_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -596,12 +559,8 @@
           "name": "tempo_votes_session_id_sessions_id_fk",
           "tableFrom": "tempo_votes",
           "tableTo": "sessions",
-          "columnsFrom": [
-            "session_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["session_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

@@ -21,6 +21,7 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **CI/CD: Automated Migrations** | **10** | 3 | **DONE** | **Prevents production crash.** Implemented auto-migrate on start. |
 | **Desktop Offline Queue** | **10** | 7 | **DONE** | **Prevents data loss.** Implemented persistent SQLite queue (`offline_queue`). |
 | **PyInstaller Build Matrix** | **9** | 5 | **DONE** | **Required for release.** GitHub Action `release-desktop.yml` created. |
+| **CI/CD: Hardening** | **8** | 4 | **IN PROGRESS** | **Security/Speed.** Adding Rust caching and deduplication. |
 | **Ghost Track Data Fix** | **8** | 4 | **DONE** | **Data hygiene.** `normalizeTrack` implemented in `@pika/shared`. |
 
 ---

@@ -28,6 +28,7 @@ function App() {
     activePoll,
     startPoll,
     endPoll,
+    sendAnnouncement,
     sessionId,
     forceSync,
   } = useLiveSession();
@@ -75,6 +76,7 @@ function App() {
           activePoll={activePoll}
           onStartPoll={startPoll}
           onEndPoll={endPoll}
+          onSendAnnouncement={sendAnnouncement}
           sessionId={sessionId}
           djName={djName}
           liveStatus={liveSessionStatus}

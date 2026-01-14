@@ -13,9 +13,9 @@ import {
   WifiOff,
   X,
 } from "lucide-react";
+import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
 
@@ -66,6 +66,37 @@ function PollCountdown({ endsAt }: { endsAt: string }) {
     minutes > 0 ? `${minutes}:${remainingSeconds.toString().padStart(2, "0")}` : `${seconds}s`;
 
   return <span className="text-purple-400 font-mono">⏱️ {timeStr}</span>;
+}
+
+// Announcement countdown timer component
+function AnnouncementCountdown({ endsAt }: { endsAt: string }) {
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  useEffect(() => {
+    const endTime = new Date(endsAt).getTime();
+
+    const updateCountdown = () => {
+      const remaining = Math.max(0, endTime - Date.now());
+      setTimeLeft(remaining);
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [endsAt]);
+
+  if (timeLeft <= 0) {
+    return null;
+  }
+
+  const seconds = Math.floor(timeLeft / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+
+  const timeStr =
+    minutes > 0 ? `${minutes}:${remainingSeconds.toString().padStart(2, "0")}` : `${seconds}s`;
+
+  return <span className="font-mono text-amber-300">⏱️ {timeStr}</span>;
 }
 
 // History list component
@@ -128,6 +159,8 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     hasVotedOnPoll,
     voteOnPoll,
     sendReaction,
+    announcement,
+    dismissAnnouncement,
   } = useLiveListener(targetSessionId);
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -178,8 +211,38 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
       <ConnectionStatusIndicator status={status} />
+
+      {/* Announcement Banner - Sticky at top */}
+      {announcement && (
+        <div className="fixed top-0 left-0 right-0 z-50 animate-in slide-in-from-top duration-300">
+          <div className="bg-gradient-to-r from-amber-600 to-orange-600 px-4 py-3 shadow-lg">
+            <div className="max-w-md mx-auto flex items-start gap-3">
+              <span className="text-xl flex-shrink-0">📢</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-white font-medium text-sm leading-snug">
+                  {announcement.message}
+                </p>
+                <p className="text-amber-200/80 text-xs mt-1 flex items-center gap-2">
+                  {announcement.djName && <span>— {announcement.djName}</span>}
+                  {announcement.endsAt && <AnnouncementCountdown endsAt={announcement.endsAt} />}
+                </p>
+              </div>
+              <button
+                onClick={dismissAnnouncement}
+                className="flex-shrink-0 p-1 text-white/70 hover:text-white transition-colors"
+                aria-label="Dismiss announcement"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Card */}
-      <div className="w-full max-w-md bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden">
+      <div
+        className={`w-full max-w-md bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden ${announcement ? "mt-16" : ""}`}
+      >
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
           <div className="flex items-center gap-3">

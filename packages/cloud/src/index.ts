@@ -1,10 +1,10 @@
 import {
+  getTrackKey,
   PIKA_VERSION,
+  slugify,
   type TrackInfo,
   type WebSocketMessage,
   WebSocketMessageSchema,
-  getTrackKey,
-  slugify,
 } from "@pika/shared";
 import type { ServerWebSocket } from "bun";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -1622,6 +1622,44 @@ app.get(
                   `🦄 Thank You received from ${clientId} in session ${message.sessionId}`,
                 );
               }
+              break;
+            }
+
+            case "SEND_ANNOUNCEMENT": {
+              const {
+                sessionId: announcementSessionId,
+                message: announcementMessage,
+                durationSeconds,
+              } = message;
+
+              // Verify this is a DJ sending to their own session
+              const djSession = activeSessions.get(announcementSessionId);
+              if (!djSession) {
+                console.log(`⚠️ Announcement rejected: session ${announcementSessionId} not found`);
+                break;
+              }
+
+              // Calculate endsAt if duration is provided
+              const endsAt = durationSeconds
+                ? new Date(Date.now() + durationSeconds * 1000).toISOString()
+                : undefined;
+
+              // Broadcast to all listeners
+              rawWs.publish(
+                "live-session",
+                JSON.stringify({
+                  type: "ANNOUNCEMENT_RECEIVED",
+                  sessionId: announcementSessionId,
+                  message: announcementMessage,
+                  djName: djSession.djName,
+                  timestamp: new Date().toISOString(),
+                  endsAt,
+                }),
+              );
+
+              console.log(
+                `📢 Announcement from ${djSession.djName}: "${announcementMessage}"${durationSeconds ? ` (${durationSeconds}s timer)` : ""}`,
+              );
               break;
             }
 

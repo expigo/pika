@@ -80,6 +80,12 @@ interface LiveState {
     endsAt?: string;
   } | null;
   hasVotedOnPoll: boolean; // Whether current user has voted
+  // Announcement state
+  announcement: {
+    message: string;
+    djName?: string;
+    endsAt?: string; // ISO timestamp for countdown
+  } | null;
 }
 
 const MAX_HISTORY = 5;
@@ -157,6 +163,7 @@ export function useLiveListener(targetSessionId?: string) {
     tempoVote: null,
     activePoll: null,
     hasVotedOnPoll: false,
+    announcement: null,
   }));
 
   const socketRef = useRef<ReconnectingWebSocket | null>(null);
@@ -709,6 +716,34 @@ export function useLiveListener(targetSessionId?: string) {
           });
           break;
         }
+
+        case "ANNOUNCEMENT_RECEIVED": {
+          // DJ announcement to all dancers
+          const announcementMsg = message as {
+            type: "ANNOUNCEMENT_RECEIVED";
+            sessionId: string;
+            message: string;
+            djName?: string;
+            endsAt?: string;
+          };
+
+          console.log("[Listener] Announcement received:", announcementMsg.message);
+
+          // Vibrate if supported (gentle pulse for notification)
+          if (navigator.vibrate) {
+            navigator.vibrate(200);
+          }
+
+          setState((prev) => ({
+            ...prev,
+            announcement: {
+              message: announcementMsg.message,
+              djName: announcementMsg.djName,
+              endsAt: announcementMsg.endsAt,
+            },
+          }));
+          break;
+        }
       }
     };
 
@@ -958,5 +993,18 @@ export function useLiveListener(targetSessionId?: string) {
     [state.sessionId],
   );
 
-  return { ...state, sendLike, hasLiked, sendTempoRequest, voteOnPoll, sendReaction };
+  // Dismiss announcement (user closes the banner)
+  const dismissAnnouncement = useCallback(() => {
+    setState((prev) => ({ ...prev, announcement: null }));
+  }, []);
+
+  return {
+    ...state,
+    sendLike,
+    hasLiked,
+    sendTempoRequest,
+    voteOnPoll,
+    sendReaction,
+    dismissAnnouncement,
+  };
 }

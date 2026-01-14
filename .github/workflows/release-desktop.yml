@@ -33,6 +33,12 @@ jobs:
         with:
           bun-version: latest
 
+      # 2. Setup Rust Cache (NEW: Dramatically speeds up builds)
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: packages/desktop/src-tauri
+
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -45,24 +51,11 @@ jobs:
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
       # 2. Setup Python & Build Sidecar (Reusing logic from build-desktop.yml)
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-        with:
-          python-version: "3.10"
+      # 3. Setup Sidecar (Reusing composite action)
+      - name: Setup & Build Sidecar
+        uses: ./.github/actions/setup-sidecar
 
-      - name: Setup Python venv
-        working-directory: packages/desktop/python-src
-        run: uv venv .venv
-
-      - name: Install Python Dependencies
-        working-directory: packages/desktop/python-src
-        run: uv pip install --python .venv -r requirements.txt
-
-      - name: Build Sidecar
-        working-directory: packages/desktop
-        run: bun run build:sidecar
-
-      # 3. Build Web App (Next.js/React)
+      # 4. Build Web App (Next.js/React)
       - name: Install Node Dependencies
         run: bun install
 

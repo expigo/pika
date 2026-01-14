@@ -1,0 +1,30 @@
+name: "Setup & Build Sidecar"
+description: "Sets up Python, UV, installs dependencies, and builds the sidecar binary"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Bun
+      uses: oven-sh/setup-bun@v1
+      with:
+        bun-version: latest
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: "3.10"
+
+    - name: Setup Python venv
+      shell: bash
+      working-directory: packages/desktop/python-src
+      run: uv venv .venv
+
+    - name: Install Python Dependencies
+      shell: bash
+      working-directory: packages/desktop/python-src
+      run: uv pip install --python .venv -r requirements.txt
+
+    - name: Build Sidecar
+      shell: bash
+      working-directory: packages/desktop
+      run: bun run build:sidecar

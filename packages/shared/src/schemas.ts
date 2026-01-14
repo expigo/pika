@@ -302,6 +302,28 @@ export const ReactionReceivedSchema = z.object({
 });
 
 // ============================================================================
+// Announcement Schemas (DJ -> Dancers)
+// ============================================================================
+
+// DJ -> Server: Send announcement to dancers
+export const SendAnnouncementSchema = z.object({
+  type: z.literal("SEND_ANNOUNCEMENT"),
+  sessionId: z.string(),
+  message: z.string().max(200),
+  durationSeconds: z.number().min(60).max(3600).optional(), // 1 min to 1 hour
+});
+
+// Server -> Dancers: Announcement received
+export const AnnouncementReceivedSchema = z.object({
+  type: z.literal("ANNOUNCEMENT_RECEIVED"),
+  sessionId: z.string(),
+  message: z.string(),
+  djName: z.string().optional(),
+  timestamp: z.string(), // ISO timestamp
+  endsAt: z.string().optional(), // ISO timestamp for countdown timer
+});
+
+// ============================================================================
 // Combined Message Schemas
 // ============================================================================
 
@@ -323,6 +345,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   VoteOnPollSchema,
   // Reactions
   SendReactionSchema,
+  // Announcements
+  SendAnnouncementSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -350,6 +374,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   VoteConfirmedSchema,
   // Reactions
   ReactionReceivedSchema,
+  // Announcements
+  AnnouncementReceivedSchema,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

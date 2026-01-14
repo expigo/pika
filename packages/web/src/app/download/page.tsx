@@ -2,7 +2,7 @@
 
 import { ArrowLeft, Download, Monitor } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function DownloadPage() {
   const [release, setRelease] = useState<any>(null);
