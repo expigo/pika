@@ -163,3 +163,26 @@ export const pollVotes = pgTable(
     uniqueVote: unique().on(table.pollId, table.clientId),
   }),
 );
+
+// ============================================================================
+// Session Events Table (Telemetry)
+// ============================================================================
+
+/**
+ * Session lifecycle events for operational telemetry.
+ * Tracks DJ connection stability without collecting PII.
+ */
+export const sessionEvents = pgTable("session_events", {
+  id: serial("id").primaryKey(),
+  sessionId: text("session_id")
+    .notNull()
+    .references(() => sessions.id),
+  eventType: text("event_type").notNull(), // 'connect', 'disconnect', 'reconnect', 'end'
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  // Optional metadata (JSON): reconnect duration, disconnect reason, client version
+  metadata: json("metadata").$type<{
+    reason?: string;
+    reconnectMs?: number;
+    clientVersion?: string;
+  }>(),
+});

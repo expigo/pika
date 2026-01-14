@@ -43,6 +43,13 @@
       "when": 1768244603106,
       "tag": "0005_awesome_bucky",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1768434805968,
+      "tag": "0006_grey_black_tarantula",
+      "breakpoints": true
     }
   ]
 }
