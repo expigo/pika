@@ -38,10 +38,18 @@ Simple binary positive feedback.
 *   **Restriction:** 1 like per track per `clientId`.
 *   **Feedback:** "Like" animation on sender, counter update for everyone.
 
-### D. Listener Count 👥
+### D. Announcements 📢
+DJ can broadcast messages to all dancers.
+*   **Creation:** DJ sends `SEND_ANNOUNCEMENT` (message + optional duration).
+*   **Display:** Overlay banner appears on all dancer devices.
+*   **Auto-dismiss:** Timer-based dismissal when `endsAt` expires.
+*   **Session-scoped:** Announcements only show to dancers in the DJ's session.
+*   **Cancellation:** DJ can manually cancel via `CANCEL_ANNOUNCEMENT`.
+
+### E. Listener Count 👥
 Real-time counter of connected *unique* `clientId`s.
 
-### E. Resilience Features 🛡️
+### F. Resilience Features 🛡️
 *   **Offline Queue:** If a dancer likes a track while offline, it is queued and automatically flushed when the connection is restored.
 *   **Session Scoping:** Likes are persisted in `localStorage` scoped to the `sessionId`. This prevents "Phantom Likes" when joining new sessions or reconnecting.
 
@@ -65,7 +73,17 @@ export const SendTempoRequestSchema = z.object({
 });
 ```
 
-## 4. Known Limitations
+## 4. Poll Results UX (Desktop)
+
+When a poll ends (manually or via timer):
+1. **Results persist** in `endedPoll` state until dismissed.
+2. **Toast notification** shows "🏆 Poll ended! {Winner} won with {%}!".
+3. **Drawer display** shows all options with percentages and winner highlighted.
+4. DJ clicks "Dismiss Results" to clear and start a new poll.
+
+This ensures busy DJs don't miss poll results during live performances.
+
+## 5. Known Limitations
 
 *   **Ghost Mode:** Not implemented. All feedback is always live.
 *   **Throttling:** 
@@ -74,3 +92,4 @@ export const SendTempoRequestSchema = z.object({
     *   **Missing:** Rate limiting for connection floods or spamming updates.
 *   **"Vibe Check" Grid:** Original design had a 4-button grid. Current implementation effectively splits this into "Tempo" (3 buttons) and "Like" (1 button).
 *   **Persistence:** Polls are saved to DB. Likes constitute a session-scoped local state for the user.
+

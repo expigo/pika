@@ -22,7 +22,7 @@ export function NetworkHealthIndicator({ status, latency: externalLatency, pingE
     const checkLatency = async () => {
       const start = performance.now();
       try {
-        await fetch(pingEndpoint, { method: "HEAD", cache: "no-store" });
+        await fetch(pingEndpoint, { method: "GET", cache: "no-store" });
         const end = performance.now();
         setMeasuredLatency(Math.round(end - start));
       } catch (e) {

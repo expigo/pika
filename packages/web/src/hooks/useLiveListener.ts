@@ -84,6 +84,7 @@ interface LiveState {
   announcement: {
     message: string;
     djName?: string;
+    timestamp?: string; // ISO timestamp for "x min ago"
     endsAt?: string; // ISO timestamp for countdown
   } | null;
 }
@@ -196,29 +197,6 @@ export function useLiveListener(targetSessionId?: string) {
     }
   }, []);
 
-  // Fetch full session state (track, polls, etc) from REST API to ensure we are in sync
-  // Defined at top level to avoid React Hook violation
-  const fetchSessionState = useCallback(async (sessionId: string) => {
-    try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/session/${sessionId}/state`);
-      if (response.ok) {
-        const data = await response.json();
-        // Update local state with latest from server
-        setState((prev) => ({
-          ...prev,
-          currentTrack: data.currentTrack || null,
-          activePoll: data.activePoll || null,
-          // If server says we voted, trust it
-          hasVotedOnPoll: data.hasVotedOnPoll ?? prev.hasVotedOnPoll,
-        }));
-        console.log("[Listener] Synced state for session:", sessionId);
-      }
-    } catch (e) {
-      console.error("[Listener] Failed to sync state:", e);
-    }
-  }, []);
-
   // Load persisted likes when session ID becomes available or changes
   useEffect(() => {
     if (state.sessionId) {
@@ -269,11 +247,10 @@ export function useLiveListener(targetSessionId?: string) {
         }),
       );
 
-      // If we have a session context, force a state sync via REST
-      // This handles cases where we missed messages while offline
+      // If we have a session context, fetch history
+      // State sync happens via WebSocket SUBSCRIBE response
       if (sessionToSubscribe) {
         fetchHistory(sessionToSubscribe);
-        fetchSessionState(sessionToSubscribe);
       }
 
       // Flush pending likes with a small delay to ensure socket is ready and server processing
@@ -724,14 +701,26 @@ export function useLiveListener(targetSessionId?: string) {
             sessionId: string;
             message: string;
             djName?: string;
+            timestamp?: string;
             endsAt?: string;
           };
+
+          // Only accept announcements for our session
+          if (announcementMsg.sessionId !== state.sessionId) {
+            console.log(
+              `[Listener] Ignoring announcement for different session: ${announcementMsg.sessionId} (ours: ${state.sessionId})`,
+            );
+            break;
+          }
 
           console.log("[Listener] Announcement received:", announcementMsg.message);
 
           // Vibrate if supported (gentle pulse for notification)
-          if (navigator.vibrate) {
-            navigator.vibrate(200);
+          // Wrapped in try-catch because browser blocks vibrate before user interaction
+          try {
+            navigator.vibrate?.(200);
+          } catch {
+            // Silently ignore - vibration blocked before user gesture
           }
 
           setState((prev) => ({
@@ -739,9 +728,24 @@ export function useLiveListener(targetSessionId?: string) {
             announcement: {
               message: announcementMsg.message,
               djName: announcementMsg.djName,
+              timestamp: announcementMsg.timestamp,
               endsAt: announcementMsg.endsAt,
             },
           }));
+          break;
+        }
+
+        case "ANNOUNCEMENT_CANCELLED": {
+          // DJ cancelled the announcement
+          const cancelMsg = message as { type: "ANNOUNCEMENT_CANCELLED"; sessionId: string };
+
+          // Only accept cancellations for our session
+          if (cancelMsg.sessionId !== state.sessionId) {
+            break;
+          }
+
+          console.log("[Listener] Announcement cancelled");
+          setState((prev) => ({ ...prev, announcement: null }));
           break;
         }
       }
@@ -817,7 +821,7 @@ export function useLiveListener(targetSessionId?: string) {
     };
     // Note: fetchHistory is stable (no deps), don't include in deps array to avoid infinite loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [targetSessionId, fetchHistory, state.sessionId, fetchSessionState]);
+  }, [targetSessionId, fetchHistory, state.sessionId]);
 
   // Queue for offline likes
   const pendingLikesRef = useRef<Set<string>>(new Set());
@@ -997,6 +1001,27 @@ export function useLiveListener(targetSessionId?: string) {
   const dismissAnnouncement = useCallback(() => {
     setState((prev) => ({ ...prev, announcement: null }));
   }, []);
+
+  // Auto-dismiss announcement when timer expires (if endsAt is set)
+  useEffect(() => {
+    if (!state.announcement?.endsAt) return;
+
+    const endTime = new Date(state.announcement.endsAt).getTime();
+    const delay = endTime - Date.now();
+
+    // Already expired - dismiss immediately
+    if (delay <= 0) {
+      setState((prev) => ({ ...prev, announcement: null }));
+      return;
+    }
+
+    // Set timeout to dismiss when timer expires
+    const timeout = setTimeout(() => {
+      setState((prev) => ({ ...prev, announcement: null }));
+    }, delay);
+
+    return () => clearTimeout(timeout);
+  }, [state.announcement?.endsAt]);
 
   return {
     ...state,

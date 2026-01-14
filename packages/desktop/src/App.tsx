@@ -26,9 +26,13 @@ function App() {
     listenerCount,
     tempoFeedback,
     activePoll,
+    endedPoll,
+    liveLikes,
     startPoll,
     endPoll,
     sendAnnouncement,
+    cancelAnnouncement,
+    clearEndedPoll,
     sessionId,
     forceSync,
   } = useLiveSession();
@@ -74,9 +78,13 @@ function App() {
           listenerCount={listenerCount}
           tempoFeedback={tempoFeedback}
           activePoll={activePoll}
+          endedPoll={endedPoll}
+          liveLikes={liveLikes}
           onStartPoll={startPoll}
           onEndPoll={endPoll}
           onSendAnnouncement={sendAnnouncement}
+          onCancelAnnouncement={cancelAnnouncement}
+          onClearEndedPoll={clearEndedPoll}
           sessionId={sessionId}
           djName={djName}
           liveStatus={liveSessionStatus}

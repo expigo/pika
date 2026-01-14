@@ -37,6 +37,20 @@ interface LiveSessionStore {
     endsAt?: string; // ISO timestamp for auto-close timer
   } | null;
 
+  // Ended poll (kept visible until dismissed)
+  endedPoll: {
+    id: number;
+    question: string;
+    options: string[];
+    votes: number[];
+    totalVotes: number;
+    winner: string;
+    winnerPercent: number;
+  } | null;
+
+  // Live likes from dancers (real-time)
+  liveLikes: number;
+
   // Actions
   setStatus: (status: LiveStatus) => void;
   setNowPlaying: (track: NowPlayingTrack | null) => void;
@@ -58,6 +72,20 @@ interface LiveSessionStore {
       endsAt?: string;
     } | null,
   ) => void;
+  setEndedPoll: (
+    poll: {
+      id: number;
+      question: string;
+      options: string[];
+      votes: number[];
+      totalVotes: number;
+      winner: string;
+      winnerPercent: number;
+    } | null,
+  ) => void;
+  clearEndedPoll: () => void;
+  setLiveLikes: (count: number) => void;
+  incrementLiveLikes: () => void;
   reset: () => void;
 }
 
@@ -71,6 +99,8 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   listenerCount: 0,
   tempoFeedback: null,
   activePoll: null,
+  endedPoll: null,
+  liveLikes: 0,
 
   setStatus: (status) => set({ status }),
   setNowPlaying: (nowPlaying) => set({ nowPlaying }),
@@ -81,6 +111,10 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   setListenerCount: (listenerCount) => set({ listenerCount }),
   setTempoFeedback: (tempoFeedback) => set({ tempoFeedback }),
   setActivePoll: (activePoll) => set({ activePoll }),
+  setEndedPoll: (endedPoll) => set({ endedPoll }),
+  clearEndedPoll: () => set({ endedPoll: null }),
+  setLiveLikes: (liveLikes) => set({ liveLikes }),
+  incrementLiveLikes: () => set((state) => ({ liveLikes: state.liveLikes + 1 })),
   reset: () =>
     set({
       status: "offline",
@@ -92,6 +126,8 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
       listenerCount: 0,
       tempoFeedback: null,
       activePoll: null,
+      endedPoll: null,
+      liveLikes: 0,
     }),
 }));
 
@@ -238,6 +274,10 @@ function broadcastTrack(sessionId: string, track: TrackInfo): boolean {
   }
 
   lastBroadcastedTrackKey = trackKey;
+
+  // Reset live likes counter when track changes
+  useLiveStore.getState().setLiveLikes(0);
+
   sendMessage({
     type: "BROADCAST_TRACK",
     sessionId,
@@ -530,6 +570,7 @@ export function useLiveSession() {
             // Record initial track to database
             const result = await recordPlay(initialTrack);
             if (result) {
+              currentPlayIdRef = result.playId;
               setCurrentPlayId(result.playId);
             }
           } else {
@@ -608,6 +649,9 @@ export function useLiveSession() {
               // Add to pending batch for toast notification
               addToPendingLikes(track.title);
 
+              // Update live likes count in real-time for DJ display
+              useLiveStore.getState().incrementLiveLikes();
+
               // Store EVERY like in the database (no deduplication here)
               if (currentPlayIdRef) {
                 sessionRepository
@@ -679,10 +723,32 @@ export function useLiveSession() {
           // Handle poll ended
           if (message.type === "POLL_ENDED") {
             console.log("[Live] Poll ended:", message);
-            // Clear active poll after a short delay so DJ sees final results
-            setTimeout(() => {
-              useLiveStore.getState().setActivePoll(null);
-            }, 5000); // 5 second delay to see results
+            const currentPoll = useLiveStore.getState().activePoll;
+
+            if (currentPoll) {
+              // Calculate winner
+              const maxVotes = Math.max(...currentPoll.votes);
+              const winnerIndex = currentPoll.votes.indexOf(maxVotes);
+              const winner = currentPoll.options[winnerIndex] || "No votes";
+              const winnerPercent =
+                currentPoll.totalVotes > 0
+                  ? Math.round((maxVotes / currentPoll.totalVotes) * 100)
+                  : 0;
+
+              // Store ended poll for display
+              useLiveStore.getState().setEndedPoll({
+                id: currentPoll.id,
+                question: currentPoll.question,
+                options: currentPoll.options,
+                votes: currentPoll.votes,
+                totalVotes: currentPoll.totalVotes,
+                winner,
+                winnerPercent,
+              });
+            }
+
+            // Clear active poll immediately
+            useLiveStore.getState().setActivePoll(null);
           }
 
           // Handle reactions
@@ -831,7 +897,23 @@ export function useLiveSession() {
       console.log("[Live] Poll cancelled (no ID yet)");
     }
 
-    // Clear locally immediately for DJ
+    // Store poll results locally for DJ to see (before clearing)
+    const maxVotes = Math.max(...poll.votes, 0);
+    const winnerIndex = poll.votes.indexOf(maxVotes);
+    const winner = poll.options[winnerIndex] || "No votes";
+    const winnerPercent = poll.totalVotes > 0 ? Math.round((maxVotes / poll.totalVotes) * 100) : 0;
+
+    useLiveStore.getState().setEndedPoll({
+      id: poll.id,
+      question: poll.question,
+      options: poll.options,
+      votes: poll.votes,
+      totalVotes: poll.totalVotes,
+      winner,
+      winnerPercent,
+    });
+
+    // Clear active poll immediately for DJ
     useLiveStore.getState().setActivePoll(null);
   }, []);
 
@@ -855,6 +937,22 @@ export function useLiveSession() {
       message,
       durationSeconds ? `(${durationSeconds}s timer)` : "",
     );
+  }, []);
+
+  // Cancel active announcement
+  const cancelAnnouncement = useCallback(() => {
+    if (!isLiveFlag || !currentSessionId) {
+      console.log("[Live] Cannot cancel announcement - not live");
+      return;
+    }
+
+    sendMessage({
+      type: "CANCEL_ANNOUNCEMENT",
+      sessionId: currentSessionId,
+    });
+
+    toast.success(`📢 Announcement cancelled`);
+    console.log("[Live] Announcement cancelled");
   }, []);
 
   // Force sync state to cloud (Panic Button)
@@ -906,8 +1004,8 @@ export function useLiveSession() {
     };
   }, []);
 
-  // Get activePoll from store
-  const { activePoll } = useLiveStore();
+  // Get activePoll, endedPoll, and liveLikes from store
+  const { activePoll, endedPoll, liveLikes, clearEndedPoll } = useLiveStore();
 
   return {
     status,
@@ -919,6 +1017,8 @@ export function useLiveSession() {
     listenerCount,
     tempoFeedback,
     activePoll,
+    endedPoll,
+    liveLikes,
     isLive: status === "live",
     goLive,
     endSet,
@@ -926,6 +1026,8 @@ export function useLiveSession() {
     startPoll,
     endPoll: endCurrentPoll,
     sendAnnouncement,
+    cancelAnnouncement,
+    clearEndedPoll,
     forceSync,
   };
 }

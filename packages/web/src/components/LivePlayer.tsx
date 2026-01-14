@@ -68,37 +68,6 @@ function PollCountdown({ endsAt }: { endsAt: string }) {
   return <span className="text-purple-400 font-mono">⏱️ {timeStr}</span>;
 }
 
-// Announcement countdown timer component
-function AnnouncementCountdown({ endsAt }: { endsAt: string }) {
-  const [timeLeft, setTimeLeft] = useState<number>(0);
-
-  useEffect(() => {
-    const endTime = new Date(endsAt).getTime();
-
-    const updateCountdown = () => {
-      const remaining = Math.max(0, endTime - Date.now());
-      setTimeLeft(remaining);
-    };
-
-    updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
-  }, [endsAt]);
-
-  if (timeLeft <= 0) {
-    return null;
-  }
-
-  const seconds = Math.floor(timeLeft / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-
-  const timeStr =
-    minutes > 0 ? `${minutes}:${remainingSeconds.toString().padStart(2, "0")}` : `${seconds}s`;
-
-  return <span className="font-mono text-amber-300">⏱️ {timeStr}</span>;
-}
-
 // History list component
 function HistoryList({ tracks }: { tracks: HistoryTrack[] }) {
   if (tracks.length === 0) return null;
@@ -224,7 +193,11 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 </p>
                 <p className="text-amber-200/80 text-xs mt-1 flex items-center gap-2">
                   {announcement.djName && <span>— {announcement.djName}</span>}
-                  {announcement.endsAt && <AnnouncementCountdown endsAt={announcement.endsAt} />}
+                  {announcement.timestamp && (
+                    <span className="text-amber-300/60">
+                      {formatRelativeTime(announcement.timestamp)}
+                    </span>
+                  )}
                 </p>
               </div>
               <button
@@ -318,6 +291,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
               <button
                 onClick={handleLike}
                 disabled={isLiked}
+                aria-label="Like Track"
                 className={`mt-6 p-4 rounded-full transition-all duration-300 ${
                   isLiked
                     ? "bg-red-500/30 cursor-default"

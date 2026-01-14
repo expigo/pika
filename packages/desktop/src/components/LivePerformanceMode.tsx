@@ -3,6 +3,7 @@
  * Full-screen, high-contrast overlay for gig performance.
  */
 
+import confetti from "canvas-confetti";
 import {
   Activity,
   BarChart2,
@@ -21,14 +22,14 @@ import {
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { getListenerUrl } from "../config";
-import { getStoredSettings } from "../hooks/useDjSettings";
 import type { PlayReaction } from "../db/schema";
 import { useActivePlay } from "../hooks/useActivePlay";
+import { getStoredSettings } from "../hooks/useDjSettings";
 import type { LiveStatus } from "../hooks/useLiveSession";
-import { NetworkHealthIndicator } from "./NetworkHealthIndicator";
-import confetti from "canvas-confetti";
 import { subscribeToReactions } from "../hooks/useLiveSession";
+import { NetworkHealthIndicator } from "./NetworkHealthIndicator";
 
 // Poll countdown timer component
 function PollCountdown({ endsAt }: { endsAt: string }) {
@@ -96,9 +97,20 @@ interface Props {
   tempoFeedback?: TempoFeedback | null;
   liveLikes?: number; // Real-time likes from cloud
   activePoll?: ActivePoll | null;
+  endedPoll?: {
+    id: number;
+    question: string;
+    options: string[];
+    votes: number[];
+    totalVotes: number;
+    winner: string;
+    winnerPercent: number;
+  } | null;
   onStartPoll?: (question: string, options: string[], durationSeconds?: number) => void;
   onEndPoll?: () => void;
   onSendAnnouncement?: (message: string, durationSeconds?: number) => void;
+  onCancelAnnouncement?: () => void;
+  onClearEndedPoll?: () => void;
   sessionId?: string | null;
   djName?: string;
 
@@ -114,9 +126,12 @@ export function LivePerformanceMode({
   tempoFeedback,
   liveLikes = 0,
   activePoll,
+  endedPoll,
   onStartPoll,
   onEndPoll,
   onSendAnnouncement,
+  onCancelAnnouncement,
+  onClearEndedPoll,
   sessionId,
   djName,
   liveStatus = "live",
@@ -150,6 +165,48 @@ export function LivePerformanceMode({
   const [showAnnouncementModal, setShowAnnouncementModal] = useState(false);
   const [announcementText, setAnnouncementText] = useState("");
   const [announcementDuration, setAnnouncementDuration] = useState<number | null>(null);
+
+  // Crowd Control Drawer state
+  const [showCrowdDrawer, setShowCrowdDrawer] = useState(false);
+  const [activeAnnouncement, setActiveAnnouncement] = useState<{
+    message: string;
+    endsAt?: string;
+  } | null>(null);
+
+  // Auto-dismiss announcement when timer expires (Desktop drawer)
+  useEffect(() => {
+    if (!activeAnnouncement?.endsAt) return;
+
+    const endTime = new Date(activeAnnouncement.endsAt).getTime();
+    const delay = endTime - Date.now();
+
+    // Already expired - dismiss immediately
+    if (delay <= 0) {
+      setActiveAnnouncement(null);
+      return;
+    }
+
+    // Set timeout to dismiss when timer expires
+    const timeout = setTimeout(() => {
+      setActiveAnnouncement(null);
+    }, delay);
+
+    return () => clearTimeout(timeout);
+  }, [activeAnnouncement?.endsAt]);
+
+  // Ref to track last shown toast for poll (avoid duplicates)
+  const lastToastPollId = useRef<number | null>(null);
+
+  // Toast notification when poll ends
+  useEffect(() => {
+    if (endedPoll && endedPoll.id !== lastToastPollId.current) {
+      lastToastPollId.current = endedPoll.id;
+      toast.success(`🏆 Poll ended! "${endedPoll.winner}" won with ${endedPoll.winnerPercent}%`, {
+        duration: 5000,
+        description: `${endedPoll.totalVotes} total votes on "${endedPoll.question}"`,
+      });
+    }
+  }, [endedPoll]);
 
   // Confetti state refs
   const confettiIntervalRef = useRef(null as unknown as ReturnType<typeof setInterval> | null);
@@ -288,6 +345,17 @@ export function LivePerformanceMode({
     setShowNoteModal(true);
   };
 
+  // Handle exit: clean up announcements before leaving
+  const handleExit = () => {
+    // Cancel any active announcement for dancers
+    if (activeAnnouncement) {
+      onCancelAnnouncement?.();
+      setActiveAnnouncement(null);
+    }
+    // Call the parent's exit handler
+    onExit();
+  };
+
   return (
     <div style={styles.overlay}>
       {/* Header */}
@@ -367,7 +435,7 @@ export function LivePerformanceMode({
 
           <button
             type="button"
-            onClick={onExit}
+            onClick={handleExit}
             style={styles.exitButton}
             title="Exit Performance Mode"
           >
@@ -403,13 +471,19 @@ export function LivePerformanceMode({
               {currentPlay.key && <span style={styles.metaItem}>{currentPlay.key}</span>}
             </div>
 
-            {/* Likes */}
-            {currentPlay.dancerLikes > 0 && (
-              <div style={styles.likes}>
-                <Heart size={20} fill="#ef4444" color="#ef4444" />
-                <span>{currentPlay.dancerLikes}</span>
-              </div>
-            )}
+            {/* Likes - Always visible, prominent display */}
+            <div style={styles.likesDisplay}>
+              <Heart size={28} fill={liveLikes > 0 ? "#ef4444" : "transparent"} color="#ef4444" />
+              <span
+                style={{
+                  fontSize: "1.75rem",
+                  fontWeight: "bold",
+                  color: liveLikes > 0 ? "#ef4444" : "#52525b",
+                }}
+              >
+                {liveLikes}
+              </span>
+            </div>
 
             {/* Current Status */}
             {currentPlay.reaction !== "neutral" && (
@@ -482,32 +556,21 @@ export function LivePerformanceMode({
         {/* Divider */}
         <div style={styles.footerDivider} />
 
-        {/* Public-Facing Group (Goes to dancers) */}
+        {/* Crowd Control Button (opens drawer with Poll & Announce) */}
         <div style={styles.buttonGroup}>
           <button
             type="button"
-            onClick={() => setShowPollModal(true)}
+            onClick={() => setShowCrowdDrawer(true)}
             style={{
               ...styles.reactionButton,
-              ...styles.pollButton,
-              ...(activePoll ? styles.activeButton : {}),
-            }}
-            disabled={!!activePoll}
-          >
-            <BarChart2 size={32} />
-            <span>Poll</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setShowAnnouncementModal(true)}
-            style={{
-              ...styles.reactionButton,
-              ...styles.announceButton,
+              ...styles.crowdControlButton,
+              ...(activePoll || activeAnnouncement ? styles.activeButton : {}),
             }}
           >
             <Megaphone size={32} />
-            <span>Announce</span>
+            <span>Crowd</span>
+            {/* Active indicator badge */}
+            {(activePoll || activeAnnouncement) && <span style={styles.activeBadge} />}
           </button>
         </div>
       </footer>
@@ -830,6 +893,14 @@ export function LivePerformanceMode({
                 type="button"
                 onClick={() => {
                   if (announcementText.trim()) {
+                    const endsAt = announcementDuration
+                      ? new Date(Date.now() + announcementDuration * 1000).toISOString()
+                      : undefined;
+                    // Track locally for drawer display
+                    setActiveAnnouncement({
+                      message: announcementText.trim(),
+                      endsAt,
+                    });
                     onSendAnnouncement?.(
                       announcementText.trim(),
                       announcementDuration ?? undefined,
@@ -850,6 +921,156 @@ export function LivePerformanceMode({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Crowd Control Drawer - Slides in from right */}
+      {showCrowdDrawer && (
+        <>
+          {/* Backdrop */}
+          <div style={styles.drawerBackdrop} onClick={() => setShowCrowdDrawer(false)} />
+          {/* Drawer Panel */}
+          <div style={styles.crowdDrawer}>
+            <div style={styles.drawerHeader}>
+              <h3 style={{ margin: 0, fontSize: "1.25rem" }}>📣 Crowd Control</h3>
+              <button
+                type="button"
+                onClick={() => setShowCrowdDrawer(false)}
+                style={styles.closeButton}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Active Announcement Section - Orange Theme */}
+            <div style={styles.drawerSectionAnnouncement}>
+              <h4 style={styles.drawerSectionTitleAnnouncement}>
+                <Megaphone size={18} />
+                Announcement
+              </h4>
+              {activeAnnouncement ? (
+                <div style={styles.activeCardAnnouncement}>
+                  <p style={styles.activeMessage}>"{activeAnnouncement.message}"</p>
+                  {activeAnnouncement.endsAt && (
+                    <p style={styles.activeTimerAnnouncement}>
+                      <Clock size={14} />
+                      <PollCountdown endsAt={activeAnnouncement.endsAt} />
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onCancelAnnouncement?.();
+                      setActiveAnnouncement(null);
+                    }}
+                    style={styles.cancelAnnouncementButton}
+                  >
+                    Cancel Announcement
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCrowdDrawer(false);
+                    setShowAnnouncementModal(true);
+                  }}
+                  style={styles.newAnnouncementButton}
+                >
+                  <Megaphone size={20} />
+                  New Announcement
+                </button>
+              )}
+            </div>
+
+            {/* Active Poll Section - Purple Theme */}
+            <div style={styles.drawerSectionPoll}>
+              <h4 style={styles.drawerSectionTitlePoll}>
+                <BarChart2 size={18} />
+                Poll
+              </h4>
+              {activePoll ? (
+                <div style={styles.activeCardPoll}>
+                  <p style={styles.activeMessage}>"{activePoll.question}"</p>
+                  <p style={styles.pollVoteCount}>
+                    <Users size={14} />
+                    {activePoll.totalVotes} votes
+                  </p>
+                  {activePoll.endsAt && (
+                    <p style={styles.activeTimerPoll}>
+                      <Clock size={14} />
+                      <PollCountdown endsAt={activePoll.endsAt} />
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onEndPoll?.();
+                    }}
+                    style={styles.endPollDrawerButton}
+                  >
+                    End Poll
+                  </button>
+                </div>
+              ) : endedPoll ? (
+                // Show ended poll results with winner
+                <div style={styles.activeCardPoll}>
+                  <p style={{ ...styles.activeMessage, marginBottom: "0.5rem" }}>
+                    "{endedPoll.question}"
+                  </p>
+                  <div style={styles.pollResultsContainer}>
+                    {endedPoll.options.map((option, i) => {
+                      const isWinner = option === endedPoll.winner;
+                      const percent =
+                        endedPoll.totalVotes > 0
+                          ? Math.round((endedPoll.votes[i] / endedPoll.totalVotes) * 100)
+                          : 0;
+                      return (
+                        <div
+                          key={option}
+                          style={{
+                            ...styles.pollResultItem,
+                            ...(isWinner ? styles.pollResultWinner : {}),
+                          }}
+                        >
+                          <span style={styles.pollResultLabel}>
+                            {isWinner && "🏆 "}
+                            {option}
+                          </span>
+                          <span style={styles.pollResultPercent}>
+                            {percent}% ({endedPoll.votes[i]})
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p style={{ ...styles.pollVoteCount, marginTop: "0.75rem" }}>
+                    <Users size={14} />
+                    {endedPoll.totalVotes} total votes
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => onClearEndedPoll?.()}
+                    style={styles.dismissPollButton}
+                  >
+                    Dismiss Results
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCrowdDrawer(false);
+                    setShowPollModal(true);
+                  }}
+                  style={styles.newPollButton}
+                >
+                  <BarChart2 size={20} />
+                  Start Poll
+                </button>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
@@ -1070,11 +1291,11 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#d4d4d8",
   },
   activeButton: {
-    borderColor: "#fafafa",
+    border: "2px solid #fafafa",
     transform: "scale(1.05)",
   },
   hasNote: {
-    borderColor: "#a855f7",
+    border: "2px solid #a855f7",
   },
   timeline: {
     position: "absolute",
@@ -1279,11 +1500,6 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "1.1rem",
     fontWeight: "bold",
   },
-  pollVoteCount: {
-    marginLeft: "auto",
-    color: "#6366f1",
-    fontSize: "0.9rem",
-  },
   activePollOptions: {
     display: "flex",
     flexDirection: "column" as const,
@@ -1343,8 +1559,298 @@ const styles: Record<string, React.CSSProperties> = {
   },
   durationButtonActive: {
     background: "rgba(139, 92, 246, 0.3)",
-    borderColor: "rgba(139, 92, 246, 0.6)",
+    border: "1px solid rgba(139, 92, 246, 0.6)",
     color: "#c4b5fd",
+  },
+
+  // Crowd Control Button (replaces Poll + Announce in footer)
+  crowdControlButton: {
+    background: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
+    color: "#fff",
+    position: "relative",
+  },
+  activeBadge: {
+    position: "absolute",
+    top: "8px",
+    right: "8px",
+    width: "10px",
+    height: "10px",
+    borderRadius: "50%",
+    background: "#22c55e",
+    animation: "pulse 1.5s ease-in-out infinite",
+    border: "2px solid #09090b",
+  },
+
+  // Drawer styles
+  drawerBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(0, 0, 0, 0.6)",
+    zIndex: 10000,
+  },
+  crowdDrawer: {
+    position: "fixed",
+    top: 0,
+    right: 0,
+    height: "100%",
+    width: "320px",
+    background: "#18181b",
+    borderLeft: "1px solid #27272a",
+    zIndex: 10001,
+    display: "flex",
+    flexDirection: "column",
+    boxShadow: "-4px 0 20px rgba(0, 0, 0, 0.3)",
+  },
+  drawerHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "1.5rem",
+    borderBottom: "1px solid #27272a",
+  },
+  closeButton: {
+    background: "transparent",
+    border: "none",
+    color: "#a1a1aa",
+    cursor: "pointer",
+    padding: "0.5rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: "8px",
+  },
+  drawerSection: {
+    padding: "1.5rem",
+    borderBottom: "1px solid #27272a",
+  },
+  drawerSectionTitle: {
+    margin: "0 0 1rem 0",
+    fontSize: "1rem",
+    fontWeight: 600,
+    color: "#e4e4e7",
+  },
+  activeCard: {
+    background: "#27272a",
+    borderRadius: "12px",
+    padding: "1rem",
+    border: "1px solid #3f3f46",
+  },
+  activeMessage: {
+    margin: "0 0 0.5rem 0",
+    fontSize: "0.95rem",
+    color: "#fafafa",
+    lineHeight: 1.4,
+  },
+  activeTimer: {
+    margin: "0.5rem 0",
+    fontSize: "0.875rem",
+  },
+  cancelActiveButton: {
+    width: "100%",
+    marginTop: "1rem",
+    padding: "0.625rem 1rem",
+    background: "rgba(239, 68, 68, 0.15)",
+    border: "1px solid rgba(239, 68, 68, 0.3)",
+    borderRadius: "8px",
+    color: "#ef4444",
+    fontSize: "0.875rem",
+    fontWeight: 500,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+  drawerActionButton: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.75rem",
+    width: "100%",
+    padding: "1rem",
+    background: "rgba(99, 102, 241, 0.15)",
+    border: "1px solid rgba(99, 102, 241, 0.3)",
+    borderRadius: "12px",
+    color: "#a5b4fc",
+    fontSize: "1rem",
+    fontWeight: 500,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+
+  // Prominent Likes Display
+  likesDisplay: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    marginTop: "1.5rem",
+    padding: "1rem 1.5rem",
+    background: "rgba(239, 68, 68, 0.1)",
+    borderRadius: "16px",
+    border: "1px solid rgba(239, 68, 68, 0.2)",
+  },
+
+  // Orange-themed Announcement Section
+  drawerSectionAnnouncement: {
+    padding: "1.25rem",
+    background:
+      "linear-gradient(135deg, rgba(245, 158, 11, 0.08) 0%, rgba(234, 88, 12, 0.08) 100%)",
+    borderBottom: "1px solid rgba(245, 158, 11, 0.2)",
+  },
+  drawerSectionTitleAnnouncement: {
+    margin: "0 0 1rem 0",
+    fontSize: "1rem",
+    fontWeight: 600,
+    color: "#fbbf24",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  activeCardAnnouncement: {
+    background: "rgba(245, 158, 11, 0.12)",
+    borderRadius: "12px",
+    padding: "1rem",
+    border: "1px solid rgba(245, 158, 11, 0.3)",
+  },
+  activeTimerAnnouncement: {
+    margin: "0.75rem 0 0 0",
+    fontSize: "0.875rem",
+    color: "#fbbf24",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  cancelAnnouncementButton: {
+    width: "100%",
+    marginTop: "1rem",
+    padding: "0.75rem 1rem",
+    background: "rgba(245, 158, 11, 0.15)",
+    border: "1px solid rgba(245, 158, 11, 0.4)",
+    borderRadius: "8px",
+    color: "#fbbf24",
+    fontSize: "0.875rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+  newAnnouncementButton: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.75rem",
+    width: "100%",
+    padding: "1rem",
+    background: "linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(234, 88, 12, 0.2) 100%)",
+    border: "1px solid rgba(245, 158, 11, 0.4)",
+    borderRadius: "12px",
+    color: "#fbbf24",
+    fontSize: "1rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+
+  // Purple-themed Poll Section
+  drawerSectionPoll: {
+    padding: "1.25rem",
+    background:
+      "linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%)",
+  },
+  drawerSectionTitlePoll: {
+    margin: "0 0 1rem 0",
+    fontSize: "1rem",
+    fontWeight: 600,
+    color: "#a5b4fc",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  activeCardPoll: {
+    background: "rgba(99, 102, 241, 0.12)",
+    borderRadius: "12px",
+    padding: "1rem",
+    border: "1px solid rgba(99, 102, 241, 0.3)",
+  },
+  pollVoteCount: {
+    margin: "0.5rem 0",
+    fontSize: "0.875rem",
+    color: "#a5b4fc",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  activeTimerPoll: {
+    margin: "0.75rem 0 0 0",
+    fontSize: "0.875rem",
+    color: "#a5b4fc",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+  },
+  endPollDrawerButton: {
+    width: "100%",
+    marginTop: "1rem",
+    padding: "0.75rem 1rem",
+    background: "rgba(239, 68, 68, 0.15)",
+    border: "1px solid rgba(239, 68, 68, 0.4)",
+    borderRadius: "8px",
+    color: "#ef4444",
+    fontSize: "0.875rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+  newPollButton: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "0.75rem",
+    width: "100%",
+    padding: "1rem",
+    background: "linear-gradient(135deg, rgba(99, 102, 241, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)",
+    border: "1px solid rgba(99, 102, 241, 0.4)",
+    borderRadius: "12px",
+    color: "#a5b4fc",
+    fontSize: "1rem",
+    fontWeight: 600,
+    cursor: "pointer",
+    transition: "all 0.2s ease",
+  },
+  // Poll Results Styles
+  pollResultsContainer: {
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: "0.5rem",
+  },
+  pollResultItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0.5rem 0.75rem",
+    background: "rgba(99, 102, 241, 0.1)",
+    borderRadius: "8px",
+    fontSize: "0.875rem",
+  },
+  pollResultWinner: {
+    background: "rgba(34, 197, 94, 0.2)",
+    border: "1px solid rgba(34, 197, 94, 0.4)",
+  },
+  pollResultLabel: {
+    color: "#e4e4e7",
+    fontWeight: 500,
+  },
+  pollResultPercent: {
+    color: "#a5b4fc",
+    fontFamily: "monospace",
+  },
+  dismissPollButton: {
+    marginTop: "0.75rem",
+    width: "100%",
+    padding: "0.75rem",
+    background: "rgba(255, 255, 255, 0.1)",
+    border: "1px solid rgba(255, 255, 255, 0.2)",
+    borderRadius: "8px",
+    color: "#a1a1aa",
+    fontSize: "0.875rem",
+    cursor: "pointer",
+    transition: "all 0.2s ease",
   },
 };
 

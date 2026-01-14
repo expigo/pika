@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** January 12, 2026
-**Version:** 0.1.0 (MVP Phase)
+**Date:** January 15, 2026
+**Version:** 0.1.8 (MVP Phase)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -59,9 +59,13 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   Real-time "Now Playing" updates.
     *   Tempo Voting (Faster/Slower).
     *   Polls/Questions pushed by DJ.
+    *   DJ Announcements with auto-dismiss timer.
 *   **Persistence:**
     *   Postgres DB stores Sessions, Played Tracks, Likes, and Tempo Votes.
 *   **Feedback Loop:** "Like" mechanism and Tempo Feedback are fully functional and persist to DB.
+*   **Crowd Control (Jan 2026):**
+    *   **Polls:** DJ can start polls with timer. Results persist until dismissed with toast notification.
+    *   **Announcements:** Session-scoped overlay banners with auto-dismiss and manual cancel.
 
 ### 🚧 WIP / Missing
 *   **DJ Dashboard (Web):** While DJs can register, a full web-based dashboard for them to manage past sets or edit profile details is incomplete.
@@ -155,14 +159,15 @@ pika/
 *   **Architecture:** Clean Split-Brain design (Desktop ↔ Cloud ↔ Web)
 *   **Type Safety:** Strict TypeScript, Zod schemas, Drizzle ORM
 *   **Documentation:** Exceptional (10/10) - comprehensive roadmaps and specs
-*   **CI/CD:** Automated deployment, cross-platform builds, staging environment
+*   **CI/CD:** Automated deployment, cross-platform builds, staging environment.
+*   **Testing:** Playwright E2E suite covers critical "Go Live" path.
 
 ### Areas for Improvement
 | Observation | Impact | Recommendation |
 | :--- | :---: | :--- |
 | `cloud/src/index.ts` is 2100+ lines | Maintainability | Split into `routes/` and `services/` |
 | `useLiveSession.ts` is 877 lines | Maintainability | Decompose into smaller hooks |
-| Only `utils.test.ts` exists | Quality | Add E2E tests for critical paths |
+| `utils.test.ts` & E2E Suite | Quality | Expand E2E coverage for edge cases |
 
 ### File Size Reference
 | File | Lines | Status |

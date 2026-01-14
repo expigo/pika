@@ -26,7 +26,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   `status.pika.stream` -> Uptime Kuma
 
 ### Application Deployment
-*   [x] **Database:** Turso (Production) connected.
+*   [x] **Database:** Postgres (Production) connected.
 *   [x] **SSL:** Managed by Cloudflare Edge.
 *   [x] **CI/CD:** `deploy.yml` pipeline active.
 *   [ ] **Reliability:** Automate DB Migrations in `deploy` or `start` script (Fix Race Condition).
@@ -54,7 +54,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Track Import Crash Fix**: Added DB migration for `raw_artist`/`raw_title` columns.
 *   [x] **Connectivity & Resilience**:
     *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
-    *   [x] **Data Sync**: `fetchSessionState` ensures state recovery on reconnect.
+    *   [x] **Data Sync**: Late-joiner sync via WebSocket SUBSCRIBE handler (removed redundant `fetchSessionState` REST call).
     *   [x] **Offline Queue (Web)**: Likes are queued and flushed faithfully.
     *   [x] **Offline Queue (Desktop)**: **DONE.** Offline SQLite queue implemented (`OfflineQueueRepository`). Persists across restarts.
     *   [x] **Data Integrity**: Likes are session-scoped (no phantom likes).
@@ -68,8 +68,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Download Page**: Smart GitHub Release integration for Desktop downloads.
     *   [x] **"Thank You" Rain**: Interactive confetti (Canon Mode) + Performance Mode UI Polish.
     *   [x] **UI Polish**: Fixed selection highlighting and database migration stability.
-    *   [ ] **Poll Alerts**: In-app toast + vibration pulse (no permission required). See [PWA Blueprint](../blueprints/pwa-architecture.md) for future push strategy.
-    *   [ ] **DJ Announcements**: In-app overlay banner (push notifications via PWA later).
+    *   [x] **Poll Alerts**: Toast notification + drawer results with winner highlight and dismiss button.
+    *   [x] **DJ Announcements**: Overlay banner with auto-dismiss timer. Session-scoped (only visible to DJ's dancers).
 *   [ ] **Account Features (MVP Scope)**:
     *   [ ] **Password Protection**: DJ PIN for sessions (optional).
 
@@ -91,7 +91,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **DB Indexes**: Add missing indexes for performance.
 *   [ ] **Old Token Cleanup**: Cron job to delete unused tokens > 30 days.
 *   [ ] **Split Cloud Backend**: Decompose `index.ts` (2100+ lines) into modular routes (`routes/auth.ts`, `routes/session.ts`, etc.).
-*   [ ] **Add E2E Tests**: Cover critical path (Go Live → Broadcast → Dancer View).
+*   [x] **Add E2E Tests**: Cover critical path (Go Live → Broadcast → Dancer View).
 
 ## 4. Known Risks
 

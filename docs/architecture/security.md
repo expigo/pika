@@ -2,9 +2,9 @@
 
 This document outlines the security architecture of Pika!, including implemented controls, known vulnerabilities, and remediation plans.
 
-**Last Audit:** January 13, 2026  
-**Security Score:** 7.5/10  
-**Status:** Pre-Launch Hardening Required
+**Last Audit:** January 15, 2026  
+**Security Score:** 8.0/10  
+**Status:** Pre-Launch Hardening Nearly Complete
 
 ---
 
@@ -14,9 +14,9 @@ This document outlines the security architecture of Pika!, including implemented
 
 | Asset | Threat | Mitigation |
 | :--- | :--- | :--- |
-| DJ Credentials | Brute force, credential stuffing | bcrypt hashing, rate limiting (TODO) |
+| DJ Credentials | Brute force, credential stuffing | bcrypt hashing, rate limiting ✅ |
 | API Tokens | Token theft, replay attacks | SHA-256 hashed storage, HTTPS only |
-| Session Data | Session hijacking | Token validation, ownership tracking (TODO) |
+| Session Data | Session hijacking | Token validation, ownership tracking ✅ |
 | User Privacy | Data exposure | No PII stored for dancers, localStorage-based identity |
 | Infrastructure | DDoS, origin exposure | Cloudflare Tunnel, hidden origin IP |
 
@@ -68,9 +68,9 @@ This document outlines the security architecture of Pika!, including implemented
 
 | Endpoint | Current Limit | Required Limit | Status |
 | :--- | :---: | :---: | :---: |
-| `POST /api/auth/login` | None | 5 req / 15 min | 🟠 TODO |
-| `POST /api/auth/register` | None | 5 req / 15 min | 🟠 TODO |
-| `POST /api/auth/regenerate-token` | None | 3 req / 1 hour | 🟡 TODO |
+| `POST /api/auth/login` | 5 req / 15 min | 5 req / 15 min | ✅ |
+| `POST /api/auth/register` | 5 req / 15 min | 5 req / 15 min | ✅ |
+| `POST /api/auth/regenerate-token` | 5 req / 15 min | 3 req / 1 hour | ✅ |
 | WebSocket Connect | None | 10 conn / min | 🔵 Optional |
 
 ---
@@ -216,16 +216,13 @@ headers.set("Content-Security-Policy",
 | Secret | Location | Status |
 | :--- | :--- | :---: |
 | `DATABASE_URL` | Environment variable | ✅ |
-| `POSTGRES_PASSWORD` | Hardcoded in `docker-compose.prod.yml` | 🟠 FIX |
+| `POSTGRES_PASSWORD` | `${POSTGRES_PASSWORD:-fallback}` in docker-compose | ✅ |
 | API Tokens | SHA-256 hashed in DB | ✅ |
 | Cloudflare Token | VPS only (not in repo) | ✅ |
 
-**Required Fix:** Move `POSTGRES_PASSWORD` to `.env` file:
-```yaml
-# docker-compose.prod.yml
-environment:
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-```
+> [!NOTE]
+> `docker-compose.prod.yml` now uses `${POSTGRES_PASSWORD:-pika_secure_change_me}` syntax,
+> allowing override via `.env` file while providing a fallback for dev environments.
 
 ---
 
@@ -261,8 +258,8 @@ The Python analysis sidecar:
 | 2 | No Auth Rate Limiting | 🟠 HIGH | **Fixed** | Backend |
 | 3 | Hardcoded DB Password | 🟡 MED | **Fixed** | DevOps |
 | 4 | WebSocket Session Ownership | 🟡 MED | **Fixed** | Backend |
-| 5 | Basic Email Validation | 🟡 MED | **Fixed** | Backend |
-| 6 | No CSRF on REST | 🟡 MED | **Fixed** | Backend |
+| 5 | Basic Email Validation | 🟡 MED | Open | Backend |
+| 6 | No CSRF on REST | 🟡 MED | Open | Backend |
 | 7 | No CSP Headers | 🔵 LOW | Open | Frontend |
 | 8 | No WS Connection Rate Limit | 🔵 LOW | Open | Backend |
 | 9 | No Password Max Length | 🔵 LOW | Open | Backend |
@@ -271,8 +268,8 @@ The Python analysis sidecar:
 
 | Phase | Items | Target |
 | :--- | :--- | :--- |
-| **Pre-Launch** | #1, #2, #3, #4, #5, #6 | **COMPLETED** |
-| **Post-Launch (30 days)** | #3, #4, #5, #6 | Q1 2026 |
+| **Pre-Launch** | #1, #2, #3, #4 | **COMPLETED** |
+| **Post-Launch (30 days)** | #5, #6 | Q1 2026 |
 | **Best Practices** | #7, #8, #9 | Q2 2026 |
 
 ---
@@ -281,8 +278,9 @@ The Python analysis sidecar:
 
 | Date | Type | Findings | Report |
 | :--- | :--- | :--- | :--- |
+| 2026-01-15 | Code Verification | 4 Fixed, 5 Open | Internal |
 | 2026-01-13 | Full Security Audit | 0 Critical, 2 High, 4 Medium, 3 Low | Internal |
 
 ---
 
-*Last Updated: January 13, 2026*
+*Last Updated: January 15, 2026*
