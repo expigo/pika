@@ -95,7 +95,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **DB Indexes**: Add missing indexes for performance.
 *   [ ] **Old Token Cleanup**: Cron job to delete unused tokens > 30 days.
 *   [ ] **Split Cloud Backend**: Decompose `index.ts` (2100+ lines) into modular routes (`routes/auth.ts`, `routes/session.ts`, etc.).
-*   [x] **Add E2E Tests**: Cover critical path (Go Live → Broadcast → Dancer View).
+*   [x] **E2E Tests (6 passing)**: WebSocket injection for Cloud↔Web. Desktop E2E deferred.
 
 ## 4. Known Risks
 

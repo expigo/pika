@@ -169,7 +169,7 @@ pika/
 *   **Type Safety:** Strict TypeScript, Zod schemas, Drizzle ORM
 *   **Documentation:** Exceptional (10/10) - comprehensive roadmaps and specs
 *   **CI/CD:** Automated deployment, cross-platform builds, staging environment.
-*   **Testing:** Playwright E2E suite covers critical "Go Live" path.
+*   **Testing:** Playwright E2E suite (6 tests) uses WebSocket injection for Cloud↔Web testing.
 *   **Security:** CSP, CSRF, rate limiting all implemented.
 *   **Capacity:** Load tested 300 VUs, verified for ~1,000 concurrent dancers.
 
@@ -178,7 +178,7 @@ pika/
 | :--- | :---: | :--- |
 | `cloud/src/index.ts` is 2100+ lines | Maintainability | Split into `routes/` and `services/` |
 | `useLiveSession.ts` is 877 lines | Maintainability | Decompose into smaller hooks |
-| `utils.test.ts` & E2E Suite | Quality | Expand E2E coverage for edge cases |
+| Desktop E2E | Coverage | Add macOS CI runner for Tauri tests (Phase 3) |
 
 ### File Size Reference
 | File | Lines | Status |

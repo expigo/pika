@@ -24,7 +24,7 @@ export class DjSimulator {
   private sessionId: string;
   private djName: string;
   private wsUrl: string;
-  private receivedMessages: any[] = [];
+  private receivedMessages: Record<string, unknown>[] = [];
   private likeCount = 0;
   private isRegistered = false;
 
@@ -159,7 +159,7 @@ export class DjSimulator {
   /**
    * Get all received messages
    */
-  getMessages(): any[] {
+  getMessages(): Record<string, unknown>[] {
     return [...this.receivedMessages];
   }
 

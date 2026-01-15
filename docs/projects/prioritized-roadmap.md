@@ -328,7 +328,7 @@ export const eventDjs = pgTable("event_djs", {
 *Recommendations from Jan 2026 Engineering Assessment. Score: 8.4/10.*
 
 1.  [ ] **Split Cloud Backend:** Decompose `index.ts` into `routes/` and `services/`.
-2.  ✅ **Add E2E Tests:** Cover critical user paths.
+2.  ✅ **E2E Tests (6 passing):** WebSocket injection for Cloud↔Web. Desktop E2E deferred to Phase 5.
 3.  [ ] **Decompose Hooks:** Split `useLiveSession.ts` into smaller hooks.
 
 ### Phase 5: Growth Features (Post-MVP) 🚀
@@ -339,6 +339,7 @@ export const eventDjs = pgTable("event_djs", {
 3.  [ ] **Set Analytics:** BPM/energy visualizations (~12h)
 4.  [ ] **Organizer Role:** Event branding (~17h)
 5.  [ ] **Native App:** Only if PMF validated (~41h)
+6.  [ ] **Desktop E2E Tests:** macOS CI runner for Tauri integration (~4h)
 
 ---
 
@@ -346,13 +347,14 @@ export const eventDjs = pgTable("event_djs", {
 
 | Date | Change | Context |
 | :--- | :--- | :--- |
+| **2026-01-15** | E2E Tests Fixed (6 passing) | WebSocket injection replaces Tauri mocks. |
 | **2026-01-15** | **Release v0.1.9** | Security hardening complete: CSP, CSRF, telemetry, WS rate limiting. |
 | **2026-01-15** | Added Tier 3 Growth Features | Detailed specs for DJ Dashboard, Analytics, Organizer Role, Native App. |
 | **2026-01-13** | Added Security Hardening Phase 2.5 | Security Audit identified 2 High, 4 Medium issues. |
 | **2026-01-13** | Added Code Quality Phase 4 | Engineering Assessment (8.4/10). |
 | **2026-01-13** | **Release v0.1.5 (Launch Candidate)** | "Thank You" Rain, Auto-Migrations, Security Hardening. |
 | **2026-01-12** | Added "Native App" as Low Priority | PWA approach preferred over React Native rewrite. |
-| **2026-01-12** | Created Document | Initial prioritization of roadmap items. |
+| **2026-01-12** | Created Document | Initial prioritization of roadmap items. | |
 
 ---
 
