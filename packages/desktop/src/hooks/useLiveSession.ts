@@ -337,15 +337,20 @@ async function findOrCreateTrack(
   rawTitle?: string,
 ): Promise<DbTrackInfo> {
   const allTracks = await trackRepository.getAllTracks();
-  const normalizedArtist = normalizeText(artist);
-  const normalizedTitle = normalizeText(title);
 
-  // Try to find existing track
-  const match = allTracks.find(
-    (t) =>
-      normalizeText(t.artist || "") === normalizedArtist &&
-      normalizeText(t.title || "") === normalizedTitle,
-  );
+  // Try to find by file path first (most reliable)
+  let match = filePath ? allTracks.find((t) => t.filePath === filePath) : null;
+
+  // Fall back to artist/title matching
+  if (!match) {
+    const normalizedArtist = normalizeText(artist);
+    const normalizedTitle = normalizeText(title);
+    match = allTracks.find(
+      (t) =>
+        normalizeText(t.artist || "") === normalizedArtist &&
+        normalizeText(t.title || "") === normalizedTitle,
+    );
+  }
 
   if (match) {
     return {

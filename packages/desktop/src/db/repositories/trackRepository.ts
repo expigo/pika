@@ -129,6 +129,7 @@ export const trackRepository = {
 
   /**
    * Insert a single track and return its ID
+   * Uses UPSERT to handle duplicate file paths gracefully
    */
   async insertTrack(track: {
     filePath: string;
@@ -140,6 +141,26 @@ export const trackRepository = {
     key?: string | null;
   }): Promise<number> {
     const sqlite = await getSqlite();
+
+    // First, check if track already exists by file_path
+    const existing = await sqlite.select<{ id: number }[]>(
+      `SELECT id FROM tracks WHERE file_path = ?`,
+      [track.filePath],
+    );
+
+    if (existing.length > 0) {
+      // Track exists - update metadata if provided
+      const trackId = existing[0].id;
+      if (track.bpm || track.key) {
+        await sqlite.execute(
+          `UPDATE tracks SET bpm = COALESCE(?, bpm), key = COALESCE(?, key) WHERE id = ?`,
+          [track.bpm ?? null, track.key ?? null, trackId],
+        );
+      }
+      return trackId;
+    }
+
+    // Insert new track
     await sqlite.execute(
       `INSERT INTO tracks (file_path, artist, title, raw_artist, raw_title, bpm, key, analyzed) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
       [
@@ -155,7 +176,13 @@ export const trackRepository = {
 
     // Get the last inserted ID
     const result = await sqlite.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
-    return result[0]?.id ?? -1;
+    const newId = result[0]?.id;
+
+    if (!newId || newId <= 0) {
+      throw new Error(`Failed to insert track: ${track.filePath}`);
+    }
+
+    return newId;
   },
 
   async getTrackCount(): Promise<number> {
