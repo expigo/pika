@@ -69,6 +69,7 @@ const TRACK_SELECT_SQL = `
 export const trackRepository = {
   async addTracks(tracksList: VirtualDJTrack[]) {
     const CHUNK_SIZE = 100;
+    const { getTrackKey } = await import("@pika/shared");
 
     // Process in chunks to avoid overwhelming the bridge/UI
     for (let i = 0; i < tracksList.length; i += CHUNK_SIZE) {
@@ -78,6 +79,8 @@ export const trackRepository = {
         filePath: t.file_path,
         artist: t.artist ?? null,
         title: t.title ?? null,
+        // Compute track_key for indexed lookup
+        trackKey: getTrackKey(t.artist ?? "", t.title ?? ""),
         // Parse BPM, handle potentially empty or invalid strings
         bpm: t.bpm ? Number.parseFloat(t.bpm) || null : null,
         key: t.key ?? null,
@@ -102,6 +105,7 @@ export const trackRepository = {
             // Use excluded.* to reference the new values being inserted
             artist: sql`excluded.artist`,
             title: sql`excluded.title`,
+            trackKey: sql`excluded.track_key`,
             bpm: sql`excluded.bpm`,
             key: sql`excluded.key`,
             duration: sql`excluded.duration`,
