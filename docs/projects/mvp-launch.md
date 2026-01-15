@@ -34,16 +34,20 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 ## 3. Implementation Checklist (Remaining)
 
 ### A. Pre-Launch Polish (Security & UX)
-*   [ ] **Security Hardening (Audit Jan 2026)**:
+*   [x] **Security Hardening (Audit Jan 2026)**:
     *   [x] Secure Token Generation (`crypto.randomUUID`).
     *   [x] Hash Tokens in DB (`SHA-256`).
     *   [x] Middleware protection for sensitive routes.
     *   [x] Clear Auth on Switch: Prevent cross-env pollution.
-    *   [ ] 🚨 **CORS Hardening**: Restrict origins to `pika.stream` and `api.pika.stream` (currently permissive).
-    *   [ ] 🚨 **Rate Limiting**: Add `hono-rate-limiter` on `/api/auth/*` endpoints (5 req/15min).
-    *   [ ] **Secrets Management**: Move hardcoded DB passwords in `docker-compose.prod.yml` to env vars.
-    *   [ ] **Email Validation**: Upgrade to Zod `.email()` validator (currently only checks for `@`).
-    *   [ ] **WebSocket Session Ownership**: Track connection ownership to prevent session hijacking.
+    *   [x] **CORS Hardening**: Restrict origins to `pika.stream` and `api.pika.stream` (v0.1.0).
+    *   [x] **Rate Limiting**: Add `hono-rate-limiter` on `/api/auth/*` endpoints (5 req/15min) (v0.1.9).
+    *   [x] **Secrets Management**: Move hardcoded DB passwords in `docker-compose.prod.yml` to env vars.
+    *   [ ] **Email Validation**: Upgrade to Zod `.email()` validator (currently only checks for `@`). *Deferred.*
+    *   [x] **WebSocket Session Ownership**: Track connection ownership to prevent session hijacking.
+    *   [x] **CSRF Protection**: X-Pika-Client header validation (v0.1.9).
+    *   [x] **CSP Headers**: Content-Security-Policy via Next.js middleware (v0.1.9).
+    *   [x] **WS Connection Rate Limit**: 20 connections/min per IP (v0.1.9).
+    *   [x] **Session Telemetry**: DJ connect/disconnect events for operational insights (v0.1.9).
 *   [x] **Performance & Stability (Completed)**:
     *   [x] Recap Duration Fix ("0 min" bug).
     *   [x] Recap Privacy Links (Public vs DJ Analytics).
@@ -97,14 +101,15 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 
 ### Operational Risks
 *   **Venue WiFi:** If venue WiFi blocks WebSockets, DJ must use Hotspot.
-*   **Database Limits:** Turso free tier is generous (500M reads), but we monitor closely.
+*   **Database Limits:** Postgres on VPS has no free-tier limits, but monitor disk usage.
 *   **State Loss:** Server restart clears active session Map (until Redis implemented).
 
 ### Security Risks (Identified in Jan 2026 Audit)
-*   🟠 **Open CORS:** Currently `cors()` with no origin restrictions allows any website to call API.
-*   🟠 **No Auth Rate Limiting:** Brute force attacks on `/api/auth/login` are not throttled.
-*   🟡 **Hardcoded Secrets:** `docker-compose.prod.yml` contains `POSTGRES_PASSWORD: pika_password`.
-*   🟡 **Session Hijacking Vector:** Any client knowing a session ID could theoretically inject fake tracks.
+*   ✅ **CORS:** Fixed - Origins restricted to pika.stream domains (v0.1.0).
+*   ✅ **Auth Rate Limiting:** Fixed - 5 req/15min on auth endpoints (v0.1.9).
+*   ✅ **Secrets:** Fixed - Docker compose uses env vars with fallbacks.
+*   ✅ **Session Ownership:** Fixed - WS connections validated against session owner.
+*   🟡 **Email Validation:** Deferred - Low risk for MVP demo.
 
 ### Code Quality Observations (Engineering Assessment Jan 2026)
 *   **Monolithic Files:** `packages/cloud/src/index.ts` at 2100+ lines needs decomposition.
@@ -115,8 +120,9 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **Redis:** For persistent session state (zero-downtime deploys).
 *   [ ] **Organizer Role:** For event branding.
 *   [ ] **Native App:** For push notifications.
-*   [ ] **CSP Headers:** Add Content Security Policy via Next.js middleware.
-*   [ ] **WebSocket Connection Rate Limiting:** Prevent rapid connect/disconnect abuse.
+*   [ ] **Email Validation:** Upgrade to Zod `.email()` (deferred from MVP).
+*   [ ] **ACK/NACK Integration:** Client-side message acknowledgment for reliability.
+*   [ ] **Password Max Length:** Add 128 char limit.
 
 ## 6. Audit Trail
 

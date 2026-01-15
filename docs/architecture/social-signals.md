@@ -93,3 +93,17 @@ This ensures busy DJs don't miss poll results during live performances.
 *   **"Vibe Check" Grid:** Original design had a 4-button grid. Current implementation effectively splits this into "Tempo" (3 buttons) and "Like" (1 button).
 *   **Persistence:** Polls are saved to DB. Likes constitute a session-scoped local state for the user.
 
+
+## 6. Session Telemetry (v0.1.9)
+
+DJ session stability is tracked via the `session_events` table:
+*   `connect` - DJ established WebSocket connection
+*   `disconnect` - DJ connection unexpectedly closed  
+*   `reconnect` - DJ reconnected after disconnect
+*   `end` - DJ explicitly ended session
+
+This enables operational insights without storing PII.
+
+---
+
+*Last Updated: January 15, 2026 (v0.1.9)*

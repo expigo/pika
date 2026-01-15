@@ -3,8 +3,8 @@
 This document outlines the security architecture of Pika!, including implemented controls, known vulnerabilities, and remediation plans.
 
 **Last Audit:** January 15, 2026  
-**Security Score:** 8.0/10  
-**Status:** Pre-Launch Hardening Nearly Complete
+**Security Score:** 9.0/10  
+**Status:** Pre-Launch Hardening Complete
 
 ---
 
@@ -71,7 +71,7 @@ This document outlines the security architecture of Pika!, including implemented
 | `POST /api/auth/login` | 5 req / 15 min | 5 req / 15 min | ✅ |
 | `POST /api/auth/register` | 5 req / 15 min | 5 req / 15 min | ✅ |
 | `POST /api/auth/regenerate-token` | 5 req / 15 min | 3 req / 1 hour | ✅ |
-| WebSocket Connect | None | 10 conn / min | 🔵 Optional |
+| WebSocket Connect | 20 / min | 10 conn / min | ✅ |
 
 ---
 
@@ -160,9 +160,20 @@ app.use("*", cors({
 
 ### 4.2 CSRF Protection
 
-REST API endpoints use Bearer token authentication, which provides some protection. However, the login endpoint accepts credentials without CSRF validation.
+REST API endpoints use Bearer token authentication. Additionally, state-changing requests require a custom header.
 
-**Recommended:** Add custom header requirement (`X-Requested-With: Pika`) for all state-changing requests.
+**Implementation (v0.1.9):**
+```typescript
+// packages/cloud/src/index.ts
+app.use("/api/auth/*", csrfCheck);  // Validates X-Pika-Client header
+
+// Valid clients: pika-web, pika-desktop, pika-e2e
+// Relaxed in dev/test mode
+```
+
+| Status | Severity | ETA |
+| :---: | :---: | :--- |
+| 🟢 FIXED | MEDIUM | v0.1.9 |
 
 ---
 
@@ -187,15 +198,20 @@ grep -r "eval(" packages/                     # No results
 
 ### 5.2 Content Security Policy
 
-**Current:** None configured.
-
-**Recommended:** Add via Next.js middleware:
+**Implementation (v0.1.9):**
 ```typescript
 // packages/web/middleware.ts
-headers.set("Content-Security-Policy", 
-  "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
-);
+// Adds CSP, X-Frame-Options, X-Content-Type-Options, etc.
+export function middleware(request: NextRequest) {
+  const response = NextResponse.next();
+  response.headers.set("Content-Security-Policy", "default-src 'self'; ...");
+  return response;
+}
 ```
+
+| Status | Severity | ETA |
+| :---: | :---: | :--- |
+| 🟢 FIXED | LOW | v0.1.9 |
 
 ---
 
@@ -259,18 +275,18 @@ The Python analysis sidecar:
 | 3 | Hardcoded DB Password | 🟡 MED | **Fixed** | DevOps |
 | 4 | WebSocket Session Ownership | 🟡 MED | **Fixed** | Backend |
 | 5 | Basic Email Validation | 🟡 MED | Open | Backend |
-| 6 | No CSRF on REST | 🟡 MED | Open | Backend |
-| 7 | No CSP Headers | 🔵 LOW | Open | Frontend |
-| 8 | No WS Connection Rate Limit | 🔵 LOW | Open | Backend |
+| 6 | No CSRF on REST | 🟡 MED | **Fixed** | Backend |
+| 7 | No CSP Headers | 🔵 LOW | **Fixed** | Frontend |
+| 8 | No WS Connection Rate Limit | 🔵 LOW | **Fixed** | Backend |
 | 9 | No Password Max Length | 🔵 LOW | Open | Backend |
 
 ### Remediation Timeline
 
 | Phase | Items | Target |
 | :--- | :--- | :--- |
-| **Pre-Launch** | #1, #2, #3, #4 | **COMPLETED** |
-| **Post-Launch (30 days)** | #5, #6 | Q1 2026 |
-| **Best Practices** | #7, #8, #9 | Q2 2026 |
+| **Pre-Launch** | #1, #2, #3, #4, #6, #7, #8 | **COMPLETED** |
+| **Post-Launch (30 days)** | #5 | Q1 2026 |
+| **Best Practices** | #9 | Q2 2026 |
 
 ---
 

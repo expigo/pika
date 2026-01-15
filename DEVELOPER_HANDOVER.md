@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
 **Date:** January 15, 2026
-**Version:** 0.1.8 (MVP Phase)
+**Version:** 0.1.9 (MVP Phase)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -66,6 +66,12 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
 *   **Crowd Control (Jan 2026):**
     *   **Polls:** DJ can start polls with timer. Results persist until dismissed with toast notification.
     *   **Announcements:** Session-scoped overlay banners with auto-dismiss and manual cancel.
+*   **Security Hardening (v0.1.9):**
+    *   **CSP Headers:** Content-Security-Policy via Next.js middleware.
+    *   **CSRF Protection:** X-Pika-Client header validation on auth endpoints.
+    *   **Rate Limiting:** Auth endpoints limited to 5 req/15 min.
+    *   **WS Rate Limiting:** 20 connections/min per IP.
+    *   **Session Telemetry:** DJ connect/disconnect events logged for operational insights.
 
 ### 🚧 WIP / Missing
 *   **DJ Dashboard (Web):** While DJs can register, a full web-based dashboard for them to manage past sets or edit profile details is incomplete.
@@ -141,11 +147,14 @@ pika/
 *   Well-scoped Tauri desktop permissions
 
 ### Needs Immediate Attention 🚨
-| Issue | Severity | Fix |
+| Issue | Severity | Status |
 | :--- | :---: | :--- |
-| Permissive CORS | HIGH | Restrict to `pika.stream` origins only |
-| No Auth Rate Limiting | HIGH | Add `hono-rate-limiter` (5 req/15min) |
-| Hardcoded DB Password | MEDIUM | Move to environment variables |
+| Permissive CORS | HIGH | ✅ Fixed (v0.1.0) |
+| No Auth Rate Limiting | HIGH | ✅ Fixed (v0.1.9) |
+| Hardcoded DB Password | MEDIUM | ✅ Fixed (env vars) |
+| CSRF Protection | MEDIUM | ✅ Fixed (v0.1.9) |
+| WS Connection Rate Limit | LOW | ✅ Fixed (v0.1.9) |
+| CSP Headers | LOW | ✅ Fixed (v0.1.9) |
 
 **Full Details:** See [docs/architecture/security.md](docs/architecture/security.md)
 
@@ -161,6 +170,7 @@ pika/
 *   **Documentation:** Exceptional (10/10) - comprehensive roadmaps and specs
 *   **CI/CD:** Automated deployment, cross-platform builds, staging environment.
 *   **Testing:** Playwright E2E suite covers critical "Go Live" path.
+*   **Security:** CSP, CSRF, rate limiting all implemented.
 
 ### Areas for Improvement
 | Observation | Impact | Recommendation |
@@ -203,4 +213,4 @@ The Windows installer (WiX) is **extremely strict** about version formats.
 
 ---
 
-*Last Updated: January 13, 2026*
+*Last Updated: January 15, 2026 (v0.1.9)*
