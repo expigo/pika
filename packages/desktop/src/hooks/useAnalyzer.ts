@@ -16,6 +16,7 @@ export interface UseAnalyzerState {
 
 export interface UseAnalyzerReturn extends UseAnalyzerState {
   startAnalysis: (baseUrl: string) => Promise<void>;
+  startSetAnalysis: (baseUrl: string, trackIds: number[]) => Promise<void>;
   stopAnalysis: () => void;
 }
 
@@ -125,6 +126,87 @@ export function useAnalyzer(): UseAnalyzerReturn {
     }
   }, []);
 
+  /**
+   * Analyze specific tracks by ID (for pre-gig set analysis)
+   */
+  const startSetAnalysis = useCallback(async (baseUrl: string, trackIds: number[]) => {
+    if (isAnalyzingRef.current) {
+      console.log("Analysis already in progress");
+      return;
+    }
+
+    if (trackIds.length === 0) {
+      setError("No tracks to analyze");
+      return;
+    }
+
+    console.log("Starting set analysis with", trackIds.length, "tracks");
+
+    shouldContinue.current = true;
+    isAnalyzingRef.current = true;
+    setIsAnalyzing(true);
+    setError(null);
+    setProgress(0);
+    setTotalToAnalyze(trackIds.length);
+
+    try {
+      let processed = 0;
+
+      for (const trackId of trackIds) {
+        if (!shouldContinue.current) break;
+
+        const track = await trackRepository.getTrackById(trackId);
+        if (!track) {
+          processed++;
+          setProgress(processed);
+          continue;
+        }
+
+        // Skip already analyzed tracks
+        if (track.analyzed) {
+          processed++;
+          setProgress(processed);
+          continue;
+        }
+
+        setCurrentTrack(track);
+
+        try {
+          const url = `${baseUrl}/analyze?path=${encodeURIComponent(track.filePath)}`;
+          const response = await fetch(url, { method: "GET" });
+
+          if (response.ok) {
+            const result: AnalysisResult = await response.json();
+            if (result.error) {
+              console.error(`Analysis error for ${track.filePath}:`, result.error);
+              await trackRepository.markTrackAnalyzed(track.id, null);
+            } else {
+              await trackRepository.markTrackAnalyzed(track.id, result);
+            }
+          } else {
+            console.error(`Analysis failed for ${track.filePath}:`, response.status);
+            await trackRepository.markTrackAnalyzed(track.id, null);
+          }
+        } catch (e) {
+          console.error(`Error analyzing ${track.filePath}:`, e);
+          await trackRepository.markTrackAnalyzed(track.id, null);
+        }
+
+        processed++;
+        setProgress(processed);
+      }
+
+      console.log("Set analysis completed. Processed:", processed);
+    } catch (e) {
+      console.error("Set analysis error:", e);
+      setError(String(e));
+    } finally {
+      isAnalyzingRef.current = false;
+      setIsAnalyzing(false);
+      setCurrentTrack(null);
+    }
+  }, []);
+
   return {
     isAnalyzing,
     currentTrack,
@@ -132,6 +214,7 @@ export function useAnalyzer(): UseAnalyzerReturn {
     totalToAnalyze,
     error,
     startAnalysis,
+    startSetAnalysis,
     stopAnalysis,
   };
 }

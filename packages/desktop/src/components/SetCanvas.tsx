@@ -15,10 +15,20 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, ListMusic, Music, Trash2, TriangleAlert, Zap } from "lucide-react";
-import { useMemo } from "react";
+import {
+  GripVertical,
+  ListMusic,
+  Music,
+  Trash2,
+  TriangleAlert,
+  Zap,
+  FlaskConical,
+} from "lucide-react";
+import { useMemo, useState } from "react";
 import type { Track } from "../db/repositories/trackRepository";
+import { useAnalyzer } from "../hooks/useAnalyzer";
 import { getSetStats, useSetStore } from "../hooks/useSetBuilder";
+import { useSidecar } from "../hooks/useSidecar";
 import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
 import { EnergyWave } from "./EnergyWave";
 import { SaveLoadSets } from "./SaveLoadSets";
@@ -114,6 +124,9 @@ function SortableTrackRow({ track, index, onRemove, transitionWarning }: Sortabl
 export function SetCanvas() {
   const { activeSet, removeTrack, reorderTracks, clearSet } = useSetStore();
   const stats = useMemo(() => getSetStats(activeSet), [activeSet]);
+  const { baseUrl } = useSidecar();
+  const { isAnalyzing, startSetAnalysis, progress, totalToAnalyze } = useAnalyzer();
+  const [isAnalyzingSet, setIsAnalyzingSet] = useState(false);
 
   // Calculate average fingerprint metrics for the set
   const setAverageMetrics: FingerprintMetrics = useMemo(() => {
@@ -170,9 +183,32 @@ export function SetCanvas() {
         <div style={styles.headerActions}>
           <SaveLoadSets />
           {activeSet.length > 0 && (
-            <button type="button" onClick={clearSet} style={styles.clearButton}>
-              Clear All
-            </button>
+            <>
+              {/* Analyze Set Button */}
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!baseUrl) return;
+                  setIsAnalyzingSet(true);
+                  const unanalyzedIds = activeSet.filter((t) => !t.analyzed).map((t) => t.id);
+                  await startSetAnalysis(baseUrl, unanalyzedIds);
+                  setIsAnalyzingSet(false);
+                }}
+                disabled={!baseUrl || isAnalyzing}
+                style={{
+                  ...styles.analyzeButton,
+                  opacity: !baseUrl || isAnalyzing ? 0.5 : 1,
+                  cursor: !baseUrl || isAnalyzing ? "not-allowed" : "pointer",
+                }}
+                title={!baseUrl ? "Analysis engine not ready" : "Analyze unanalyzed tracks in set"}
+              >
+                <FlaskConical size={14} />
+                {isAnalyzingSet ? `${progress}/${totalToAnalyze}` : "Analyze Set"}
+              </button>
+              <button type="button" onClick={clearSet} style={styles.clearButton}>
+                Clear All
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -293,6 +329,17 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #ef4444",
     borderRadius: "4px",
     cursor: "pointer",
+    fontSize: "0.75rem",
+  },
+  analyzeButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    padding: "0.25rem 0.75rem",
+    background: "#22c55e",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
     fontSize: "0.75rem",
   },
   waveContainer: {
