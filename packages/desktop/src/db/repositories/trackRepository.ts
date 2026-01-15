@@ -174,15 +174,17 @@ export const trackRepository = {
       ],
     );
 
-    // Get the last inserted ID
-    const result = await sqlite.select<{ id: number }[]>("SELECT last_insert_rowid() as id");
-    const newId = result[0]?.id;
+    // Query back by file_path (more reliable than last_insert_rowid with Tauri SQL)
+    const inserted = await sqlite.select<{ id: number }[]>(
+      `SELECT id FROM tracks WHERE file_path = ?`,
+      [track.filePath],
+    );
 
-    if (!newId || newId <= 0) {
+    if (inserted.length === 0) {
       throw new Error(`Failed to insert track: ${track.filePath}`);
     }
 
-    return newId;
+    return inserted[0].id;
   },
 
   async getTrackCount(): Promise<number> {
