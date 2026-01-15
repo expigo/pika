@@ -1,4 +1,4 @@
-import { normalizeTrack, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
+import { parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { useCallback, useEffect, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
@@ -488,20 +488,16 @@ export function useLiveSession() {
   // Handle track changes from VirtualDJ
   const handleTrackChange = useCallback(
     async (track: NowPlayingTrack) => {
-      // Data Hygiene: Normalize track metadata immediately
-      // Data Hygiene: Normalize track metadata immediately
-      const { artist: cleanArtist, title: cleanTitle } = normalizeTrack(track.artist, track.title);
-      // Keep raw data in the object for DB storage
+      // Store raw metadata for reference, but don't normalize for display
+      // Normalization is only used internally for track_key matching
       const normalizedTrack = {
         ...track,
-        artist: cleanArtist,
-        title: cleanTitle,
+        // Keep original artist/title for display
         rawArtist: track.artist,
         rawTitle: track.title,
       };
 
-      console.log("[Live] Track changed (raw):", track.artist, "-", track.title);
-      console.log("[Live] Track normalized:", cleanArtist, "-", cleanTitle);
+      console.log("[Live] Track changed:", track.artist, "-", track.title);
 
       console.log(
         "[Live] State check - isLiveFlag:",
