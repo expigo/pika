@@ -26,6 +26,7 @@ services:
       - DATABASE_URL=postgres://${DB_USER:-pika}:${DB_PASSWORD}@db:5432/${DB_NAME:-pika_staging}
       - NODE_ENV=production
       - PORT=4001
+      - WS_RATE_LIMIT=${WS_RATE_LIMIT:-1000}  # High for load testing, can lower in prod
     volumes:
       - ./:/app
     ports:
