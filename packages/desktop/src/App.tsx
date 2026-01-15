@@ -12,6 +12,7 @@ import { Settings } from "./components/Settings";
 import { getStoredSettings, useDjSettings } from "./hooks/useDjSettings";
 import { useLiveSession } from "./hooks/useLiveSession";
 import { useSidecar } from "./hooks/useSidecar";
+import { setSidecarUrl } from "./services/progressiveAnalysisService";
 import "./App.css";
 
 import { useEffect, useState } from "react";
@@ -70,6 +71,11 @@ function App() {
   useEffect(() => {
     refreshTracks();
   }, [inTauri]);
+
+  // Set sidecar URL for progressive analysis service
+  useEffect(() => {
+    setSidecarUrl(baseUrl);
+  }, [baseUrl]);
 
   return (
     <div style={styles.appContainer}>

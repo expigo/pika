@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { create } from "zustand";
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
+import { enqueueForAnalysis } from "../services/progressiveAnalysisService";
 import { type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "../services/virtualDjWatcher";
 import { getAuthToken, getConfiguredUrls, getDjName } from "./useDjSettings";
 
@@ -489,6 +490,11 @@ export function useLiveSession() {
             acousticness: result.trackInfo.acousticness ?? undefined,
             groove: result.trackInfo.groove ?? undefined,
           };
+
+          // Queue for progressive analysis if track lacks BPM
+          if (!result.trackInfo.bpm && track.filePath) {
+            enqueueForAnalysis(result.trackInfo.id, track.filePath);
+          }
         }
       } else {
         console.log(
