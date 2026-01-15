@@ -156,14 +156,27 @@ export const trackRepository = {
     );
 
     if (existing.length > 0) {
-      // Track exists - update metadata if provided
+      // Track exists - update metadata if provided (including correct-case artist/title)
       const trackId = existing[0].id;
-      if (track.bpm || track.key) {
-        await sqlite.execute(
-          `UPDATE tracks SET bpm = COALESCE(?, bpm), key = COALESCE(?, key) WHERE id = ?`,
-          [track.bpm ?? null, track.key ?? null, trackId],
-        );
-      }
+      await sqlite.execute(
+        `UPDATE tracks SET 
+          artist = COALESCE(?, artist),
+          title = COALESCE(?, title),
+          raw_artist = COALESCE(?, raw_artist),
+          raw_title = COALESCE(?, raw_title),
+          bpm = COALESCE(?, bpm), 
+          key = COALESCE(?, key) 
+        WHERE id = ?`,
+        [
+          track.artist ?? null,
+          track.title ?? null,
+          track.rawArtist ?? null,
+          track.rawTitle ?? null,
+          track.bpm ?? null,
+          track.key ?? null,
+          trackId,
+        ],
+      );
       return trackId;
     }
 
