@@ -1422,7 +1422,7 @@ app.get("/api/dj/:slug", async (c) => {
 // WebSocket connection rate limiting (per IP)
 // Prevents rapid connect/disconnect abuse
 const wsConnectionAttempts = new Map<string, { count: number; resetAt: number }>();
-const WS_RATE_LIMIT = 20; // Max connections per window
+const WS_RATE_LIMIT = Number(process.env["WS_RATE_LIMIT"] ?? 20); // Max connections per window
 const WS_RATE_WINDOW = 60 * 1000; // 1 minute window
 
 // Cleanup stale entries every 5 minutes
