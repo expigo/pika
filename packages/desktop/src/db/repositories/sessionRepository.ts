@@ -249,8 +249,18 @@ export const sessionRepository = {
    * Increment dancer likes for a play
    */
   async incrementDancerLikes(playId: number): Promise<void> {
-    const sqlite = await getSqlite();
-    await sqlite.execute(`UPDATE plays SET dancer_likes = dancer_likes + 1 WHERE id = ?`, [playId]);
+    console.log(`[Repo] incrementDancerLikes called for ${playId}`);
+    try {
+      const sqlite = await getSqlite();
+      console.log(`[Repo] Got sqlite instance, executing update for ${playId}`);
+      await sqlite.execute(`UPDATE plays SET dancer_likes = dancer_likes + 1 WHERE id = ?`, [
+        playId,
+      ]);
+      console.log(`[Repo] Update executed for ${playId}`);
+    } catch (e) {
+      console.error(`[Repo] Error in incrementDancerLikes:`, e);
+      throw e;
+    }
   },
 
   /**

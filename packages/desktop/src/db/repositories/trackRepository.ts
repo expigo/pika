@@ -1,5 +1,5 @@
 import type { AnalysisResult } from "@pika/shared";
-import { type InferInsertModel, eq, sql } from "drizzle-orm";
+import { eq, type InferInsertModel, sql } from "drizzle-orm";
 import { db, getSqlite } from "../index";
 import { tracks } from "../schema";
 

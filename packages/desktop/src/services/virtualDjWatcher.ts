@@ -79,7 +79,8 @@ class VirtualDJWatcher {
         rawTitle: result.title,
       };
 
-      this.lastTrack = track;
+      // Do not update this.lastTrack here - let the watcher handle it
+      // this.lastTrack = track;
       return track;
     } catch (e) {
       console.error("[VDJ Watcher] Failed to read history:", e);
