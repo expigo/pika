@@ -9,8 +9,6 @@ export interface NowPlayingTrack extends TrackInfo {
   filePath: string;
   timestamp: Date;
   rawTimestamp?: number;
-  rawArtist?: string;
-  rawTitle?: string;
 }
 
 /**
@@ -21,9 +19,6 @@ export function toTrackInfo(track: NowPlayingTrack): TrackInfo {
   return {
     artist: track.artist,
     title: track.title,
-    // Raw metadata
-    rawArtist: track.rawArtist,
-    rawTitle: track.rawTitle,
     // Core metrics
     bpm: track.bpm,
     key: track.key,
@@ -75,8 +70,6 @@ class VirtualDJWatcher {
         filePath: result.file_path,
         timestamp: new Date(result.timestamp * 1000),
         rawTimestamp: result.timestamp,
-        rawArtist: result.artist,
-        rawTitle: result.title,
       };
 
       // Do not update this.lastTrack here - let the watcher handle it

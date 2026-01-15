@@ -78,9 +78,6 @@ export const trackRepository = {
         filePath: t.file_path,
         artist: t.artist ?? null,
         title: t.title ?? null,
-        // Populate raw fields with initial data (critical fix for schema match)
-        rawArtist: t.artist ?? null,
-        rawTitle: t.title ?? null,
         // Parse BPM, handle potentially empty or invalid strings
         bpm: t.bpm ? Number.parseFloat(t.bpm) || null : null,
         key: t.key ?? null,
@@ -105,8 +102,6 @@ export const trackRepository = {
             // Use excluded.* to reference the new values being inserted
             artist: sql`excluded.artist`,
             title: sql`excluded.title`,
-            rawArtist: sql`excluded.raw_artist`, // Update raw fields as well
-            rawTitle: sql`excluded.raw_title`,
             bpm: sql`excluded.bpm`,
             key: sql`excluded.key`,
             duration: sql`excluded.duration`,
