@@ -1,6 +1,6 @@
 # Prioritized Roadmap & Feature Matrix
 
-**Date:** January 12, 2026
+**Date:** January 15, 2026
 **Status:** Living Document
 
 This document organizes the Pika! roadmap by **weighted priority**, balancing user value against implementation complexity.
@@ -21,7 +21,7 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **CI/CD: Automated Migrations** | **10** | 3 | **DONE** | **Prevents production crash.** Implemented auto-migrate on start. |
 | **Desktop Offline Queue** | **10** | 7 | **DONE** | **Prevents data loss.** Implemented persistent SQLite queue (`offline_queue`). |
 | **PyInstaller Build Matrix** | **9** | 5 | **DONE** | **Required for release.** GitHub Action `release-desktop.yml` created. |
-| **CI/CD: Hardening** | **8** | 4 | **IN PROGRESS** | **Security/Speed.** Adding Rust caching and deduplication. |
+| **CI/CD: Hardening** | **8** | 4 | **DONE** | **Security/Speed.** Rust caching, Biome global lint, macOS create-dmg fix. |
 | **Ghost Track Data Fix** | **8** | 4 | **DONE** | **Data hygiene.** `normalizeTrack` implemented in `@pika/shared`. |
 
 ---
@@ -34,10 +34,12 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **CORS Hardening** | **10** | 2 | **DONE** | **🚨 CRITICAL** Restrict origins to `pika.stream` only. Implemented in v0.1.0+. |
 | **Auth Rate Limiting** | **10** | 3 | **DONE** | **🚨 CRITICAL** Added `hono-rate-limiter` (5 req/15min) on `/api/auth/*`. |
 | **Secrets to Env Vars** | **8** | 2 | **DONE** | **HIGH** Moved `POSTGRES_PASSWORD` from hardcoded in `docker-compose.prod.yml` to env. |
-| **Email Validation** | **5** | 1 | **DONE** | **MED** Upgraded to Zod `.email()` validator. |
+| **Email Validation** | **5** | 1 | **DEFERRED** | **MED** Low risk for MVP demo. Will upgrade to Zod `.email()` post-launch. |
 | **WebSocket Session Ownership** | **7** | 4 | **DONE** | **MED** Track connection ownership to prevent session ID spoofing. |
-| **CSRF on Login** | **5** | 2 | **DONE** | **MED** Add custom header check for REST auth endpoints. |
-| **CSP Headers** | **4** | 2 | **LOW** | Add Content-Security-Policy via Next.js middleware. |
+| **CSRF on Login** | **5** | 2 | **DONE** | **MED** X-Pika-Client header check for REST auth endpoints. |
+| **CSP Headers** | **4** | 2 | **DONE** | **LOW** Content-Security-Policy via Next.js middleware (v0.1.9). |
+| **WS Connection Rate Limit** | **5** | 3 | **DONE** | **LOW** 20 connections/min per IP (v0.1.9). |
+| **Session Telemetry** | **6** | 4 | **DONE** | **MED** DJ connect/disconnect tracking in `session_events` table (v0.1.9). |
 
 ---
 
