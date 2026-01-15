@@ -1,54 +1,72 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeTrack } from "./utils";
+import { getFuzzyKey, getTrackKey, normalizeExact, normalizeFuzzy } from "./utils";
 
-describe("normalizeTrack", () => {
-  test("trims whitespace", () => {
-    const result = normalizeTrack("  Artist  ", "  Title  ");
-    expect(result).toEqual({ artist: "Artist", title: "Title" });
+describe("getTrackKey (exact)", () => {
+  test("normalizes case and whitespace", () => {
+    expect(getTrackKey("  DELTA dreambox  ", "  Queen of   Loneliness  ")).toBe(
+      "delta dreambox::queen of loneliness",
+    );
   });
 
-  test("removes feat. from title", () => {
-    expect(normalizeTrack("Artist", "Title feat. Guest")).toEqual({
-      artist: "Artist",
-      title: "Title",
-    });
-    expect(normalizeTrack("Artist", "Title (feat. Guest)")).toEqual({
-      artist: "Artist",
-      title: "Title",
-    });
-    expect(normalizeTrack("Artist", "Title [ft. Guest]")).toEqual({
-      artist: "Artist",
-      title: "Title",
-    });
+  test("preserves remix info", () => {
+    expect(getTrackKey("Artist", "Song (Remix)")).toBe("artist::song (remix)");
   });
 
-  test("removes official video suffixes", () => {
-    expect(normalizeTrack("Artist", "Song (Official Video)")).toEqual({
-      artist: "Artist",
-      title: "Song",
-    });
-    expect(normalizeTrack("Artist", "Song [Official Audio]")).toEqual({
-      artist: "Artist",
-      title: "Song",
-    });
-    expect(normalizeTrack("Artist", "Song (Lyrics)")).toEqual({ artist: "Artist", title: "Song" });
+  test("preserves feat info", () => {
+    expect(getTrackKey("Artist feat. Other", "Song")).toBe("artist feat. other::song");
   });
 
-  test("removes Mix suffixes", () => {
-    expect(normalizeTrack("Artist", "Song (Original Mix)")).toEqual({
-      artist: "Artist",
-      title: "Song",
-    });
-    expect(normalizeTrack("Artist", "Song [Extended Mix]")).toEqual({
-      artist: "Artist",
-      title: "Song",
-    });
+  test("preserves version info", () => {
+    expect(getTrackKey("Artist", "Song [Radio Edit]")).toBe("artist::song [radio edit]");
   });
 
-  test("does not remove significant parts", () => {
-    expect(normalizeTrack("Artist", "Song (Live)")).toEqual({
-      artist: "Artist",
-      title: "Song (Live)",
-    }); // Maybe keep Live?
+  test("works with object input", () => {
+    expect(getTrackKey({ artist: "Artist", title: "Song" })).toBe("artist::song");
+  });
+});
+
+describe("getFuzzyKey (fuzzy)", () => {
+  test("removes parentheses content", () => {
+    expect(getFuzzyKey("Artist", "Song (Remix)")).toBe("artist::song");
+  });
+
+  test("removes bracket content", () => {
+    expect(getFuzzyKey("Artist", "Song [Radio Edit]")).toBe("artist::song");
+  });
+
+  test("removes feat info", () => {
+    expect(getFuzzyKey("Artist feat. Other", "Song")).toBe("artist::song");
+  });
+
+  test("removes ft. info", () => {
+    expect(getFuzzyKey("Artist ft. Other", "Song")).toBe("artist::song");
+  });
+
+  test("removes & collaborators", () => {
+    expect(getFuzzyKey("Artist & Other", "Song")).toBe("artist::song");
+  });
+
+  test("works with object input", () => {
+    expect(getFuzzyKey({ artist: "Artist (feat. X)", title: "Song [Remix]" })).toBe("artist::song");
+  });
+});
+
+describe("normalizeExact", () => {
+  test("lowercases and trims", () => {
+    expect(normalizeExact("  HELLO World  ")).toBe("hello world");
+  });
+
+  test("collapses multiple spaces", () => {
+    expect(normalizeExact("hello   world")).toBe("hello world");
+  });
+});
+
+describe("normalizeFuzzy", () => {
+  test("removes all parentheses", () => {
+    expect(normalizeFuzzy("Song (Live) (Remix)")).toBe("song");
+  });
+
+  test("removes punctuation", () => {
+    expect(normalizeFuzzy("It's A Song!")).toBe("its a song");
   });
 });

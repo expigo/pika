@@ -56,6 +56,44 @@ async function initializeDb(): Promise<void> {
       // Column already exists, ignore error
     }
 
+    // Migration: Add track_key column for Two-Tier Track Key System
+    try {
+      await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN track_key TEXT;`);
+      console.log("Migration: Added track_key column to tracks table");
+    } catch {
+      // Column already exists, ignore error
+    }
+
+    // Backfill track_key for existing tracks
+    try {
+      const tracksWithoutKey = await sqliteInstance.select<
+        { id: number; artist: string; title: string }[]
+      >(`SELECT id, artist, title FROM tracks WHERE track_key IS NULL`);
+
+      if (tracksWithoutKey.length > 0) {
+        console.log(`Migration: Backfilling track_key for ${tracksWithoutKey.length} tracks...`);
+        const { getTrackKey } = await import("@pika/shared");
+
+        for (const track of tracksWithoutKey) {
+          const key = getTrackKey(track.artist ?? "", track.title ?? "");
+          await sqliteInstance.execute(`UPDATE tracks SET track_key = ? WHERE id = ?`, [
+            key,
+            track.id,
+          ]);
+        }
+        console.log("Migration: track_key backfill complete");
+      }
+    } catch (e) {
+      console.warn("Migration: track_key backfill skipped:", e);
+    }
+
+    // Create index on track_key for fast lookups
+    try {
+      await sqliteInstance.execute(`CREATE UNIQUE INDEX idx_track_key ON tracks(track_key);`);
+      console.log("Migration: Created unique index on track_key");
+    } catch {
+      // Index already exists
+    }
     // Create sessions table (Logbook)
     await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS sessions (

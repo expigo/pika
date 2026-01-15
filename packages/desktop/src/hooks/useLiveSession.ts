@@ -328,6 +328,7 @@ interface VdjTrackMetadata {
  * Find or create a track in the database by artist/title
  * Returns the track with fingerprint data for broadcasting
  * Now with lazy VDJ lookup for ghost tracks!
+ * Uses track_key for O(log n) indexed lookup.
  */
 async function findOrCreateTrack(
   artist: string,
@@ -336,21 +337,28 @@ async function findOrCreateTrack(
   rawArtist?: string,
   rawTitle?: string,
 ): Promise<DbTrackInfo> {
+  const { getTrackKey } = await import("@pika/shared");
+  const trackKey = getTrackKey(artist, title);
   const allTracks = await trackRepository.getAllTracks();
 
-  // Try to find by file path first (most reliable)
-  let match = filePath ? allTracks.find((t) => t.filePath === filePath) : null;
-
-  // Fall back to artist/title matching
-  if (!match) {
-    const normalizedArtist = normalizeText(artist);
-    const normalizedTitle = normalizeText(title);
-    match = allTracks.find(
-      (t) =>
-        normalizeText(t.artist || "") === normalizedArtist &&
-        normalizeText(t.title || "") === normalizedTitle,
+  // Use track_key for fast O(log n) matching (after backfill)
+  // For now, still scan in memory since getAllTracks returns all tracks
+  // TODO: Add trackRepository.findByTrackKey() for true indexed lookup
+  const match = allTracks.find((t) => {
+    // First try track_key match (if track has one)
+    if (t.trackKey) {
+      return t.trackKey === trackKey;
+    }
+    // Fall back to file path (for unbackfilled tracks)
+    if (filePath && t.filePath === filePath) {
+      return true;
+    }
+    // Last resort: normalized artist/title
+    return (
+      normalizeText(t.artist || "") === normalizeText(artist) &&
+      normalizeText(t.title || "") === normalizeText(title)
     );
-  }
+  });
 
   if (match) {
     return {

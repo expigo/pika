@@ -1,51 +1,85 @@
 /**
- * Common Utilities
+ * Two-Tier Track Key System
+ *
+ * Exact Key: For database uniqueness, preserves (Remix), feat., etc.
+ * Fuzzy Key: For search, suggestions, Spotify matching
  */
 
 import type { TrackInfo } from "./schemas";
 
 /**
- * Generate a unique key for a track based on artist and title.
- * Used for deduplication, like tracking, and caching.
- * Format: "Artist:Title"
+ * Minimal normalization for exact matching.
+ * Preserves: (Remix), feat. XYZ, [Radio Edit], etc.
  */
-export function getTrackKey(track: { artist: string; title: string } | TrackInfo): string {
-  return `${track.artist}:${track.title}`;
+export function normalizeExact(text: string): string {
+  return text.toLowerCase().trim().replace(/\s+/g, " "); // Collapse multiple spaces
+}
+
+/**
+ * Aggressive normalization for fuzzy matching.
+ * Strips: parentheses, brackets, feat., &, punctuation
+ */
+export function normalizeFuzzy(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/\s*\([^)]*\)/g, "") // Remove (anything in parens)
+    .replace(/\s*\[[^\]]*\]/g, "") // Remove [anything in brackets]
+    .replace(/\s*feat\.?\s+.*/i, "") // Remove feat. and everything after
+    .replace(/\s*ft\.?\s+.*/i, "") // Remove ft. and everything after
+    .replace(/\s*&\s+.*/g, "") // Remove & collaborators
+    .replace(/[^\w\s]/g, "") // Remove punctuation
+    .replace(/\s+/g, " ") // Collapse spaces
+    .trim();
+}
+
+/**
+ * Generate exact track key for database uniqueness.
+ * Format: "artist::title" (normalized but preserves versions)
+ *
+ * @example
+ * getTrackKey("Delta Dreambox", "Queen of Loneliness (Remix)")
+ * // => "delta dreambox::queen of loneliness (remix)"
+ */
+export function getTrackKey(artist: string, title: string): string;
+export function getTrackKey(track: { artist: string; title: string } | TrackInfo): string;
+export function getTrackKey(
+  artistOrTrack: string | { artist: string; title: string } | TrackInfo,
+  title?: string,
+): string {
+  if (typeof artistOrTrack === "string") {
+    return `${normalizeExact(artistOrTrack)}::${normalizeExact(title ?? "")}`;
+  }
+  return `${normalizeExact(artistOrTrack.artist)}::${normalizeExact(artistOrTrack.title)}`;
+}
+
+/**
+ * Generate fuzzy track key for search/suggestions.
+ * Strips remix info, features, etc.
+ *
+ * @example
+ * getFuzzyKey("Delta Dreambox feat. Singer", "Queen of Loneliness (Remix)")
+ * // => "delta dreambox::queen of loneliness"
+ */
+export function getFuzzyKey(artist: string, title: string): string;
+export function getFuzzyKey(track: { artist: string; title: string } | TrackInfo): string;
+export function getFuzzyKey(
+  artistOrTrack: string | { artist: string; title: string } | TrackInfo,
+  title?: string,
+): string {
+  if (typeof artistOrTrack === "string") {
+    return `${normalizeFuzzy(artistOrTrack)}::${normalizeFuzzy(title ?? "")}`;
+  }
+  return `${normalizeFuzzy(artistOrTrack.artist)}::${normalizeFuzzy(artistOrTrack.title)}`;
 }
 
 /**
  * Normalize track metadata for cleaner DB storage and improved matching.
- * - Removes "ft.", "feat.", "featuring" from Title
- * - Removes " (Official Video)", " [Official Audio]", etc.
- * - Trims whitespace
+ * @deprecated Use getTrackKey() or getFuzzyKey() instead
  */
 export function normalizeTrack(artist: string, title: string): { artist: string; title: string } {
-  const cleanArtist = artist.trim();
-  let cleanTitle = title.trim();
-
-  // 1. Remove "featuring" from Title (common in scraped data)
-  // Regex: matches (ft. Artist) or [feat. Artist] or feat. Artist
-  // We don't try to extract the featured artist to the artist field yet, just strip it for matching.
-  const featRegex = /[([{-]?\s*(?:ft\.|feat\.|featuring)\s+[^)\]}]+[)\]}]?/gi;
-  cleanTitle = cleanTitle.replace(featRegex, "").trim();
-
-  // 2. Remove purely "marketing" suffixes
-  // " (Official Video)", " [Official Audio]", " (Lyrics)", " (Visualizer)"
-  const marketingRegex =
-    /\s*[([{-]?(?:official\s+(?:video|audio|music\s+video|lyric\s+video)|lyrics|visualizer|remastered\s+\d+|remastered)[)\]}]?/gi;
-  cleanTitle = cleanTitle.replace(marketingRegex, "").trim();
-
-  // 3. Remove "Original Mix" / "Extended Mix" if desired?
-  // User roadmap said: "Remove generic brackets like [Original Mix]"
-  const mixRegex = /\s*[([{-](?:original\s+mix|extended\s+mix)[)\]}]?/gi;
-  cleanTitle = cleanTitle.replace(mixRegex, "").trim();
-
-  // 4. Remove empty brackets that might be left over "()"
-  cleanTitle = cleanTitle.replace(/\s*\(\s*\)/g, "").trim();
-  cleanTitle = cleanTitle.replace(/\s*\[\s*\]/g, "").trim();
-
   return {
-    artist: cleanArtist,
-    title: cleanTitle,
+    artist: normalizeExact(artist),
+    title: normalizeExact(title),
   };
 }

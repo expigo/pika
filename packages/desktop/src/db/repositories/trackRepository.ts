@@ -41,6 +41,9 @@ export interface Track {
   duration: number | null;
 
   analyzed: boolean | null;
+
+  // Two-Tier Track Key System
+  trackKey: string | null;
 }
 
 // Raw SQL query for track selection with proper aliasing
@@ -58,7 +61,8 @@ const TRACK_SELECT_SQL = `
 		acousticness,
 		groove,
 		duration,
-		analyzed 
+		analyzed,
+		track_key as trackKey
 	FROM tracks
 `;
 
@@ -130,6 +134,7 @@ export const trackRepository = {
   /**
    * Insert a single track and return its ID
    * Uses UPSERT to handle duplicate file paths gracefully
+   * Automatically computes and stores track_key
    */
   async insertTrack(track: {
     filePath: string;
@@ -141,11 +146,13 @@ export const trackRepository = {
     key?: string | null;
   }): Promise<number> {
     const sqlite = await getSqlite();
+    const { getTrackKey } = await import("@pika/shared");
+    const trackKey = getTrackKey(track.artist ?? "", track.title ?? "");
 
-    // First, check if track already exists by file_path
+    // First, check if track already exists by track_key (O(log n) indexed lookup)
     const existing = await sqlite.select<{ id: number }[]>(
-      `SELECT id FROM tracks WHERE file_path = ?`,
-      [track.filePath],
+      `SELECT id FROM tracks WHERE track_key = ?`,
+      [trackKey],
     );
 
     if (existing.length > 0) {
@@ -160,9 +167,9 @@ export const trackRepository = {
       return trackId;
     }
 
-    // Insert new track
+    // Insert new track with track_key
     await sqlite.execute(
-      `INSERT INTO tracks (file_path, artist, title, raw_artist, raw_title, bpm, key, analyzed) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+      `INSERT INTO tracks (file_path, artist, title, raw_artist, raw_title, bpm, key, track_key, analyzed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
       [
         track.filePath,
         track.artist ?? null,
@@ -171,13 +178,14 @@ export const trackRepository = {
         track.rawTitle ?? null,
         track.bpm ?? null,
         track.key ?? null,
+        trackKey,
       ],
     );
 
-    // Query back by file_path (more reliable than last_insert_rowid with Tauri SQL)
+    // Query back by track_key (more reliable than last_insert_rowid with Tauri SQL)
     const inserted = await sqlite.select<{ id: number }[]>(
-      `SELECT id FROM tracks WHERE file_path = ?`,
-      [track.filePath],
+      `SELECT id FROM tracks WHERE track_key = ?`,
+      [trackKey],
     );
 
     if (inserted.length === 0) {
