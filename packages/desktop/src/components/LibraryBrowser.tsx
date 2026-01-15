@@ -20,13 +20,16 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { fetch } from "@tauri-apps/plugin-http";
 import { useEffect, useMemo, useState } from "react";
 import {
+  type AnalysisResult,
   type Track,
   type TrackPlayHistory,
   trackRepository,
 } from "../db/repositories/trackRepository";
 import { useSetStore } from "../hooks/useSetBuilder";
+import { useSidecar } from "../hooks/useSidecar";
 import { toCamelot } from "../utils/transitionEngine";
 import { SmartCrate } from "./SmartCrate";
 import { TrackFingerprint } from "./TrackFingerprint";
@@ -59,6 +62,10 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
 
   const addTrack = useSetStore((state) => state.addTrack);
   const activeSet = useSetStore((state) => state.activeSet);
+  const { baseUrl: sidecarBaseUrl } = useSidecar();
+
+  // Single-track analysis state
+  const [analyzingTrackId, setAnalyzingTrackId] = useState<number | null>(null);
 
   // Get the selected track object
   const selectedTrack = useMemo(
@@ -306,6 +313,33 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
     const success = await trackRepository.deleteTrack(track.id);
     if (success) {
       setTracks((prev) => prev.filter((t) => t.id !== track.id));
+    }
+  };
+
+  // Handle analyze single track
+  const handleAnalyzeTrack = async (track: Track) => {
+    if (!sidecarBaseUrl || analyzingTrackId) return;
+
+    setAnalyzingTrackId(track.id);
+    try {
+      const url = `${sidecarBaseUrl}/analyze?path=${encodeURIComponent(track.filePath)}`;
+      const response = await fetch(url, { method: "GET" });
+
+      if (response.ok) {
+        const result: AnalysisResult = await response.json();
+        if (!result.error) {
+          await trackRepository.markTrackAnalyzed(track.id, result);
+          // Refresh track in list
+          const updated = await trackRepository.getTrackById(track.id);
+          if (updated) {
+            setTracks((prev) => prev.map((t) => (t.id === track.id ? updated : t)));
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to analyze track:", e);
+    } finally {
+      setAnalyzingTrackId(null);
     }
   };
 
@@ -596,7 +630,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                   </td>
                   <td style={styles.td}>
                     <div style={styles.actionButtons}>
-                      {track.analyzed && (
+                      {track.analyzed ? (
                         <button
                           type="button"
                           onClick={() => setSelectedTrackId(track.id)}
@@ -604,6 +638,22 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                           title="View fingerprint"
                         >
                           <Eye size={14} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAnalyzeTrack(track);
+                          }}
+                          disabled={!sidecarBaseUrl || analyzingTrackId === track.id}
+                          style={{
+                            ...styles.analyzeButton,
+                            opacity: !sidecarBaseUrl || analyzingTrackId === track.id ? 0.5 : 1,
+                          }}
+                          title={analyzingTrackId === track.id ? "Analyzing..." : "Analyze track"}
+                        >
+                          {analyzingTrackId === track.id ? "..." : "⚡"}
                         </button>
                       )}
                       <button
@@ -1051,6 +1101,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
+    transition: "background 0.2s",
+  },
+  analyzeButton: {
+    padding: "0.25rem 0.5rem",
+    background: "rgba(34, 197, 94, 0.2)",
+    color: "#22c55e",
+    border: "none",
+    borderRadius: "4px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontSize: "0.75rem",
     transition: "background 0.2s",
   },
   // Modal styles
