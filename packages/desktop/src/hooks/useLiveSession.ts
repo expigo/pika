@@ -316,12 +316,23 @@ interface DbTrackInfo {
 }
 
 /**
+ * VDJ track metadata from Rust lookup
+ */
+interface VdjTrackMetadata {
+  bpm: number | null;
+  key: string | null;
+  volume: number | null;
+}
+
+/**
  * Find or create a track in the database by artist/title
  * Returns the track with fingerprint data for broadcasting
+ * Now with lazy VDJ lookup for ghost tracks!
  */
 async function findOrCreateTrack(
   artist: string,
   title: string,
+  filePath?: string,
   rawArtist?: string,
   rawTitle?: string,
 ): Promise<DbTrackInfo> {
@@ -349,20 +360,42 @@ async function findOrCreateTrack(
     };
   }
 
-  // Create a ghost track for tracking purposes
-  console.log("[Live] Creating ghost track:", artist, "-", title);
+  // Try VDJ lookup first (lazy BPM extraction)
+  let vdjBpm: number | null = null;
+  let vdjKey: string | null = null;
+
+  if (filePath && !filePath.startsWith("ghost://")) {
+    try {
+      const { invoke } = await import("@tauri-apps/api/core");
+      const vdjMeta = await invoke<VdjTrackMetadata | null>("lookup_vdj_track_metadata", {
+        filePath,
+      });
+      if (vdjMeta) {
+        vdjBpm = vdjMeta.bpm;
+        vdjKey = vdjMeta.key;
+        console.log("[Live] Got VDJ metadata:", vdjBpm, vdjKey);
+      }
+    } catch (e) {
+      console.warn("[Live] VDJ lookup failed:", e);
+    }
+  }
+
+  // Create a ghost track with VDJ metadata if available
+  console.log("[Live] Creating ghost track:", artist, "-", title, "BPM from VDJ:", vdjBpm);
   const newId = await trackRepository.insertTrack({
-    filePath: `ghost://${artist}/${title}`,
+    filePath: filePath || `ghost://${artist}/${title}`,
     artist,
     title,
     rawArtist,
     rawTitle,
+    bpm: vdjBpm,
+    key: vdjKey,
   });
 
   return {
     id: newId,
-    bpm: null,
-    key: null,
+    bpm: vdjBpm,
+    key: vdjKey,
     energy: null,
     danceability: null,
     brightness: null,
@@ -396,6 +429,7 @@ async function recordPlay(
     const dbTrack = await findOrCreateTrack(
       track.artist,
       track.title,
+      track.filePath,
       track.rawArtist,
       track.rawTitle,
     );

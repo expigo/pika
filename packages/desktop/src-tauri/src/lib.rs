@@ -227,6 +227,86 @@ fn read_virtualdj_history() -> Result<Option<HistoryTrack>, String> {
     }))
 }
 
+/// Metadata returned from VDJ database lookup (for ghost tracks)
+#[derive(Debug, Serialize)]
+pub struct VdjTrackMetadata {
+    bpm: Option<f64>,
+    key: Option<String>,
+    volume: Option<f64>,
+}
+
+/// Find VirtualDJ database.xml location
+fn find_vdj_database_path() -> Option<std::path::PathBuf> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .ok()?;
+    
+    let path = std::path::PathBuf::from(&home);
+    
+    let candidates = vec![
+        // 1. Standard Documents location (Windows & macOS Modern)
+        path.join("Documents").join("VirtualDJ").join("database.xml"),
+        // 2. macOS Legacy location
+        path.join("Library").join("Application Support").join("VirtualDJ").join("database.xml"),
+        // 3. Windows AppData
+        path.join("AppData").join("Local").join("VirtualDJ").join("database.xml"),
+    ];
+    
+    candidates.into_iter().find(|p| p.exists())
+}
+
+/// Lookup track metadata from VDJ database.xml by file path
+/// Used to get BPM/key for tracks not imported into Pika! library
+#[tauri::command]
+fn lookup_vdj_track_metadata(file_path: String) -> Result<Option<VdjTrackMetadata>, String> {
+    let db_path = find_vdj_database_path()
+        .ok_or_else(|| "VirtualDJ database.xml not found".to_string())?;
+    
+    println!("[VDJ] Looking up metadata from: {:?}", db_path);
+    
+    let content = std::fs::read_to_string(&db_path)
+        .map_err(|e| format!("Failed to read database.xml: {}", e))?;
+    
+    let database: VirtualDJDatabase = quick_xml::de::from_str(&content)
+        .map_err(|e| format!("XML parsing error: {}", e))?;
+    
+    // Find matching song by file path (case-insensitive on Windows)
+    let song = database.songs.iter().find(|s| {
+        #[cfg(target_os = "windows")]
+        {
+            s.file_path.eq_ignore_ascii_case(&file_path)
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            s.file_path == file_path
+        }
+    });
+    
+    match song {
+        Some(s) => {
+            let bpm = s.scan.as_ref()
+                .and_then(|scan| scan.bpm.as_ref())
+                .and_then(|b| b.parse::<f64>().ok())
+                .map(|beat_period| if beat_period > 0.0 { 60.0 / beat_period } else { 0.0 });
+            
+            let key = s.scan.as_ref()
+                .and_then(|scan| scan.key.clone());
+            
+            let volume = s.scan.as_ref()
+                .and_then(|scan| scan.volume.as_ref())
+                .and_then(|v| v.parse::<f64>().ok());
+            
+            println!("[VDJ] Found metadata: bpm={:?}, key={:?}, volume={:?}", bpm, key, volume);
+            
+            Ok(Some(VdjTrackMetadata { bpm, key, volume }))
+        }
+        None => {
+            println!("[VDJ] Track not found in database: {}", file_path);
+            Ok(None)
+        }
+    }
+}
+
 /// Get the local network IP address for LAN sharing
 /// Returns the first non-loopback IPv4 address found
 #[tauri::command]
@@ -243,7 +323,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![import_virtualdj_library, read_virtualdj_history, get_local_ip])
+        .invoke_handler(tauri::generate_handler![import_virtualdj_library, read_virtualdj_history, lookup_vdj_track_metadata, get_local_ip])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
