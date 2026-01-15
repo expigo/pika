@@ -16,6 +16,7 @@
     "bump": "bun scripts/bump-version.ts"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.11"
+    "@biomejs/biome": "^2.3.11",
+    "@playwright/test": "^1.57.0"
   }
 }
