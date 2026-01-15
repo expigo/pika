@@ -413,6 +413,88 @@ cat backup.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U pi
 
 ---
 
+## 📊 Session Telemetry (v0.1.9)
+
+Telemetry tracks DJ session stability for operational insights. Events are stored in the `session_events` table.
+
+### Event Types
+
+| Event | When Logged | Metadata |
+| :--- | :--- | :--- |
+| `connect` | DJ establishes WebSocket connection | `clientVersion` |
+| `disconnect` | DJ connection unexpectedly closed | `reason` |
+| `reconnect` | DJ reconnected after disconnect | `reconnectMs` (planned) |
+| `end` | DJ explicitly ended session | - |
+
+### Query Commands
+
+**View Recent Events (Staging):**
+```bash
+docker compose -f docker-compose.staging.yml -p pika-staging exec db \
+  psql -U pika -d pika_staging -c "SELECT * FROM session_events ORDER BY timestamp DESC LIMIT 10;"
+```
+
+**View Recent Events (Production):**
+```bash
+docker compose -f docker-compose.prod.yml exec db \
+  psql -U pika -d pika_prod -c "SELECT * FROM session_events ORDER BY timestamp DESC LIMIT 10;"
+```
+
+### Analysis Queries
+
+**Session Stability Report (Disconnect Rate):**
+```sql
+SELECT 
+  event_type, 
+  COUNT(*) as count,
+  COUNT(*) * 100.0 / SUM(COUNT(*)) OVER () as percentage
+FROM session_events
+WHERE timestamp > NOW() - INTERVAL '7 days'
+GROUP BY event_type;
+```
+
+**Busiest DJ Sessions:**
+```sql
+SELECT 
+  session_id,
+  COUNT(*) as event_count,
+  MIN(timestamp) as first_event,
+  MAX(timestamp) as last_event
+FROM session_events
+GROUP BY session_id
+ORDER BY event_count DESC
+LIMIT 10;
+```
+
+**Client Version Distribution:**
+```sql
+SELECT 
+  metadata->>'clientVersion' as version,
+  COUNT(*) as count
+FROM session_events
+WHERE event_type = 'connect'
+GROUP BY metadata->>'clientVersion'
+ORDER BY count DESC;
+```
+
+### Design Notes
+
+*   **Privacy-first:** No PII stored (no IP addresses, user agents).
+*   **Fire-and-forget:** Telemetry inserts are async and non-blocking.
+*   **Silent on success:** Only logs errors to console.
+
+### Future Improvements (Post-MVP)
+
+| Enhancement | Value | Effort |
+| :--- | :---: | :---: |
+| Log `reconnect` with duration | High | 2h |
+| Add `end` event for graceful close | Medium | 1h |
+| Dashboard visualization | High | 8h |
+| Retention policy (30-day delete) | Medium | 1h |
+| Prometheus/Grafana integration | High | 4h |
+
+---
+
 ## 🔐 Security Operations
 
 ### Pre-Launch Security Checklist
