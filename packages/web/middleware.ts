@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
  * Next.js Middleware for Security Headers
  * Adds Content-Security-Policy and other security headers to all responses.
  */
-export function middleware(request: NextRequest) {
+export function middleware(_request: NextRequest) {
   const response = NextResponse.next();
 
   // Content Security Policy

@@ -381,6 +381,43 @@ async function logSessionEvent(
 }
 
 // ============================================================================
+// Application-Level ACK Helpers
+// ============================================================================
+
+/**
+ * Send acknowledgment for a successfully processed message.
+ * Used for critical operations like BROADCAST_TRACK.
+ */
+function sendAck(ws: { send: (data: string) => void }, messageId: string): void {
+  if (!messageId) return; // Only ACK if messageId was provided
+
+  ws.send(
+    JSON.stringify({
+      type: "ACK",
+      messageId,
+      status: "ok",
+      timestamp: new Date().toISOString(),
+    }),
+  );
+}
+
+/**
+ * Send negative acknowledgment for a failed message.
+ */
+function sendNack(ws: { send: (data: string) => void }, messageId: string, error: string): void {
+  if (!messageId) return; // Only NACK if messageId was provided
+
+  ws.send(
+    JSON.stringify({
+      type: "NACK",
+      messageId,
+      error,
+      timestamp: new Date().toISOString(),
+    }),
+  );
+}
+
+// ============================================================================
 // Database Persistence Helpers
 // ============================================================================
 

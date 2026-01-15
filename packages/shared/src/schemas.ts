@@ -323,6 +323,46 @@ export const AnnouncementReceivedSchema = z.object({
   endsAt: z.string().optional(), // ISO timestamp for countdown timer
 });
 
+// DJ -> Server: Cancel active announcement
+export const CancelAnnouncementSchema = z.object({
+  type: z.literal("CANCEL_ANNOUNCEMENT"),
+  sessionId: z.string(),
+});
+
+// Server -> Dancers: Announcement cancelled
+export const AnnouncementCancelledSchema = z.object({
+  type: z.literal("ANNOUNCEMENT_CANCELLED"),
+  sessionId: z.string(),
+});
+
+// ============================================================================
+// Application-Level ACK Schemas (Reliable Delivery)
+// ============================================================================
+
+/**
+ * Server -> Client: Acknowledge successful message processing
+ */
+export const AckSchema = z.object({
+  type: z.literal("ACK"),
+  messageId: z.string(),
+  status: z.literal("ok"),
+  timestamp: z.string().optional(), // ISO timestamp
+});
+
+export type Ack = z.infer<typeof AckSchema>;
+
+/**
+ * Server -> Client: Negative acknowledgment (error occurred)
+ */
+export const NackSchema = z.object({
+  type: z.literal("NACK"),
+  messageId: z.string(),
+  error: z.string(),
+  timestamp: z.string().optional(), // ISO timestamp
+});
+
+export type Nack = z.infer<typeof NackSchema>;
+
 // ============================================================================
 // Combined Message Schemas
 // ============================================================================
@@ -347,6 +387,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   SendReactionSchema,
   // Announcements
   SendAnnouncementSchema,
+  CancelAnnouncementSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -376,6 +417,10 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   ReactionReceivedSchema,
   // Announcements
   AnnouncementReceivedSchema,
+  AnnouncementCancelledSchema,
+  // ACK/NACK (Reliable Delivery)
+  AckSchema,
+  NackSchema,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
