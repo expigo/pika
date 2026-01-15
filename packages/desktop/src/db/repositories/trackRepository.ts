@@ -132,16 +132,26 @@ export const trackRepository = {
   },
 
   /**
-   * Insert a single track and return its ID
-   * Uses UPSERT to handle duplicate file paths gracefully
-   * Automatically computes and stores track_key
+   * Find a track by its track_key (O(log n) indexed lookup)
+   * This is the primary lookup method for track identification
+   */
+  async findByTrackKey(trackKey: string): Promise<Track | null> {
+    const sqlite = await getSqlite();
+    const result = await sqlite.select<Track[]>(`${TRACK_SELECT_SQL} WHERE track_key = ?`, [
+      trackKey,
+    ]);
+    return result[0] ?? null;
+  },
+
+  /**
+   * Insert or update a track by track_key
+   * Automatically computes track_key from artist/title
+   * Returns the track ID
    */
   async insertTrack(track: {
     filePath: string;
     artist?: string | null;
     title?: string | null;
-    rawArtist?: string | null;
-    rawTitle?: string | null;
     bpm?: number | null;
     key?: string | null;
   }): Promise<number> {
@@ -149,29 +159,27 @@ export const trackRepository = {
     const { getTrackKey } = await import("@pika/shared");
     const trackKey = getTrackKey(track.artist ?? "", track.title ?? "");
 
-    // First, check if track already exists by track_key (O(log n) indexed lookup)
+    // Check if track already exists by track_key (O(log n) indexed lookup)
     const existing = await sqlite.select<{ id: number }[]>(
       `SELECT id FROM tracks WHERE track_key = ?`,
       [trackKey],
     );
 
     if (existing.length > 0) {
-      // Track exists - update metadata if provided (including correct-case artist/title)
+      // Track exists - update metadata if provided
       const trackId = existing[0].id;
       await sqlite.execute(
         `UPDATE tracks SET 
           artist = COALESCE(?, artist),
           title = COALESCE(?, title),
-          raw_artist = COALESCE(?, raw_artist),
-          raw_title = COALESCE(?, raw_title),
+          file_path = COALESCE(?, file_path),
           bpm = COALESCE(?, bpm), 
           key = COALESCE(?, key) 
         WHERE id = ?`,
         [
           track.artist ?? null,
           track.title ?? null,
-          track.rawArtist ?? null,
-          track.rawTitle ?? null,
+          track.filePath,
           track.bpm ?? null,
           track.key ?? null,
           trackId,
@@ -180,22 +188,21 @@ export const trackRepository = {
       return trackId;
     }
 
-    // Insert new track with track_key
+    // Insert new track
     await sqlite.execute(
-      `INSERT INTO tracks (file_path, artist, title, raw_artist, raw_title, bpm, key, track_key, analyzed) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      `INSERT INTO tracks (file_path, artist, title, bpm, key, track_key, analyzed) 
+       VALUES (?, ?, ?, ?, ?, ?, 0)`,
       [
         track.filePath,
         track.artist ?? null,
         track.title ?? null,
-        track.rawArtist ?? null,
-        track.rawTitle ?? null,
         track.bpm ?? null,
         track.key ?? null,
         trackKey,
       ],
     );
 
-    // Query back by track_key (more reliable than last_insert_rowid with Tauri SQL)
+    // Query back by track_key
     const inserted = await sqlite.select<{ id: number }[]>(
       `SELECT id FROM tracks WHERE track_key = ?`,
       [trackKey],

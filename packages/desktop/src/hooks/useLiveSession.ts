@@ -295,13 +295,6 @@ function generateSessionId(): string {
 }
 
 /**
- * Normalize text for matching tracks
- */
-function normalizeText(text: string): string {
-  return text.toLowerCase().trim().replace(/\s+/g, " ");
-}
-
-/**
  * Track info from database with fingerprint data
  */
 interface DbTrackInfo {
@@ -327,53 +320,34 @@ interface VdjTrackMetadata {
 /**
  * Find or create a track in the database by artist/title
  * Returns the track with fingerprint data for broadcasting
- * Now with lazy VDJ lookup for ghost tracks!
- * Uses track_key for O(log n) indexed lookup.
+ *
+ * Uses O(log n) indexed lookup via track_key
  */
 async function findOrCreateTrack(
   artist: string,
   title: string,
   filePath?: string,
-  rawArtist?: string,
-  rawTitle?: string,
 ): Promise<DbTrackInfo> {
   const { getTrackKey } = await import("@pika/shared");
   const trackKey = getTrackKey(artist, title);
-  const allTracks = await trackRepository.getAllTracks();
 
-  // Use track_key for fast O(log n) matching (after backfill)
-  // For now, still scan in memory since getAllTracks returns all tracks
-  // TODO: Add trackRepository.findByTrackKey() for true indexed lookup
-  const match = allTracks.find((t) => {
-    // First try track_key match (if track has one)
-    if (t.trackKey) {
-      return t.trackKey === trackKey;
-    }
-    // Fall back to file path (for unbackfilled tracks)
-    if (filePath && t.filePath === filePath) {
-      return true;
-    }
-    // Last resort: normalized artist/title
-    return (
-      normalizeText(t.artist || "") === normalizeText(artist) &&
-      normalizeText(t.title || "") === normalizeText(title)
-    );
-  });
+  // O(log n) indexed lookup - no table scan!
+  const existing = await trackRepository.findByTrackKey(trackKey);
 
-  if (match) {
+  if (existing) {
     return {
-      id: match.id,
-      bpm: match.bpm,
-      key: match.key,
-      energy: match.energy,
-      danceability: match.danceability,
-      brightness: match.brightness,
-      acousticness: match.acousticness,
-      groove: match.groove,
+      id: existing.id,
+      bpm: existing.bpm,
+      key: existing.key,
+      energy: existing.energy,
+      danceability: existing.danceability,
+      brightness: existing.brightness,
+      acousticness: existing.acousticness,
+      groove: existing.groove,
     };
   }
 
-  // Try VDJ lookup first (lazy BPM extraction)
+  // New track - try VDJ lookup for BPM/key (lazy extraction)
   let vdjBpm: number | null = null;
   let vdjKey: string | null = null;
 
@@ -393,14 +367,12 @@ async function findOrCreateTrack(
     }
   }
 
-  // Create a ghost track with VDJ metadata if available
-  console.log("[Live] Creating ghost track:", artist, "-", title, "BPM from VDJ:", vdjBpm);
+  // Insert new track
+  console.log("[Live] Creating track:", artist, "-", title, "BPM:", vdjBpm);
   const newId = await trackRepository.insertTrack({
     filePath: filePath || `ghost://${artist}/${title}`,
     artist,
     title,
-    rawArtist,
-    rawTitle,
     bpm: vdjBpm,
     key: vdjKey,
   });
@@ -439,13 +411,7 @@ async function recordPlay(
   processedTrackKeys.add(trackKey);
 
   try {
-    const dbTrack = await findOrCreateTrack(
-      track.artist,
-      track.title,
-      track.filePath,
-      track.rawArtist,
-      track.rawTitle,
-    );
+    const dbTrack = await findOrCreateTrack(track.artist, track.title, track.filePath);
     const timestamp = Math.floor(Date.now() / 1000);
 
     const play = await sessionRepository.addPlay(currentDbSessionId, dbTrack.id, timestamp);
@@ -488,33 +454,25 @@ export function useLiveSession() {
   // Handle track changes from VirtualDJ
   const handleTrackChange = useCallback(
     async (track: NowPlayingTrack) => {
-      // Store raw metadata for reference, but don't normalize for display
-      // Normalization is only used internally for track_key matching
-      const normalizedTrack = {
-        ...track,
-        // Keep original artist/title for display
-        rawArtist: track.artist,
-        rawTitle: track.title,
-      };
-
       console.log("[Live] Track changed:", track.artist, "-", track.title);
-
       console.log(
         "[Live] State check - isLiveFlag:",
         isLiveFlag,
         "currentDbSessionId:",
         currentDbSessionId,
       );
-      setNowPlaying(normalizedTrack);
+
+      // Update UI immediately with track info
+      setNowPlaying(track);
 
       // Reset tempo feedback when track changes (server also resets)
       setTempoFeedback(null);
 
       // Record to database and get fingerprint data
-      let enrichedTrack = normalizedTrack;
+      let enrichedTrack = track;
       if (isLiveFlag && currentDbSessionId) {
         console.log("[Live] Recording play to database...");
-        const result = await recordPlay(normalizedTrack);
+        const result = await recordPlay(track);
         console.log("[Live] Play recorded:", result?.playId);
         if (result) {
           currentPlayIdRef = result.playId; // Update singleton ref for likes
@@ -522,7 +480,7 @@ export function useLiveSession() {
 
           // Enrich track with fingerprint data from database
           enrichedTrack = {
-            ...normalizedTrack,
+            ...track,
             bpm: result.trackInfo.bpm ?? undefined,
             key: result.trackInfo.key ?? undefined,
             energy: result.trackInfo.energy ?? undefined,
