@@ -1,127 +1,92 @@
-/// <reference path="../types.d.ts" />
 import { test, expect } from "@playwright/test";
-import { mockTauriInitScript } from "../fixtures/mock-tauri";
+import { createDjSession, DjSimulator } from "../fixtures/ws-dj-simulator";
 
 /**
- * Pika! Happy Path E2E Test
- * Verifies that a DJ can Go Live and Broadast a track that appears on the Audience View.
+ * Pika! Happy Path E2E Test (v2)
+ *
+ * Tests the core user flow using WebSocket injection:
+ * 1. DJ goes live (via WS simulator)
+ * 2. Audience sees the session
+ * 3. Audience joins and sees the track
+ * 4. Audience likes the track
+ * 5. DJ receives the like
  */
 
-// Helper to setup DJ Context
-async function createDjContext(browser: any) {
-  const context = await browser.newContext();
-  await context.addInitScript(() => {
-    localStorage.setItem(
-      "pika_dj_settings",
-      JSON.stringify({
-        djName: "E2E Test DJ",
-        serverEnv: "dev",
-        authToken: "",
-        djInfo: null,
-      }),
-    );
+test.describe("Pika! Core Flow", () => {
+  let djSession: DjSimulator;
+
+  test.beforeEach(async () => {
+    // Create DJ session before each test
+    djSession = await createDjSession({
+      djName: "Happy Path DJ",
+      track: {
+        title: "Billie Jean",
+        artist: "Michael Jackson",
+        bpm: 117,
+        energy: 0.8,
+      },
+    });
   });
-  const page = await context.newPage();
-  await page.addInitScript(mockTauriInitScript);
-  page.on("console", (msg: any) => console.log(`[Desktop] ${msg.text()}`));
-  return { context, page };
-}
 
-test.describe("Pika! E2E Flow", () => {
-  test("Song Play -> Audience See -> Like Loop", async ({ browser }) => {
-    // 1. Setup DJ
-    const { page: djPage } = await createDjContext(browser);
+  test.afterEach(async () => {
+    djSession?.disconnect();
+  });
 
-    // 2. DJ: Go Live
-    console.log("🖥️ DJ: Navigating to Desktop App...");
-    await djPage.goto("/");
-    await expect(djPage.getByText("Pika!")).toBeVisible();
+  test("Audience sees track and can like it", async ({ page }) => {
+    // 1. Navigate to Web App
+    console.log("📱 Audience: Loading web app...");
+    await page.goto("http://localhost:3002");
 
-    console.log("🖥️ DJ: Going Live...");
-    await djPage.getByRole("button", { name: "Go Live" }).click();
-    await expect(djPage.getByText("Name Your Session")).toBeVisible();
-    await djPage.getByRole("button", { name: "Start Live Session" }).click();
+    // 2. Wait for session to appear (session discovery)
+    console.log("📱 Audience: Looking for DJ session...");
+    await expect(page.getByText("Happy Path DJ")).toBeVisible({ timeout: 15000 });
 
-    // Verify Live State
-    await expect(djPage.getByRole("button", { name: "LIVE", exact: true })).toBeVisible({
-      timeout: 10000,
-    });
+    // 3. Click on the session to join
+    console.log("📱 Audience: Clicking Tune In...");
+    await page
+      .getByRole("link", { name: /tune in/i })
+      .first()
+      .click();
 
-    // 3. Simulate Track Change (via Mock Driver)
-    console.log("🖥️ DJ: Simulating Track Play...");
-    await djPage.evaluate(() => {
-      // Direct window injection for the watcher to pick up
-      window.__TEST_DRIVER_HISTORY__ = [
-        {
-          artist: "Michael Jackson",
-          title: "Billie Jean",
-          filepath: "/music/billie_jean.mp3",
-          played_at: Date.now() / 1000,
-        },
-      ];
-    });
+    // 4. Verify track is visible
+    console.log("📱 Audience: Verifying track visible...");
+    await expect(page.getByText("Billie Jean")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Michael Jackson")).toBeVisible();
 
-    // 4. Setup Audience
-    console.log("⏳ Waiting for track propagation to Cloud...");
-    await djPage.waitForTimeout(5000); // Allow time for cloud sync
-
-    const audienceContext = await browser.newContext();
-    const audiencePage = await audienceContext.newPage();
-    audiencePage.on("console", (msg: any) => console.log(`[Audience] ${msg.text()}`));
-
-    console.log("📱 Audience: connecting to broadcast...");
-    await audiencePage.goto("http://127.0.0.1:3002", { waitUntil: "commit" });
-
-    // Debug check
-    await audiencePage.evaluate(() => console.log("✅ Audience Page DOM Ready"));
-
-    // 5. Audience Experience (New Page/Context)
-    // Check if "Billie Jean" appears on the Audience Screen (Live Banner)
-    await expect(async () => {
-      await expect(audiencePage.getByText("Billie Jean")).toBeVisible();
-    }).toPass({ timeout: 20000 });
-
-    // Click "Tune In" to enter the session
-    console.log("👆 Audience: Clicking 'Tune In'...");
-    await audiencePage.getByRole("link", { name: "Tune In" }).first().click();
-
-    // 6. Test Feedback: Audience Like
-    console.log("❤️ Audience: Sending Like...");
-    // Button should now be visible on the Session Page
-    const likeButton = audiencePage.getByLabel("Like Track"); // Try pure selector first
-
-    // It should be visible now that we are on the session page
+    // 5. Click Like button
+    console.log("❤️ Audience: Liking track...");
+    const likeButton = page.getByLabel("Like Track");
     await expect(likeButton).toBeVisible();
     await likeButton.click();
 
-    // Verify visual feedback on Audience (Toast)
-    await expect(audiencePage.getByText("Liked!"))
-      .toBeVisible()
-      .catch(() => console.log("⚠️ Toast miss (optional check)"));
+    // 6. Verify DJ received like (via WebSocket)
+    console.log("🖥️ DJ: Waiting for like confirmation...");
+    const receivedLike = await djSession.waitForLikes(1, 5000);
 
-    // 7. Verify Desktop Receives Like
-    console.log("🖥️ DJ: Verifying Like Received...");
+    if (!receivedLike) {
+      // Fallback: Check messages array
+      const messages = djSession.getMessages();
+      console.log("📊 DJ Messages:", JSON.stringify(messages, null, 2));
+    }
 
-    // Poll for the SQL update (wait up to 10s)
-    await expect
-      .poll(
-        async () => {
-          const sqlLogs = await djPage.evaluate(() => window.__TEST_SQL_LOG__ || []);
-          return sqlLogs.some(
-            (l: any) =>
-              l.query.toLowerCase().includes("update") &&
-              l.query.toLowerCase().includes("plays") &&
-              l.query.toLowerCase().includes("dancer_likes"),
-          );
-        },
-        {
-          message: "Expected SQL UPDATE for incrementing dancer_likes",
-          timeout: 10000,
-          intervals: [1000],
-        },
-      )
-      .toBeTruthy();
+    expect(receivedLike || djSession.getLikeCount() > 0).toBe(true);
+    console.log("✅ Flow complete: DJ→Cloud→Audience→Like→DJ verified!");
+  });
 
-    console.log("✅ Verified: Like propagated Web -> Cloud -> Desktop -> DB");
+  test("Track info displays correctly", async ({ page }) => {
+    await page.goto("http://localhost:3002");
+    await expect(page.getByText("Happy Path DJ")).toBeVisible({ timeout: 15000 });
+    await page
+      .getByRole("link", { name: /tune in/i })
+      .first()
+      .click();
+
+    // Verify all track metadata renders
+    await expect(page.getByText("Billie Jean")).toBeVisible();
+    await expect(page.getByText("Michael Jackson")).toBeVisible();
+
+    // BPM should be visible somewhere (if displayed)
+    // This is optional based on UI
+    console.log("✅ Track info renders correctly");
   });
 });

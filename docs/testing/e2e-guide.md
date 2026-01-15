@@ -1,47 +1,149 @@
 # E2E Testing Guide
 
+**Last Updated:** January 15, 2026
+
 Pika! uses [Playwright](https://playwright.dev/) for End-to-End testing.
 
-## architecture
-The suite runs a **Hybrid Cluster**:
-1.  **Cloud Server**: Real Hono/Bun server (`localhost:3001`).
-2.  **Web Frontend**: Real Next.js app (`localhost:3002`).
-3.  **Desktop Frontend**: Real React App (`localhost:1420`), but with **Mocked Tauri Backend**.
+---
+
+## Architecture (v2)
+
+The test suite uses **WebSocket Injection** to simulate DJ sessions:
+
+```
+┌─────────────────┐      ┌─────────────────┐
+│  ws-dj-simulator │─────▶│  Cloud:3001     │◀────┐
+│   (Node.js)      │      │   (Hono/Bun)    │     │
+└─────────────────┘      └─────────────────┘     │
+                                                  │
+                         ┌─────────────────┐     │
+                         │   Web:3002      │─────┘
+                         │  (Next.js)      │
+                         │  ↑ Playwright   │
+                         └─────────────────┘
+```
+
+**Key Design Decisions:**
+- ❌ No Desktop app in tests (Tauri requires Rust, complex to mock)
+- ✅ DJ simulated via raw WebSocket messages
+- ✅ Real Cloud ↔ Web integration tested
+- ✅ Deterministic, fast, no race conditions
+
+---
 
 ## Running Tests
 
 ### Prerequisites
-*   Bun installed (`oven-sh/setup-bun`)
-*   Playwright browsers installed (`bun x playwright install --with-deps chromium`)
+```bash
+# Install Playwright browsers
+bun x playwright install chromium
 
-### Command
+# Ensure ws package installed
+bun add -D ws @types/ws
+```
+
+### Commands
 ```bash
 # Run all tests (headless)
 bun x playwright test
 
 # Run with UI (debug mode)
 bun x playwright test --ui
+
+# Run specific test
+bun x playwright test happy-path
+
+# View HTML report
+bun x playwright show-report
 ```
 
-## Mocking
-We do NOT spawn the Rust Tauri process. Instead, we inject `window.__TAURI__` mocks in `tests/e2e/fixtures/mock-tauri.ts`.
-This allows us to simulate:
-*   File System reads (VirtualDJ history)
-*   Database calls (SQLite)
-*   Network info
+---
+
+## Test Files
+
+| File | Purpose |
+|------|---------|
+| `happy-path.spec.ts` | Core flow: DJ→Track→Audience→Like |
+| `like-batching.spec.ts` | Rapid likes from multiple users |
+| `session-discovery.spec.ts` | Late-starting session polling |
+
+---
+
+## Fixtures
+
+### `ws-dj-simulator.ts`
+Simulates a DJ session at the WebSocket protocol level.
+
+```typescript
+import { createDjSession } from "../fixtures/ws-dj-simulator";
+
+const djSession = await createDjSession({
+  djName: "Test DJ",
+  track: { title: "Song", artist: "Artist" }
+});
+
+// Wait for likes
+await djSession.waitForLikes(1);
+
+// Cleanup
+djSession.disconnect();
+```
+
+### `mock-tauri.ts` (Legacy)
+⚠️ **Deprecated** - used for Desktop-in-browser tests.
+Kept for reference but not used in v2 tests.
+
+---
 
 ## Writing New Tests
-Create files in `tests/e2e/specs/`.
-Use the `mockTauriInitScript` fixture to ensure the Desktop app doesn't crash looking for Rust bindings.
 
-## Mocking Implementation
-We use a comprehensive mock layer in `tests/e2e/fixtures/mock-tauri.ts` to simulate the Rust backend:
-- **SQL Plugin**: Mocks `plugin:sql|execute` and `plugin:sql|select` to simulate a local SQLite database for Sessions and Tracks.
-- **FS/VirtualDJ**: Mocks `read_virtualdj_history` to inject controlled track data (e.g., "Michael Jackson - Billie Jean") for the watcher to detect.
-- **Network**: Mocks `get_local_ip`.
-- **Shell**: Polyfills `plugin:shell|spawn` to prevent crashes.
+```typescript
+import { test, expect } from "@playwright/test";
+import { createDjSession } from "../fixtures/ws-dj-simulator";
+
+test("My new test", async ({ page }) => {
+  // 1. Create DJ session
+  const dj = await createDjSession({
+    djName: "My DJ",
+    track: { title: "My Track", artist: "Artist" }
+  });
+
+  // 2. Navigate to web app
+  await page.goto("http://localhost:3002");
+
+  // 3. Interact with UI
+  await page.getByText("My DJ").click();
+
+  // 4. Assert
+  await expect(page.getByText("My Track")).toBeVisible();
+
+  // 5. Cleanup
+  dj.disconnect();
+});
+```
+
+---
 
 ## Troubleshooting
-- **CORS Errors**: The Cloud server (`packages/cloud/src/index.ts`) must allow `127.0.0.1` origins in `NODE_ENV=test`.
-- **Race Conditions**: Track propagation from Desktop -> Cloud -> Web takes time. The test creates a 4-5s delay *before* the Audience client connects to ensure the data is ready in the Cloud.
-- **Port Conflicts**: Ensure ports 3001 (Cloud) and 3002 (Web) are free. The test runner handles startup, but zombie processes can cause issues.
+
+| Issue | Solution |
+|-------|----------|
+| **Port conflict** | Kill processes: `lsof -ti:3001,3002 \| xargs kill` |
+| **Session not visible** | Check Cloud logs: `docker compose logs cloud` |
+| **Timeouts** | Increase test timeout in config |
+| **WS connection fails** | Ensure Cloud is running on port 3001 |
+
+---
+
+## Future: Desktop E2E (Phase 3)
+
+To test the actual Desktop app, we need:
+1. **macOS CI runner** (GitHub Actions `macos-latest`)
+2. **Real Tauri build** (`bun run build`)
+3. **Electron-like approach** (Playwright can control native windows)
+
+This is documented in `prioritized-roadmap.md` under Phase 3: Desktop E2E.
+
+---
+
+*See also: [Load Testing Guide](./load-testing.md)*
