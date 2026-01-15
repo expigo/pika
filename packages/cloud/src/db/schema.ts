@@ -59,9 +59,6 @@ export const playedTracks = pgTable("played_tracks", {
     .references(() => sessions.id),
   artist: text("artist").notNull(),
   title: text("title").notNull(),
-  // Raw metadata for reference
-  rawArtist: text("raw_artist"),
-  rawTitle: text("raw_title"),
   // Core metrics
   bpm: integer("bpm"),
   key: text("key"),
