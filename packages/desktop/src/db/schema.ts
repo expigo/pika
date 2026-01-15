@@ -138,3 +138,18 @@ export const offlineQueue = sqliteTable("offline_queue", {
   /** Unix timestamp when message was queued */
   createdAt: int("created_at").notNull(),
 });
+
+// ============================================================================
+// Settings Table - App Configuration
+// ============================================================================
+
+export const settings = sqliteTable("settings", {
+  /** Setting key (e.g., "analysis.onTheFly") */
+  key: text("key").primaryKey(),
+
+  /** Setting value as JSON string */
+  value: text("value").notNull(),
+
+  /** Unix timestamp when setting was last updated */
+  updatedAt: int("updated_at").notNull(),
+});

@@ -1,5 +1,5 @@
 import { PIKA_VERSION } from "@pika/shared";
-import { Calendar, LayoutGrid, Maximize2 } from "lucide-react";
+import { Calendar, LayoutGrid, Maximize2, Settings as SettingsIcon } from "lucide-react";
 import { Toaster } from "sonner";
 import { AnalyzerStatus } from "./components/AnalyzerStatus";
 import { LibraryBrowser } from "./components/LibraryBrowser";
@@ -8,6 +8,7 @@ import { LiveControl } from "./components/LiveControl";
 import { LivePerformanceMode } from "./components/LivePerformanceMode";
 import { Logbook } from "./components/Logbook";
 import { SetCanvas } from "./components/SetCanvas";
+import { Settings } from "./components/Settings";
 import { getStoredSettings, useDjSettings } from "./hooks/useDjSettings";
 import { useLiveSession } from "./hooks/useLiveSession";
 import { useSidecar } from "./hooks/useSidecar";
@@ -51,6 +52,7 @@ function App() {
   const [viewMode, setViewMode] = useState<ViewMode>("builder");
   const [tokenInput, setTokenInput] = useState(getStoredSettings().authToken || "");
   const [localIp, setLocalIp] = useState<string | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   // Fetch local IP once on mount
   useEffect(() => {
@@ -147,8 +149,29 @@ function App() {
           <div style={styles.toolbarDivider} />
           <LibraryImporter onImportComplete={refreshTracks} />
           <AnalyzerStatus baseUrl={baseUrl} onComplete={refreshTracks} />
+          <button
+            type="button"
+            onClick={() => setIsSettingsOpen(true)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.25rem",
+              padding: "0.5rem",
+              background: "transparent",
+              border: "1px solid #334155",
+              borderRadius: "6px",
+              color: "#94a3b8",
+              cursor: "pointer",
+            }}
+            title="Settings"
+          >
+            <SettingsIcon size={16} />
+          </button>
         </div>
       </header>
+
+      {/* Settings Modal */}
+      <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
 
       {/* Status Banner */}
       {status !== "ready" && status !== "browser" && (
