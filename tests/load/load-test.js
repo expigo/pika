@@ -76,134 +76,138 @@ export default function () {
   const clientId = `load-dancer-${__VU}-${__ITER}`;
   let connected = false;
 
-  const res = ws.connect(WS_URL, {}, function (socket) {
-    socket.on("open", () => {
-      connected = true;
-      connectionSuccess.add(1);
+  const res = ws.connect(
+    WS_URL,
+    { headers: { "X-Pika-Client": "pika-load-test" } },
+    function (socket) {
+      socket.on("open", () => {
+        connected = true;
+        connectionSuccess.add(1);
 
-      // Subscribe to session (message type must be "SUBSCRIBE" to register as listener)
-      const subscribeMsg = JSON.stringify({
-        type: "SUBSCRIBE",
-        sessionId: SESSION_ID,
-        clientId: clientId,
+        // Subscribe to session (message type must be "SUBSCRIBE" to register as listener)
+        const subscribeMsg = JSON.stringify({
+          type: "SUBSCRIBE",
+          sessionId: SESSION_ID,
+          clientId: clientId,
+        });
+        socket.send(subscribeMsg);
+        messagesSent.add(1);
       });
-      socket.send(subscribeMsg);
-      messagesSent.add(1);
-    });
 
-    socket.on("message", (data) => {
-      try {
-        const msg = JSON.parse(data);
-        messagesReceived.add(1);
+      socket.on("message", (data) => {
+        try {
+          const msg = JSON.parse(data);
+          messagesReceived.add(1);
 
-        // Calculate latency if server includes timestamp
-        if (msg.serverTime) {
-          const latency = Date.now() - msg.serverTime;
-          if (latency > 0 && latency < 60000) {
-            // Sanity check
-            messageLatency.add(latency);
+          // Calculate latency if server includes timestamp
+          if (msg.serverTime) {
+            const latency = Date.now() - msg.serverTime;
+            if (latency > 0 && latency < 60000) {
+              // Sanity check
+              messageLatency.add(latency);
+            }
           }
-        }
 
-        // Simulate dancer behavior based on message type
-        switch (msg.type) {
-          case "NOW_PLAYING":
-            // 50% chance to like the track
-            if (Math.random() < 0.5 && msg.track) {
-              sleep(Math.random() * 2); // Random delay 0-2s
-              socket.send(
-                JSON.stringify({
-                  type: "SEND_LIKE",
-                  payload: {
-                    track: {
-                      title: msg.track.title || "Unknown",
-                      artist: msg.track.artist || "Unknown",
+          // Simulate dancer behavior based on message type
+          switch (msg.type) {
+            case "NOW_PLAYING":
+              // 50% chance to like the track
+              if (Math.random() < 0.5 && msg.track) {
+                sleep(Math.random() * 2); // Random delay 0-2s
+                socket.send(
+                  JSON.stringify({
+                    type: "SEND_LIKE",
+                    payload: {
+                      track: {
+                        title: msg.track.title || "Unknown",
+                        artist: msg.track.artist || "Unknown",
+                      },
                     },
-                  },
-                }),
-              );
-              messagesSent.add(1);
-            }
+                  }),
+                );
+                messagesSent.add(1);
+              }
 
-            // 60% chance to vote on tempo (slower/perfect/faster)
-            if (Math.random() < 0.6) {
-              sleep(Math.random() * 10); // Random delay 0-10s (thinking time)
-              const tempoOptions = ["slower", "perfect", "faster"];
-              const randomTempo = tempoOptions[Math.floor(Math.random() * tempoOptions.length)];
-              socket.send(
-                JSON.stringify({
-                  type: "SEND_TEMPO_REQUEST",
-                  sessionId: SESSION_ID,
-                  preference: randomTempo,
-                }),
-              );
-              messagesSent.add(1);
-            }
-            break;
+              // 60% chance to vote on tempo (slower/perfect/faster)
+              if (Math.random() < 0.6) {
+                sleep(Math.random() * 10); // Random delay 0-10s (thinking time)
+                const tempoOptions = ["slower", "perfect", "faster"];
+                const randomTempo = tempoOptions[Math.floor(Math.random() * tempoOptions.length)];
+                socket.send(
+                  JSON.stringify({
+                    type: "SEND_TEMPO_REQUEST",
+                    sessionId: SESSION_ID,
+                    preference: randomTempo,
+                  }),
+                );
+                messagesSent.add(1);
+              }
+              break;
 
-          case "POLL_STARTED":
-            // 80% participate in polls
-            if (Math.random() < 0.8 && msg.options?.length > 0) {
-              sleep(Math.random() * 5); // Random delay 0-5s
-              const randomOptionIndex = Math.floor(Math.random() * msg.options.length);
-              socket.send(
-                JSON.stringify({
-                  type: "VOTE_ON_POLL",
-                  pollId: msg.pollId,
-                  optionIndex: randomOptionIndex,
-                  clientId: clientId,
-                }),
-              );
-              messagesSent.add(1);
-            }
-            break;
+            case "POLL_STARTED":
+              // 80% participate in polls
+              if (Math.random() < 0.8 && msg.options?.length > 0) {
+                sleep(Math.random() * 5); // Random delay 0-5s
+                const randomOptionIndex = Math.floor(Math.random() * msg.options.length);
+                socket.send(
+                  JSON.stringify({
+                    type: "VOTE_ON_POLL",
+                    pollId: msg.pollId,
+                    optionIndex: randomOptionIndex,
+                    clientId: clientId,
+                  }),
+                );
+                messagesSent.add(1);
+              }
+              break;
 
-          case "THANK_YOU_TRIGGER":
-            // Simulate "Thank You" storm - 80% send thanks
-            if (Math.random() < 0.8) {
-              sleep(Math.random() * 2); // Burst within 2s
-              socket.send(
-                JSON.stringify({
-                  type: "SEND_REACTION",
-                  sessionId: SESSION_ID,
-                  reaction: "thank_you",
-                }),
-              );
-              messagesSent.add(1);
-            }
-            break;
+            case "THANK_YOU_TRIGGER":
+              // Simulate "Thank You" storm - 80% send thanks
+              if (Math.random() < 0.8) {
+                sleep(Math.random() * 2); // Burst within 2s
+                socket.send(
+                  JSON.stringify({
+                    type: "SEND_REACTION",
+                    sessionId: SESSION_ID,
+                    reaction: "thank_you",
+                  }),
+                );
+                messagesSent.add(1);
+              }
+              break;
+          }
+        } catch (e) {
+          console.error("Failed to parse message:", e);
         }
-      } catch (e) {
-        console.error("Failed to parse message:", e);
-      }
-    });
+      });
 
-    socket.on("error", (e) => {
-      console.error(`[VU ${__VU}] WebSocket error:`, e);
-      connectionErrors.add(1);
-      if (!connected) {
-        connectionSuccess.add(0);
-      }
-    });
+      socket.on("error", (e) => {
+        console.error(`[VU ${__VU}] WebSocket error:`, e);
+        connectionErrors.add(1);
+        if (!connected) {
+          connectionSuccess.add(0);
+        }
+      });
 
-    socket.on("close", () => {
-      // Normal close
-    });
+      socket.on("close", () => {
+        // Normal close
+      });
 
-    // Keep connection alive for the scenario duration
-    // The actual duration is controlled by K6 stages
-    socket.setTimeout(
-      () => {
-        socket.close();
-      },
-      scenarios[SCENARIO].stages.reduce((acc, s) => {
-        const duration = parseInt(s.duration);
-        const unit = s.duration.replace(/[0-9]/g, "");
-        const ms = unit === "m" ? duration * 60000 : duration * 1000;
-        return acc + ms;
-      }, 0),
-    );
-  });
+      // Keep connection alive for the scenario duration
+      // The actual duration is controlled by K6 stages
+      socket.setTimeout(
+        () => {
+          socket.close();
+        },
+        scenarios[SCENARIO].stages.reduce((acc, s) => {
+          const duration = parseInt(s.duration);
+          const unit = s.duration.replace(/[0-9]/g, "");
+          const ms = unit === "m" ? duration * 60000 : duration * 1000;
+          return acc + ms;
+        }, 0),
+      );
+    },
+  );
 
   check(res, {
     "WebSocket connected": (r) => r && r.status === 101,
