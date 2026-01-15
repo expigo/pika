@@ -51,6 +51,7 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **Split Cloud Backend** | Architecture | 5 | **HIGH** | `index.ts` is 2100+ lines. Split into `routes/auth.ts`, `routes/session.ts`, `services/broadcast.ts`. |
 | **Decompose useLiveSession** | Maintainability | 4 | **MED** | 877-line hook should be split into smaller custom hooks. |
 | **Add E2E Tests** | Quality | 6 | **DONE** | Validated "Happy Path" with Playwright hybrid suite. |
+| **Load Testing** | Reliability | 4 | **DONE** | 300 VUs verified on staging. Max ~1,000 dancers on 4GB VPS. |
 | **WebSocket Message Tests** | Reliability | 3 | **MED** | Test Zod schema parsing and edge cases. |
 
 

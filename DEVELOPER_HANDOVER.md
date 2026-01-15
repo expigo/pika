@@ -171,6 +171,7 @@ pika/
 *   **CI/CD:** Automated deployment, cross-platform builds, staging environment.
 *   **Testing:** Playwright E2E suite covers critical "Go Live" path.
 *   **Security:** CSP, CSRF, rate limiting all implemented.
+*   **Capacity:** Load tested 300 VUs, verified for ~1,000 concurrent dancers.
 
 ### Areas for Improvement
 | Observation | Impact | Recommendation |
