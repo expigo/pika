@@ -3,7 +3,7 @@
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
 **Current Focus:** BPM Pipeline Complete
-**Status:** Feature Branch (v0.1.7-dev on `feat/bpm-pipeline`)
+**Status:** Release v0.1.10
 
 ---
 
