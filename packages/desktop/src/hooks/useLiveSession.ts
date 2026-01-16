@@ -4,6 +4,7 @@ import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
 import { create } from "zustand";
 import { sessionRepository } from "../db/repositories/sessionRepository";
+import { settingsRepository } from "../db/repositories/settingsRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
 import { enqueueForAnalysis } from "../services/progressiveAnalysisService";
 import { type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "../services/virtualDjWatcher";
@@ -811,32 +812,35 @@ export function useLiveSession() {
     // Stop watcher
     virtualDjWatcher.stopWatching();
 
-    // Sync fingerprint data to Cloud before ending
+    // Sync fingerprint data to Cloud before ending (if enabled)
     if (currentDbSessionId && currentSessionId) {
-      try {
-        console.log("[Live] Syncing fingerprints to Cloud...");
-        const tracks = await trackRepository.getSessionTracksWithFingerprints(currentDbSessionId);
+      const syncEnabled = await settingsRepository.get("analysis.afterSession");
+      if (syncEnabled) {
+        try {
+          console.log("[Live] Syncing fingerprints to Cloud...");
+          const tracks = await trackRepository.getSessionTracksWithFingerprints(currentDbSessionId);
 
-        if (tracks.length > 0) {
-          const { apiUrl } = getConfiguredUrls();
-          const response = await fetch(
-            `${apiUrl}/api/session/${currentSessionId}/sync-fingerprints`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ tracks }),
-            },
-          );
+          if (tracks.length > 0) {
+            const { apiUrl } = getConfiguredUrls();
+            const response = await fetch(
+              `${apiUrl}/api/session/${currentSessionId}/sync-fingerprints`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tracks }),
+              },
+            );
 
-          if (response.ok) {
-            const result = await response.json();
-            console.log(`[Live] Synced fingerprints: ${result.synced}/${result.total} tracks`);
-          } else {
-            console.error("[Live] Failed to sync fingerprints:", response.status);
+            if (response.ok) {
+              const result = await response.json();
+              console.log(`[Live] Synced fingerprints: ${result.synced}/${result.total} tracks`);
+            } else {
+              console.error("[Live] Failed to sync fingerprints:", response.status);
+            }
           }
+        } catch (e) {
+          console.error("[Live] Error syncing fingerprints:", e);
         }
-      } catch (e) {
-        console.error("[Live] Error syncing fingerprints:", e);
       }
     }
 
