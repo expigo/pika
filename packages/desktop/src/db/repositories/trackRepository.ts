@@ -398,6 +398,59 @@ export const trackRepository = {
       })),
     };
   },
+
+  /**
+   * Get all tracks played in a session with their fingerprint data
+   * Used for syncing analysis data to Cloud at session end
+   */
+  async getSessionTracksWithFingerprints(sessionId: number): Promise<
+    Array<{
+      artist: string;
+      title: string;
+      bpm: number | null;
+      key: string | null;
+      energy: number | null;
+      danceability: number | null;
+      brightness: number | null;
+      acousticness: number | null;
+      groove: number | null;
+    }>
+  > {
+    const sqlite = await getSqlite();
+
+    interface SessionTrackRow {
+      artist: string;
+      title: string;
+      bpm: number | null;
+      key: string | null;
+      energy: number | null;
+      danceability: number | null;
+      brightness: number | null;
+      acousticness: number | null;
+      groove: number | null;
+    }
+
+    const result = await sqlite.select<SessionTrackRow[]>(
+      `
+      SELECT DISTINCT
+        t.artist,
+        t.title,
+        t.bpm,
+        t.key,
+        t.energy,
+        t.danceability,
+        t.brightness,
+        t.acousticness,
+        t.groove
+      FROM session_plays sp
+      JOIN tracks t ON sp.track_id = t.id
+      WHERE sp.session_id = ?
+    `,
+      [sessionId],
+    );
+
+    return result;
+  },
 };
 
 // Track play history interface
