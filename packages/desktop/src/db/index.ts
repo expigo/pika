@@ -163,6 +163,15 @@ async function initializeDb(): Promise<void> {
             );
         `);
 
+    // Create settings table (Phase 2 BPM Pipeline)
+    await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+        `);
+
     console.log("Database initialized successfully");
   } catch (e) {
     console.error("Failed to initialize database:", e);

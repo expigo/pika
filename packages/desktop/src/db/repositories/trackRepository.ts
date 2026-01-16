@@ -442,9 +442,9 @@ export const trackRepository = {
         t.brightness,
         t.acousticness,
         t.groove
-      FROM session_plays sp
-      JOIN tracks t ON sp.track_id = t.id
-      WHERE sp.session_id = ?
+      FROM plays p
+      JOIN tracks t ON p.track_id = t.id
+      WHERE p.session_id = ?
     `,
       [sessionId],
     );
