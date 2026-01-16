@@ -22,10 +22,11 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Pre-warm on launch** | Sidecar spawns on App mount | ✅ Done |
 | **VDJ fallback** | `lookup_vdj_track_metadata` for BPM/key | ✅ Done |
 | **Batch before gig** | AnalyzerStatus.tsx "Start Analysis" | ✅ Done |
-| **CPU priority** | Set sidecar to low priority | ❌ TODO |
-| **Skip live analysis** | Don't analyze during performance | ❌ TODO (Settings) |
+| **CPU priority** | `analysis.cpuPriority` setting (0s/1s/3s delay) | ✅ Done |
+| **Skip live analysis** | `analysis.onTheFly` toggle in Settings | ✅ Done |
 | **60s sample limit** | Only analyze first minute | ✅ Done |
 | **Lower sample rate** | 22050 Hz instead of 44100 | ✅ Done |
+| **Performance logging** | Timing logs in Python sidecar | ✅ Done |
 
 ### Dangerous Operations (Avoid!)
 
@@ -73,7 +74,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 |----------|---------------|--------|
 | **Offline queue** | SQLite `offline_queue` table | ✅ Done |
 | **Heartbeat monitor** | Reconnect on disconnect | ✅ Done |
-| **Batch sync** | POST all tracks at session end | ❌ TODO (Phase 4) |
+| **Batch sync** | POST fingerprints at session end | ✅ Done |
 
 ---
 
@@ -94,6 +95,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Virtualized lists** | Only render visible rows | ❌ TODO (LibraryBrowser) |
 | **Debounced search** | 200ms delay on keystrokes | ✅ Done |
 | **Progress indicators** | Analysis shows current track | ✅ Done |
+| **Pause/Resume** | Analyzer can be paused mid-batch | ✅ Done |
 
 ---
 
@@ -121,5 +123,6 @@ This document tracks performance considerations, bottlenecks, and optimization s
 
 | Date | Change |
 |------|--------|
+| 2026-01-16 | Added CPU priority, skip live analysis, pause/resume, batch sync |
 | 2026-01-15 | Initial document, O(log n) track lookup refactor |
 | 2026-01-15 | Added audio analysis pipeline section |

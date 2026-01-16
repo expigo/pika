@@ -2,8 +2,8 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** [MVP Launch Prep](projects/mvp-launch.md)
-**Status:** Launch Candidate (v0.1.6)
+**Current Focus:** BPM Pipeline Complete
+**Status:** Feature Branch (v0.1.7-dev on `feat/bpm-pipeline`)
 
 ---
 
@@ -13,11 +13,10 @@ This is the central index for the Pika! project, tracking active development, fu
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
     *   Status: **Launch Ready** (Security Hardened)
-    *   **Current Priorities (Jan 2026 Audit):**
-        *   ✅ Security: CORS Hardening (Restricted to pika.stream).
-        *   ✅ Security: Rate Limiting on Auth Endpoints.
-        *   Code Quality: Split monolithic cloud backend (2100+ lines).
-        *   Testing: Add E2E tests for critical paths.
+    *   **Recent Completions (Jan 16, 2026):**
+        *   ✅ BPM Pipeline: Settings Panel, Analysis Modes, Schema Versioning
+        *   ✅ Performance: CPU Priority delays, Pause/Resume analysis
+        *   ✅ Cloud Sync: Post-session fingerprint sync, Refresh Recap button
 
 ---
 
@@ -25,7 +24,9 @@ This is the central index for the Pika! project, tracking active development, fu
 *   [**Authentication**](architecture/auth-system.md) - DJ accounts, token management, security.
 *   [**Security**](architecture/security.md) - Threat model, vulnerabilities, remediation plans.
 *   [**Deployment**](architecture/deployment.md) - VPS, Cloudflare Tunnel, CI/CD, Docker.
-*   [**Audio Analysis**](architecture/audio-analysis.md) - Local Python sidecar, librosa integration.
+*   [**Audio Analysis**](architecture/audio-analysis.md) - Local Python sidecar, librosa integration, settings.
+*   [**Schema Versioning**](architecture/schema-versioning.md) - Track analysis versioning for re-analysis.
+*   [**Performance Guide**](architecture/performance-guide.md) - Optimization strategies and bottlenecks.
 *   [**Social Signals**](architecture/social-signals.md) - Likes, Votes, Listener Counts.
 *   [**Logbook Data**](architecture/logbook-data.md) - Session history, Cloud analytics.
 
