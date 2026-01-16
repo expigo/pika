@@ -147,40 +147,24 @@ pub struct HistoryTrack {
 }
 
 #[tauri::command]
-fn read_virtualdj_history() -> Result<Option<HistoryTrack>, String> {
-    // Determine home directory securely across OS
-    let home = std::env::var("HOME")
-        .or_else(|_| std::env::var("USERPROFILE"))
-        .map_err(|_| "Could not determine home directory".to_string())?;
-
-    let path = std::path::PathBuf::from(&home);
-
-    // Potential history locations (Priority order)
-    let candidates = vec![
-        // 1. Standard Documents location (Windows & macOS Modern)
-        path.join("Documents").join("VirtualDJ").join("History"),
-        
-        // 2. macOS Legacy / Root location
-        path.join("Library").join("Application Support").join("VirtualDJ").join("History"),
-    ];
-
-    // Find first existing directory
-    let history_dir = candidates.into_iter()
-        .find(|p| p.exists())
-        .ok_or_else(|| "VirtualDJ History folder not found".to_string())?;
-
-    println!("[VDJ] Reading history from: {:?}", history_dir);
-    
-    // Find the most recently modified .m3u file
-    // This handles the "midnight crossover" where VDJ might keep writing to yesterday's file,
-    // or conversely, if the system date changes but we want the actual active file.
-    let history_path = std::fs::read_dir(&history_dir)
-        .map_err(|e| format!("Failed to read history directory: {}", e))?
-        .filter_map(|entry| entry.ok())
-        .map(|entry| entry.path())
-        .filter(|path| path.is_file() && path.extension().map_or(false, |ext| ext == "m3u"))
-        .max_by_key(|path| std::fs::metadata(path).and_then(|m| m.modified()).ok())
-        .ok_or_else(|| "No history files found".to_string())?;
+fn read_virtualdj_history(custom_path: Option<String>) -> Result<Option<HistoryTrack>, String> {
+    // If custom path is provided and not "auto", use it directly
+    let history_path = if let Some(ref path_str) = custom_path {
+        if path_str != "auto" && !path_str.is_empty() {
+            let custom = std::path::PathBuf::from(path_str);
+            if custom.exists() {
+                println!("[VDJ] Using custom history path: {:?}", custom);
+                custom
+            } else {
+                println!("[VDJ] Custom path not found, falling back to auto-detect: {:?}", custom);
+                find_latest_history_file()?
+            }
+        } else {
+            find_latest_history_file()?
+        }
+    } else {
+        find_latest_history_file()?
+    };
     
     // Read the file
     let content = match std::fs::read_to_string(&history_path) {
@@ -225,6 +209,43 @@ fn read_virtualdj_history() -> Result<Option<HistoryTrack>, String> {
         file_path,
         timestamp,
     }))
+}
+
+/// Find the latest VDJ history file using auto-detection
+fn find_latest_history_file() -> Result<std::path::PathBuf, String> {
+    // Determine home directory securely across OS
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "Could not determine home directory".to_string())?;
+
+    let path = std::path::PathBuf::from(&home);
+
+    // Potential history locations (Priority order)
+    let candidates = vec![
+        // 1. Standard Documents location (Windows & macOS Modern)
+        path.join("Documents").join("VirtualDJ").join("History"),
+        
+        // 2. macOS Legacy / Root location
+        path.join("Library").join("Application Support").join("VirtualDJ").join("History"),
+    ];
+
+    // Find first existing directory
+    let history_dir = candidates.into_iter()
+        .find(|p| p.exists())
+        .ok_or_else(|| "VirtualDJ History folder not found".to_string())?;
+
+    println!("[VDJ] Reading history from: {:?}", history_dir);
+    
+    // Find the most recently modified .m3u file
+    let history_path = std::fs::read_dir(&history_dir)
+        .map_err(|e| format!("Failed to read history directory: {}", e))?
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.is_file() && path.extension().map_or(false, |ext| ext == "m3u"))
+        .max_by_key(|path| std::fs::metadata(path).and_then(|m| m.modified()).ok())
+        .ok_or_else(|| "No history files found".to_string())?;
+    
+    Ok(history_path)
 }
 
 /// Metadata returned from VDJ database lookup (for ghost tracks)
