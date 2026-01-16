@@ -1,4 +1,5 @@
 import { useAnalyzer } from "../hooks/useAnalyzer";
+import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 
 interface Props {
   baseUrl: string | null;
@@ -19,12 +20,16 @@ export function AnalyzerStatus({ baseUrl, onComplete }: Props) {
     resumeAnalysis,
   } = useAnalyzer();
 
+  const { triggerRefresh } = useLibraryRefresh();
+
   const handleStart = async () => {
     if (!baseUrl) {
       console.error("No base URL available for analysis");
       return;
     }
     await startAnalysis(baseUrl);
+    // Refresh library to show updated analysis data
+    triggerRefresh();
     onComplete?.();
   };
 

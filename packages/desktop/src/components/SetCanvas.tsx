@@ -27,6 +27,7 @@ import {
 import { useMemo, useState } from "react";
 import type { Track } from "../db/repositories/trackRepository";
 import { useAnalyzer } from "../hooks/useAnalyzer";
+import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 import { getSetStats, useSetStore } from "../hooks/useSetBuilder";
 import { useSidecar } from "../hooks/useSidecar";
 import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
@@ -126,6 +127,7 @@ export function SetCanvas() {
   const stats = useMemo(() => getSetStats(activeSet), [activeSet]);
   const { baseUrl } = useSidecar();
   const { isAnalyzing, startSetAnalysis, progress, totalToAnalyze } = useAnalyzer();
+  const { triggerRefresh: triggerLibraryRefresh } = useLibraryRefresh();
   const [isAnalyzingSet, setIsAnalyzingSet] = useState(false);
 
   // Calculate average fingerprint metrics for the set
@@ -194,6 +196,8 @@ export function SetCanvas() {
                   await startSetAnalysis(baseUrl, unanalyzedIds);
                   // Refresh tracks to get updated analysis data
                   await refreshTracks();
+                  // Also refresh the library view
+                  triggerLibraryRefresh();
                   setIsAnalyzingSet(false);
                 }}
                 disabled={!baseUrl || isAnalyzing}

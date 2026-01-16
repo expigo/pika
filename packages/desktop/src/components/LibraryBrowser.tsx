@@ -16,6 +16,7 @@ import {
   History,
   Music,
   Plus,
+  RefreshCw,
   Search,
   Trash2,
   X,
@@ -34,16 +35,19 @@ import { useSidecar } from "../hooks/useSidecar";
 import { toCamelot } from "../utils/transitionEngine";
 import { SmartCrate } from "./SmartCrate";
 import { TrackFingerprint } from "./TrackFingerprint";
+import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 
 type SortKey = "artist" | "title" | "bpm" | "key" | "energy" | "analyzed" | "duration";
 type SortDirection = "asc" | "desc";
 type BpmFilter = "all" | "slow" | "medium" | "fast";
 
 interface Props {
-  refreshTrigger?: number;
+  refreshTrigger?: number; // Deprecated - now uses global store
 }
 
-export function LibraryBrowser({ refreshTrigger }: Props) {
+export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
+  // Use global refresh trigger from store
+  const { refreshTrigger, triggerRefresh } = useLibraryRefresh();
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -447,6 +451,15 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
             }}
           >
             <Filter size={16} />
+          </button>
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={triggerRefresh}
+            style={styles.filterToggle}
+            title="Refresh library"
+          >
+            <RefreshCw size={16} />
           </button>
         </div>
       </div>
