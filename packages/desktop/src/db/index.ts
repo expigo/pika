@@ -64,6 +64,16 @@ async function initializeDb(): Promise<void> {
       // Column already exists, ignore error
     }
 
+    // Migration: Add analysis_version column for re-analysis support
+    try {
+      await sqliteInstance.execute(
+        `ALTER TABLE tracks ADD COLUMN analysis_version INTEGER DEFAULT 0;`,
+      );
+      console.log("Migration: Added analysis_version column to tracks table");
+    } catch {
+      // Column already exists, ignore error
+    }
+
     // Backfill track_key for existing tracks
     try {
       const tracksWithoutKey = await sqliteInstance.select<
