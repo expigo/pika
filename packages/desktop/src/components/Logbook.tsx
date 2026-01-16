@@ -17,6 +17,7 @@ import {
   Heart,
   Link2,
   Music,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -29,6 +30,8 @@ import {
   type SessionDetails,
   sessionRepository,
 } from "../db/repositories/sessionRepository";
+import { trackRepository } from "../db/repositories/trackRepository";
+import { getConfiguredUrls } from "../hooks/useDjSettings";
 
 // ============================================================================
 // Helper Functions
@@ -151,6 +154,7 @@ export function Logbook() {
   const [loading, setLoading] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
   const [recapCopied, setRecapCopied] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Load all sessions and summary
   useEffect(() => {
@@ -210,6 +214,45 @@ export function Logbook() {
     setRecapCopied(true);
     toast.success("Recap link copied to clipboard!");
     setTimeout(() => setRecapCopied(false), 2000);
+  }, [sessionDetails]);
+
+  const handleRefreshAnalysis = useCallback(async () => {
+    if (!sessionDetails?.session.cloudSessionId || !sessionDetails.session.id) return;
+
+    setIsSyncing(true);
+    try {
+      // Get track fingerprints for this session
+      const tracks = await trackRepository.getSessionTracksWithFingerprints(
+        sessionDetails.session.id,
+      );
+
+      if (tracks.length === 0) {
+        toast.info("No tracks to sync in this session");
+        return;
+      }
+
+      const { apiUrl } = getConfiguredUrls();
+      const response = await fetch(
+        `${apiUrl}/api/session/${sessionDetails.session.cloudSessionId}/sync-fingerprints`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tracks }),
+        },
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(`Synced ${result.synced}/${result.total} tracks to Cloud`);
+      } else {
+        toast.error("Failed to sync fingerprints");
+      }
+    } catch (e) {
+      console.error("Error syncing fingerprints:", e);
+      toast.error("Failed to sync fingerprints");
+    } finally {
+      setIsSyncing(false);
+    }
   }, [sessionDetails]);
 
   const handleDeleteSession = useCallback(
@@ -480,15 +523,34 @@ export function Logbook() {
               <div style={styles.headerActions}>
                 {/* Recap Link Button (only if cloud session ID exists) */}
                 {sessionDetails.session.cloudSessionId && (
-                  <button
-                    type="button"
-                    onClick={handleCopyRecapLink}
-                    style={styles.recapButton}
-                    title="Copy public recap link"
-                  >
-                    {recapCopied ? <Check size={16} /> : <Link2 size={16} />}
-                    {recapCopied ? "Copied!" : "Recap Link"}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleCopyRecapLink}
+                      style={styles.recapButton}
+                      title="Copy public recap link"
+                    >
+                      {recapCopied ? <Check size={16} /> : <Link2 size={16} />}
+                      {recapCopied ? "Copied!" : "Recap Link"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRefreshAnalysis}
+                      disabled={isSyncing}
+                      style={{
+                        ...styles.refreshButton,
+                        opacity: isSyncing ? 0.6 : 1,
+                        cursor: isSyncing ? "wait" : "pointer",
+                      }}
+                      title="Re-sync analysis data to Cloud recap"
+                    >
+                      <RefreshCw
+                        size={16}
+                        style={isSyncing ? { animation: "spin 1s linear infinite" } : undefined}
+                      />
+                      {isSyncing ? "Syncing..." : "Refresh"}
+                    </button>
+                  </>
                 )}
                 <button type="button" onClick={handleExportCsv} style={styles.exportButton}>
                   <Download size={16} />
@@ -726,6 +788,19 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "0.5rem",
     padding: "0.625rem 1rem",
     background: "#3b82f6",
+    color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "0.875rem",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
+  refreshButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.625rem 1rem",
+    background: "#8b5cf6",
     color: "white",
     border: "none",
     borderRadius: "8px",
