@@ -122,7 +122,7 @@ function SortableTrackRow({ track, index, onRemove, transitionWarning }: Sortabl
 }
 
 export function SetCanvas() {
-  const { activeSet, removeTrack, reorderTracks, clearSet } = useSetStore();
+  const { activeSet, removeTrack, reorderTracks, clearSet, refreshTracks } = useSetStore();
   const stats = useMemo(() => getSetStats(activeSet), [activeSet]);
   const { baseUrl } = useSidecar();
   const { isAnalyzing, startSetAnalysis, progress, totalToAnalyze } = useAnalyzer();
@@ -192,6 +192,8 @@ export function SetCanvas() {
                   setIsAnalyzingSet(true);
                   const unanalyzedIds = activeSet.filter((t) => !t.analyzed).map((t) => t.id);
                   await startSetAnalysis(baseUrl, unanalyzedIds);
+                  // Refresh tracks to get updated analysis data
+                  await refreshTracks();
                   setIsAnalyzingSet(false);
                 }}
                 disabled={!baseUrl || isAnalyzing}

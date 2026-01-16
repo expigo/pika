@@ -1,7 +1,7 @@
 import { arrayMove } from "@dnd-kit/sortable";
 import { create } from "zustand";
 import { type SavedSet, savedSetRepository } from "../db/repositories/savedSetRepository";
-import type { Track } from "../db/repositories/trackRepository";
+import { type Track, trackRepository } from "../db/repositories/trackRepository";
 
 interface SetStore {
   // Current working set
@@ -17,6 +17,7 @@ interface SetStore {
   removeTrack: (id: number) => void;
   reorderTracks: (oldIndex: number, newIndex: number) => void;
   clearSet: () => void;
+  refreshTracks: () => Promise<void>; // Refresh track data from DB
 
   // Actions for save/load
   loadSavedSets: () => Promise<void>;
@@ -57,6 +58,28 @@ export const useSetStore = create<SetStore>((set, get) => ({
       currentSetId: null,
       currentSetName: null,
     }),
+
+  // Refresh track data from database (e.g., after analysis)
+  refreshTracks: async () => {
+    const { activeSet } = get();
+    if (activeSet.length === 0) return;
+
+    try {
+      const trackIds = activeSet.map((t) => t.id);
+      const freshTracks: Track[] = [];
+
+      for (const id of trackIds) {
+        const track = await trackRepository.getTrackById(id);
+        if (track) {
+          freshTracks.push(track);
+        }
+      }
+
+      set({ activeSet: freshTracks });
+    } catch (e) {
+      console.error("Failed to refresh tracks:", e);
+    }
+  },
 
   // Load list of saved sets
   loadSavedSets: async () => {
