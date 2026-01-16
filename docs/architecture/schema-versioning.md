@@ -54,4 +54,16 @@ When you improve the analysis algorithm:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 1 | 2026-01-16 | Initial versioning implementation |
+| 1 | 2026-01-16 | Initial versioning with: BPM, Key, Energy, Danceability, Brightness, Acousticness, Groove |
+
+### Version 1 Fields
+
+| Field | Type | Range | Description |
+|-------|------|-------|-------------|
+| `bpm` | float | 60-200 | Beats per minute |
+| `key` | string | "Am", "C#", etc. | Musical key with major/minor |
+| `energy` | float | 0-100 | Overall audio energy (loudness + dynamics) |
+| `danceability` | float | 0-100 | Beat strength + regularity |
+| `brightness` | float | 0-100 | High-frequency content |
+| `acousticness` | float | 0-100 | Acoustic vs electronic |
+| `groove` | float | 0-100 | Rhythmic variation/swing |

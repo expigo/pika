@@ -173,12 +173,17 @@ def analyze_audio_file(file_path: str) -> AnalysisResult:
     Returns:
         AnalysisResult with all core and fingerprint metrics.
     """
+    import time
+    start_time = time.time()
+    
     if not os.path.exists(file_path):
         return AnalysisResult(error=f"File not found: {file_path}")
 
     try:
         # Load the audio file
+        load_start = time.time()
         y, sr = librosa.load(file_path, duration=MAX_DURATION, sr=SAMPLE_RATE)
+        load_time = time.time() - load_start
         
         # Check for silence
         if np.max(np.abs(y)) < 0.01:
@@ -194,6 +199,9 @@ def analyze_audio_file(file_path: str) -> AnalysisResult:
         acousticness = calculate_acousticness(y, sr)
         danceability = calculate_danceability(y, sr)
         groove = calculate_groove(y, sr)
+
+        total_time = time.time() - start_time
+        print(f"[PERF] {os.path.basename(file_path)}: load={load_time:.1f}s, total={total_time:.1f}s", flush=True)
 
         return AnalysisResult(
             # Core
