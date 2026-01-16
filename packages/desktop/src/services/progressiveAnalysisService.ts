@@ -21,8 +21,7 @@ let isProcessing = false;
 let sidecarBaseUrl: string | null = null;
 let processingTimeout: ReturnType<typeof setTimeout> | null = null;
 
-// Delay between analyses to reduce CPU impact
-const DELAY_BETWEEN_ANALYSES_MS = 2000;
+// Delay is now dynamic based on CPU priority setting (see scheduleNextProcess)
 
 /**
  * Set the sidecar base URL (called from App when sidecar is ready)
@@ -125,9 +124,9 @@ async function processQueue() {
 }
 
 /**
- * Schedule the next queue processing with delay
+ * Schedule the next queue processing with delay based on CPU priority
  */
-function scheduleNextProcess() {
+async function scheduleNextProcess() {
   if (queue.length === 0) {
     return;
   }
@@ -137,11 +136,15 @@ function scheduleNextProcess() {
     clearTimeout(processingTimeout);
   }
 
+  // Get delay based on CPU priority setting
+  const priority = await settingsRepository.get("analysis.cpuPriority");
+  const delay = priority === "high" ? 0 : priority === "low" ? 3000 : 2000;
+
   // Schedule next processing with delay
   processingTimeout = setTimeout(() => {
     processingTimeout = null;
     processQueue();
-  }, DELAY_BETWEEN_ANALYSES_MS);
+  }, delay);
 }
 
 /**

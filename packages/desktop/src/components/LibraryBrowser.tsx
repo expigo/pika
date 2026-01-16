@@ -29,6 +29,7 @@ import {
   trackRepository,
 } from "../db/repositories/trackRepository";
 import { useSetStore } from "../hooks/useSetBuilder";
+import { useSettings } from "../hooks/useSettings";
 import { useSidecar } from "../hooks/useSidecar";
 import { toCamelot } from "../utils/transitionEngine";
 import { SmartCrate } from "./SmartCrate";
@@ -63,6 +64,8 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
   const addTrack = useSetStore((state) => state.addTrack);
   const activeSet = useSetStore((state) => state.activeSet);
   const { baseUrl: sidecarBaseUrl } = useSidecar();
+  const { settings } = useSettings();
+  const showAdvancedMetrics = settings["display.advancedMetrics"];
 
   // Single-track analysis state
   const [analyzingTrackId, setAnalyzingTrackId] = useState<number | null>(null);
@@ -709,24 +712,30 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                 <span style={styles.metaLabel}>Energy</span>
                 <span style={styles.metaValue}>{selectedTrack.energy?.toFixed(0) || "-"}</span>
               </div>
-              <div style={styles.metaItem}>
-                <span style={styles.metaLabel}>Danceability</span>
-                <span style={styles.metaValue}>
-                  {selectedTrack.danceability?.toFixed(0) || "-"}
-                </span>
-              </div>
+              {showAdvancedMetrics && (
+                <div style={styles.metaItem}>
+                  <span style={styles.metaLabel}>Danceability</span>
+                  <span style={styles.metaValue}>
+                    {selectedTrack.danceability?.toFixed(0) || "-"}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Two-column content: Fingerprint + Recommendations */}
             <div style={styles.modalContent}>
-              {/* Left: Fingerprint Visualization */}
+              {/* Left: Fingerprint Visualization (only if advanced metrics enabled) */}
               <div style={styles.fingerprintColumn}>
-                {hasFingerprint(selectedTrack) ? (
+                {showAdvancedMetrics && hasFingerprint(selectedTrack) ? (
                   <TrackFingerprint metrics={selectedTrack} size={250} />
                 ) : (
                   <div style={styles.noFingerprint}>
                     <Music size={48} style={{ opacity: 0.3 }} />
-                    <p>No analysis data</p>
+                    <p>
+                      {showAdvancedMetrics
+                        ? "No analysis data"
+                        : "Enable Advanced Metrics in Settings"}
+                    </p>
                   </div>
                 )}
               </div>

@@ -3,7 +3,8 @@
  * Allows users to configure app behavior.
  */
 
-import { AlertTriangle, Settings as SettingsIcon, X } from "lucide-react";
+import { open } from "@tauri-apps/plugin-dialog";
+import { AlertTriangle, FolderOpen, Settings as SettingsIcon, X } from "lucide-react";
 import { useState } from "react";
 import { type AppSettings, useSettings } from "../hooks/useSettings";
 
@@ -40,6 +41,30 @@ export function Settings({ isOpen, onClose }: Props) {
     if (confirm("Reset all settings to defaults?")) {
       await resetSettings();
     }
+  };
+
+  const handleBrowseVdjPath = async () => {
+    try {
+      const selected = await open({
+        multiple: false,
+        directory: false,
+        title: "Select VirtualDJ history.txt",
+        filters: [{ name: "Text Files", extensions: ["txt"] }],
+      });
+      if (selected && typeof selected === "string") {
+        setIsSaving(true);
+        await updateSetting("library.vdjPath", selected);
+        setIsSaving(false);
+      }
+    } catch (e) {
+      console.error("Error selecting VDJ path:", e);
+    }
+  };
+
+  const handleResetVdjPath = async () => {
+    setIsSaving(true);
+    await updateSetting("library.vdjPath", "auto");
+    setIsSaving(false);
   };
 
   return (
@@ -151,11 +176,68 @@ export function Settings({ isOpen, onClose }: Props) {
 
               {/* Library Section */}
               <Section title="📁 Library">
-                <div style={{ fontSize: "0.875rem", opacity: 0.7 }}>
-                  VDJ Database:{" "}
-                  {settings["library.vdjPath"] === "auto"
-                    ? "Auto-detect"
-                    : settings["library.vdjPath"]}
+                <div
+                  style={{
+                    padding: "0.75rem",
+                    background: "#0f172a",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <div style={{ fontWeight: 500, marginBottom: "0.5rem" }}>
+                    VirtualDJ Database Path
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.75rem",
+                      opacity: 0.6,
+                      marginBottom: "0.75rem",
+                      wordBreak: "break-all",
+                    }}
+                  >
+                    {settings["library.vdjPath"] === "auto"
+                      ? "Auto-detect (default)"
+                      : settings["library.vdjPath"]}
+                  </div>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      type="button"
+                      onClick={handleBrowseVdjPath}
+                      disabled={isSaving}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "0.25rem",
+                        padding: "0.5rem 0.75rem",
+                        background: "#3b82f6",
+                        border: "none",
+                        borderRadius: "6px",
+                        color: "white",
+                        cursor: "pointer",
+                        fontSize: "0.75rem",
+                      }}
+                    >
+                      <FolderOpen size={14} />
+                      Browse
+                    </button>
+                    {settings["library.vdjPath"] !== "auto" && (
+                      <button
+                        type="button"
+                        onClick={handleResetVdjPath}
+                        disabled={isSaving}
+                        style={{
+                          padding: "0.5rem 0.75rem",
+                          background: "transparent",
+                          border: "1px solid #475569",
+                          borderRadius: "6px",
+                          color: "#94a3b8",
+                          cursor: "pointer",
+                          fontSize: "0.75rem",
+                        }}
+                      >
+                        Reset to Auto
+                      </button>
+                    )}
+                  </div>
                 </div>
               </Section>
             </>
