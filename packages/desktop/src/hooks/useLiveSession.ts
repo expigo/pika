@@ -4,7 +4,9 @@ import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
 import { create } from "zustand";
 import { sessionRepository } from "../db/repositories/sessionRepository";
+import { settingsRepository } from "../db/repositories/settingsRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
+import { enqueueForAnalysis } from "../services/progressiveAnalysisService";
 import { type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "../services/virtualDjWatcher";
 import { getAuthToken, getConfiguredUrls, getDjName } from "./useDjSettings";
 
@@ -489,6 +491,11 @@ export function useLiveSession() {
             acousticness: result.trackInfo.acousticness ?? undefined,
             groove: result.trackInfo.groove ?? undefined,
           };
+
+          // Queue for progressive analysis if track lacks BPM
+          if (!result.trackInfo.bpm && track.filePath) {
+            enqueueForAnalysis(result.trackInfo.id, track.filePath);
+          }
         }
       } else {
         console.log(
@@ -804,6 +811,38 @@ export function useLiveSession() {
 
     // Stop watcher
     virtualDjWatcher.stopWatching();
+
+    // Sync fingerprint data to Cloud before ending (if enabled)
+    if (currentDbSessionId && currentSessionId) {
+      const syncEnabled = await settingsRepository.get("analysis.afterSession");
+      if (syncEnabled) {
+        try {
+          console.log("[Live] Syncing fingerprints to Cloud...");
+          const tracks = await trackRepository.getSessionTracksWithFingerprints(currentDbSessionId);
+
+          if (tracks.length > 0) {
+            const { apiUrl } = getConfiguredUrls();
+            const response = await fetch(
+              `${apiUrl}/api/session/${currentSessionId}/sync-fingerprints`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tracks }),
+              },
+            );
+
+            if (response.ok) {
+              const result = await response.json();
+              console.log(`[Live] Synced fingerprints: ${result.synced}/${result.total} tracks`);
+            } else {
+              console.error("[Live] Failed to sync fingerprints:", response.status);
+            }
+          }
+        } catch (e) {
+          console.error("[Live] Error syncing fingerprints:", e);
+        }
+      }
+    }
 
     // End database session
     if (currentDbSessionId) {

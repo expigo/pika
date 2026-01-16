@@ -64,6 +64,16 @@ async function initializeDb(): Promise<void> {
       // Column already exists, ignore error
     }
 
+    // Migration: Add analysis_version column for re-analysis support
+    try {
+      await sqliteInstance.execute(
+        `ALTER TABLE tracks ADD COLUMN analysis_version INTEGER DEFAULT 0;`,
+      );
+      console.log("Migration: Added analysis_version column to tracks table");
+    } catch {
+      // Column already exists, ignore error
+    }
+
     // Backfill track_key for existing tracks
     try {
       const tracksWithoutKey = await sqliteInstance.select<
@@ -160,6 +170,15 @@ async function initializeDb(): Promise<void> {
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 payload TEXT NOT NULL,
                 created_at INTEGER NOT NULL
+            );
+        `);
+
+    // Create settings table (Phase 2 BPM Pipeline)
+    await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY NOT NULL,
+                value TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
             );
         `);
 

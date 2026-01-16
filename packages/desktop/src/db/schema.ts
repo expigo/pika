@@ -27,6 +27,10 @@ export const tracks = sqliteTable("tracks", {
   // Analysis status
   analyzed: int("analyzed", { mode: "boolean" }).default(false),
 
+  // Analysis version - enables re-analysis when algorithm changes
+  // Tracks with version < CURRENT_ANALYSIS_VERSION need re-analysis
+  analysisVersion: int("analysis_version").default(0),
+
   // Two-Tier Track Key System
   trackKey: text("track_key"),
 });
@@ -137,4 +141,19 @@ export const offlineQueue = sqliteTable("offline_queue", {
 
   /** Unix timestamp when message was queued */
   createdAt: int("created_at").notNull(),
+});
+
+// ============================================================================
+// Settings Table - App Configuration
+// ============================================================================
+
+export const settings = sqliteTable("settings", {
+  /** Setting key (e.g., "analysis.onTheFly") */
+  key: text("key").primaryKey(),
+
+  /** Setting value as JSON string */
+  value: text("value").notNull(),
+
+  /** Unix timestamp when setting was last updated */
+  updatedAt: int("updated_at").notNull(),
 });

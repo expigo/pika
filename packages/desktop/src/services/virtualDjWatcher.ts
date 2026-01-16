@@ -1,5 +1,6 @@
 import type { TrackInfo } from "@pika/shared";
 import { invoke } from "@tauri-apps/api/core";
+import { settingsRepository } from "../db/repositories/settingsRepository";
 
 /**
  * Extended track info from VirtualDJ with additional metadata.
@@ -55,7 +56,12 @@ class VirtualDJWatcher {
    */
   async readLatestTrack(): Promise<NowPlayingTrack | null> {
     try {
-      const result = await invoke<HistoryTrack | null>("read_virtualdj_history");
+      // Get custom VDJ path from settings (may be "auto" or a file path)
+      const customPath = await settingsRepository.get("library.vdjPath");
+
+      const result = await invoke<HistoryTrack | null>("read_virtualdj_history", {
+        customPath: customPath,
+      });
 
       if (!result) {
         console.log("[VDJ Watcher] No track found in history");

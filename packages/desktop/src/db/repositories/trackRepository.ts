@@ -3,6 +3,11 @@ import { eq, type InferInsertModel, sql } from "drizzle-orm";
 import { db, getSqlite } from "../index";
 import { tracks } from "../schema";
 
+// Current analysis algorithm version
+// Increment this when the analysis algorithm changes significantly
+// Tracks with analysisVersion < CURRENT_ANALYSIS_VERSION need re-analysis
+export const CURRENT_ANALYSIS_VERSION = 1;
+
 // Type-safe insert model from schema (exclude ID for auto-increment)
 type NewTrack = Omit<InferInsertModel<typeof tracks>, "id">;
 
@@ -42,6 +47,9 @@ export interface Track {
 
   analyzed: boolean | null;
 
+  // Schema versioning for re-analysis support
+  analysisVersion: number | null;
+
   // Two-Tier Track Key System
   trackKey: string | null;
 }
@@ -62,6 +70,7 @@ const TRACK_SELECT_SQL = `
 		groove,
 		duration,
 		analyzed,
+		analysis_version as analysisVersion,
 		track_key as trackKey
 	FROM tracks
 `;
@@ -69,6 +78,7 @@ const TRACK_SELECT_SQL = `
 export const trackRepository = {
   async addTracks(tracksList: VirtualDJTrack[]) {
     const CHUNK_SIZE = 100;
+    const { getTrackKey } = await import("@pika/shared");
 
     // Process in chunks to avoid overwhelming the bridge/UI
     for (let i = 0; i < tracksList.length; i += CHUNK_SIZE) {
@@ -78,6 +88,8 @@ export const trackRepository = {
         filePath: t.file_path,
         artist: t.artist ?? null,
         title: t.title ?? null,
+        // Compute track_key for indexed lookup
+        trackKey: getTrackKey(t.artist ?? "", t.title ?? ""),
         // Parse BPM, handle potentially empty or invalid strings
         bpm: t.bpm ? Number.parseFloat(t.bpm) || null : null,
         key: t.key ?? null,
@@ -102,6 +114,7 @@ export const trackRepository = {
             // Use excluded.* to reference the new values being inserted
             artist: sql`excluded.artist`,
             title: sql`excluded.title`,
+            trackKey: sql`excluded.track_key`,
             bpm: sql`excluded.bpm`,
             key: sql`excluded.key`,
             duration: sql`excluded.duration`,
@@ -117,6 +130,30 @@ export const trackRepository = {
     // Use raw SQL with explicit column aliasing
     const sqlite = await getSqlite();
     const result = await sqlite.select<Track[]>(`${TRACK_SELECT_SQL} ORDER BY artist ASC`);
+    return result;
+  },
+
+  /**
+   * Get tracks that haven't been analyzed yet
+   */
+  async getUnanalyzedTracks(): Promise<Track[]> {
+    const sqlite = await getSqlite();
+    const result = await sqlite.select<Track[]>(
+      `${TRACK_SELECT_SQL} WHERE analyzed = 0 OR analyzed IS NULL`,
+    );
+    return result;
+  },
+
+  /**
+   * Get tracks that were analyzed with an older version
+   * Used for re-analysis when the algorithm changes
+   */
+  async getOutdatedTracks(): Promise<Track[]> {
+    const sqlite = await getSqlite();
+    const result = await sqlite.select<Track[]>(
+      `${TRACK_SELECT_SQL} WHERE analyzed = 1 AND (analysis_version IS NULL OR analysis_version < ?)`,
+      [CURRENT_ANALYSIS_VERSION],
+    );
     return result;
   },
 
@@ -245,13 +282,17 @@ export const trackRepository = {
           brightness: analysisData.brightness ?? null,
           acousticness: analysisData.acousticness ?? null,
           groove: analysisData.groove ?? null,
-          // Mark as analyzed
+          // Mark as analyzed with current version
           analyzed: true,
+          analysisVersion: CURRENT_ANALYSIS_VERSION,
         })
         .where(eq(tracks.id, id));
     } else {
       // Mark as analyzed even if analysis failed (to skip on retry)
-      await db.update(tracks).set({ analyzed: true }).where(eq(tracks.id, id));
+      await db
+        .update(tracks)
+        .set({ analyzed: true, analysisVersion: CURRENT_ANALYSIS_VERSION })
+        .where(eq(tracks.id, id));
     }
   },
 
@@ -393,6 +434,59 @@ export const trackRepository = {
         playedAt: s.played_at,
       })),
     };
+  },
+
+  /**
+   * Get all tracks played in a session with their fingerprint data
+   * Used for syncing analysis data to Cloud at session end
+   */
+  async getSessionTracksWithFingerprints(sessionId: number): Promise<
+    Array<{
+      artist: string;
+      title: string;
+      bpm: number | null;
+      key: string | null;
+      energy: number | null;
+      danceability: number | null;
+      brightness: number | null;
+      acousticness: number | null;
+      groove: number | null;
+    }>
+  > {
+    const sqlite = await getSqlite();
+
+    interface SessionTrackRow {
+      artist: string;
+      title: string;
+      bpm: number | null;
+      key: string | null;
+      energy: number | null;
+      danceability: number | null;
+      brightness: number | null;
+      acousticness: number | null;
+      groove: number | null;
+    }
+
+    const result = await sqlite.select<SessionTrackRow[]>(
+      `
+      SELECT DISTINCT
+        t.artist,
+        t.title,
+        t.bpm,
+        t.key,
+        t.energy,
+        t.danceability,
+        t.brightness,
+        t.acousticness,
+        t.groove
+      FROM plays p
+      JOIN tracks t ON p.track_id = t.id
+      WHERE p.session_id = ?
+    `,
+      [sessionId],
+    );
+
+    return result;
   },
 };
 

@@ -1268,6 +1268,91 @@ app.get("/api/session/:sessionId/recap", async (c) => {
 });
 
 // ============================================================================
+// Fingerprint Sync API (for desktop to sync analysis data)
+// ============================================================================
+
+/**
+ * Sync fingerprint/analysis data for tracks in a session.
+ * Called by desktop at session end to update played_tracks with BPM, energy, etc.
+ */
+app.post("/api/session/:sessionId/sync-fingerprints", async (c) => {
+  const sessionId = c.req.param("sessionId");
+
+  const body = await c.req.json<{
+    tracks: Array<{
+      artist: string;
+      title: string;
+      bpm?: number | null;
+      key?: string | null;
+      energy?: number | null;
+      danceability?: number | null;
+      brightness?: number | null;
+      acousticness?: number | null;
+      groove?: number | null;
+    }>;
+  }>();
+
+  if (!body.tracks || !Array.isArray(body.tracks)) {
+    return c.json({ error: "Invalid request: tracks array required" }, 400);
+  }
+
+  console.log(`🔄 Syncing fingerprints for session ${sessionId}: ${body.tracks.length} tracks`);
+
+  try {
+    let updated = 0;
+
+    for (const track of body.tracks) {
+      // Skip tracks without data
+      if (!track.bpm && !track.key && !track.energy) {
+        continue;
+      }
+
+      // Build update object with only non-null values
+      const updateData: Record<string, unknown> = {};
+      if (track.bpm != null) updateData["bpm"] = track.bpm;
+      if (track.key != null) updateData["key"] = track.key;
+      if (track.energy != null) updateData["energy"] = track.energy;
+      if (track.danceability != null) updateData["danceability"] = track.danceability;
+      if (track.brightness != null) updateData["brightness"] = track.brightness;
+      if (track.acousticness != null) updateData["acousticness"] = track.acousticness;
+      if (track.groove != null) updateData["groove"] = track.groove;
+
+      if (Object.keys(updateData).length === 0) {
+        continue;
+      }
+
+      // Update by sessionId + artist + title match
+      const result = await db
+        .update(schema.playedTracks)
+        .set(updateData)
+        .where(
+          and(
+            eq(schema.playedTracks.sessionId, sessionId),
+            eq(schema.playedTracks.artist, track.artist),
+            eq(schema.playedTracks.title, track.title),
+          ),
+        )
+        .returning({ id: schema.playedTracks.id });
+
+      if (result.length > 0) {
+        updated++;
+      }
+    }
+
+    console.log(`✅ Synced ${updated}/${body.tracks.length} tracks for session ${sessionId}`);
+
+    return c.json({
+      synced: updated,
+      total: body.tracks.length,
+      sessionId,
+    });
+  } catch (e) {
+    console.error("Failed to sync fingerprints:", e);
+    return c.json({ error: "Failed to sync fingerprints" }, 500);
+  }
+});
+
+// ============================================================================
 // My Likes API (for dancers to see their liked songs)
 // ============================================================================
 

@@ -1,4 +1,5 @@
 import { useAnalyzer } from "../hooks/useAnalyzer";
+import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 
 interface Props {
   baseUrl: string | null;
@@ -8,13 +9,18 @@ interface Props {
 export function AnalyzerStatus({ baseUrl, onComplete }: Props) {
   const {
     isAnalyzing,
+    isPaused,
     currentTrack,
     progress,
     totalToAnalyze,
     error,
     startAnalysis,
     stopAnalysis,
+    pauseAnalysis,
+    resumeAnalysis,
   } = useAnalyzer();
+
+  const { triggerRefresh } = useLibraryRefresh();
 
   const handleStart = async () => {
     if (!baseUrl) {
@@ -22,6 +28,8 @@ export function AnalyzerStatus({ baseUrl, onComplete }: Props) {
       return;
     }
     await startAnalysis(baseUrl);
+    // Refresh library to show updated analysis data
+    triggerRefresh();
     onComplete?.();
   };
 
@@ -89,22 +97,37 @@ export function AnalyzerStatus({ baseUrl, onComplete }: Props) {
             </div>
           )}
 
-          {/* Stop button */}
-          <button
-            type="button"
-            onClick={stopAnalysis}
-            style={{
-              marginTop: "1rem",
-              padding: "0.5rem 1rem",
-              background: "#ef4444",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              cursor: "pointer",
-            }}
-          >
-            Stop Analysis
-          </button>
+          {/* Pause/Resume and Stop buttons */}
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "1rem" }}>
+            <button
+              type="button"
+              onClick={isPaused ? resumeAnalysis : pauseAnalysis}
+              style={{
+                padding: "0.5rem 1rem",
+                background: isPaused ? "#22c55e" : "#f59e0b",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              {isPaused ? "▶ Resume" : "⏸ Pause"}
+            </button>
+            <button
+              type="button"
+              onClick={stopAnalysis}
+              style={{
+                padding: "0.5rem 1rem",
+                background: "#ef4444",
+                color: "white",
+                border: "none",
+                borderRadius: "6px",
+                cursor: "pointer",
+              }}
+            >
+              ⏹ Stop
+            </button>
+          </div>
         </>
       ) : (
         <>

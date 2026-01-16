@@ -16,30 +16,38 @@ import {
   History,
   Music,
   Plus,
+  RefreshCw,
   Search,
   Trash2,
   X,
 } from "lucide-react";
+import { fetch } from "@tauri-apps/plugin-http";
 import { useEffect, useMemo, useState } from "react";
 import {
+  type AnalysisResult,
   type Track,
   type TrackPlayHistory,
   trackRepository,
 } from "../db/repositories/trackRepository";
 import { useSetStore } from "../hooks/useSetBuilder";
+import { useSettings } from "../hooks/useSettings";
+import { useSidecar } from "../hooks/useSidecar";
 import { toCamelot } from "../utils/transitionEngine";
 import { SmartCrate } from "./SmartCrate";
 import { TrackFingerprint } from "./TrackFingerprint";
+import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 
 type SortKey = "artist" | "title" | "bpm" | "key" | "energy" | "analyzed" | "duration";
 type SortDirection = "asc" | "desc";
 type BpmFilter = "all" | "slow" | "medium" | "fast";
 
 interface Props {
-  refreshTrigger?: number;
+  refreshTrigger?: number; // Deprecated - now uses global store
 }
 
-export function LibraryBrowser({ refreshTrigger }: Props) {
+export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
+  // Use global refresh trigger from store
+  const { refreshTrigger, triggerRefresh } = useLibraryRefresh();
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +67,12 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
 
   const addTrack = useSetStore((state) => state.addTrack);
   const activeSet = useSetStore((state) => state.activeSet);
+  const { baseUrl: sidecarBaseUrl } = useSidecar();
+  const { settings } = useSettings();
+  const showAdvancedMetrics = settings["display.advancedMetrics"];
+
+  // Single-track analysis state
+  const [analyzingTrackId, setAnalyzingTrackId] = useState<number | null>(null);
 
   // Get the selected track object
   const selectedTrack = useMemo(
@@ -309,6 +323,33 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
     }
   };
 
+  // Handle analyze single track
+  const handleAnalyzeTrack = async (track: Track) => {
+    if (!sidecarBaseUrl || analyzingTrackId) return;
+
+    setAnalyzingTrackId(track.id);
+    try {
+      const url = `${sidecarBaseUrl}/analyze?path=${encodeURIComponent(track.filePath)}`;
+      const response = await fetch(url, { method: "GET" });
+
+      if (response.ok) {
+        const result: AnalysisResult = await response.json();
+        if (!result.error) {
+          await trackRepository.markTrackAnalyzed(track.id, result);
+          // Refresh track in list
+          const updated = await trackRepository.getTrackById(track.id);
+          if (updated) {
+            setTracks((prev) => prev.map((t) => (t.id === track.id ? updated : t)));
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to analyze track:", e);
+    } finally {
+      setAnalyzingTrackId(null);
+    }
+  };
+
   // Browser mode placeholder
   if (!inTauri) {
     return (
@@ -410,6 +451,15 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
             }}
           >
             <Filter size={16} />
+          </button>
+          {/* Refresh Button */}
+          <button
+            type="button"
+            onClick={triggerRefresh}
+            style={styles.filterToggle}
+            title="Refresh library"
+          >
+            <RefreshCw size={16} />
           </button>
         </div>
       </div>
@@ -596,7 +646,7 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                   </td>
                   <td style={styles.td}>
                     <div style={styles.actionButtons}>
-                      {track.analyzed && (
+                      {track.analyzed ? (
                         <button
                           type="button"
                           onClick={() => setSelectedTrackId(track.id)}
@@ -604,6 +654,22 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                           title="View fingerprint"
                         >
                           <Eye size={14} />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleAnalyzeTrack(track);
+                          }}
+                          disabled={!sidecarBaseUrl || analyzingTrackId === track.id}
+                          style={{
+                            ...styles.analyzeButton,
+                            opacity: !sidecarBaseUrl || analyzingTrackId === track.id ? 0.5 : 1,
+                          }}
+                          title={analyzingTrackId === track.id ? "Analyzing..." : "Analyze track"}
+                        >
+                          {analyzingTrackId === track.id ? "..." : "⚡"}
                         </button>
                       )}
                       <button
@@ -659,24 +725,30 @@ export function LibraryBrowser({ refreshTrigger }: Props) {
                 <span style={styles.metaLabel}>Energy</span>
                 <span style={styles.metaValue}>{selectedTrack.energy?.toFixed(0) || "-"}</span>
               </div>
-              <div style={styles.metaItem}>
-                <span style={styles.metaLabel}>Danceability</span>
-                <span style={styles.metaValue}>
-                  {selectedTrack.danceability?.toFixed(0) || "-"}
-                </span>
-              </div>
+              {showAdvancedMetrics && (
+                <div style={styles.metaItem}>
+                  <span style={styles.metaLabel}>Danceability</span>
+                  <span style={styles.metaValue}>
+                    {selectedTrack.danceability?.toFixed(0) || "-"}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Two-column content: Fingerprint + Recommendations */}
             <div style={styles.modalContent}>
-              {/* Left: Fingerprint Visualization */}
+              {/* Left: Fingerprint Visualization (only if advanced metrics enabled) */}
               <div style={styles.fingerprintColumn}>
-                {hasFingerprint(selectedTrack) ? (
+                {showAdvancedMetrics && hasFingerprint(selectedTrack) ? (
                   <TrackFingerprint metrics={selectedTrack} size={250} />
                 ) : (
                   <div style={styles.noFingerprint}>
                     <Music size={48} style={{ opacity: 0.3 }} />
-                    <p>No analysis data</p>
+                    <p>
+                      {showAdvancedMetrics
+                        ? "No analysis data"
+                        : "Enable Advanced Metrics in Settings"}
+                    </p>
                   </div>
                 )}
               </div>
@@ -1051,6 +1123,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     justifyContent: "center",
     cursor: "pointer",
+    transition: "background 0.2s",
+  },
+  analyzeButton: {
+    padding: "0.25rem 0.5rem",
+    background: "rgba(34, 197, 94, 0.2)",
+    color: "#22c55e",
+    border: "none",
+    borderRadius: "4px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    fontSize: "0.75rem",
     transition: "background 0.2s",
   },
   // Modal styles
