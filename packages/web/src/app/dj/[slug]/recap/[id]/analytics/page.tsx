@@ -16,6 +16,7 @@ import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
+import { calculateVibeFriction, getHarmonicCompatibility, type TrackInfo } from "@pika/shared";
 import {
   Area,
   AreaChart,
@@ -47,13 +48,14 @@ interface TempoData {
   faster: number;
 }
 
-interface RecapTrack {
+interface RecapTrack
+  extends Omit<
+    TrackInfo,
+    "bpm" | "key" | "energy" | "danceability" | "brightness" | "acousticness" | "groove"
+  > {
   position: number;
-  artist: string;
-  title: string;
   bpm: number | null;
   key: string | null;
-  // Fingerprint data
   energy: number | null;
   danceability: number | null;
   brightness: number | null;
@@ -118,116 +120,7 @@ function _getTempoSentiment(tempo: TempoData | null): number {
   return (tempo.faster - tempo.slower) / total;
 }
 
-// --- INTELLIGENCE UTILITIES ---
-
-// Camelot Key Mapping
-const KEY_TO_CAMELOT: Record<string, string> = {
-  // Major
-  C: "8B",
-  "C#": "3B",
-  Db: "3B",
-  D: "10B",
-  "D#": "5B",
-  Eb: "5B",
-  E: "12B",
-  F: "7B",
-  "F#": "2B",
-  Gb: "2B",
-  G: "9B",
-  "G#": "4B",
-  Ab: "4B",
-  A: "11B",
-  "A#": "6B",
-  Bb: "6B",
-  B: "1B",
-  // Minor
-  Am: "8A",
-  "A#m": "3A",
-  Bbm: "3A",
-  Bm: "10A",
-  Cm: "5A",
-  "C#m": "12A",
-  Dbm: "12A",
-  Dm: "7A",
-  "D#m": "2A",
-  Ebm: "2A",
-  Em: "9A",
-  Fm: "4A",
-  "F#m": "11A",
-  Gbm: "11A",
-  Gm: "6A",
-  "G#m": "1A",
-  Abm: "1A",
-};
-
-/**
- * Calculates harmonic compatibility between two tracks.
- * Returns: { color: string, label: string, score: number }
- */
-function getHarmonicRel(keyA: string | null, keyB: string | null) {
-  if (!keyA || !keyB) return { color: "slate", label: "Neutral", score: 0 };
-
-  const camA = KEY_TO_CAMELOT[keyA];
-  const camB = KEY_TO_CAMELOT[keyB];
-
-  if (!camA || !camB) return { color: "slate", label: "Neutral", score: 0 };
-
-  if (camA === camB) return { color: "green", label: "Perfect Match", score: 100 };
-
-  const valA = parseInt(camA);
-  const valB = parseInt(camB);
-  const typeA = camA.slice(-1);
-  const typeB = camB.slice(-1);
-
-  // Same key type (A to A or B to B)
-  if (typeA === typeB) {
-    const diff = Math.abs(valA - valB);
-    if (diff === 1 || diff === 11) return { color: "emerald", label: "Harmonic", score: 80 };
-  }
-
-  // Direct relative (e.g., 8A to 8B)
-  if (valA === valB && typeA !== typeB) return { color: "blue", label: "Relative", score: 90 };
-
-  // Energy boost (+2 Camelot)
-  if (
-    typeA === typeB &&
-    (valB === (valA + 2) % 12 || (valA === 11 && valB === 1) || (valA === 12 && valB === 2))
-  ) {
-    return { color: "purple", label: "Energy Boost", score: 70 };
-  }
-
-  return { color: "slate", label: "Neutral", score: 30 };
-}
-
-/**
- * Calculates Euclidean distance between two track fingerprints.
- * Normalized to 0-100 (where 0 is identical, 100 is max distance)
- */
-function calculateFriction(trackA: RecapTrack, trackB: RecapTrack): number {
-  const fields: Array<keyof RecapTrack> = [
-    "energy",
-    "danceability",
-    "brightness",
-    "acousticness",
-    "groove",
-  ];
-  let sumSq = 0;
-  let count = 0;
-
-  for (const field of fields) {
-    const valA = trackA[field] as number | null;
-    const valB = trackB[field] as number | null;
-    if (valA !== null && valB !== null) {
-      sumSq += Math.pow((valA - valB) / 100, 2);
-      count++;
-    }
-  }
-
-  if (count === 0) return 0;
-  // Avg distance per dimension, then sqrt, then scaled
-  const dist = Math.sqrt(sumSq / count);
-  return Math.min(Math.round(dist * 200), 100); // Scaled so ~0.5 avg diff is "max friction"
-}
+// INTELLIGENCE UTILITIES (MOVED TO @PIKA/SHARED)
 
 // Format time
 function formatTime(dateString: string): string {
@@ -332,8 +225,11 @@ export default function AnalyticsPage({
 
     // Transition Intelligence (comparison with previous track)
     const prevTrack = index > 0 ? recap.tracks[index - 1] : null;
-    const friction = prevTrack ? calculateFriction(prevTrack, track) : 0;
-    const harmonic = prevTrack ? getHarmonicRel(prevTrack.key, track.key) : null;
+    // Map RecapTrack (with nulls) to TrackInfo (with undefineds) for shared logic
+    const friction = prevTrack
+      ? calculateVibeFriction(prevTrack as unknown as TrackInfo, track as unknown as TrackInfo)
+      : 0;
+    const harmonic = prevTrack ? getHarmonicCompatibility(prevTrack.key, track.key) : null;
 
     return {
       name: truncate(track.title, 15),

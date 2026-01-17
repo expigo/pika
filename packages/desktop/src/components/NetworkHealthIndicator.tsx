@@ -25,7 +25,7 @@ export function NetworkHealthIndicator({ status, latency: externalLatency, pingE
         await fetch(pingEndpoint, { method: "GET", cache: "no-store" });
         const end = performance.now();
         setMeasuredLatency(Math.round(end - start));
-      } catch (e) {
+      } catch {
         // Ping failed
         setMeasuredLatency(null);
       }
@@ -43,54 +43,48 @@ export function NetworkHealthIndicator({ status, latency: externalLatency, pingE
 
   const health = useMemo(() => {
     if (status !== "connected") return "critical";
-    if (displayLatency > 500) return "poor";
-    if (displayLatency > 200) return "fair";
+    if (displayLatency > 400) return "poor";
+    if (displayLatency > 150) return "fair";
     return "good";
   }, [status, displayLatency]);
 
-  const color = {
-    good: "#22c55e", // Green
-    fair: "#eab308", // Yellow
-    poor: "#f97316", // Orange
-    critical: "#ef4444", // Red
-  }[health];
-
   if (status !== "connected") {
     return (
-      <div style={styles.container}>
-        <div style={{ ...styles.badge, borderColor: color, color }}>
-          <WifiOff size={14} />
-          <span>OFFLINE</span>
+      <div className="flex items-center">
+        <div
+          className="flex items-center gap-2 px-4 py-2 bg-red-600 border-2 border-white text-white rounded-xl text-sm font-[1000] animate-pulse-fast shadow-[0_0_40px_rgba(220,38,38,0.8)]"
+          style={{ animationDuration: "0.4s" }}
+        >
+          <WifiOff size={18} />
+          <span className="tracking-tighter">OFFLINE</span>
         </div>
       </div>
     );
   }
 
+  const statusConfig = {
+    good: { color: "text-emerald-400", border: "border-emerald-500/30", bg: "bg-emerald-500/10" },
+    fair: { color: "text-amber-400", border: "border-amber-500/30", bg: "bg-amber-500/10" },
+    poor: {
+      color: "text-orange-500",
+      border: "border-orange-500 text-orange-500 animate-pulse",
+      bg: "bg-orange-500/10",
+    },
+    critical: {
+      color: "text-white",
+      border: "border-white animate-pulse-fast",
+      bg: "bg-red-600 shadow-[0_0_50px_rgba(220,38,38,0.5)]",
+    },
+  }[health];
+
   return (
-    <div style={styles.container}>
-      <div style={{ ...styles.badge, borderColor: color, color }}>
-        <Activity size={14} />
+    <div className="flex items-center">
+      <div
+        className={`flex items-center gap-2 px-3 py-1.5 border rounded-xl text-sm font-black transition-all ${statusConfig.border} ${statusConfig.bg} ${statusConfig.color}`}
+      >
+        <Activity size={16} />
         <span>{displayLatency}ms</span>
       </div>
     </div>
   );
 }
-
-const styles = {
-  container: {
-    display: "flex",
-    alignItems: "center",
-    marginLeft: "1rem",
-  },
-  badge: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.4rem",
-    padding: "0.3rem 0.6rem",
-    background: "rgba(0,0,0,0.2)",
-    border: "1px solid",
-    borderRadius: "6px",
-    fontSize: "0.875rem",
-    fontWeight: "bold" as const, // Fix for React style types
-  },
-};

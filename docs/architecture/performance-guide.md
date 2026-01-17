@@ -95,7 +95,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 
 | Strategy | Implementation | Status |
 |----------|---------------|--------|
-| **Virtualized lists** | Only render visible rows | ❌ TODO (LibraryBrowser) |
+| **Virtualized lists** | `@tanstack/react-virtual` in LibraryBrowser | ✅ Done |
 | **Debounced search** | 200ms delay on keystrokes | ✅ Done |
 | **Progress indicators** | Analysis shows current track | ✅ Done |
 | **Pause/Resume** | Analyzer can be paused mid-batch | ✅ Done |
@@ -118,7 +118,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 |----------|---------------|--------|
 | **Stream audio** | Don't load full file into memory | ✅ librosa handles |
 | **Clear analysis results** | Don't keep in React state | ✅ Done |
-| **Lazy component loading** | Code split heavy views | ❌ TODO |
+| **Lazy component loading** | React.lazy() for LivePerformanceMode, Settings, Logbook | ✅ Done |
 
 ---
 
@@ -143,6 +143,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 
 | Date | Change |
 |------|--------|
+| 2026-01-17 | Library virtualization (`@tanstack/react-virtual`) and lazy component loading implemented |
 | 2026-01-16 | Restored `blur-[120px]` on all devices; documented Aesthetic Intensity |
 | 2026-01-16 | Added debounced broadcasts, TTL caching, sticky participants (Pro Enhancements) |
 | 2026-01-16 | Added CPU priority, skip live analysis, pause/resume, batch sync |

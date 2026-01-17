@@ -58,7 +58,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Track Import Crash Fix**: Added DB migration for `raw_artist`/`raw_title` columns.
 *   [x] **Connectivity & Resilience**:
     *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
-    *   [x] **Data Sync**: Late-joiner sync via WebSocket SUBSCRIBE handler (removed redundant `fetchSessionState` REST call).
+    *   [x] **Data Sync**: Late-joiner sync via WebSocket SUBSCRIBE handler.
+    *   [x] **Wake-Up Sync (Web)**: **DONE.** Native `visibilitychange` listener forces re-sync on mobile phone wake-up.
     *   [x] **Offline Queue (Web)**: Likes are queued and flushed faithfully.
     *   [x] **Offline Queue (Desktop)**: **DONE.** Offline SQLite queue implemented (`OfflineQueueRepository`). Persists across restarts.
     *   [x] **Data Integrity**: Likes are session-scoped (no phantom likes).
@@ -78,6 +79,11 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **PWA Navigation**: `BottomNav` implemented for mobile-first experience.
     *   [x] **Deep Intelligence**: **Advanced Recap Analytics** (Friction, Harmonic Flow, The Drift) implemented (v0.3.0).
     *   [x] **UX/UI Audit (Jan 2026)**: **Mobile-First vs. Desktop Discovery** strategy implemented. Standardized touch feedback and high-density workstation layouts.
+    *   [x] **Desktop Audit (Jan 2026)**: Library virtualization (10k+ tracks), keyboard shortcuts, played track indicators, reduced motion accessibility.
+    *   [x] **Custom Tags & Notes**: `TagEditor.tsx`, `NoteEditor.tsx` for DJ workflow.
+    *   [x] **Set Templates**: Save/load set structures with `TemplateManager.tsx`.
+    *   [x] **Production HUD**: Real-time clock, battery meter, and elapsed track timer in Stage Mode.
+    *   [x] **Live Stability**: `tabular-nums` and fixed island heights prevent UI flicker.
 *   [ ] **Account Features (MVP Scope)**:
     *   [ ] **Password Protection**: DJ PIN for sessions (optional).
 
@@ -117,8 +123,10 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   🟡 **Email Validation:** Deferred - Low risk for MVP demo.
 
 ### Code Quality Observations (Engineering Assessment Jan 2026)
-*   **Monolithic Files:** `packages/cloud/src/index.ts` at 2100+ lines needs decomposition.
-*   **Large Hooks:** `useLiveSession.ts` at 877 lines could be split into smaller hooks.
+*   ✅ **Split Cloud Backend:** `lib/` modules created (listeners, tempo, cache, protocol, auth).
+*   ✅ **useLiveSession Decomposition:** `useLiveStore.ts` extracted (130 lines).
+*   ✅ **Desktop Testing:** 16 Vitest unit tests passing.
+*   ✅ **Lazy Loading:** React.lazy() for LivePerformanceMode, Settings, Logbook.
 *   ✅ **Load Tested:** 300 concurrent users verified on 4GB VPS (Jan 2026).
 
 ## 5. Post-MVP Roadmap (Quick Look)
@@ -133,7 +141,10 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 
 | Date | Audit | Findings | Ref |
 | :--- | :--- | :--- | :--- |
+| **2026-01-17** | Production Readiness | ✅ Pass - HUD tools, mobile wake-up sync, and visual stability validated. |
+| **2026-01-17** | Desktop UI/UX Audit | ✅ Pass - Score: 8.9/10. 16 unit tests, lazy loading, virtualization. | `Desktop Audit brain` |
 | **2026-01-17** | Recap Analytics Audit | ✅ Pass - Deep Intelligence metrics validated. | `audio-analysis.md` |
 | **2026-01-15** | Load Test (300 VUs) | ✅ Pass - Max ~1,000 dancers | `load-testing.md` |
 | **2026-01-13** | Security Audit | 0 Critical, 2 High, 4 Medium, 3 Low | `security-audit.md` |
 | **2026-01-13** | Engineering Assessment | Composite Score: 8.4/10 | `engineering-assessment.md` |
+

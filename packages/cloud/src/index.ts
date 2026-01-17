@@ -15,6 +15,10 @@ import { logger } from "hono/logger";
 import { rateLimiter } from "hono-rate-limiter";
 import { db, schema } from "./db";
 
+// NOTE: lib/ modules are created but not yet wired in to reduce risk.
+// Future refactoring can import from ./lib to use extracted utilities.
+// Available modules: listeners, tempo, cache, protocol, auth
+
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
 

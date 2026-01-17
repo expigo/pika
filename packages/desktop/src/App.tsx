@@ -1,22 +1,42 @@
 import { PIKA_VERSION } from "@pika/shared";
 import { Calendar, LayoutGrid, Maximize2, Settings as SettingsIcon } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { AnalyzerStatus } from "./components/AnalyzerStatus";
 import { LibraryBrowser } from "./components/LibraryBrowser";
 import { LibraryImporter } from "./components/LibraryImporter";
 import { LiveControl } from "./components/LiveControl";
-import { LivePerformanceMode } from "./components/LivePerformanceMode";
-import { Logbook } from "./components/Logbook";
+import { OfflineQueueIndicator } from "./components/OfflineQueueIndicator";
 import { SetCanvas } from "./components/SetCanvas";
-import { Settings } from "./components/Settings";
 import { getStoredSettings, useDjSettings } from "./hooks/useDjSettings";
 import { useLiveSession } from "./hooks/useLiveSession";
 import { useSidecar } from "./hooks/useSidecar";
 import { setSidecarUrl } from "./services/progressiveAnalysisService";
+import { getLocalIp } from "./config";
 import "./App.css";
 
-import { useCallback, useEffect, useState } from "react";
-import { getLocalIp } from "./config";
+// Lazy-loaded components (not needed on initial render)
+const LivePerformanceMode = lazy(() =>
+  import("./components/LivePerformanceMode").then((m) => ({ default: m.LivePerformanceMode })),
+);
+const Logbook = lazy(() => import("./components/Logbook").then((m) => ({ default: m.Logbook })));
+const Settings = lazy(() => import("./components/Settings").then((m) => ({ default: m.Settings })));
+
+// Loading fallback for lazy components
+const LazyFallback = () => (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100%",
+      color: "#64748b",
+      fontSize: "0.875rem",
+    }}
+  >
+    Loading...
+  </div>
+);
 
 type ViewMode = "builder" | "logbook";
 
@@ -28,6 +48,7 @@ function App() {
     listenerCount,
     tempoFeedback,
     activePoll,
+    activeAnnouncement,
     endedPoll,
     liveLikes,
     startPoll,
@@ -81,25 +102,28 @@ function App() {
     <div style={styles.appContainer}>
       {/* Performance Mode Overlay */}
       {isPerformanceMode && (
-        <LivePerformanceMode
-          onExit={() => setIsPerformanceMode(false)}
-          listenerCount={listenerCount}
-          tempoFeedback={tempoFeedback}
-          activePoll={activePoll}
-          endedPoll={endedPoll}
-          liveLikes={liveLikes}
-          onStartPoll={startPoll}
-          onEndPoll={endPoll}
-          onSendAnnouncement={sendAnnouncement}
-          onCancelAnnouncement={cancelAnnouncement}
-          onClearEndedPoll={clearEndedPoll}
-          sessionId={sessionId}
-          djName={djName}
-          liveStatus={liveSessionStatus}
-          onForceSync={forceSync}
-          baseUrl={baseUrl}
-          localIp={localIp}
-        />
+        <Suspense fallback={<LazyFallback />}>
+          <LivePerformanceMode
+            onExit={() => setIsPerformanceMode(false)}
+            listenerCount={listenerCount}
+            tempoFeedback={tempoFeedback}
+            activePoll={activePoll}
+            activeAnnouncement={activeAnnouncement}
+            endedPoll={endedPoll}
+            liveLikes={liveLikes}
+            onStartPoll={startPoll}
+            onEndPoll={endPoll}
+            onSendAnnouncement={sendAnnouncement}
+            onCancelAnnouncement={cancelAnnouncement}
+            onClearEndedPoll={clearEndedPoll}
+            sessionId={sessionId}
+            djName={djName}
+            liveStatus={liveSessionStatus}
+            onForceSync={forceSync}
+            baseUrl={baseUrl}
+            localIp={localIp}
+          />
+        </Suspense>
       )}
 
       {/* Toast notifications */}
@@ -108,7 +132,9 @@ function App() {
       {/* Header */}
       <header style={styles.header}>
         <div style={styles.headerLeft}>
-          <h1 style={styles.title}>Pika! Desktop</h1>
+          <h1 className="dashboard-title" style={styles.title}>
+            Pika! Desktop
+          </h1>
           <span style={styles.version}>v{PIKA_VERSION}</span>
 
           {/* View Toggle */}
@@ -141,6 +167,7 @@ function App() {
         {/* Toolbar */}
         <div style={styles.toolbar}>
           <LiveControl />
+          <OfflineQueueIndicator />
           {isLive && (
             <button
               type="button"
@@ -177,7 +204,9 @@ function App() {
       </header>
 
       {/* Settings Modal */}
-      <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <Suspense fallback={<LazyFallback />}>
+        <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      </Suspense>
 
       {/* Status Banner */}
       {status !== "ready" && status !== "browser" && (
@@ -345,7 +374,9 @@ function App() {
         ) : (
           /* Logbook View */
           <div style={styles.fullPanel}>
-            <Logbook />
+            <Suspense fallback={<LazyFallback />}>
+              <Logbook />
+            </Suspense>
           </div>
         )}
       </main>
@@ -359,7 +390,7 @@ const styles: Record<string, React.CSSProperties> = {
     flexDirection: "column",
     height: "100vh",
     overflow: "hidden",
-    background: "#0c0f14",
+    background: "#030711",
     color: "#e2e8f0",
   },
   header: {

@@ -55,6 +55,12 @@ To respect Spotify rate limits and ensure performance, we use a **Scheduled Stat
     *   *Exception:* Do NOT merge "Remix", "Acoustic", or "Zouk Version". These are distinct musical entities in WCS.
 *   **Quality Control (Whitelist):** We only index playlists explicitly named "WCS", "Swing", "Blues", or flagged manually. We ignore "Gym" or "Study" playlists from the same user.
 
+### 2.4 Desktop → Cloud Integration (Planned)
+*   **Tags Schema:** Desktop app will migrate to normalized `tags` + `track_tags` join tables (cloud-ready).
+*   **Suggested Tags:** Cloud will provide `suggested_tags` table with community tag popularity.
+*   **Sync Flow:** Personal tags upload ↑, community suggestions download ↓.
+*   **trackKey:** Already using `artist::title` format for cross-DJ deduplication.
+
 ---
 
 ## 3. The 40-Feature Roadmap

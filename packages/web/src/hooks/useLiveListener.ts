@@ -591,9 +591,10 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
+        case "CANCEL_POLL":
         case "POLL_ENDED": {
           // Poll ended by DJ or auto-close
-          console.log("[Listener] Poll ended");
+          console.log("[Listener] Poll ended/cancelled");
 
           setState((prev) => ({
             ...prev,
@@ -810,12 +811,44 @@ export function useLiveListener(targetSessionId?: string) {
       });
     }, 3000);
 
+    // Reliable Wake-up Sync: Detect when tab becomes visible again (phone wake)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        console.log("[Listener] Tab became visible - forcing state sync...");
+
+        // 1. Trigger ReconnectingWebSocket to check connection
+        // (It usually does this, but we can nudge it by checking readyState)
+
+        // 2. Re-subscribe to get latest state (Song, Poll, etc)
+        // Debounce slightly to allow network to attach
+        setTimeout(() => {
+          if (socketRef.current?.readyState === WebSocket.OPEN) {
+            const currentSession = state.sessionId || discoveredSessionRef.current;
+            socketRef.current.send(
+              JSON.stringify({
+                type: "SUBSCRIBE",
+                clientId,
+                sessionId: currentSession,
+              }),
+            );
+
+            // 3. Re-fetch history to catch up on missed tracks
+            if (currentSession) {
+              fetchHistory(currentSession);
+            }
+          }
+        }, 1000);
+      }
+    };
+
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online", handleOnline);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       clearInterval(heartbeat);
       socket.close();
     };

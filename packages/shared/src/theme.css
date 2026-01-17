@@ -1,0 +1,26 @@
+@theme {
+  /* Brand Colors */
+  --color-pika-purple: oklch(0.62 0.25 310);
+  --color-pika-purple-light: oklch(0.75 0.15 310);
+  --color-pika-purple-dark: oklch(0.45 0.3 310);
+
+  /* Surface Colors (Pro Dark Mode) */
+  --color-pika-bg: #030711;
+  --color-pika-surface: #0a0a0a;
+  --color-pika-card: #0f172a;
+  --color-pika-border: #1e293b;
+
+  /* Status Colors */
+  --color-pika-success: #22c55e;
+  --color-pika-warning: #f59e0b;
+  --color-pika-error: #ef4444;
+
+  /* Shadows & Glows */
+  --shadow-pika-glow: 0 0 20px oklch(0.62 0.25 310 / 15%);
+
+  /* Custom Transitions */
+  --transition-pika: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Custom Animations */
+  --animate-spin-slow: spin 8s linear infinite;
+}

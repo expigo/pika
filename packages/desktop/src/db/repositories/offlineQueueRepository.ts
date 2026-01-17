@@ -27,11 +27,22 @@ export const offlineQueueRepository = {
   async getAll(): Promise<QueuedMessage[]> {
     const rows = await db.select().from(offlineQueue).orderBy(asc(offlineQueue.createdAt));
 
-    return rows.map((row) => ({
-      id: row.id,
-      payload: JSON.parse(row.payload),
-      createdAt: row.createdAt,
-    }));
+    return rows.map((row) => {
+      try {
+        return {
+          id: row.id,
+          payload: row.payload ? JSON.parse(row.payload as string) : null,
+          createdAt: row.createdAt,
+        };
+      } catch (err) {
+        console.error(`[Queue] Failed to parse message ${row.id}:`, row.payload, err);
+        return {
+          id: row.id,
+          payload: null as unknown as object,
+          createdAt: row.createdAt,
+        };
+      }
+    });
   },
 
   /**

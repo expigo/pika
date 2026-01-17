@@ -3,7 +3,7 @@
  * Common types, schemas, and utilities shared between desktop, cloud, and web packages.
  */
 
-export const PIKA_VERSION = "0.1.10";
+export const PIKA_VERSION = "0.2.0";
 
 // Re-export all schemas and types from schemas.ts
 export {
@@ -48,4 +48,15 @@ export {
   validateDjSlug,
 } from "./slugify";
 
-export { getFuzzyKey, getTrackKey, normalizeExact, normalizeFuzzy, normalizeTrack } from "./utils";
+export {
+  getFuzzyKey,
+  getTrackKey,
+  normalizeExact,
+  normalizeFuzzy,
+  normalizeTrack,
+  getCamelotKey,
+  getHarmonicCompatibility,
+  calculateVibeFriction,
+  type HarmonicLevel,
+  type HarmonicRelation,
+} from "./utils";

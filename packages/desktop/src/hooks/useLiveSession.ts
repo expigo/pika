@@ -2,7 +2,6 @@ import { parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { useCallback, useEffect, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
-import { create } from "zustand";
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { settingsRepository } from "../db/repositories/settingsRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
@@ -10,129 +9,9 @@ import { enqueueForAnalysis } from "../services/progressiveAnalysisService";
 import { type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "../services/virtualDjWatcher";
 import { getAuthToken, getConfiguredUrls, getDjName } from "./useDjSettings";
 
-// Cloud server URL is now dynamic based on settings
-// const CLOUD_WS_URL = ... (removed)
-
-export type LiveStatus = "offline" | "connecting" | "live" | "error";
-
-// ============================================================================
-// Zustand Store for Shared State
-// ============================================================================
-
-interface LiveSessionStore {
-  status: LiveStatus;
-  nowPlaying: NowPlayingTrack | null;
-  error: string | null;
-  sessionId: string | null; // Cloud session ID
-  dbSessionId: number | null; // Database session ID for history/plays
-  currentPlayId: number | null; // Current play ID in database
-  listenerCount: number; // Number of connected dancers
-  tempoFeedback: { faster: number; slower: number; perfect: number; total: number } | null;
-
-  // Poll state
-  activePoll: {
-    id: number;
-    question: string;
-    options: string[];
-    votes: number[];
-    totalVotes: number;
-    endsAt?: string; // ISO timestamp for auto-close timer
-  } | null;
-
-  // Ended poll (kept visible until dismissed)
-  endedPoll: {
-    id: number;
-    question: string;
-    options: string[];
-    votes: number[];
-    totalVotes: number;
-    winner: string;
-    winnerPercent: number;
-  } | null;
-
-  // Live likes from dancers (real-time)
-  liveLikes: number;
-
-  // Actions
-  setStatus: (status: LiveStatus) => void;
-  setNowPlaying: (track: NowPlayingTrack | null) => void;
-  setError: (error: string | null) => void;
-  setSessionId: (sessionId: string | null) => void;
-  setDbSessionId: (dbSessionId: number | null) => void;
-  setCurrentPlayId: (playId: number | null) => void;
-  setListenerCount: (count: number) => void;
-  setTempoFeedback: (
-    feedback: { faster: number; slower: number; perfect: number; total: number } | null,
-  ) => void;
-  setActivePoll: (
-    poll: {
-      id: number;
-      question: string;
-      options: string[];
-      votes: number[];
-      totalVotes: number;
-      endsAt?: string;
-    } | null,
-  ) => void;
-  setEndedPoll: (
-    poll: {
-      id: number;
-      question: string;
-      options: string[];
-      votes: number[];
-      totalVotes: number;
-      winner: string;
-      winnerPercent: number;
-    } | null,
-  ) => void;
-  clearEndedPoll: () => void;
-  setLiveLikes: (count: number) => void;
-  incrementLiveLikes: () => void;
-  reset: () => void;
-}
-
-export const useLiveStore = create<LiveSessionStore>((set) => ({
-  status: "offline",
-  nowPlaying: null,
-  error: null,
-  sessionId: null,
-  dbSessionId: null,
-  currentPlayId: null,
-  listenerCount: 0,
-  tempoFeedback: null,
-  activePoll: null,
-  endedPoll: null,
-  liveLikes: 0,
-  isLiveSession: false,
-
-  setStatus: (status) => set({ status }),
-  setNowPlaying: (nowPlaying) => set({ nowPlaying }),
-  setError: (error) => set({ error }),
-  setSessionId: (sessionId) => set({ sessionId }),
-  setDbSessionId: (dbSessionId) => set({ dbSessionId }),
-  setCurrentPlayId: (currentPlayId) => set({ currentPlayId }),
-  setListenerCount: (listenerCount) => set({ listenerCount }),
-  setTempoFeedback: (tempoFeedback) => set({ tempoFeedback }),
-  setActivePoll: (activePoll) => set({ activePoll }),
-  setEndedPoll: (endedPoll) => set({ endedPoll }),
-  clearEndedPoll: () => set({ endedPoll: null }),
-  setLiveLikes: (liveLikes) => set({ liveLikes }),
-  incrementLiveLikes: () => set((state) => ({ liveLikes: state.liveLikes + 1 })),
-  reset: () =>
-    set({
-      status: "offline",
-      nowPlaying: null,
-      error: null,
-      sessionId: null,
-      dbSessionId: null,
-      currentPlayId: null,
-      listenerCount: 0,
-      tempoFeedback: null,
-      activePoll: null,
-      endedPoll: null,
-      liveLikes: 0,
-    }),
-}));
+// Re-export from useLiveStore for backwards compatibility
+export { useLiveStore, type LiveStatus, type LiveSessionStore } from "./useLiveStore";
+import { useLiveStore } from "./useLiveStore";
 
 // ============================================================================
 // Singleton WebSocket and Watcher Management
@@ -222,12 +101,13 @@ async function flushQueue() {
     // Process queue sequentially to maintain order
     for (const item of queue) {
       if (socketInstance?.readyState === WebSocket.OPEN) {
+        if (!item.payload) {
+          idsToDelete.push(item.id);
+          continue;
+        }
         socketInstance.send(JSON.stringify(item.payload));
-        // item.payload is 'object', so we cast to unknown then read type
-        console.log("[Live] Flushed:", (item.payload as { type: string }).type);
         idsToDelete.push(item.id);
       } else {
-        // Socket closed mid-flush, stop processing
         break;
       }
     }
@@ -280,6 +160,9 @@ function broadcastTrack(sessionId: string, track: TrackInfo): boolean {
 
   // Reset live likes counter when track changes
   useLiveStore.getState().setLiveLikes(0);
+
+  // Track this song as "played" for repeat prevention in LibraryBrowser
+  useLiveStore.getState().addPlayedTrack(trackKey);
 
   sendMessage({
     type: "BROADCAST_TRACK",
@@ -457,14 +340,6 @@ export function useLiveSession() {
   // Handle track changes from VirtualDJ
   const handleTrackChange = useCallback(
     async (track: NowPlayingTrack) => {
-      console.log("[Live] Track changed:", track.artist, "-", track.title);
-      console.log(
-        "[Live] State check - it isLiveFlag:",
-        isLiveFlag,
-        "currentDbSessionId:",
-        currentDbSessionId,
-      );
-
       // Update UI immediately with track info
       setNowPlaying(track);
 
@@ -474,9 +349,7 @@ export function useLiveSession() {
       // Record to database and get fingerprint data
       let enrichedTrack = track;
       if (isLiveFlag && currentDbSessionId) {
-        console.log("[Live] Recording play to database...");
         const result = await recordPlay(track);
-        console.log("[Live] Play recorded:", result?.playId);
         if (result) {
           currentPlayIdRef = result.playId; // Update singleton ref for likes
           setCurrentPlayId(result.playId);
@@ -498,13 +371,6 @@ export function useLiveSession() {
             enqueueForAnalysis(result.trackInfo.id, track.filePath);
           }
         }
-      } else {
-        console.log(
-          "[Live] Not recording - isLiveFlag:",
-          isLiveFlag,
-          "currentDbSessionId:",
-          currentDbSessionId,
-        );
       }
 
       // Send to cloud if session is active (sendMessage handles queueing if socket is down)
@@ -963,11 +829,20 @@ export function useLiveSession() {
       return;
     }
 
+    const endsAt = durationSeconds
+      ? new Date(Date.now() + durationSeconds * 1000).toISOString()
+      : undefined;
+
     sendMessage({
       type: "SEND_ANNOUNCEMENT",
       sessionId: currentSessionId,
       message,
       durationSeconds,
+    });
+
+    useLiveStore.getState().setActiveAnnouncement({
+      message,
+      endsAt,
     });
 
     toast.success(`📢 Announcement sent!`);
@@ -989,6 +864,8 @@ export function useLiveSession() {
       type: "CANCEL_ANNOUNCEMENT",
       sessionId: currentSessionId,
     });
+
+    useLiveStore.getState().setActiveAnnouncement(null);
 
     toast.success(`📢 Announcement cancelled`);
     console.log("[Live] Announcement cancelled");
@@ -1044,7 +921,7 @@ export function useLiveSession() {
   }, []);
 
   // Get activePoll, endedPoll, and liveLikes from store
-  const { activePoll, endedPoll, liveLikes, clearEndedPoll } = useLiveStore();
+  const { activePoll, activeAnnouncement, endedPoll, liveLikes, clearEndedPoll } = useLiveStore();
 
   return {
     status,
@@ -1056,6 +933,7 @@ export function useLiveSession() {
     listenerCount,
     tempoFeedback,
     activePoll,
+    activeAnnouncement,
     endedPoll,
     liveLikes,
     isLive: isLiveFlag && !!dbSessionId,

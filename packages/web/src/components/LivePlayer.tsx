@@ -59,7 +59,7 @@ function PollCountdown({ endsAt }: { endsAt?: string | null }) {
   const timeStr =
     minutes > 0 ? `${minutes}:${remainingSeconds.toString().padStart(2, "0")}` : `${seconds}s`;
 
-  return <span className="text-purple-400 font-black">⏱️ {timeStr}</span>;
+  return <span className="text-purple-400 font-black tabular-nums font-mono">⏱️ {timeStr}</span>;
 }
 
 // History list component

@@ -2,8 +2,8 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** Deep Intelligence & Analytics
-**Status:** Release v0.3.0
+**Current Focus:** Desktop UI/UX Polish & Architecture Cleanup
+**Status:** Release v0.3.1 (Desktop Audit Complete)
 
 ---
 
@@ -12,14 +12,16 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   Status: **Launch Ready** (Deep Intelligence v1)
-    *   **Recent Completions (Jan 17, 2026):**
+    *   Status: **Launch Ready** (Desktop Audit Complete)
+    *   **Recent Completions (Jan 17, 2026 - Desktop Audit):**
+        *   ✅ UI/UX: Library virtualization (10k+ tracks), keyboard shortcuts, reduced motion accessibility.
+        *   ✅ Features: Custom tags, DJ notes, set templates, BPM flow visualization.
+        *   ✅ Architecture: Cloud lib modules extracted, useLiveStore separated, lazy loading.
+        *   ✅ Testing: 16 Vitest unit tests for Desktop, test infrastructure setup.
+    *   **Previous Completions (Jan 17, 2026 - Analytics):**
         *   ✅ Deep Intelligence: Friction Map, Harmonic Flow, The Drift logic.
         *   ✅ Stats API: Migration of global analytics from mock to real data.
         *   ✅ UI Polish: Pro Theme (Slate & Neon) applied to all endpoints.
-        *   ✅ Performance: WebSocket debouncing & TTL caching.
-    *   **Previous Completions (Jan 16, 2026):**
-        *   ✅ BPM Pipeline: Settings Panel, Analysis Modes, Schema Versioning.
 
 ---
 

@@ -17,6 +17,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   GripVertical,
+  LayoutTemplate,
   ListMusic,
   Music,
   Trash2,
@@ -34,6 +35,7 @@ import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionE
 import { EnergyWave } from "./EnergyWave";
 import { SaveLoadSets } from "./SaveLoadSets";
 import { type FingerprintMetrics, TrackFingerprint } from "./TrackFingerprint";
+import { TemplateManager } from "./TemplateManager";
 
 interface SortableTrackRowProps {
   track: Track;
@@ -158,6 +160,9 @@ export function SetCanvas() {
     };
   }, [activeSet]);
 
+  // Template Manager state
+  const [showTemplateManager, setShowTemplateManager] = useState(false);
+
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -184,6 +189,15 @@ export function SetCanvas() {
         </div>
         <div style={styles.headerActions}>
           <SaveLoadSets />
+          <button
+            type="button"
+            onClick={() => setShowTemplateManager(true)}
+            style={styles.templatesButton}
+            title="Manage set templates"
+          >
+            <LayoutTemplate size={14} />
+            Templates
+          </button>
           {activeSet.length > 0 && (
             <>
               {/* Analyze Set Button */}
@@ -295,6 +309,18 @@ export function SetCanvas() {
           </DndContext>
         )}
       </div>
+
+      {/* Template Manager Modal */}
+      {showTemplateManager && (
+        <TemplateManager
+          onClose={() => setShowTemplateManager(false)}
+          currentSetTracks={activeSet.map((t, i) => ({
+            position: i + 1,
+            bpm: t.bpm,
+            energy: t.energy,
+          }))}
+        />
+      )}
     </div>
   );
 }
@@ -347,6 +373,18 @@ const styles: Record<string, React.CSSProperties> = {
     border: "none",
     borderRadius: "4px",
     fontSize: "0.75rem",
+  },
+  templatesButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    padding: "0.25rem 0.75rem",
+    background: "#6366f1",
+    color: "white",
+    border: "none",
+    borderRadius: "4px",
+    fontSize: "0.75rem",
+    cursor: "pointer",
   },
   waveContainer: {
     padding: "0.5rem",
