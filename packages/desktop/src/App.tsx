@@ -248,7 +248,7 @@ function App() {
               >
                 <div className="absolute top-4 left-4 z-20">
                   <span className="px-2 py-1 bg-pika-accent/10 border border-pika-accent/20 rounded-md text-[9px] font-black text-pika-accent uppercase tracking-widest backdrop-blur-md">
-                    Session Distribution
+                    Session Flow Intelligence
                   </span>
                 </div>
                 <EnergyWave />

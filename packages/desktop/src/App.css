@@ -82,8 +82,11 @@
   /* Global selection lock */
   -webkit-user-select: none !important;
   user-select: none !important;
+}
 
-  /* Theme: High Contrast (Default) */
+/* Theme: High Contrast (Default) */
+html,
+html[data-theme="high-contrast"] {
   --pika-bg: #030711;
   --pika-surface-1: #0a0a0f;
   --pika-surface-2: #0f172a;
@@ -97,10 +100,6 @@
   --pika-accent-glow: rgba(124, 58, 237, 0.3);
   --pika-text: #f8fafc;
   --pika-text-dim: #64748b;
-
-  /* Utilities */
-  --glass-bg: rgba(15, 23, 42, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.05);
   --glass-blur: blur(20px);
 }
 

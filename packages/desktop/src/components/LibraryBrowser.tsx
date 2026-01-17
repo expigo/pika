@@ -389,14 +389,14 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
             ADD
           </div>
           <div
-            className="flex-1 pro-table-cell cursor-pointer hover:text-slate-200 group/h px-2"
+            className="flex-1 pro-table-cell cursor-pointer hover:text-slate-200 group/h"
             onClick={() => toggleSort("artist")}
           >
             <span className="text-[10px]">Artist</span>
             <SortIcon columnKey="artist" className="ml-1" />
           </div>
           <div
-            className="flex-[1.5] pro-table-cell cursor-pointer hover:text-slate-200 group/h px-2"
+            className="flex-[1.5] pro-table-cell cursor-pointer hover:text-slate-200 group/h"
             onClick={() => toggleSort("title")}
           >
             <span className="text-[10px]">Title</span>
@@ -484,13 +484,13 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                     </ProTooltip>
                   </div>
                   <div
-                    className="flex-1 pro-table-cell font-bold text-slate-200 px-2 truncate"
+                    className="flex-1 pro-table-cell font-bold text-slate-200 truncate"
                     title={track.artist || "Unknown"}
                   >
                     <span className="truncate">{track.artist || "Unknown"}</span>
                   </div>
                   <div
-                    className="flex-[1.5] pro-table-cell text-slate-400 font-medium px-2 truncate"
+                    className="flex-[1.5] pro-table-cell text-slate-400 font-medium truncate"
                     title={track.title || getFileName(track.filePath)}
                   >
                     <span className="truncate">{track.title || getFileName(track.filePath)}</span>

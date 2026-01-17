@@ -181,7 +181,7 @@ export function EnergyWave({ showBpmLine = true }: Props) {
             <Activity size={24} className="opacity-20 animate-pulse" />
           </div>
           <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
-            Energy Flow Analysis Pending
+            Awaiting Sequence Map...
           </span>
         </div>
       )}
