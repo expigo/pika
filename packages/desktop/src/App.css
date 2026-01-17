@@ -254,14 +254,14 @@ textarea,
 
 .pro-table-header {
   display: flex;
-  background: var(--color-pika-surface-2);
-  border-bottom: 1px solid var(--color-pika-border);
+  background: var(--pika-surface-2);
+  border-bottom: 1px solid var(--pika-border);
   padding: 0.5rem 0;
   font-size: 0.75rem;
-  font-weight: 600;
-  color: #64748b;
+  font-weight: 800;
+  color: var(--pika-text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.1em;
 }
 
 /* Quadrant Workspace Styles */
@@ -355,7 +355,7 @@ textarea,
 }
 
 .pro-table-cell {
-  padding: 0.5rem 1rem;
+  padding: 0.5rem 0.5rem;
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -381,8 +381,9 @@ textarea,
 .energy-pill {
   height: 6px;
   border-radius: 3px;
-  background: #1e293b;
-  width: 40px;
+  background: var(--pika-surface-3);
+  width: 100%;
+  max-width: 44px;
   overflow: hidden;
   position: relative;
 }

@@ -101,6 +101,14 @@ function App() {
     setSidecarUrl(baseUrl);
   }, [baseUrl]);
 
+  // Sync theme to document element for global CSS variables
+  useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove("theme-midnight", "theme-stealth");
+    if (settings["display.profile"] === "midnight") root.classList.add("theme-midnight");
+    if (settings["display.profile"] === "stealth") root.classList.add("theme-stealth");
+  }, [settings["display.profile"]]);
+
   // Handle stage view click (performance mode)
   const handleStageClick = () => {
     if (isLive) {
@@ -112,17 +120,8 @@ function App() {
 
   const isAnyResizing = isResizingH || isResizingV || isResizingTopH;
 
-  const themeClass =
-    settings["display.profile"] === "midnight"
-      ? "theme-midnight"
-      : settings["display.profile"] === "stealth"
-        ? "theme-stealth"
-        : "";
-
   return (
-    <div
-      className={`app-shell ${themeClass} ${isAnyResizing ? "select-none cursor-resizing" : ""}`}
-    >
+    <div className={`app-shell ${isAnyResizing ? "select-none cursor-resizing" : ""}`}>
       {/* 1. Sidebar Navigation */}
       <nav className="pro-nav">
         <div className="flex flex-col items-center gap-6">

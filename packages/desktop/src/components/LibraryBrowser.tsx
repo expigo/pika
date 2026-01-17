@@ -179,14 +179,14 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
   const isInSet = (trackId: number) => activeSet.some((t) => t.id === trackId);
 
   // Rendering Helpers
-  const SortIcon = ({ columnKey }: { columnKey: SortKey }) => {
+  const SortIcon = ({ columnKey, className = "" }: { columnKey: SortKey; className?: string }) => {
     if (sortKey !== columnKey) {
-      return <ArrowUpDown size={14} className="opacity-20" />;
+      return <ArrowUpDown size={12} className={`opacity-20 ${className}`} />;
     }
     return sortDirection === "asc" ? (
-      <ArrowUp size={14} className="text-pika-accent" />
+      <ArrowUp size={12} className={`text-pika-accent ${className}`} />
     ) : (
-      <ArrowDown size={14} className="text-pika-accent" />
+      <ArrowDown size={12} className={`text-pika-accent ${className}`} />
     );
   };
 
@@ -384,51 +384,53 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Table Header */}
-        <div className="pro-table-header px-2">
+        <div className="pro-table-header px-4">
           <div className="w-[40px] pro-table-cell justify-center">Add</div>
           <div
-            className="w-[50px] pro-table-cell justify-center cursor-pointer hover:text-slate-300"
-            onClick={() => toggleSort("analyzed")}
-          >
-            <SortIcon columnKey="analyzed" />
-          </div>
-          <div
-            className="flex-1 pro-table-cell cursor-pointer hover:text-slate-300"
+            className="flex-1 pro-table-cell cursor-pointer hover:text-slate-200 group/h"
             onClick={() => toggleSort("artist")}
           >
-            Artist <SortIcon columnKey="artist" />
+            <span className="text-[10px]">Artist</span>
+            <SortIcon columnKey="artist" className="ml-1" />
           </div>
           <div
-            className="flex-1 pro-table-cell cursor-pointer hover:text-slate-300"
+            className="flex-1 pro-table-cell cursor-pointer hover:text-slate-200 group/h"
             onClick={() => toggleSort("title")}
           >
-            Title <SortIcon columnKey="title" />
+            <span className="text-[10px]">Title</span>
+            <SortIcon columnKey="title" className="ml-1" />
           </div>
           <div
-            className="w-[60px] pro-table-cell justify-end cursor-pointer hover:text-slate-300 col-bpm"
+            className="w-[50px] pro-table-cell justify-center cursor-pointer hover:text-slate-200 col-bpm group/h"
             onClick={() => toggleSort("bpm")}
           >
-            BPM <SortIcon columnKey="bpm" />
+            <span className="text-[10px]">BPM</span>
+            <SortIcon columnKey="bpm" className="ml-0.5" />
           </div>
           <div
-            className="w-[50px] pro-table-cell justify-center cursor-pointer hover:text-slate-300 col-key"
+            className="w-[50px] pro-table-cell justify-center cursor-pointer hover:text-slate-200 col-key group/h"
             onClick={() => toggleSort("key")}
           >
-            Key <SortIcon columnKey="key" />
+            <span className="text-[10px]">Key</span>
+            <SortIcon columnKey="key" className="ml-0.5" />
           </div>
           <div
-            className="w-[60px] pro-table-cell justify-end cursor-pointer hover:text-slate-300 col-duration"
+            className="w-[60px] pro-table-cell justify-end cursor-pointer hover:text-slate-200 col-duration group/h"
             onClick={() => toggleSort("duration")}
           >
-            <Clock size={12} className="mr-1" /> <SortIcon columnKey="duration" />
+            <Clock size={11} className="mr-1 opacity-50" />
+            <SortIcon columnKey="duration" />
           </div>
           <div
-            className="w-[70px] pro-table-cell cursor-pointer hover:text-slate-300 col-nrg"
+            className="w-[70px] pro-table-cell justify-center cursor-pointer hover:text-slate-200 col-nrg group/h"
             onClick={() => toggleSort("energy")}
           >
-            Energy <SortIcon columnKey="energy" />
+            <span className="text-[10px]">Vibe</span>
+            <SortIcon columnKey="energy" className="ml-1" />
           </div>
-          <div className="w-[70px] pro-table-cell"></div>
+          <div className="w-[60px] pro-table-cell justify-center text-[10px] opacity-30 tracking-tighter">
+            Status
+          </div>
         </div>
 
         {/* Virtualized List */}
@@ -479,38 +481,33 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                       </button>
                     </ProTooltip>
                   </div>
-                  <div className="w-[50px] pro-table-cell justify-center">
-                    {track.analyzed ? (
-                      <CheckCircle size={14} className="text-emerald-500" />
-                    ) : (
-                      <Circle size={14} className="text-slate-700" />
-                    )}
-                  </div>
                   <div
-                    className="flex-1 pro-table-cell font-medium"
+                    className="flex-1 pro-table-cell font-bold text-slate-200"
                     title={track.artist || "Unknown"}
                   >
-                    {track.artist || <span className="text-slate-600 italic">Unknown</span>}
+                    <span className="truncate">{track.artist || "Unknown"}</span>
                   </div>
                   <div
-                    className="flex-1 pro-table-cell text-slate-300"
+                    className="flex-1 pro-table-cell text-slate-400 font-medium"
                     title={track.title || getFileName(track.filePath)}
                   >
                     <span className="truncate">{track.title || getFileName(track.filePath)}</span>
-                    {isPlayed && <span className="ml-1.5 text-[10px] text-emerald-500">✓</span>}
+                    {isPlayed && (
+                      <span className="ml-1.5 text-[10px] text-emerald-500 font-black">✓</span>
+                    )}
                   </div>
-                  <div className="w-[60px] pro-table-cell justify-end font-mono text-xs text-slate-400 tabular-nums col-bpm">
+                  <div className="w-[50px] pro-table-cell justify-center font-mono text-[11px] text-slate-300 tabular-nums col-bpm">
                     {track.bpm ? track.bpm.toFixed(0) : "-"}
                   </div>
-                  <div className="w-[50px] pro-table-cell justify-center font-bold text-pika-purple-light text-xs col-key">
+                  <div className="w-[50px] pro-table-cell justify-center font-black text-pika-purple-light text-[10px] col-key">
                     {track.key || "-"}
                   </div>
-                  <div className="w-[60px] pro-table-cell justify-end font-mono text-[10px] text-slate-500 tabular-nums col-duration">
+                  <div className="w-[60px] pro-table-cell justify-end font-mono text-[10px] text-slate-500 tabular-nums col-duration pr-4">
                     {track.duration
                       ? `${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, "0")}`
                       : "-"}
                   </div>
-                  <div className="w-[70px] pro-table-cell col-nrg">
+                  <div className="w-[70px] pro-table-cell justify-center col-nrg">
                     <div className="energy-pill">
                       <div
                         className="energy-pill-fill"
@@ -521,44 +518,55 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                       />
                     </div>
                   </div>
-                  <div className="w-[70px] pro-table-cell px-2 justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-[60px] pro-table-cell px-2 justify-center gap-1.5 relative">
                     {track.analyzed ? (
-                      <ProTooltip content="Open Inspector">
+                      <>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] group-hover:hidden" />
+                        <div className="hidden group-hover:flex items-center gap-1">
+                          <ProTooltip content="Open Inspector">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTrackId(track.id);
+                                setShowInspector(true);
+                              }}
+                              className="p-1 hover:text-pika-accent transition-colors"
+                            >
+                              <Eye size={14} />
+                            </button>
+                          </ProTooltip>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteTrack(track);
+                            }}
+                            className="p-1 hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <ProTooltip content="Deep Scan Intelligence">
                         <button
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            setSelectedTrackId(track.id);
-                            setShowInspector(true);
+                            handleAnalyzeTrack(track);
                           }}
-                          className="p-1 hover:text-pika-accent"
+                          disabled={analyzingTrackId === track.id}
+                          className="flex items-center justify-center p-1.5 bg-pika-accent/5 hover:bg-pika-accent/20 border border-pika-accent/10 rounded-lg text-pika-accent transition-all animate-pulse-slow"
                         >
-                          <Eye size={14} />
+                          {analyzingTrackId === track.id ? (
+                            <RefreshCw size={12} className="animate-spin" />
+                          ) : (
+                            <Flame size={14} />
+                          )}
                         </button>
                       </ProTooltip>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleAnalyzeTrack(track);
-                        }}
-                        disabled={analyzingTrackId === track.id}
-                        className="p-1 text-amber-500 hover:text-amber-400"
-                      >
-                        {analyzingTrackId === track.id ? "..." : <Flame size={14} />}
-                      </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteTrack(track);
-                      }}
-                      className="p-1 hover:text-red-500"
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   </div>
                 </div>
               );
