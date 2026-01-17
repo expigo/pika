@@ -1,6 +1,6 @@
 "use client";
 
-import { Activity, Heart, Radio, User } from "lucide-react";
+import { Activity, Heart, LayoutGrid, Radio } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -11,7 +11,7 @@ export function BottomNav() {
     { label: "Live", icon: Radio, href: "/live" },
     { label: "Hearts", icon: Heart, href: "/my-likes" },
     { label: "Network", icon: Activity, href: "/analytics" },
-    { label: "Booth", icon: User, href: "/dj/login" },
+    { label: "Menu", icon: LayoutGrid, href: "/menu" },
   ];
 
   return (
