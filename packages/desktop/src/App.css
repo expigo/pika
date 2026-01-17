@@ -104,7 +104,7 @@
   --glass-blur: blur(20px);
 }
 
-:root.theme-midnight {
+html[data-theme="midnight"] {
   --pika-bg: #111111;
   --pika-surface-1: #1a1a1a;
   --pika-surface-2: #242424;
@@ -120,7 +120,7 @@
   --glass-bg: rgba(26, 26, 26, 0.8);
 }
 
-:root.theme-stealth {
+html[data-theme="stealth"] {
   --pika-bg: #080808;
   --pika-surface-1: #0d0d0d;
   --pika-surface-2: #141414;
@@ -141,6 +141,9 @@ body {
   background-color: var(--pika-bg);
   margin: 0;
   overflow: hidden;
+  transition:
+    background-color 0.3s ease,
+    color 0.3s ease;
 }
 
 input,

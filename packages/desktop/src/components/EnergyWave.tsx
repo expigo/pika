@@ -176,9 +176,13 @@ export function EnergyWave({ showBpmLine = true }: Props) {
   return (
     <div className="relative w-full h-full bg-slate-950/20 group">
       {isEmpty && (
-        <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-[10px] font-bold uppercase tracking-widest pointer-events-none">
-          <Activity size={16} className="mr-2 opacity-50" />
-          Energy Flow Analysis Pending
+        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 space-y-3 pointer-events-none z-20">
+          <div className="w-12 h-12 bg-slate-900/50 rounded-2xl border border-white/5 flex items-center justify-center">
+            <Activity size={24} className="opacity-20 animate-pulse" />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40">
+            Energy Flow Analysis Pending
+          </span>
         </div>
       )}
 
@@ -198,90 +202,92 @@ export function EnergyWave({ showBpmLine = true }: Props) {
         </div>
       )}
 
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={normalizedBpmData} margin={{ top: 60, right: 15, left: 15, bottom: 25 }}>
-          <defs>
-            <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-pika-accent)" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="var(--color-pika-accent)" stopOpacity={0} />
-            </linearGradient>
-            <linearGradient id="bpmGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--color-pika-purple-light)" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="var(--color-pika-purple-light)" stopOpacity={0} />
-            </linearGradient>
-          </defs>
+      {!isEmpty && (
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={normalizedBpmData} margin={{ top: 60, right: 15, left: 15, bottom: 25 }}>
+            <defs>
+              <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--color-pika-accent)" stopOpacity={0.8} />
+                <stop offset="100%" stopColor="var(--color-pika-accent)" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="bpmGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--color-pika-purple-light)" stopOpacity={0.4} />
+                <stop offset="100%" stopColor="var(--color-pika-purple-light)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
 
-          {/* Guidelines */}
-          <XAxis
-            dataKey="index"
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(value) => (value + 1).toString()}
-            interval="preserveStartEnd"
-            minTickGap={1}
-            style={{ fontSize: "0.6rem", fill: "#64748b" }}
-          />
-          <YAxis
-            yAxisId="left"
-            orientation="left"
-            stroke="var(--color-pika-accent)"
-            tickLine={false}
-            axisLine={false}
-            domain={[0, 100]}
-            ticks={[25, 50, 75, 100]}
-            tickFormatter={(value) => `${value}%`}
-            style={{ fontSize: "0.6rem", fill: "#475569" }}
-          />
-          {showBpmLine && (
+            {/* Guidelines */}
+            <XAxis
+              dataKey="index"
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(value) => (value + 1).toString()}
+              interval="preserveStartEnd"
+              minTickGap={1}
+              style={{ fontSize: "0.6rem", fill: "#64748b" }}
+            />
             <YAxis
-              yAxisId="right"
-              orientation="right"
-              stroke="var(--color-pika-purple-light)"
+              yAxisId="left"
+              orientation="left"
+              stroke="var(--color-pika-accent)"
               tickLine={false}
               axisLine={false}
               domain={[0, 100]}
-              tickFormatter={(value) => `${Math.round((value / 100) * 100 + 60)}`}
+              ticks={[25, 50, 75, 100]}
+              tickFormatter={(value) => `${value}%`}
               style={{ fontSize: "0.6rem", fill: "#475569" }}
             />
-          )}
+            {showBpmLine && (
+              <YAxis
+                yAxisId="right"
+                orientation="right"
+                stroke="var(--color-pika-purple-light)"
+                tickLine={false}
+                axisLine={false}
+                domain={[0, 100]}
+                tickFormatter={(value) => `${Math.round((value / 100) * 100 + 60)}`}
+                style={{ fontSize: "0.6rem", fill: "#475569" }}
+              />
+            )}
 
-          <Tooltip
-            content={<CustomTooltip />}
-            cursor={{ stroke: "rgba(148, 163, 184, 0.4)", strokeWidth: 1 }}
-          />
+            <Tooltip
+              content={<CustomTooltip />}
+              cursor={{ stroke: "rgba(148, 163, 184, 0.4)", strokeWidth: 1 }}
+            />
 
-          {/* Grid Lines for Reading Energy */}
-          <ReferenceLine yAxisId="left" y={25} stroke="#1e293b" strokeDasharray="3 3" />
-          <ReferenceLine yAxisId="left" y={50} stroke="#334155" strokeDasharray="3 3" />
-          <ReferenceLine yAxisId="left" y={75} stroke="#1e293b" strokeDasharray="3 3" />
+            {/* Grid Lines for Reading Energy */}
+            <ReferenceLine yAxisId="left" y={25} stroke="#1e293b" strokeDasharray="3 3" />
+            <ReferenceLine yAxisId="left" y={50} stroke="#334155" strokeDasharray="3 3" />
+            <ReferenceLine yAxisId="left" y={75} stroke="#1e293b" strokeDasharray="3 3" />
 
-          <Area
-            yAxisId="left"
-            type="monotone"
-            dataKey="energy"
-            stroke="var(--color-pika-accent)"
-            strokeWidth={3}
-            fill="url(#energyGradient)"
-            animationDuration={1000}
-            connectNulls
-          />
-          {showBpmLine && (
             <Area
-              yAxisId="right"
+              yAxisId="left"
               type="monotone"
-              dataKey="normalizedBpm"
-              stroke="var(--color-pika-purple-light)"
-              strokeWidth={2}
-              strokeDasharray="6 6"
-              fill="url(#bpmGradient)"
-              dot={renderBpmDot}
-              activeDot={false}
+              dataKey="energy"
+              stroke="var(--color-pika-accent)"
+              strokeWidth={3}
+              fill="url(#energyGradient)"
               animationDuration={1000}
               connectNulls
             />
-          )}
-        </AreaChart>
-      </ResponsiveContainer>
+            {showBpmLine && (
+              <Area
+                yAxisId="right"
+                type="monotone"
+                dataKey="normalizedBpm"
+                stroke="var(--color-pika-purple-light)"
+                strokeWidth={2}
+                strokeDasharray="6 6"
+                fill="url(#bpmGradient)"
+                dot={renderBpmDot}
+                activeDot={false}
+                animationDuration={1000}
+                connectNulls
+              />
+            )}
+          </AreaChart>
+        </ResponsiveContainer>
+      )}
     </div>
   );
 }

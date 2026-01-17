@@ -15,6 +15,7 @@ import {
   Plus,
   RefreshCw,
   Search,
+  Sparkles,
   Tag,
   Trash2,
   X,
@@ -383,19 +384,19 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
 
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Table Header */}
-        <div className="pro-table-header px-2 border-y border-white/5 bg-white/[0.02]">
+        <div className="pro-table-header border-y border-white/5 bg-white/[0.02]">
           <div className="w-12 pro-table-cell justify-center text-[10px] opacity-40 font-black">
             ADD
           </div>
           <div
-            className="flex-[2] pro-table-cell cursor-pointer hover:text-slate-200 group/h px-2"
+            className="flex-1 pro-table-cell cursor-pointer hover:text-slate-200 group/h px-2"
             onClick={() => toggleSort("artist")}
           >
             <span className="text-[10px]">Artist</span>
             <SortIcon columnKey="artist" className="ml-1" />
           </div>
           <div
-            className="flex-[3] pro-table-cell cursor-pointer hover:text-slate-200 group/h px-2"
+            className="flex-[1.5] pro-table-cell cursor-pointer hover:text-slate-200 group/h px-2"
             onClick={() => toggleSort("title")}
           >
             <span className="text-[10px]">Title</span>
@@ -423,7 +424,7 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
             <SortIcon columnKey="duration" className="ml-0.5" />
           </div>
           <div
-            className="w-20 pro-table-cell justify-center cursor-pointer hover:text-slate-200 group/h"
+            className="w-16 pro-table-cell justify-center cursor-pointer hover:text-slate-200 group/h"
             onClick={() => toggleSort("energy")}
           >
             <span className="text-[10px]">Vibe</span>
@@ -483,13 +484,13 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                     </ProTooltip>
                   </div>
                   <div
-                    className="flex-[2] pro-table-cell font-bold text-slate-200 px-2"
+                    className="flex-1 pro-table-cell font-bold text-slate-200 px-2 truncate"
                     title={track.artist || "Unknown"}
                   >
                     <span className="truncate">{track.artist || "Unknown"}</span>
                   </div>
                   <div
-                    className="flex-[3] pro-table-cell text-slate-400 font-medium px-2"
+                    className="flex-[1.5] pro-table-cell text-slate-400 font-medium px-2 truncate"
                     title={track.title || getFileName(track.filePath)}
                   >
                     <span className="truncate">{track.title || getFileName(track.filePath)}</span>
@@ -508,7 +509,7 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                       ? `${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, "0")}`
                       : "-"}
                   </div>
-                  <div className="w-20 pro-table-cell justify-center">
+                  <div className="w-16 pro-table-cell justify-center">
                     <div className="energy-pill">
                       <div
                         className="energy-pill-fill"
@@ -548,7 +549,7 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                             {analyzingTrackId === track.id ? (
                               <RefreshCw size={12} className="animate-spin" />
                             ) : (
-                              <Zap size={14} />
+                              <Sparkles size={14} />
                             )}
                           </button>
                         </ProTooltip>
@@ -567,9 +568,12 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                     {/* Haptic Idle Status Dots */}
                     <div className="absolute group-hover:hidden">
                       {track.analyzed ? (
-                        <div className="w-1 h-1 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                        <Zap
+                          size={10}
+                          className="text-emerald-500 animate-pulse fill-emerald-500/20 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                        />
                       ) : (
-                        <div className="w-1 h-1 rounded-full bg-slate-700" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-800" />
                       )}
                     </div>
                   </div>
@@ -688,20 +692,20 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                   ) : (
                     <div className="h-64 flex flex-col items-center justify-center text-center space-y-5 px-6">
                       <div className="w-16 h-16 bg-slate-950 rounded-3xl border border-white/5 flex items-center justify-center text-slate-700 shadow-xl">
-                        <Zap size={32} strokeWidth={1.5} />
+                        <Sparkles size={32} strokeWidth={1.5} />
                       </div>
                       <div className="space-y-2">
-                        <p className="text-sm font-bold text-slate-300">Awaiting Deep Scan</p>
+                        <p className="text-sm font-bold text-slate-300">Awaiting Intelligence</p>
                         <p className="text-[11px] text-slate-500 leading-relaxed">
-                          This track hasn't been mapped yet. Deep scanning unlocks the visual
-                          fingerprint and advanced energy metrics.
+                          This track hasn't been processed by the engine yet. Deep scanning unlocks
+                          visual fingerprints and energy flow mapping.
                         </p>
                       </div>
                       <button
                         onClick={() => handleAnalyzeTrack(selectedTrack)}
                         className="px-6 py-2.5 bg-pika-accent hover:bg-pika-accent-light text-white text-[11px] font-black rounded-xl transition-all shadow-lg shadow-pika-accent/20 flex items-center gap-2"
                       >
-                        <Zap size={14} fill="currentColor" /> Quick Analyze
+                        <Sparkles size={14} fill="currentColor" /> Initialize Scan
                       </button>
                     </div>
                   )}

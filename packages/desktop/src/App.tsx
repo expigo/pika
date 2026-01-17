@@ -104,16 +104,16 @@ function App() {
   // Sync theme to document element for global CSS variables
   useEffect(() => {
     const root = window.document.documentElement;
-    // Remove all possible theme classes
-    root.classList.remove("theme-midnight", "theme-stealth", "theme-high-contrast");
-
     const currentProfile = settings["display.profile"] || "high-contrast";
+
+    // Set data-theme for CSS targetting
+    root.setAttribute("data-theme", currentProfile);
+
+    // Apply classes for compatibility
+    root.classList.remove("theme-midnight", "theme-stealth", "theme-high-contrast");
     if (currentProfile !== "high-contrast") {
       root.classList.add(`theme-${currentProfile}`);
     }
-
-    // Also update data-theme attribute for some components
-    root.setAttribute("data-theme", currentProfile);
   }, [settings["display.profile"]]);
 
   // Handle stage view click (performance mode)
@@ -248,7 +248,7 @@ function App() {
               >
                 <div className="absolute top-4 left-4 z-20">
                   <span className="px-2 py-1 bg-pika-accent/10 border border-pika-accent/20 rounded-md text-[9px] font-black text-pika-accent uppercase tracking-widest backdrop-blur-md">
-                    Live Set X-Ray
+                    Session Distribution
                   </span>
                 </div>
                 <EnergyWave />
