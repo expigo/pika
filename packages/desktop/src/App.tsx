@@ -104,9 +104,16 @@ function App() {
   // Sync theme to document element for global CSS variables
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove("theme-midnight", "theme-stealth");
-    if (settings["display.profile"] === "midnight") root.classList.add("theme-midnight");
-    if (settings["display.profile"] === "stealth") root.classList.add("theme-stealth");
+    // Remove all possible theme classes
+    root.classList.remove("theme-midnight", "theme-stealth", "theme-high-contrast");
+
+    const currentProfile = settings["display.profile"] || "high-contrast";
+    if (currentProfile !== "high-contrast") {
+      root.classList.add(`theme-${currentProfile}`);
+    }
+
+    // Also update data-theme attribute for some components
+    root.setAttribute("data-theme", currentProfile);
   }, [settings["display.profile"]]);
 
   // Handle stage view click (performance mode)
