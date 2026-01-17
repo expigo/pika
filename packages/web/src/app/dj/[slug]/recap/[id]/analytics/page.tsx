@@ -1,8 +1,21 @@
 "use client";
 
-import { ArrowLeft, Clock, Heart, Music2, TrendingUp, Zap } from "lucide-react";
+import {
+  Activity,
+  ArrowLeft,
+  BarChart3,
+  Clock,
+  Flame,
+  Heart,
+  Music2,
+  TrendingUp,
+  Trophy,
+  Zap,
+} from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
+import { ProCard, ProHeader } from "@/components/ui/ProCard";
+import { VibeBadge } from "@/components/ui/VibeBadge";
 import {
   Area,
   AreaChart,
@@ -92,6 +105,9 @@ interface ChartDataPoint {
   time: string;
   fullTitle: string;
   energy: number; // Calculated energy score
+  friction: number;
+  harmonic: { color: string; label: string; score: number } | null;
+  prevBpm: number | null;
 }
 
 // Calculate tempo sentiment score (-1 to +1, where -1 = all slower, +1 = all faster)
@@ -100,6 +116,117 @@ function _getTempoSentiment(tempo: TempoData | null): number {
   const total = tempo.slower + tempo.perfect + tempo.faster;
   if (total === 0) return 0;
   return (tempo.faster - tempo.slower) / total;
+}
+
+// --- INTELLIGENCE UTILITIES ---
+
+// Camelot Key Mapping
+const KEY_TO_CAMELOT: Record<string, string> = {
+  // Major
+  C: "8B",
+  "C#": "3B",
+  Db: "3B",
+  D: "10B",
+  "D#": "5B",
+  Eb: "5B",
+  E: "12B",
+  F: "7B",
+  "F#": "2B",
+  Gb: "2B",
+  G: "9B",
+  "G#": "4B",
+  Ab: "4B",
+  A: "11B",
+  "A#": "6B",
+  Bb: "6B",
+  B: "1B",
+  // Minor
+  Am: "8A",
+  "A#m": "3A",
+  Bbm: "3A",
+  Bm: "10A",
+  Cm: "5A",
+  "C#m": "12A",
+  Dbm: "12A",
+  Dm: "7A",
+  "D#m": "2A",
+  Ebm: "2A",
+  Em: "9A",
+  Fm: "4A",
+  "F#m": "11A",
+  Gbm: "11A",
+  Gm: "6A",
+  "G#m": "1A",
+  Abm: "1A",
+};
+
+/**
+ * Calculates harmonic compatibility between two tracks.
+ * Returns: { color: string, label: string, score: number }
+ */
+function getHarmonicRel(keyA: string | null, keyB: string | null) {
+  if (!keyA || !keyB) return { color: "slate", label: "Neutral", score: 0 };
+
+  const camA = KEY_TO_CAMELOT[keyA];
+  const camB = KEY_TO_CAMELOT[keyB];
+
+  if (!camA || !camB) return { color: "slate", label: "Neutral", score: 0 };
+
+  if (camA === camB) return { color: "green", label: "Perfect Match", score: 100 };
+
+  const valA = parseInt(camA);
+  const valB = parseInt(camB);
+  const typeA = camA.slice(-1);
+  const typeB = camB.slice(-1);
+
+  // Same key type (A to A or B to B)
+  if (typeA === typeB) {
+    const diff = Math.abs(valA - valB);
+    if (diff === 1 || diff === 11) return { color: "emerald", label: "Harmonic", score: 80 };
+  }
+
+  // Direct relative (e.g., 8A to 8B)
+  if (valA === valB && typeA !== typeB) return { color: "blue", label: "Relative", score: 90 };
+
+  // Energy boost (+2 Camelot)
+  if (
+    typeA === typeB &&
+    (valB === (valA + 2) % 12 || (valA === 11 && valB === 1) || (valA === 12 && valB === 2))
+  ) {
+    return { color: "purple", label: "Energy Boost", score: 70 };
+  }
+
+  return { color: "slate", label: "Neutral", score: 30 };
+}
+
+/**
+ * Calculates Euclidean distance between two track fingerprints.
+ * Normalized to 0-100 (where 0 is identical, 100 is max distance)
+ */
+function calculateFriction(trackA: RecapTrack, trackB: RecapTrack): number {
+  const fields: Array<keyof RecapTrack> = [
+    "energy",
+    "danceability",
+    "brightness",
+    "acousticness",
+    "groove",
+  ];
+  let sumSq = 0;
+  let count = 0;
+
+  for (const field of fields) {
+    const valA = trackA[field] as number | null;
+    const valB = trackB[field] as number | null;
+    if (valA !== null && valB !== null) {
+      sumSq += Math.pow((valA - valB) / 100, 2);
+      count++;
+    }
+  }
+
+  if (count === 0) return 0;
+  // Avg distance per dimension, then sqrt, then scaled
+  const dist = Math.sqrt(sumSq / count);
+  return Math.min(Math.round(dist * 200), 100); // Scaled so ~0.5 avg diff is "max friction"
 }
 
 // Format time
@@ -154,25 +281,34 @@ export default function AnalyticsPage({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-slate-400 animate-pulse">Loading analytics...</div>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-purple-400 animate-pulse font-black tracking-widest text-[10px] uppercase">
+          Synthesizing Intelligence...
+        </div>
       </div>
     );
   }
 
   if (error || !recap) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center">
-          <TrendingUp className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-slate-300 mb-2">Analytics Not Available</h1>
-          <p className="text-slate-500 mb-6">{error || "Session not found"}</p>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-gradient-to-b from-purple-600/20 to-transparent blur-[120px]" />
+        </div>
+        <div className="text-center relative">
+          <TrendingUp className="w-16 h-16 text-slate-800 mx-auto mb-6" />
+          <h1 className="text-2xl font-black text-white mb-2 italic uppercase tracking-tighter">
+            Data Stream Fragmented
+          </h1>
+          <p className="text-slate-500 font-bold mb-8 uppercase tracking-widest text-[10px]">
+            {error || "Session intelligence is currently unreachable."}
+          </p>
           <Link
             href={`/dj/${slug}`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all font-bold border border-slate-800 uppercase text-[10px] tracking-widest"
           >
             <ArrowLeft className="w-4 h-4" />
-            Back to DJ
+            Back to Archive
           </Link>
         </div>
       </div>
@@ -183,7 +319,7 @@ export default function AnalyticsPage({
   const maxBpm = Math.max(...recap.tracks.map((t) => t.bpm || 0), 1);
   const minBpm = Math.min(...recap.tracks.filter((t) => t.bpm).map((t) => t.bpm || 0), maxBpm);
 
-  const chartData: ChartDataPoint[] = recap.tracks.map((track) => {
+  const chartData: ChartDataPoint[] = recap.tracks.map((track, index) => {
     const engagement =
       track.likes +
       (track.tempo?.slower || 0) +
@@ -193,6 +329,11 @@ export default function AnalyticsPage({
     const normalizedBpm = track.bpm ? ((track.bpm - minBpm) / (maxBpm - minBpm || 1)) * 50 : 25;
     const normalizedEngagement = Math.min(engagement * 5, 50);
     const energy = normalizedBpm + normalizedEngagement;
+
+    // Transition Intelligence (comparison with previous track)
+    const prevTrack = index > 0 ? recap.tracks[index - 1] : null;
+    const friction = prevTrack ? calculateFriction(prevTrack, track) : 0;
+    const harmonic = prevTrack ? getHarmonicRel(prevTrack.key, track.key) : null;
 
     return {
       name: truncate(track.title, 15),
@@ -207,10 +348,38 @@ export default function AnalyticsPage({
       time: formatTime(track.playedAt),
       fullTitle: `${track.artist} - ${track.title}`,
       energy,
-    };
+      // Metadata for transition analysis
+      friction,
+      harmonic,
+      prevBpm: prevTrack?.bpm,
+    } as ChartDataPoint;
+  });
+
+  // Identify "The Drift" Segments
+  // A drift occurs when (BPM increases and crowd says Slower) OR (BPM decreases and crowd says Faster)
+  const driftSegments = chartData.filter((d) => {
+    if (d.prevBpm === undefined || d.bpm === null || d.prevBpm === null) return false;
+    const bpmDelta = d.bpm - d.prevBpm;
+    const totalVotes = d.slower + d.perfect + d.faster;
+    if (totalVotes < 3) return false; // Need some consensus
+
+    const crowdSentiment = (d.faster - d.slower) / totalVotes; // positive = faster, negative = slower
+
+    // If BPM went UP by > 2 but crowd significantly wants SLOWER
+    if (bpmDelta > 2 && crowdSentiment < -0.4) return true;
+    // If BPM went DOWN by > 2 but crowd significantly wants FASTER
+    if (bpmDelta < -2 && crowdSentiment > 0.4) return true;
+
+    return false;
   });
 
   // Calculate summary stats
+  const avgBpm = Math.round(
+    chartData.filter((d) => d.bpm).reduce((sum, d) => sum + (d.bpm || 0), 0) /
+      chartData.filter((d) => d.bpm).length || 0,
+  );
+  const minBpmVal = Math.min(...chartData.filter((d) => d.bpm).map((d) => d.bpm || 0));
+  const maxBpmVal = Math.max(...chartData.filter((d) => d.bpm).map((d) => d.bpm || 0));
   const totalTempoVotes = chartData.reduce((sum, d) => sum + d.slower + d.perfect + d.faster, 0);
   const totalSlower = chartData.reduce((sum, d) => sum + d.slower, 0);
   const totalPerfect = chartData.reduce((sum, d) => sum + d.perfect, 0);
@@ -272,19 +441,59 @@ export default function AnalyticsPage({
     payload?: Array<{ value: number; name: string; color: string; payload: ChartDataPoint }>;
   }) => {
     if (active && payload && payload.length) {
-      const data = payload[0]?.payload as ChartDataPoint;
+      const data = payload[0]?.payload;
       return (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-xl">
-          <p className="text-white font-medium text-sm mb-1">{data?.fullTitle}</p>
-          <p className="text-slate-400 text-xs mb-2">{data?.time}</p>
-          <div className="space-y-1 text-xs">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-2xl backdrop-blur-xl">
+          <div className="mb-3 pb-3 border-b border-white/5">
+            <p className="text-white font-black italic uppercase tracking-tight text-sm leading-tight">
+              {data?.fullTitle}
+            </p>
+            <div className="flex justify-between items-center mt-1">
+              <span className="text-slate-500 text-[9px] font-black uppercase tracking-widest">
+                {data?.time}
+              </span>
+              {data?.bpm && (
+                <span className="text-orange-400 font-black italic text-xs">{data.bpm} BPM</span>
+              )}
+            </div>
+          </div>
+          <div className="space-y-2">
             {payload.map((entry, index) => (
-              <div key={index} className="flex justify-between gap-4">
-                <span style={{ color: entry.color }}>{entry.name}</span>
-                <span className="text-white font-medium">{entry.value}</span>
+              <div key={index} className="flex justify-between gap-6 items-center">
+                <div className="flex items-center gap-2">
+                  <div
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                    {entry.name}
+                  </span>
+                </div>
+                <span className="text-white font-black italic text-xs leading-none">
+                  {entry.value}
+                </span>
               </div>
             ))}
           </div>
+          {data?.harmonic && (
+            <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between">
+              <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                Resonance
+              </span>
+              <VibeBadge
+                variant={
+                  data.harmonic.color === "emerald" || data.harmonic.color === "green"
+                    ? "green"
+                    : data.harmonic.color === "blue"
+                      ? "purple"
+                      : "slate"
+                }
+                className="text-[8px] py-0.5"
+              >
+                {data.harmonic.label}
+              </VibeBadge>
+            </div>
+          )}
         </div>
       );
     }
@@ -292,491 +501,701 @@ export default function AnalyticsPage({
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
+    <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-purple-500/30">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-600/20 to-transparent blur-[120px]" />
+      </div>
+
+      <div className="relative max-w-6xl mx-auto px-6 py-12">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-12">
           <Link
             href={`/dj/${slug}/recap/${id}`}
-            className="inline-flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4"
+            className="inline-flex items-center gap-2 text-slate-600 hover:text-white transition-all mb-8 group"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Recap
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-[10px] font-black uppercase tracking-widest">Back to Recap</span>
           </Link>
-          <h1 className="text-3xl font-bold text-white flex items-center gap-3">
-            <TrendingUp className="w-8 h-8 text-purple-400" />
-            Session Analytics
-          </h1>
-          <p className="text-slate-400 mt-1">
-            {recap.djName} • {recap.trackCount} tracks • {formatTime(recap.startedAt || "")}
+          <div className="flex items-center gap-4 mb-3">
+            <div className="w-12 h-12 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-purple-400" />
+            </div>
+            <h1 className="text-4xl font-black text-white italic tracking-tighter uppercase leading-none">
+              Deep Intelligence
+            </h1>
+          </div>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+            {recap.djName} • {recap.trackCount} Tracks • {formatTime(recap.startedAt || "")}
           </p>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4">
-            <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
-              <Heart className="w-4 h-4" />
-              Total Likes
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-12">
+          <ProCard glow className="p-6">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">
+                <Heart className="w-3.5 h-3.5 text-red-500" />
+                Dancer Syncs
+              </div>
+              <div className="text-4xl font-black text-white italic tracking-tight leading-none mb-1">
+                {recap.totalLikes}
+              </div>
+              <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                Total Heart Signals
+              </div>
             </div>
-            <div className="text-2xl font-bold text-red-400">{recap.totalLikes}</div>
-          </div>
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4">
-            <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
-              <Zap className="w-4 h-4" />
-              Tempo Votes
+          </ProCard>
+
+          <ProCard glow className="p-6">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">
+                <Zap className="w-3.5 h-3.5 text-purple-500" />
+                Tempo Input
+              </div>
+              <div className="text-4xl font-black text-white italic tracking-tight leading-none mb-1">
+                {totalTempoVotes}
+              </div>
+              <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                Total Rhythm Votes
+              </div>
             </div>
-            <div className="text-2xl font-bold text-purple-400">{totalTempoVotes}</div>
-          </div>
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4">
-            <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
-              <Music2 className="w-4 h-4" />
-              Most Liked
+          </ProCard>
+
+          <ProCard glow className="p-6">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">
+                <Music2 className="w-3.5 h-3.5 text-blue-500" />
+                Global BPM
+              </div>
+              <div className="text-4xl font-black text-white italic tracking-tight leading-none mb-1">
+                {avgBpm}
+              </div>
+              <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-1">
+                <Activity className="w-2.5 h-2.5" /> {minBpmVal} - {maxBpmVal} Range
+              </div>
             </div>
-            <div
-              className="text-lg font-bold text-white truncate"
-              title={mostLikedTrack?.fullTitle}
-            >
-              {mostLikedTrack?.name || "-"}
+          </ProCard>
+
+          <ProCard glow className="p-6">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">
+                <Trophy className="w-3.5 h-3.5 text-amber-500" />
+                Peak Moment
+              </div>
+              <div
+                className="text-lg font-black text-white italic tracking-tight truncate leading-tight mb-1 uppercase"
+                title={mostLikedTrack?.fullTitle}
+              >
+                {mostLikedTrack?.name || "-"}
+              </div>
+              <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest flex items-center gap-1">
+                <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
+                {mostLikedTrack?.likes || 0} Highest Engagement
+              </div>
             </div>
-            <div className="text-xs text-red-400">❤️ {mostLikedTrack?.likes || 0}</div>
-          </div>
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-2xl border border-slate-700/50 p-4">
-            <div className="flex items-center gap-2 text-slate-400 text-sm mb-1">
-              <Clock className="w-4 h-4" />
-              Perfect Tempo
+          </ProCard>
+
+          <ProCard glow className="p-6">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2 text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">
+                <Activity className="w-3.5 h-3.5 text-green-500" />
+                Rhythm Match
+              </div>
+              <div className="text-4xl font-black text-white italic tracking-tight leading-none mb-1">
+                {totalTempoVotes > 0 ? Math.round((totalPerfect / totalTempoVotes) * 100) : 0}%
+              </div>
+              <div className="text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                Satisfied Floor
+              </div>
             </div>
-            <div className="text-2xl font-bold text-green-400">
-              {totalTempoVotes > 0 ? Math.round((totalPerfect / totalTempoVotes) * 100) : 0}%
-            </div>
-          </div>
+          </ProCard>
         </div>
 
-        {/* Set Fingerprint Radar Chart */}
-        {hasFingerprint && (
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 p-6 mb-8">
-            <h2 className="text-xl font-bold text-white mb-4">🎵 Set Fingerprint</h2>
-            <p className="text-slate-400 text-sm mb-6">Average audio profile of this session</p>
-
-            <div className="flex flex-col md:flex-row items-center gap-8">
-              {/* Radar Chart */}
-              <div className="h-[280px] w-full md:w-1/2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={setFingerprint}>
-                    <PolarGrid stroke="#334155" strokeOpacity={0.5} />
-                    <PolarAngleAxis
-                      dataKey="metric"
-                      tick={{ fill: "#e2e8f0", fontSize: 12, fontWeight: 500 }}
-                      tickLine={false}
-                    />
-                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
-                    <Radar
-                      name="Fingerprint"
-                      dataKey="value"
-                      stroke="#f472b6"
-                      strokeWidth={2}
-                      fill="#f472b6"
-                      fillOpacity={0.3}
-                    />
-                    <Tooltip
-                      content={({ active, payload }) => {
-                        if (active && payload?.length) {
-                          const data = payload[0].payload;
-                          return (
-                            <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 shadow-xl">
-                              <div className="text-slate-400 text-xs">{data.metric}</div>
-                              <div className="text-pink-400 font-bold">{data.value}</div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
-              </div>
-
-              {/* Fingerprint Stats */}
-              <div className="w-full md:w-1/2 grid grid-cols-2 gap-3">
-                {setFingerprint.map((f) => (
-                  <div key={f.metric} className="bg-slate-700/30 rounded-xl p-3">
-                    <div className="text-slate-400 text-xs mb-1">{f.metric}</div>
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-slate-600/50 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-pink-500 to-purple-500 rounded-full transition-all"
-                          style={{ width: `${f.value}%` }}
-                        />
-                      </div>
-                      <span className="text-white font-bold text-sm w-8 text-right">{f.value}</span>
-                    </div>
-                  </div>
-                ))}
-                <div className="col-span-2 text-center text-xs text-slate-500 mt-2">
-                  Based on {tracksWithFingerprint.length} analyzed tracks
+        {/* The Drift Alert */}
+        {driftSegments.length > 0 && (
+          <div className="mb-12 relative overflow-hidden rounded-[2rem] border border-red-500/20 bg-red-500/5 p-8 flex flex-col md:flex-row items-center gap-8 group">
+            <div className="absolute inset-0 bg-gradient-to-r from-red-600/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="relative w-16 h-16 rounded-[1.5rem] bg-red-500/10 border border-red-500/20 flex items-center justify-center flex-shrink-0 animate-pulse">
+              <Flame className="w-8 h-8 text-red-500" />
+            </div>
+            <div className="relative text-center md:text-left">
+              <h2 className="text-xl font-black text-white italic uppercase tracking-tighter mb-2">
+                "The Drift" Detected
+              </h2>
+              <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-xl">
+                Intelligence indicates several segments where crowd sentiment
+                <span className="text-red-400 font-bold mx-1">diverged</span>
+                dramatically from your BPM trajectory. Your flow moved one way, but the floor's
+                kinetic feedback moved the other.
+              </p>
+            </div>
+            <div className="relative ml-auto grid grid-cols-2 gap-3">
+              {driftSegments.slice(0, 4).map((d) => (
+                <div
+                  key={d.position}
+                  className="bg-slate-900 border border-slate-800 px-4 py-3 rounded-2xl flex flex-col items-center"
+                >
+                  <span className="text-white font-black italic text-sm">{d.bpm} BPM</span>
+                  <span className="text-[8px] font-black text-red-500 uppercase tracking-widest mt-1">
+                    Disconnect
+                  </span>
                 </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
 
-        {/* Engagement Timeline Chart */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 p-6 mb-8">
-          <h2 className="text-xl font-bold text-white mb-4">Engagement Timeline</h2>
-          <p className="text-slate-400 text-sm mb-6">
-            Likes and tempo feedback per track over the session
-          </p>
-
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis
-                  dataKey="name"
-                  stroke="#64748b"
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis stroke="#64748b" tick={{ fill: "#94a3b8" }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ paddingTop: "20px" }}
-                  formatter={(value) => <span className="text-slate-300 text-sm">{value}</span>}
-                />
-                <Bar dataKey="likes" name="Likes ❤️" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                <Bar
-                  dataKey="slower"
-                  name="Slower 🐢"
-                  stackId="tempo"
-                  fill="#3b82f6"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="perfect"
-                  name="Perfect ✅"
-                  stackId="tempo"
-                  fill="#22c55e"
-                  radius={[0, 0, 0, 0]}
-                />
-                <Bar
-                  dataKey="faster"
-                  name="Faster 🐇"
-                  stackId="tempo"
-                  fill="#f97316"
-                  radius={[4, 4, 0, 0]}
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-
-        {/* Tempo Breakdown Chart */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 p-6 mb-8">
-          <h2 className="text-xl font-bold text-white mb-4">Tempo Preference Distribution</h2>
-          <p className="text-slate-400 text-sm mb-6">Overall tempo feedback from dancers</p>
-
-          <div className="grid grid-cols-3 gap-4 mb-6">
-            <div className="text-center p-4 bg-blue-500/10 rounded-xl border border-blue-500/30">
-              <div className="text-3xl mb-1">🐢</div>
-              <div className="text-2xl font-bold text-blue-400">{totalSlower}</div>
-              <div className="text-sm text-slate-400">Slower</div>
-            </div>
-            <div className="text-center p-4 bg-green-500/10 rounded-xl border border-green-500/30">
-              <div className="text-3xl mb-1">✅</div>
-              <div className="text-2xl font-bold text-green-400">{totalPerfect}</div>
-              <div className="text-sm text-slate-400">Perfect</div>
-            </div>
-            <div className="text-center p-4 bg-orange-500/10 rounded-xl border border-orange-500/30">
-              <div className="text-3xl mb-1">🐇</div>
-              <div className="text-2xl font-bold text-orange-400">{totalFaster}</div>
-              <div className="text-sm text-slate-400">Faster</div>
-            </div>
-          </div>
-
-          {/* Tempo Issues Alert */}
-          {tempoIssues.length > 0 && (
-            <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4">
-              <h3 className="text-amber-400 font-medium mb-2">⚠️ Tempo Adjustment Needed</h3>
-              <p className="text-slate-300 text-sm mb-2">
-                These tracks had significant tempo feedback:
-              </p>
-              <ul className="text-sm text-slate-400 space-y-1">
-                {tempoIssues.map((track) => (
-                  <li key={track.position}>
-                    <span className="text-white">{track.fullTitle}</span>
-                    {" — "}
-                    {track.slower > track.faster ? (
-                      <span className="text-blue-400">🐢 {track.slower} wanted slower</span>
-                    ) : (
-                      <span className="text-orange-400">🐇 {track.faster} wanted faster</span>
+        {/* Transition Intelligence Section */}
+        <ProCard className="mb-12">
+          <ProHeader
+            title="Transition Intelligence"
+            icon={TrendingUp}
+            subtitle="Vibe & Harmonic Resonance"
+          />
+          <div className="p-10">
+            <div className="flex overflow-x-auto gap-4 pb-6 scrollbar-hide">
+              {chartData.slice(1).map((d, i) => (
+                <div
+                  key={d.position}
+                  className="flex-shrink-0 w-64 p-5 bg-slate-900/50 rounded-3xl border border-white/5 hover:border-purple-500/20 transition-all group"
+                >
+                  <div className="text-[8px] font-black text-slate-600 uppercase tracking-widest mb-3">
+                    Transition {i + 1} → {i + 2}
+                  </div>
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex flex-col">
+                      <span className="text-slate-400 text-[10px] font-black uppercase tracking-tight mb-0.5">
+                        Vibe Distance
+                      </span>
+                      <span
+                        className={`text-lg font-black italic ${d.friction > 40 ? "text-red-400" : d.friction > 20 ? "text-amber-400" : "text-emerald-400"}`}
+                      >
+                        {d.friction}%
+                      </span>
+                    </div>
+                    {d.harmonic && (
+                      <VibeBadge
+                        variant={
+                          d.harmonic.color === "emerald" || d.harmonic.color === "green"
+                            ? "green"
+                            : d.harmonic.color === "blue"
+                              ? "purple"
+                              : "slate"
+                        }
+                        className="text-[8px]"
+                      >
+                        {d.harmonic.label}
+                      </VibeBadge>
                     )}
-                  </li>
-                ))}
-              </ul>
+                  </div>
+                  <div className="h-1 bg-slate-800 rounded-full overflow-hidden mb-4">
+                    <div
+                      className={`h-full transition-all duration-1000 ${d.friction < 30 ? "bg-emerald-500" : d.friction < 50 ? "bg-amber-500" : "bg-red-500"}`}
+                      style={{ width: `${100 - d.friction}%` }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 truncate">
+                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                    <span
+                      className="text-[10px] font-black text-slate-300 uppercase truncate"
+                      title={d.fullTitle}
+                    >
+                      {d.name}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-          )}
-        </div>
-
-        {/* Cumulative Engagement Area Chart */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 p-6">
-          <h2 className="text-xl font-bold text-white mb-4">Engagement Trend</h2>
-          <p className="text-slate-400 text-sm mb-6">
-            Cumulative engagement throughout the session
-          </p>
-
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart
-                data={chartData.map((d, i) => ({
-                  ...d,
-                  cumulativeLikes: chartData.slice(0, i + 1).reduce((sum, x) => sum + x.likes, 0),
-                  cumulativeEngagement: chartData
-                    .slice(0, i + 1)
-                    .reduce((sum, x) => sum + x.totalEngagement, 0),
-                }))}
-                margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis
-                  dataKey="name"
-                  stroke="#64748b"
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis stroke="#64748b" tick={{ fill: "#94a3b8" }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ paddingTop: "20px" }}
-                  formatter={(value) => <span className="text-slate-300 text-sm">{value}</span>}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="cumulativeEngagement"
-                  name="Total Engagement"
-                  stroke="#a855f7"
-                  fill="#a855f7"
-                  fillOpacity={0.3}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="cumulativeLikes"
-                  name="Total Likes"
-                  stroke="#ef4444"
-                  fill="#ef4444"
-                  fillOpacity={0.3}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
           </div>
-        </div>
+        </ProCard>
 
-        {/* BPM Timeline Chart */}
-        {chartData.some((d) => d.bpm) && (
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 p-6 mb-8">
-            <h2 className="text-xl font-bold text-white mb-4">🎵 BPM Timeline</h2>
-            <p className="text-slate-400 text-sm mb-6">Tempo progression throughout the set</p>
+        {/* Set Fingerprint Radar Chart */}
+        {hasFingerprint && (
+          <ProCard className="mb-12">
+            <ProHeader title="Sonic Fingerprint" icon={Music2} subtitle="Audio Profile" />
+            <div className="p-10">
+              <div className="flex flex-col md:flex-row items-center gap-12">
+                {/* Radar Chart */}
+                <div className="h-[320px] w-full md:w-1/2">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart cx="50%" cy="50%" outerRadius="70%" data={setFingerprint}>
+                      <PolarGrid stroke="#334155" strokeOpacity={0.5} />
+                      <PolarAngleAxis
+                        dataKey="metric"
+                        tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: 900 }}
+                        tickLine={false}
+                      />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+                      <Radar
+                        name="Fingerprint"
+                        dataKey="value"
+                        stroke="#a855f7"
+                        strokeWidth={4}
+                        fill="#a855f7"
+                        fillOpacity={0.2}
+                      />
+                      <Tooltip
+                        content={({ active, payload }) => {
+                          if (active && payload?.length) {
+                            const data = payload[0].payload;
+                            return (
+                              <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-2xl">
+                                <div className="text-slate-500 text-[9px] font-black uppercase tracking-widest mb-1">
+                                  {data.metric}
+                                </div>
+                                <div className="text-white font-black italic text-lg leading-none">
+                                  {data.value}
+                                </div>
+                              </div>
+                            );
+                          }
+                          return null;
+                        }}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
 
-            <div className="h-[250px]">
+                {/* Fingerprint Stats */}
+                <div className="w-full md:w-1/2 grid grid-cols-1 gap-4">
+                  {setFingerprint.map((f) => (
+                    <div key={f.metric} className="group/metric">
+                      <div className="flex justify-between items-end mb-2">
+                        <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest group-hover/metric:text-purple-400 transition-colors">
+                          {f.metric}
+                        </span>
+                        <span className="text-white font-black italic text-xs">{f.value}%</span>
+                      </div>
+                      <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-purple-600 to-pink-600 rounded-full transition-all duration-1000 group-hover/metric:scale-x-[1.02]"
+                          style={{ width: `${f.value}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <div className="mt-4 pt-4 border-t border-slate-800/50 text-center text-[9px] font-black text-slate-600 uppercase tracking-widest">
+                    Based on {tracksWithFingerprint.length} telemetry points
+                  </div>
+                </div>
+              </div>
+            </div>
+          </ProCard>
+        )}
+
+        {/* Engagement Timeline Chart */}
+        <ProCard className="mb-12">
+          <ProHeader
+            title="Engagement Dynamics"
+            icon={Activity}
+            subtitle="Syncs & Tempo Feedback"
+          />
+          <div className="p-10">
+            <div className="h-[400px]">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                  <defs>
-                    <linearGradient id="bpmGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#f97316" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#f97316" stopOpacity={0.1} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                <ComposedChart
+                  data={chartData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
                   <XAxis
                     dataKey="name"
-                    stroke="#64748b"
-                    tick={{ fill: "#94a3b8", fontSize: 10 }}
+                    stroke="#475569"
+                    tick={{ fill: "#64748b", fontSize: 9, fontWeight: 900 }}
                     angle={-45}
                     textAnchor="end"
                     height={60}
+                    axisLine={false}
                   />
                   <YAxis
-                    stroke="#64748b"
-                    tick={{ fill: "#94a3b8" }}
-                    domain={["dataMin - 10", "dataMax + 10"]}
-                    label={{ value: "BPM", angle: -90, position: "insideLeft", fill: "#94a3b8" }}
+                    stroke="#475569"
+                    tick={{ fill: "#64748b", fontSize: 9, fontWeight: 900 }}
+                    axisLine={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend
+                    verticalAlign="top"
+                    align="right"
+                    wrapperStyle={{ paddingBottom: "30px", fontSize: "9px", fontWeight: "900" }}
+                    formatter={(value) => (
+                      <span className="text-slate-500 uppercase tracking-widest">{value}</span>
+                    )}
+                  />
+                  <Bar dataKey="likes" name="Syncs" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="slower"
+                    name="Slower"
+                    stackId="tempo"
+                    fill="#3b82f6"
+                    radius={[0, 0, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="perfect"
+                    name="Perfect"
+                    stackId="tempo"
+                    fill="#22c55e"
+                    radius={[0, 0, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="faster"
+                    name="Faster"
+                    stackId="tempo"
+                    fill="#f97316"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </ProCard>
+
+        {/* Tempo Breakdown Chart */}
+        <ProCard className="mb-12">
+          <ProHeader title="Rhythm Distribution" icon={Zap} subtitle="Global Sentiment" />
+          <div className="p-10">
+            <div className="grid grid-cols-3 gap-8 mb-10">
+              <div className="flex flex-col items-center p-6 bg-blue-500/5 rounded-[2rem] border border-blue-500/10">
+                <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center text-xl mb-3">
+                  🐢
+                </div>
+                <div className="text-3xl font-black text-blue-400 italic mb-1">{totalSlower}</div>
+                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  Slower Votes
+                </div>
+              </div>
+              <div className="flex flex-col items-center p-6 bg-green-500/5 rounded-[2rem] border border-green-500/10">
+                <div className="w-10 h-10 rounded-full bg-green-500/10 flex items-center justify-center text-xl mb-3">
+                  ✅
+                </div>
+                <div className="text-3xl font-black text-green-400 italic mb-1">{totalPerfect}</div>
+                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  Perfect Votes
+                </div>
+              </div>
+              <div className="flex flex-col items-center p-6 bg-orange-500/5 rounded-[2rem] border border-orange-500/10">
+                <div className="w-10 h-10 rounded-full bg-orange-500/10 flex items-center justify-center text-xl mb-3">
+                  🐇
+                </div>
+                <div className="text-3xl font-black text-orange-400 italic mb-1">{totalFaster}</div>
+                <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                  Faster Votes
+                </div>
+              </div>
+            </div>
+
+            {/* Tempo Issues Alert */}
+            {tempoIssues.length > 0 && (
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-2xl p-6">
+                <div className="flex items-center gap-2 mb-4">
+                  <Flame className="w-4 h-4 text-amber-500" />
+                  <h3 className="text-amber-500 font-black uppercase text-[10px] tracking-widest">
+                    Tempo Alerts Detected
+                  </h3>
+                </div>
+                <div className="grid gap-3">
+                  {tempoIssues.map((track) => (
+                    <div
+                      key={track.position}
+                      className="flex items-center justify-between text-[11px] bg-slate-900/50 p-3 rounded-xl border border-slate-800"
+                    >
+                      <span className="text-slate-300 font-bold uppercase truncate max-w-[70%]">
+                        {track.fullTitle}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {track.slower > track.faster ? (
+                          <VibeBadge variant="purple" className="text-[9px] px-2 shadow-sm">
+                            TURTLE MODE
+                          </VibeBadge>
+                        ) : (
+                          <VibeBadge variant="amber" className="text-[9px] px-2 shadow-sm">
+                            RABBIT MODE
+                          </VibeBadge>
+                        )}
+                        <span className="text-slate-500 font-black italic">
+                          {Math.max(track.slower, track.faster)} VOTES
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </ProCard>
+
+        {/* Engagement Trend Chart */}
+        <ProCard className="mb-12">
+          <ProHeader title="Momentum Index" icon={Flame} subtitle="Cumulative Interaction" />
+          <div className="p-10">
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={chartData.map((d, i) => ({
+                    ...d,
+                    cumulativeLikes: chartData.slice(0, i + 1).reduce((sum, x) => sum + x.likes, 0),
+                    cumulativeEngagement: chartData
+                      .slice(0, i + 1)
+                      .reduce((sum, x) => sum + x.totalEngagement, 0),
+                  }))}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <defs>
+                    <linearGradient id="engagementGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#a855f7" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#475569"
+                    tick={{ fill: "#64748b", fontSize: 9, fontWeight: 900 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#475569"
+                    tick={{ fill: "#64748b", fontSize: 9, fontWeight: 900 }}
+                    axisLine={false}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Area
                     type="monotone"
-                    dataKey="bpm"
-                    name="BPM"
-                    stroke="#f97316"
-                    fill="url(#bpmGradient)"
+                    dataKey="cumulativeEngagement"
+                    name="Total Interaction"
+                    stroke="#a855f7"
+                    fill="url(#engagementGradient)"
                     strokeWidth={3}
-                    dot={{ fill: "#f97316", strokeWidth: 2, r: 4 }}
-                    connectNulls
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="cumulativeLikes"
+                    name="Heart Signals"
+                    stroke="#ef4444"
+                    fill="transparent"
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
                   />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
+          </div>
+        </ProCard>
 
-            {/* BPM Stats */}
-            <div className="grid grid-cols-3 gap-4 mt-6">
-              <div className="text-center p-3 bg-slate-700/30 rounded-xl">
-                <div className="text-xl font-bold text-orange-400">
-                  {Math.min(...chartData.filter((d) => d.bpm).map((d) => d.bpm || 0))}
-                </div>
-                <div className="text-xs text-slate-400">Min BPM</div>
+        {/* BPM Timeline Chart */}
+        {chartData.some((d) => d.bpm) && (
+          <ProCard className="mb-12">
+            <ProHeader title="Tempo Propagation" icon={Activity} subtitle="BPM Progression" />
+            <div className="p-10">
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                    <defs>
+                      <linearGradient id="bpmGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f97316" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      stroke="#475569"
+                      tick={{ fill: "#64748b", fontSize: 9, fontWeight: 900 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      stroke="#475569"
+                      tick={{ fill: "#64748b", fontSize: 9, fontWeight: 900 }}
+                      domain={["dataMin - 10", "dataMax + 10"]}
+                      axisLine={false}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area
+                      type="monotone"
+                      dataKey="bpm"
+                      name="BPM"
+                      stroke="#f97316"
+                      fill="url(#bpmGradient)"
+                      strokeWidth={4}
+                      dot={{ fill: "#f97316", strokeWidth: 2, r: 4 }}
+                      connectNulls
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-              <div className="text-center p-3 bg-slate-700/30 rounded-xl">
-                <div className="text-xl font-bold text-orange-400">
-                  {Math.round(
-                    chartData.filter((d) => d.bpm).reduce((sum, d) => sum + (d.bpm || 0), 0) /
-                      chartData.filter((d) => d.bpm).length || 0,
-                  )}
+
+              {/* BPM Stats */}
+              <div className="grid grid-cols-3 gap-6 mt-8">
+                <div className="text-center p-6 bg-slate-900 rounded-3xl border border-slate-800">
+                  <div className="text-2xl font-black text-orange-400 italic leading-none mb-2">
+                    {Math.min(...chartData.filter((d) => d.bpm).map((d) => d.bpm || 0))}
+                  </div>
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                    Min BPM
+                  </div>
                 </div>
-                <div className="text-xs text-slate-400">Avg BPM</div>
-              </div>
-              <div className="text-center p-3 bg-slate-700/30 rounded-xl">
-                <div className="text-xl font-bold text-orange-400">
-                  {Math.max(...chartData.filter((d) => d.bpm).map((d) => d.bpm || 0))}
+                <div className="text-center p-6 bg-slate-900 rounded-3xl border border-slate-800">
+                  <div className="text-2xl font-black text-orange-400 italic leading-none mb-2">
+                    {Math.round(
+                      chartData.filter((d) => d.bpm).reduce((sum, d) => sum + (d.bpm || 0), 0) /
+                        chartData.filter((d) => d.bpm).length || 0,
+                    )}
+                  </div>
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                    Avg BPM
+                  </div>
                 </div>
-                <div className="text-xs text-slate-400">Max BPM</div>
+                <div className="text-center p-6 bg-slate-900 rounded-3xl border border-slate-800">
+                  <div className="text-2xl font-black text-orange-400 italic leading-none mb-2">
+                    {Math.max(...chartData.filter((d) => d.bpm).map((d) => d.bpm || 0))}
+                  </div>
+                  <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                    Max BPM
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </ProCard>
         )}
 
         {/* Energy Wave Chart */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 p-6">
-          <h2 className="text-xl font-bold text-white mb-4">⚡ Energy Wave</h2>
-          <p className="text-slate-400 text-sm mb-6">
-            Set flow visualization combining BPM and engagement
-          </p>
-
-          <div className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                <defs>
-                  <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8} />
-                    <stop offset="50%" stopColor="#ec4899" stopOpacity={0.5} />
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.1} />
-                  </linearGradient>
-                  <linearGradient id="likesGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.9} />
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0.2} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                <XAxis
-                  dataKey="name"
-                  stroke="#64748b"
-                  tick={{ fill: "#94a3b8", fontSize: 10 }}
-                  angle={-45}
-                  textAnchor="end"
-                  height={60}
-                />
-                <YAxis stroke="#64748b" tick={{ fill: "#94a3b8" }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend
-                  wrapperStyle={{ paddingTop: "20px" }}
-                  formatter={(value) => <span className="text-slate-300 text-sm">{value}</span>}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="energy"
-                  name="Energy Score"
-                  stroke="#a855f7"
-                  fill="url(#energyGradient)"
-                  strokeWidth={3}
-                />
-                <Bar
-                  dataKey="likes"
-                  name="Likes ❤️"
-                  fill="url(#likesGradient)"
-                  radius={[4, 4, 0, 0]}
-                  opacity={0.8}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="bpm"
-                  name="BPM"
-                  stroke="#f97316"
-                  strokeWidth={2}
-                  dot={false}
-                  connectNulls
-                />
-              </ComposedChart>
-            </ResponsiveContainer>
+        <ProCard className="mb-12">
+          <ProHeader title="Energy Signature" icon={BarChart3} subtitle="Composite Flow" />
+          <div className="p-10">
+            <div className="h-[350px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={chartData}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                >
+                  <defs>
+                    <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#a855f7" stopOpacity={0.6} />
+                      <stop offset="95%" stopColor="#ec4899" stopOpacity={0.1} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis
+                    dataKey="name"
+                    stroke="#475569"
+                    tick={{ fill: "#64748b", fontSize: 9, fontWeight: 900 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={60}
+                    axisLine={false}
+                  />
+                  <YAxis
+                    stroke="#475569"
+                    tick={{ fill: "#64748b", fontSize: 9, fontWeight: 900 }}
+                    axisLine={false}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area
+                    type="step"
+                    dataKey="energy"
+                    name="Energy Multiplier"
+                    stroke="#a855f7"
+                    fill="url(#energyGradient)"
+                    strokeWidth={3}
+                  />
+                  <Bar
+                    dataKey="likes"
+                    name="Engagement"
+                    fill="#ef4444"
+                    radius={[4, 4, 0, 0]}
+                    opacity={0.6}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="bpm"
+                    stroke="#f97316"
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </div>
+        </ProCard>
 
         {/* Polls Results Section */}
         {recap.polls && recap.polls.length > 0 && (
-          <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 p-6 mb-8">
-            <h2 className="text-xl font-bold text-white mb-4">📊 Poll Results</h2>
-            <p className="text-slate-400 text-sm mb-6">
-              {recap.totalPolls} poll{recap.totalPolls !== 1 ? "s" : ""} • {recap.totalPollVotes}{" "}
-              total votes
-            </p>
-
-            <div className="grid gap-6">
-              {recap.polls.map(
-                (poll: PollResult): React.ReactNode => (
-                  <div key={poll.id} className="bg-slate-700/30 rounded-2xl p-5">
-                    <h3 className="text-lg font-semibold text-white mb-2">{poll.question}</h3>
-
-                    {/* Poll context: track and time */}
-                    <div className="flex flex-wrap gap-2 mb-4 text-xs">
-                      {poll.currentTrack && (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-600/50 rounded-full text-slate-300">
-                          🎵 During: {poll.currentTrack.title}
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1 px-2 py-1 bg-slate-600/50 rounded-full text-slate-400">
-                        🕐{" "}
-                        {new Date(poll.startedAt).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-
-                    <div className="space-y-3">
-                      {poll.options.map((option: string, idx: number) => {
-                        const votes = poll.votes[idx] ?? 0;
-                        const percentage =
-                          poll.totalVotes > 0 ? Math.round((votes / poll.totalVotes) * 100) : 0;
-                        const isWinner = idx === poll.winnerIndex;
-                        return (
-                          <div key={idx}>
-                            <div className="flex justify-between text-sm mb-1">
-                              <span
-                                className={`font-medium ${isWinner ? "text-emerald-300" : "text-slate-300"}`}
-                              >
-                                {isWinner && "🏆 "}
-                                {option}
+          <ProCard className="mb-12">
+            <ProHeader title="Public Sentiment" icon={BarChart3} subtitle="Live Poll Results" />
+            <div className="p-10">
+              <div className="grid gap-12">
+                {recap.polls.map(
+                  (poll: PollResult): React.ReactNode => (
+                    <div key={poll.id} className="relative">
+                      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                        <div>
+                          <h3 className="text-xl font-black text-white italic uppercase tracking-tighter mb-2">
+                            {poll.question}
+                          </h3>
+                          <div className="flex items-center gap-3">
+                            {poll.currentTrack && (
+                              <span className="text-[10px] font-black uppercase text-slate-500 tracking-widest flex items-center gap-1.5">
+                                <Music2 className="w-3 h-3" />
+                                During: {poll.currentTrack.title}
                               </span>
-                              <span className="text-slate-400">
-                                {votes} votes ({percentage}%)
-                              </span>
-                            </div>
-                            <div className="h-3 bg-slate-600/50 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${isWinner ? "bg-gradient-to-r from-emerald-500 to-emerald-400" : "bg-gradient-to-r from-indigo-500 to-purple-500"}`}
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
+                            )}
+                            <span className="text-[10px] font-black uppercase text-purple-500/50 tracking-widest flex items-center gap-1.5">
+                              <Clock className="w-3 h-3" />
+                              {new Date(poll.startedAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
                           </div>
-                        );
-                      })}
+                        </div>
+                        <div className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          {poll.totalVotes} Total Broadcasts
+                        </div>
+                      </div>
+
+                      <div className="grid gap-6">
+                        {poll.options.map((option: string, idx: number) => {
+                          const votes = poll.votes[idx] ?? 0;
+                          const percentage =
+                            poll.totalVotes > 0 ? Math.round((votes / poll.totalVotes) * 100) : 0;
+                          const isWinner = idx === poll.winnerIndex;
+                          return (
+                            <div key={idx} className="relative">
+                              <div className="flex justify-between items-center mb-2">
+                                <div className="flex items-center gap-2">
+                                  {isWinner && <Trophy className="w-4 h-4 text-amber-500" />}
+                                  <span
+                                    className={`text-sm font-black uppercase tracking-tight ${isWinner ? "text-white italic" : "text-slate-500"}`}
+                                  >
+                                    {option}
+                                  </span>
+                                </div>
+                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                                  {votes} SYNC ({percentage}%)
+                                </span>
+                              </div>
+                              <div className="h-1.5 bg-slate-900 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full transition-all duration-1000 ${isWinner ? "bg-gradient-to-r from-amber-500 to-yellow-400" : "bg-gradient-to-r from-purple-600 to-indigo-600"}`}
+                                  style={{ width: `${percentage}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="mt-4 text-xs text-slate-500">{poll.totalVotes} votes total</div>
-                  </div>
-                ),
-              )}
+                  ),
+                )}
+              </div>
             </div>
-          </div>
+          </ProCard>
         )}
       </div>
     </div>

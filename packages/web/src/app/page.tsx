@@ -5,9 +5,7 @@ import {
   ArrowRight,
   BarChart3,
   Calendar,
-  CheckCircle2,
   Download,
-  Gauge,
   Globe2,
   Headphones,
   Heart,
@@ -22,13 +20,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ProCard } from "@/components/ui/ProCard";
+import { VibeBadge } from "@/components/ui/VibeBadge";
 
 // API base URL helper
 function getApiBaseUrl(): string {
-  // 1. Prefer process.env if explicitly set (and likely correct in prod)
-  // BUT for local development/LAN testing, we might want to override if the env var is stale.
-  // A safer check: if window location is available, and we are not on the "configured" host, use window location
-  // to avoid CORS or timeout issues on LAN.
   if (typeof window !== "undefined") {
     const hostname = window.location.hostname;
     const isLocalOrLan =
@@ -100,419 +96,523 @@ export default function LandingPage() {
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-purple-500/30">
       {/* 🔴 LIVE BANNER */}
       {isLive && firstSession && (
-        <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg shadow-red-900/20">
-          <div className="max-w-5xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm sm:text-base">
-            <div className="flex items-center gap-3 text-center sm:text-left">
-              <span className="relative flex h-3 w-3 shrink-0">
+        <div className="bg-gradient-to-r from-red-600 to-pink-600 text-white shadow-lg shadow-red-900/20 sticky top-0 z-50">
+          <div className="max-w-5xl mx-auto px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-white"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
               </span>
-
-              <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+              <p className="font-black italic uppercase tracking-wider">
                 {isMultipleDJs ? (
-                  <span className="font-bold">🔴 {sessionCount} DJs LIVE!</span>
+                  <span>{sessionCount} DJs LIVE NOW</span>
                 ) : (
-                  <>
-                    <span className="font-bold">LIVE NOW:</span>
-                    <span>{firstSession.djName}</span>
-                    {firstSession.currentTrack && (
-                      <span className="opacity-90 hidden sm:inline">
-                        — {firstSession.currentTrack.title}
-                      </span>
-                    )}
-                  </>
+                  <span>{firstSession.djName} IS LIVE</span>
                 )}
-              </div>
+              </p>
             </div>
 
             <Link
               href={isMultipleDJs ? "/live" : `/live/${firstSession.sessionId}`}
-              className="w-full sm:w-auto bg-white text-red-600 px-5 py-1.5 rounded-full font-bold text-xs sm:text-sm hover:bg-slate-100 transition-colors flex items-center justify-center gap-2 shadow-sm"
+              className="px-4 py-1.5 bg-white text-red-600 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 active:scale-95 transition-all shadow-xl flex items-center gap-2"
             >
-              {isMultipleDJs ? "Choose Room" : "Tune In"}
-              <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4" />
+              {isMultipleDJs ? "ENTER HUB" : "JOIN FLOOR"}
+              <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>
       )}
 
       {/* ✨ HERO SECTION */}
-      <header className="relative overflow-hidden pt-12 pb-24 sm:pt-24 sm:pb-32 px-4 sm:px-6 text-center z-10">
-        {/* Background Gradients */}
+      <header className="relative pt-24 pb-32 px-4 sm:px-6 text-center z-10">
+        {/* Animated Background Gradients */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[100px] mix-blend-screen" />
-          <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-pink-600/10 rounded-full blur-[80px] mix-blend-screen" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[800px] bg-gradient-to-b from-purple-600/20 via-transparent to-transparent blur-[140px]" />
+          <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-600/10 rounded-full blur-[120px]" />
+          <div className="absolute top-[20%] -right-[10%] w-[30%] h-[30%] bg-pink-600/10 rounded-full blur-[100px]" />
+
+          {/* Subtle Grid Overlay */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
         </div>
 
         <div className="relative max-w-5xl mx-auto">
-          {/* Logo Badge */}
-          <div className="inline-flex items-center gap-2 bg-slate-800/50 backdrop-blur border border-slate-700 rounded-full px-4 py-1.5 mb-8 shadow-xl hover:border-slate-600 transition-colors">
-            <div className="relative">
-              <Radio className="w-4 h-4 text-red-500" />
-              <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
-            </div>
-            <span className="text-xs font-bold text-slate-300 tracking-widest uppercase">
-              Real-time • Interactive • Live
+          <div className="inline-flex items-center gap-2 bg-slate-900/80 backdrop-blur-2xl border border-slate-700/50 rounded-full px-5 py-2 mb-12 shadow-[0_0_20px_rgba(168,85,247,0.15)] animate-in fade-in slide-in-from-bottom-4 duration-1000">
+            <Radio className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
+            <span className="text-[10px] font-black text-slate-400 tracking-[0.4em] uppercase">
+              Connected • Interactive • Live
             </span>
           </div>
 
-          <h1 className="text-4xl sm:text-6xl md:text-7xl font-black text-white tracking-tight leading-[1.1] mb-8">
-            The Digital Pulse of <br className="hidden sm:block" />
-            <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-red-400 text-transparent bg-clip-text">
-              Your Dance Floor
+          <h1 className="text-4xl sm:text-6xl md:text-8xl font-black text-white tracking-tighter leading-[0.95] sm:leading-[0.9] mb-8 sm:mb-12 italic uppercase drop-shadow-[0_0_30px_rgba(255,255,255,0.1)]">
+            THE DIGITAL PULSE <br className="hidden sm:block" />
+            <span className="inline-block bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 text-transparent bg-clip-text drop-shadow-[0_0_15px_rgba(168,85,247,0.3)] pr-4">
+              OF YOUR FLOOR
             </span>
           </h1>
 
-          <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto mb-12 leading-relaxed">
+          <p className="text-lg sm:text-xl md:text-2xl text-slate-400 max-w-3xl mx-auto mb-16 sm:mb-20 font-medium leading-relaxed tracking-tight px-2 sm:px-0">
             Bridge the gap between the DJ booth and the dance floor.
-            <strong>Real-time feedback</strong>, <strong>smart playlists</strong>, and{" "}
-            <strong>seamless communication</strong> for modern WCS events.
+            <span className="text-white"> Real-time feedback</span>,{" "}
+            <span className="text-white">intelligent insight</span>, and
+            <span className="text-white"> seamless synchronization</span> for the modern WCS
+            community.
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
-            <div className="flex flex-col items-center gap-2 w-full sm:w-auto">
-              <Link
-                href={
-                  isLive ? (isMultipleDJs ? "/live" : `/live/${firstSession?.sessionId}`) : "/live"
-                }
-                className="w-full px-8 py-4 bg-white text-slate-950 font-bold rounded-xl hover:bg-slate-100 transition-all transform hover:-translate-y-1 shadow-lg shadow-white/10 flex items-center justify-center gap-2"
-              >
-                <Smartphone className="w-5 h-5" />
-                Tune In (Dancer)
-              </Link>
-              <span className="text-xs text-slate-500 font-medium tracking-wide">
-                No app needed • Anonymous
-              </span>
-            </div>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
+            <Link
+              href={
+                isLive ? (isMultipleDJs ? "/live" : `/live/${firstSession?.sessionId}`) : "/live"
+              }
+              className="w-full sm:w-auto px-12 py-6 bg-white text-slate-950 font-black rounded-2xl hover:bg-slate-100 active:scale-95 transition-all shadow-2xl shadow-white/10 uppercase text-xs tracking-[0.3em] flex items-center justify-center gap-3 group"
+            >
+              <Smartphone className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+              Tune In (Dancer)
+            </Link>
 
-            <div className="flex flex-col items-center gap-2 w-full sm:w-auto">
-              <Link
-                href="/dj/register"
-                className="w-full sm:w-auto px-8 py-4 bg-slate-800 text-white font-bold rounded-xl border border-slate-700 hover:bg-slate-700 transition-all flex items-center justify-center gap-2 hover:border-purple-500/50"
-              >
-                <Headphones className="w-5 h-5" />
-                Go Live (DJ)
-              </Link>
-              {/* Spacer to align buttons perfectly even though DJ side has no subtext */}
-              <span className="text-xs text-transparent font-medium tracking-wide selection:bg-transparent">
-                spacer
-              </span>
-            </div>
+            <Link
+              href="/dj/register"
+              className="w-full sm:w-auto px-12 py-6 bg-slate-900 text-white font-black rounded-2xl border border-slate-800 hover:bg-slate-800 active:scale-95 transition-all uppercase text-xs tracking-[0.3em] flex items-center justify-center gap-3 group shadow-xl"
+            >
+              <Headphones className="w-5 h-5 group-hover:-rotate-12 transition-transform" />
+              Go Live (DJ)
+            </Link>
           </div>
         </div>
       </header>
 
       {/* 🎯 AUDIENCE TRIFECTA */}
-      <section className="py-20 px-4 bg-slate-900/50 border-y border-slate-800">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">A Unified Experience</h2>
-            <p className="text-slate-400 max-w-2xl mx-auto">
-              Pika! isn't just a playlist viewer. It's a complete ecosystem that enhances the event
-              for everyone.
+      <section className="py-32 px-4 bg-slate-950 relative border-y border-slate-900 overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-purple-600/5 blur-[100px] pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto relative z-10">
+          <div className="text-center mb-24">
+            <h2 className="text-4xl sm:text-5xl font-black text-white mb-6 italic uppercase tracking-tighter">
+              A Unified Experience
+            </h2>
+            <p className="text-slate-500 max-w-xl mx-auto leading-relaxed font-black uppercase text-[10px] tracking-[0.4em] opacity-70">
+              Elevating the entire dance community
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-3 gap-8 md:gap-12">
             {/* DJs Card */}
-            <div className="group relative bg-slate-800 rounded-3xl p-8 border border-slate-700 hover:border-purple-500/50 transition-all shadow-2xl hover:shadow-purple-900/20">
-              <div className="absolute -top-6 left-8 w-14 h-14 bg-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/30 group-hover:scale-110 transition-transform rotate-3 group-hover:rotate-0">
-                <Headphones className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-white mt-8 mb-2">For DJs</h3>
-              <p className="text-purple-300 font-medium mb-6 flex items-center gap-2">
-                <Activity className="w-4 h-4" /> Audio X-Ray
-              </p>
+            <div className="flex flex-col">
+              <ProCard className="flex-1 p-10 flex flex-col items-start" glow>
+                <div className="w-16 h-16 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-purple-500/5 group-hover:scale-110 transition-transform">
+                  <Headphones className="w-8 h-8 text-purple-400" />
+                </div>
+                <h3 className="text-3xl font-black text-white mb-4 italic uppercase tracking-tight">
+                  DJs
+                </h3>
+                <VibeBadge variant="purple" icon={Activity} className="mb-8">
+                  AUDIO X-RAY
+                </VibeBadge>
 
-              <ul className="space-y-4 text-slate-300">
-                <li className="flex items-start gap-3">
-                  <BarChart3 className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Deep Analysis:</strong> Our sidecar processes every file on your drive.
-                    Get precise BPM, Key, Energy, and Groove metrics instantly.
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Users className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Crowd Pulse:</strong> See "Too Fast" or "Too Slow" votes in real-time.
-                    Adjust your set before you lose the floor.
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <History className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Set Analytics:</strong> Review your performance after the gig. Which
-                    tracks got the most loves? What cleared the floor?
-                  </span>
-                </li>
-              </ul>
+                <ul className="space-y-6 text-slate-400 font-medium text-sm flex-1">
+                  <li className="flex items-start gap-6">
+                    <Zap className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Library Sync:</strong> Intelligent ID of BPM, Key, and Energy metrics.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-6">
+                    <Activity className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Floor Flow:</strong> Real-time crowd signal decoding.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-6">
+                    <History className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Deep Analytics:</strong> Set recaps that find what truly popped.
+                    </span>
+                  </li>
+                </ul>
+
+                <Link
+                  href="/for/djs"
+                  className="mt-12 group flex items-center gap-3 text-[10px] font-black text-purple-400/80 hover:text-purple-400 uppercase tracking-widest active:scale-95 transition-all text-left"
+                >
+                  Sidecar Specs{" "}
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
+                </Link>
+              </ProCard>
             </div>
 
             {/* Dancers Card */}
-            <div className="group relative bg-slate-800 rounded-3xl p-8 border border-slate-700 hover:border-pink-500/50 transition-all shadow-2xl hover:shadow-pink-900/20">
-              <div className="absolute -top-6 left-8 w-14 h-14 bg-pink-500 rounded-2xl flex items-center justify-center shadow-lg shadow-pink-500/30 group-hover:scale-110 transition-transform -rotate-2 group-hover:rotate-0">
-                <Heart className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-white mt-8 mb-2">For Dancers</h3>
-              <p className="text-pink-300 font-medium mb-6 flex items-center gap-2">
-                <Sparkles className="w-4 h-4" /> Curate Your Night
-              </p>
+            <div className="flex flex-col">
+              <ProCard className="flex-1 p-10 flex flex-col items-start" glow>
+                <div className="w-16 h-16 bg-pink-500/10 border border-pink-500/20 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-pink-500/5 group-hover:scale-110 transition-transform">
+                  <Heart className="w-8 h-8 text-pink-400" />
+                </div>
+                <h3 className="text-3xl font-black text-white mb-4 italic uppercase tracking-tight">
+                  Dancers
+                </h3>
+                <VibeBadge variant="red" icon={Sparkles} className="mb-8">
+                  CURATE THE NIGHT
+                </VibeBadge>
 
-              <ul className="space-y-4 text-slate-300">
-                <li className="flex items-start gap-3">
-                  <Smartphone className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Zero Friction:</strong> No app store downloads. Just scan a QR code and
-                    you're connected in seconds.
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Heart className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Save for Later:</strong> "Like" a track to save it to your personal
-                    history. Never ask "What was that song?" again.
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Gauge className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Anonymous Voting:</strong> Politely signal if the tempo is drifting.
-                    Your feedback helps the DJ create a better vibe.
-                  </span>
-                </li>
-              </ul>
+                <ul className="space-y-8 text-slate-400 font-medium text-sm flex-1">
+                  <li className="flex items-start gap-6">
+                    <Smartphone className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Zero Friction:</strong> Scan QR and connect. No accounts. No apps.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-6">
+                    <Users className="w-5 h-5 text-pink-500 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Safety:</strong> Anonymous signals. All the vibe, zero social
+                      pressure.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-6">
+                    <Radio className="w-5 h-5 text-pink-400 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Journal:</strong> Instant track saving for later discovery.
+                    </span>
+                  </li>
+                </ul>
+
+                <Link
+                  href="/guide/web-app"
+                  className="mt-12 group flex items-center gap-3 text-[10px] font-black text-pink-400/80 hover:text-pink-400 uppercase tracking-widest active:scale-95 transition-all text-left"
+                >
+                  Floor Guide{" "}
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
+                </Link>
+              </ProCard>
             </div>
 
             {/* Organizers Card */}
-            <div className="group relative bg-slate-800 rounded-3xl p-8 border border-slate-700 hover:border-emerald-500/50 transition-all shadow-2xl hover:shadow-emerald-900/20">
-              <div className="absolute -top-6 left-8 w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/30 group-hover:scale-110 transition-transform rotate-2 group-hover:rotate-0">
-                <Calendar className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="text-2xl font-bold text-white mt-8 mb-2">For Organizers</h3>
-              <p className="text-emerald-300 font-medium mb-6 flex items-center gap-2">
-                <Zap className="w-4 h-4" /> Level Up
-              </p>
+            <div className="flex flex-col">
+              <ProCard className="flex-1 p-10 flex flex-col items-start" glow>
+                <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-emerald-500/5 group-hover:scale-110 transition-transform">
+                  <Calendar className="w-8 h-8 text-emerald-400" />
+                </div>
+                <h3 className="text-3xl font-black text-white mb-4 italic uppercase tracking-tight">
+                  Hubs
+                </h3>
+                <VibeBadge variant="green" icon={Zap} className="mb-8">
+                  EVENT UPGRADING
+                </VibeBadge>
 
-              <ul className="space-y-4 text-slate-300">
-                <li className="flex items-start gap-3">
-                  <MessageCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Live Announcements:</strong> Need to announce a schedule change or
-                    contest? Push messages directly to every dancer's phone via the DJ screen.
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Globe2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Modern Standard:</strong> Elevate your event branding. Show attendees
-                    you care about their musical experience.
-                  </span>
-                </li>
-                <li className="flex items-start gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
-                  <span>
-                    <strong>Plug & Play:</strong> Compatible with any setup. Works offline for DJs
-                    if venue WiFi fails (local-only mode).
-                  </span>
-                </li>
-              </ul>
+                <ul className="space-y-6 text-slate-400 font-medium text-sm flex-1">
+                  <li className="flex items-start gap-6">
+                    <Globe2 className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Command Center:</strong> Monitor multiple rooms in one unified link.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-6">
+                    <MessageCircle className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Push Comms:</strong> Direct booth-to-phone announcements.
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-6">
+                    <Radio className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                    <span className="leading-relaxed">
+                      <strong>Resilience:</strong> Works with or without high-speed guest WiFi.
+                    </span>
+                  </li>
+                </ul>
+
+                <a
+                  href="mailto:hello@pika.stream"
+                  className="mt-12 group flex items-center gap-3 text-[10px] font-black text-emerald-400/80 hover:text-emerald-400 uppercase tracking-widest active:scale-95 transition-all text-left"
+                >
+                  Contact Beta{" "}
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
+                </a>
+              </ProCard>
             </div>
           </div>
         </div>
       </section>
 
+      {/* 🚀 THE EVOLUTION OF PIKA! */}
+      <section className="py-32 px-6 bg-slate-950 overflow-hidden relative border-t border-slate-900">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-gradient-to-b from-purple-600/5 via-transparent to-transparent blur-[120px] pointer-events-none" />
+
+        <div className="max-w-6xl mx-auto relative">
+          <div className="flex flex-col items-center text-center gap-12 mb-20">
+            <div>
+              <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-white mb-6 italic uppercase tracking-tighter">
+                The Evolution
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto leading-relaxed font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] opacity-70">
+                The future of connected dance floors
+              </p>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <ProCard className="p-10 flex flex-col items-start h-full" glow>
+              <div className="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-10 border border-purple-500/20 shadow-lg shadow-purple-500/5 group-hover:scale-110 transition-transform">
+                <BarChart3 className="w-6 h-6 text-purple-400" />
+              </div>
+              <h4 className="text-xl font-black text-white mb-4 italic uppercase tracking-tight">
+                Pika! Charts
+              </h4>
+              <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                The global "Billboard Chart" for WCS. Real-time community trends.
+              </p>
+            </ProCard>
+
+            <ProCard className="p-10 flex flex-col items-start h-full" glow>
+              <div className="w-14 h-14 bg-pink-500/10 rounded-2xl flex items-center justify-center mb-10 border border-pink-500/20 shadow-lg shadow-pink-500/5 group-hover:scale-110 transition-transform">
+                <Smartphone className="w-6 h-6 text-pink-400" />
+              </div>
+              <h4 className="text-xl font-black text-white mb-4 italic uppercase tracking-tight">
+                Profiles
+              </h4>
+              <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                Claim your favorite tracks and build your permanent dance log.
+              </p>
+            </ProCard>
+
+            <ProCard className="p-10 flex flex-col items-start h-full" glow>
+              <div className="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-10 border border-blue-500/20 shadow-lg shadow-blue-500/5 group-hover:scale-110 transition-transform">
+                <Radio className="w-6 h-6 text-blue-400" />
+              </div>
+              <h4 className="text-xl font-black text-white mb-4 italic uppercase tracking-tight">
+                Showcases
+              </h4>
+              <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                Live-updated gig schedules and shareable EPK statistics.
+              </p>
+            </ProCard>
+
+            <ProCard className="p-10 flex flex-col items-start h-full" glow>
+              <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-10 border border-emerald-500/20 shadow-lg shadow-emerald-500/5 group-hover:scale-110 transition-transform">
+                <Globe2 className="w-6 h-6 text-emerald-400" />
+              </div>
+              <h4 className="text-xl font-black text-white mb-4 italic uppercase tracking-tight">
+                Hubs
+              </h4>
+              <p className="text-slate-500 text-sm font-medium leading-relaxed">
+                Centralized command for conventions. Unified tracking for every hall.
+              </p>
+            </ProCard>
+          </div>
+        </div>
+      </section>
+
       {/* ⚡ HOW IT WORKS */}
-      <section className="py-20 px-6 bg-slate-900 border-b border-slate-800">
+      <section className="py-32 px-6 bg-slate-900 border-y border-slate-800">
         <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-20">
-            <h2 className="text-4xl sm:text-5xl font-black text-white mb-6 tracking-tight">
+          <div className="text-center mb-16 sm:mb-24 px-4">
+            <h2 className="text-4xl sm:text-5xl md:text-6xl font-black text-white mb-6 italic uppercase tracking-tighter">
               Start in Seconds
             </h2>
-            <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
-              No complex setup. No app store downloads. Pika! is designed for instant connection.
+            <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto leading-relaxed font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] opacity-70">
+              The Pika! Instant Connect Protocol
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-12 md:gap-24 relative items-stretch">
+          <div className="grid md:grid-cols-2 gap-12 md:gap-16 relative items-stretch">
             {/* DJ FLOW CARD */}
-            <div className="bg-slate-950/50 rounded-3xl p-8 sm:p-12 border border-slate-800 relative overflow-hidden group hover:border-purple-500/30 transition-colors h-full flex flex-col">
-              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Headphones className="w-32 h-32 text-purple-500 transform rotate-12" />
-              </div>
-
-              <div className="relative z-10 flex flex-col h-full">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-purple-500/10 rounded-full text-purple-400 text-sm font-bold border border-purple-500/20 mb-8">
-                  <Headphones className="w-4 h-4" />
-                  For the DJ
+            <div className="flex flex-col">
+              <ProCard
+                className="flex-1 p-10 sm:p-14 flex flex-col items-start bg-slate-950/50"
+                glow
+              >
+                <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-purple-500/10 rounded-full text-purple-400 text-[10px] font-black uppercase tracking-widest border border-purple-500/20 mb-12">
+                  <Headphones className="w-3.5 h-3.5" />
+                  DJ COMMAND
                 </div>
 
-                <div className="space-y-10 flex-1 flex flex-col">
-                  <div className="flex gap-6">
-                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 text-purple-400 font-bold text-xl shadow-lg">
-                      1
+                <div className="space-y-10 sm:space-y-12 flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 group/step">
+                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 text-purple-400 font-black italic text-xl leading-none pr-0.5 shadow-2xl group-hover/step:border-purple-500/50 transition-colors">
+                      01
                     </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-white mb-2">Install Desktop App</h4>
-                      <p className="text-slate-400 leading-relaxed">
-                        Download the lightweight Pika! sidecar for macOS. It runs quietly alongside
-                        VirtualDJ or Serato.
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 italic uppercase tracking-tight">
+                        The Sidecar
+                      </h4>
+                      <p className="text-slate-400 text-sm font-medium leading-relaxed">
+                        Download the lightweight macOS binary. It runs quietly alongside VirtualDJ.
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex gap-6">
-                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 text-purple-400 font-bold text-xl shadow-lg">
-                      2
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 group/step">
+                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 text-purple-400 font-black italic text-xl leading-none pr-0.5 shadow-2xl group-hover/step:border-purple-500/50 transition-colors">
+                      02
                     </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-white mb-2">Instant Sync</h4>
-                      <p className="text-slate-400 leading-relaxed">
-                        Pika! automatically detects your tracks and syncs analysis to the cloud. You
-                        focus on mixing; we handle the data.
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 italic uppercase tracking-tight">
+                        Auto-Analysis
+                      </h4>
+                      <p className="text-slate-400 text-sm font-medium leading-relaxed">
+                        Pika! detects your history and syncs analysis to the cloud in real-time.
                       </p>
                     </div>
                   </div>
-
-                  <div className="mt-auto pt-8 border-t border-slate-800/50">
-                    <Link
-                      href="/download"
-                      className="inline-flex items-center gap-2 text-purple-400 font-bold hover:text-purple-300 transition-colors"
-                    >
-                      <Download className="w-5 h-5" />
-                      Download for macOS
-                    </Link>
-                  </div>
                 </div>
-              </div>
+
+                <div className="mt-16 pt-10 border-t border-slate-800/50 w-full">
+                  <Link
+                    href="/download"
+                    className="inline-flex items-center gap-3 text-[10px] font-black text-purple-400 uppercase tracking-widest active:scale-95 transition-all"
+                  >
+                    <Download className="w-4 h-4" />
+                    GET SIDECAR FOR MAC
+                  </Link>
+                </div>
+              </ProCard>
             </div>
 
             {/* DANCER FLOW CARD */}
-            <div className="bg-slate-950/50 rounded-3xl p-8 sm:p-12 border border-slate-800 relative overflow-hidden group hover:border-pink-500/30 transition-colors h-full flex flex-col">
-              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Smartphone className="w-32 h-32 text-pink-500 transform -rotate-12" />
-              </div>
-
-              <div className="relative z-10 flex flex-col h-full">
-                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-pink-500/10 rounded-full text-pink-400 text-sm font-bold border border-pink-500/20 mb-8">
-                  <Smartphone className="w-4 h-4" />
-                  For the Dancer
+            <div className="flex flex-col">
+              <ProCard
+                className="flex-1 p-10 sm:p-14 flex flex-col items-start bg-slate-950/50"
+                glow
+              >
+                <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-pink-500/10 rounded-full text-pink-400 text-[10px] font-black uppercase tracking-widest border border-pink-500/20 mb-12">
+                  <Smartphone className="w-3.5 h-3.5" />
+                  DANCER ACCESS
                 </div>
 
-                <div className="space-y-10 flex-1 flex flex-col">
-                  <div className="flex gap-6">
-                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 text-pink-400 font-bold text-xl shadow-lg">
-                      1
+                <div className="space-y-10 sm:space-y-12 flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 group/step">
+                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 text-pink-400 font-black italic text-xl leading-none pr-0.5 shadow-2xl group-hover/step:border-pink-500/50 transition-colors">
+                      01
                     </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-white mb-2">Scan & Go</h4>
-                      <p className="text-slate-400 leading-relaxed">
-                        Scan the QR code at the DJ booth or visit{" "}
-                        <span className="font-mono text-pink-400">pika.stream</span>. No account or
-                        download required.
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 italic uppercase tracking-tight">
+                        Scan & Go
+                      </h4>
+                      <p className="text-slate-400 text-sm font-medium leading-relaxed">
+                        Scan the booth QR or visit{" "}
+                        <span className="font-mono text-pink-400 bg-pink-500/5 px-1.5 py-0.5 rounded border border-pink-500/10">
+                          pika.stream
+                        </span>
+                        . No accounts.
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex gap-6">
-                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-full flex items-center justify-center border border-slate-700 text-pink-400 font-bold text-xl shadow-lg">
-                      2
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 group/step">
+                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 text-pink-400 font-black italic text-xl leading-none pr-0.5 shadow-2xl group-hover/step:border-pink-500/50 transition-colors">
+                      02
                     </div>
-                    <div>
-                      <h4 className="text-xl font-bold text-white mb-2">Interact Live</h4>
-                      <p className="text-slate-400 leading-relaxed">
-                        See what's playing, vote on tempo, and "Like" tracks to build your personal
-                        history for later.
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 italic uppercase tracking-tight">
+                        Engage
+                      </h4>
+                      <p className="text-slate-400 text-sm font-medium leading-relaxed">
+                        See what's playing, vote on tempo, and build your anonymous favorites log.
                       </p>
                     </div>
                   </div>
-
-                  <div className="mt-auto pt-8 border-t border-slate-800/50">
-                    <Link
-                      href="/live"
-                      className="inline-flex items-center gap-2 text-pink-400 font-bold hover:text-pink-300 transition-colors"
-                    >
-                      <Radio className="w-5 h-5" />
-                      See who is live now
-                    </Link>
-                  </div>
                 </div>
-              </div>
+
+                <div className="mt-16 pt-10 border-t border-slate-800/50 w-full">
+                  <Link
+                    href="/live"
+                    className="inline-flex items-center gap-3 text-[10px] font-black text-pink-400 uppercase tracking-widest active:scale-95 transition-all"
+                  >
+                    <Radio className="w-4 h-4" />
+                    SEE ACTIVE FLOORS
+                  </Link>
+                </div>
+              </ProCard>
             </div>
           </div>
         </div>
       </section>
 
       {/* 🚀 WCS SPECIALTY */}
-      <section className="py-24 px-6 bg-gradient-to-b from-slate-950 to-slate-900 border-b border-slate-800/50">
+      <section className="py-32 px-6 bg-gradient-to-b from-slate-950 to-slate-900 border-b border-slate-800/50">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 rounded-full text-amber-500 text-sm font-medium mb-8 border border-amber-500/20">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 rounded-full text-amber-500 text-[10px] font-black uppercase tracking-widest mb-12 border border-amber-500/20">
             <Radio className="w-4 h-4" />
-            Built for the Community
+            COMMUNITY ENGINE
           </div>
 
-          <h3 className="text-3xl md:text-5xl font-black text-white mb-8 tracking-tight">
+          <h3 className="text-4xl md:text-6xl font-black text-white mb-8 italic uppercase tracking-tighter pr-8">
             Data-Driven. <br />
-            <span className="text-slate-500">Dancer-Approved.</span>
+            <span className="bg-gradient-to-r from-slate-400 to-slate-600 text-transparent bg-clip-text">
+              Dancer-Approved.
+            </span>
           </h3>
 
-          <p className="text-lg text-slate-300 mb-12 leading-relaxed max-w-2xl mx-auto">
-            West Coast Swing is unique. It demands a wide range of tempos, genres, and energies.
-            Generic DJ tools don't understand that. <strong>Pika! does.</strong>
+          <p className="text-lg text-slate-400 mb-16 font-medium leading-relaxed max-w-2xl mx-auto">
+            West Coast Swing demands a wide range of tempos, genres, and energies. Generic tools
+            don't understand that. <span className="text-white">Pika! does.</span>
           </p>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
-              <div className="text-3xl font-bold text-white mb-2">0ms</div>
-              <div className="text-sm font-medium text-slate-400">Latency Goal</div>
-            </div>
-            <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
-              <div className="text-3xl font-bold text-white mb-2">100%</div>
-              <div className="text-sm font-medium text-slate-400">Privacy Focused</div>
-            </div>
-            <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
-              <div className="text-3xl font-bold text-white mb-2">Offline</div>
-              <div className="text-sm font-medium text-slate-400">First Architecture</div>
-            </div>
-            <div className="p-6 bg-slate-900 rounded-2xl border border-slate-800 hover:border-slate-700 transition-colors">
-              <div className="text-3xl font-bold text-white mb-2">100%</div>
-              <div className="text-sm font-medium text-slate-400">Community Driven</div>
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 relative">
+            <div className="absolute inset-0 bg-purple-600/5 blur-[100px] -z-10" />
+            <ProCard className="p-6 sm:p-10 bg-slate-900/40 border-slate-800/50" glow>
+              <div className="text-3xl sm:text-4xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
+                0ms
+              </div>
+              <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-tight">
+                LATENCY GOAL
+              </div>
+            </ProCard>
+            <ProCard className="p-6 sm:p-10 bg-slate-900/40 border-slate-800/50" glow>
+              <div className="text-3xl sm:text-4xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
+                100%
+              </div>
+              <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-tight">
+                PRIVACY
+              </div>
+            </ProCard>
+            <ProCard className="p-6 sm:p-10 bg-slate-900/40 border-slate-800/50" glow>
+              <div className="text-2xl sm:text-3xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter uppercase">
+                SIDE<span className="text-purple-500">CAR</span>
+              </div>
+              <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-tight">
+                OFFLINE CORE
+              </div>
+            </ProCard>
+            <ProCard className="p-6 sm:p-10 bg-slate-900/40 border-slate-800/50" glow>
+              <div className="text-3xl sm:text-4xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
+                v0.4
+              </div>
+              <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-tight">
+                BETA REACH
+              </div>
+            </ProCard>
           </div>
         </div>
       </section>
 
       {/* 🦶 BOTTOM CTA & CONTACT */}
-      <section className="py-24 px-6 relative overflow-hidden">
-        {/* Decorative blur */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-500/5 rounded-full blur-[100px]" />
+      <section className="py-40 px-6 relative overflow-hidden">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-[600px] bg-gradient-to-b from-purple-600/10 to-transparent blur-[120px] pointer-events-none" />
 
         <div className="relative max-w-3xl mx-auto text-center">
-          <h3 className="text-3xl font-bold text-white mb-6">Ready to change the vibe?</h3>
-          <p className="text-slate-400 mb-10 text-lg">
-            Join the beta and start shaping the future of WCS events today.
-          </p>
+          <h3 className="text-4xl sm:text-5xl font-black text-white mb-10 italic uppercase tracking-tighter">
+            READY TO CHANGE THE VIBE?
+          </h3>
 
-          <div className="flex flex-col sm:flex-row justify-center gap-4 mb-16">
+          <div className="flex flex-col sm:flex-row justify-center gap-4 mb-24">
             <Link
               href="/dj/register"
-              className="bg-white text-slate-900 px-8 py-4 rounded-xl font-bold text-lg hover:bg-slate-200 transition-colors flex items-center justify-center gap-2 shadow-xl shadow-white/5"
+              className="bg-white text-slate-900 px-12 py-5 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-200 active:scale-95 transition-all shadow-2xl flex items-center justify-center gap-3"
             >
               Start DJing
               <ArrowRight className="w-5 h-5" />
             </Link>
           </div>
 
-          <div className="border-t border-slate-800 pt-16">
-            <h4 className="text-white font-semibold mb-4 flex items-center justify-center gap-2">
-              <Mail className="w-4 h-4" /> Get in Touch
-            </h4>
-            <p className="text-slate-500 mb-4">
-              Have questions? Want to bring Pika! to your event?
+          <div className="border-t border-slate-800/50 pt-20">
+            <div className="inline-flex items-center gap-3 text-white font-black italic uppercase tracking-widest mb-6">
+              <Mail className="w-4 h-4 text-purple-500" />
+              GET IN TOUCH
+            </div>
+            <p className="text-slate-500 text-sm font-medium mb-4 max-w-xs mx-auto">
+              Want to bring Pika! to your local event or WCS convention?
             </p>
             <a
               href="mailto:hello@pika.stream"
-              className="text-purple-400 hover:text-purple-300 font-medium transition-colors text-lg"
+              className="text-white hover:text-purple-400 font-black italic uppercase tracking-widest transition-colors text-xl"
             >
               hello@pika.stream
             </a>
@@ -521,22 +621,40 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="py-12 px-6 border-t border-slate-800 bg-slate-950 text-center sm:text-left">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex items-center gap-2 mb-4 md:mb-0">
-            <Radio className="w-5 h-5 text-red-500" />
-            <span className="font-bold text-white text-lg">Pika!</span>
-            <span className="text-slate-500 text-sm">© 2026</span>
+      {/* FOOTER */}
+      <footer className="py-12 px-6 border-t border-slate-900 bg-slate-950">
+        <div className="max-w-6xl mx-auto flex flex-col items-center md:flex-row justify-between gap-8">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-slate-900 flex items-center justify-center border border-slate-800 shadow-lg shadow-purple-500/10">
+              <Radio className="w-4 h-4 text-purple-400" />
+            </div>
+            <div className="flex flex-col items-start leading-none">
+              <span className="font-black text-white text-base italic tracking-tighter uppercase">
+                Pika!
+              </span>
+              <span className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">
+                © 2026
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-wrap justify-center md:justify-end gap-x-8 gap-y-4 text-sm text-slate-400 font-medium">
-            <Link href="/dj/login" className="hover:text-white transition-colors">
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-4">
+            <Link
+              href="/dj/login"
+              className="text-[11px] font-black text-slate-500 hover:text-white uppercase tracking-[0.2em] transition-colors"
+            >
               DJ Portal
             </Link>
-            <Link href="/live" className="hover:text-white transition-colors">
+            <Link
+              href="/live"
+              className="text-[11px] font-black text-slate-500 hover:text-white uppercase tracking-[0.2em] transition-colors"
+            >
               Tune In
             </Link>
-            <Link href="/privacy" className="hover:text-white transition-colors">
+            <Link
+              href="/privacy"
+              className="text-[11px] font-black text-slate-500 hover:text-white uppercase tracking-[0.2em] transition-colors"
+            >
               Privacy
             </Link>
           </div>

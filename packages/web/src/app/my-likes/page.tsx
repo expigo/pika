@@ -1,24 +1,21 @@
 "use client";
 
-import { ArrowLeft, Calendar, Heart, Radio, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, Calendar, Heart, Radio, User, History, Music2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { ProCard, ProHeader } from "@/components/ui/ProCard";
+import { VibeBadge } from "@/components/ui/VibeBadge";
 
 // API base URL
 function getApiBaseUrl(): string {
-  // In production, use the configured environment variable
-  if (process.env.NEXT_PUBLIC_CLOUD_API_URL) {
-    return process.env.NEXT_PUBLIC_CLOUD_API_URL;
-  }
-  // Fallback for local development
-  return "http://localhost:3001";
+  if (typeof window === "undefined") return "";
+  return process.env.NEXT_PUBLIC_CLOUD_API_URL || "http://localhost:3001";
 }
 
 // Get or create a stable client ID
 function getClientId(): string | null {
   if (typeof window === "undefined") return null;
-  const stored = localStorage.getItem("pika_client_id");
-  return stored;
+  return localStorage.getItem("pika_client_id");
 }
 
 interface LikedTrack {
@@ -42,7 +39,6 @@ function formatDate(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleDateString("en-US", {
     weekday: "short",
-    year: "numeric",
     month: "short",
     day: "numeric",
   });
@@ -84,15 +80,13 @@ export default function MyLikesPage() {
   const [likes, setLikes] = useState<LikesResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [_clientId, setClientId] = useState<string | null>(null);
 
   useEffect(() => {
     const id = getClientId();
-    setClientId(id);
 
     if (!id) {
       setLoading(false);
-      setError("no_likes_yet");
+      setError("no_likes");
       return;
     }
 
@@ -102,11 +96,7 @@ export default function MyLikesPage() {
         const response = await fetch(`${baseUrl}/api/client/${id}/likes`);
 
         if (!response.ok) {
-          if (response.status === 400) {
-            setError("invalid_client");
-          } else {
-            setError("fetch_failed");
-          }
+          setError("fetch_failed");
           return;
         }
 
@@ -125,148 +115,127 @@ export default function MyLikesPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center">
-        <div className="text-slate-400 animate-pulse">Loading your likes...</div>
-      </div>
-    );
-  }
-
-  if (error === "no_likes_yet" || (likes && likes.totalLikes === 0)) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center">
-          <Heart className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-slate-300 mb-2">No Liked Songs Yet</h1>
-          <p className="text-slate-500 mb-6">
-            Join a live DJ session and tap the heart to like songs you enjoy!
-          </p>
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back Home
-          </Link>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="text-purple-400 animate-pulse font-bold tracking-widest text-xs uppercase">
+          Opening Your Journal...
         </div>
       </div>
     );
   }
 
-  if (error || !likes) {
+  if (error === "no_likes" || (likes && likes.totalLikes === 0)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
-        <div className="text-center">
-          <Radio className="w-16 h-16 text-slate-600 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-slate-300 mb-2">Something went wrong</h1>
-          <p className="text-slate-500 mb-6">
-            We couldn&apos;t load your liked songs. Please try again later.
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+        <ProCard className="max-w-md w-full p-12 text-center" glow>
+          <div className="w-20 h-20 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl">
+            <Heart className="w-8 h-8 text-slate-700" />
+          </div>
+          <h1 className="text-2xl font-black text-white mb-4 italic uppercase tracking-tighter">
+            The Pages are Blank
+          </h1>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-relaxed mb-10">
+            You haven't liked any songs yet. Head to the floor and start syncing!
           </p>
           <Link
-            href="/"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition-colors"
+            href="/live"
+            className="inline-flex items-center gap-3 px-8 py-4 bg-white text-slate-950 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-xl"
           >
-            <ArrowLeft className="w-4 h-4" />
-            Back Home
+            <Radio className="w-4 h-4" />
+            Find a Room
           </Link>
-        </div>
+        </ProCard>
       </div>
     );
   }
 
-  const groupedLikes = groupBySession(likes.likes);
+  const groupedLikes = groupBySession(likes?.likes || []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
-        {/* Header Card */}
-        <div className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden mb-6">
-          {/* Top Bar */}
-          <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Heart className="w-6 h-6 text-red-500 fill-current" />
-              <h1 className="text-xl font-bold text-white">
-                My <span className="text-red-500">Liked Songs</span>
-              </h1>
-            </div>
-            <Link href="/" className="text-slate-400 hover:text-white transition-colors text-sm">
-              ← Back
-            </Link>
-          </div>
+    <div className="min-h-screen bg-slate-950 text-slate-200">
+      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-[120px]" />
+      </div>
 
-          {/* Stats */}
-          <div className="px-6 py-6 text-center">
-            <div className="text-4xl font-bold text-red-400 flex items-center justify-center gap-2">
-              <Heart className="w-8 h-8 fill-current" />
-              {likes.totalLikes}
-            </div>
-            <div className="text-sm text-slate-500 uppercase tracking-wide mt-1">Songs Liked</div>
+      <div className="relative max-w-2xl mx-auto px-4 py-12">
+        {/* HEADER CARD */}
+        <ProCard className="mb-12 p-12 text-center" glow>
+          <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-red-500 to-pink-600 rounded-[2.5rem] mb-6 shadow-2xl shadow-red-500/20">
+            <Heart className="w-10 h-10 text-white fill-current" />
           </div>
+          <h1 className="text-4xl font-black text-white mb-4 tracking-tighter italic uppercase">
+            JOURNAL
+          </h1>
+          <div className="inline-flex items-center gap-2 px-4 py-1 bg-slate-900 border border-slate-800 rounded-full">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              {likes?.totalLikes} TRACKS SYNCED
+            </span>
+          </div>
+        </ProCard>
+
+        {/* LOG ENTRIES */}
+        <div className="space-y-8">
+          {Array.from(groupedLikes.entries()).map(([sessionId, sessionLikes]) => {
+            const firstLike = sessionLikes[0];
+            const djName = firstLike?.djName || "Live Set";
+            const djSlug = slugify(djName);
+
+            return (
+              <ProCard key={sessionId || "unknown"}>
+                <ProHeader
+                  title={djName}
+                  icon={User}
+                  subtitle={
+                    firstLike?.sessionDate ? formatDate(firstLike.sessionDate) : "Historical Set"
+                  }
+                />
+
+                <div className="divide-y divide-slate-800/30">
+                  {sessionLikes.map((like) => (
+                    <div
+                      key={like.id}
+                      className="px-8 py-5 flex items-center justify-between transition-colors active:bg-slate-900/80"
+                    >
+                      <div className="flex-1 min-w-0 flex items-center gap-4">
+                        <Heart className="w-4 h-4 text-red-500 fill-red-500/20 group-hover:fill-red-500 transition-all" />
+                        <div>
+                          <p className="text-white font-black text-sm tracking-tight uppercase italic truncate">
+                            {like.title}
+                          </p>
+                          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest truncate mt-1">
+                            {like.artist}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-col items-end flex-shrink-0">
+                        <span className="text-slate-700 font-black text-[10px]">
+                          {formatTime(like.likedAt)}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {sessionId && (
+                  <div className="px-8 py-4 bg-slate-900/30 flex justify-end border-t border-slate-800/30">
+                    <Link
+                      href={`/dj/${djSlug}/recap/${sessionId}`}
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 hover:border-purple-500/30 hover:bg-purple-500/5 text-[9px] font-black text-slate-400 hover:text-purple-400 transition-all uppercase tracking-widest rounded-lg"
+                    >
+                      View Full Recap <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+                )}
+              </ProCard>
+            );
+          })}
         </div>
 
-        {/* Likes by Session */}
-        {Array.from(groupedLikes.entries()).map(([sessionId, sessionLikes]) => {
-          const firstLike = sessionLikes[0];
-          const djName = firstLike?.djName || "Unknown DJ";
-          const sessionDate = firstLike?.sessionDate;
-          const djSlug = slugify(djName);
-
-          return (
-            <div
-              key={sessionId || "unknown"}
-              className="bg-slate-800/50 backdrop-blur-xl rounded-3xl border border-slate-700/50 shadow-2xl overflow-hidden mb-6"
-            >
-              {/* Session Header */}
-              <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
-                <div>
-                  <Link
-                    href={`/dj/${djSlug}`}
-                    className="flex items-center gap-2 text-white font-medium hover:text-purple-400 transition-colors"
-                  >
-                    <User className="w-4 h-4" />
-                    {djName}
-                  </Link>
-                  {sessionDate && (
-                    <div className="flex items-center gap-1.5 text-slate-500 text-sm mt-1">
-                      <Calendar className="w-3.5 h-3.5" />
-                      {formatDate(sessionDate)}
-                    </div>
-                  )}
-                </div>
-                {sessionId && (
-                  <Link
-                    href={`/dj/${djSlug}/recap/${sessionId}`}
-                    className="text-xs text-slate-400 hover:text-white transition-colors"
-                  >
-                    View Recap →
-                  </Link>
-                )}
-              </div>
-
-              {/* Track List */}
-              <div className="divide-y divide-slate-700/30">
-                {sessionLikes.map((like) => (
-                  <div
-                    key={like.id}
-                    className="px-6 py-3 flex items-center gap-4 hover:bg-slate-700/20 transition-colors"
-                  >
-                    <Heart className="w-4 h-4 text-red-400 fill-current flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-white font-medium truncate">{like.title}</p>
-                      <p className="text-slate-500 text-sm truncate">{like.artist}</p>
-                    </div>
-                    <span className="text-slate-600 text-xs">{formatTime(like.likedAt)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-
-        {/* Footer */}
-        <div className="text-center mt-6 text-slate-600 text-sm">
-          <p>Powered by Pika! 🎧</p>
-          <p className="mt-2 text-xs">
-            Your likes are saved in this browser. Different device = different history.
+        <div className="mt-20 text-center opacity-30 pb-32">
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">
+            A personal record of your WCS journey
+          </p>
+          <p className="mt-2 text-[9px] font-bold text-slate-600 italic">
+            Stored locally on this device
           </p>
         </div>
       </div>
