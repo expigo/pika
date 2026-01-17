@@ -38,6 +38,7 @@ import { TagEditor } from "./TagEditor";
 import { NoteEditor } from "./NoteEditor";
 import { TagPill } from "./TagPill";
 import { getEnergyColor, getEnergyPercent } from "../utils/trackUtils";
+import { ProTooltip } from "./ProTooltip";
 
 // New specialized hooks
 import { useLibraryData } from "../hooks/useLibraryData";
@@ -254,28 +255,30 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
               </button>
             )}
           </div>
-          <button
-            type="button"
-            onClick={() => setShowFilters(!showFilters)}
-            className={`pro-btn pro-btn-secondary !p-1.5 ${showFilters || bpmFilter !== "all" ? "!bg-pika-accent/10 !border-pika-accent/30 !text-pika-accent" : ""}`}
-            title="Advanced Filters"
-          >
-            <Filter size={14} />
-          </button>
+          <ProTooltip content="Deep Filtering Engine">
+            <button
+              type="button"
+              onClick={() => setShowFilters(!showFilters)}
+              className={`pro-btn pro-btn-secondary !p-1.5 ${showFilters || bpmFilter !== "all" ? "!bg-pika-accent/10 !border-pika-accent/30 !text-pika-accent" : ""}`}
+            >
+              <Filter size={14} />
+            </button>
+          </ProTooltip>
         </div>
 
         <div className="flex items-center gap-3">
           <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
             {filteredAndSortedTracks.length} / {tracks.length} Tracks
           </span>
-          <button
-            type="button"
-            onClick={refreshLibrary}
-            className="pro-btn pro-btn-secondary !p-1.5"
-            title="Sync library"
-          >
-            <RefreshCw size={14} />
-          </button>
+          <ProTooltip content="Analyze & Sync with VirtualDJ">
+            <button
+              type="button"
+              onClick={refreshLibrary}
+              className={`pro-btn pro-btn-secondary !p-1.5 ${loading ? "opacity-30 pointer-events-none" : ""}`}
+            >
+              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            </button>
+          </ProTooltip>
         </div>
       </div>
 
@@ -461,17 +464,19 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                   }}
                 >
                   <div className="w-[40px] pro-table-cell justify-center">
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        addTrack(track);
-                      }}
-                      disabled={inSet}
-                      className="p-1 text-slate-500 hover:text-pika-accent disabled:opacity-30"
-                    >
-                      <Plus size={14} />
-                    </button>
+                    <ProTooltip content="Add to Live Set">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          addTrack(track);
+                        }}
+                        disabled={inSet}
+                        className="p-1 text-slate-500 hover:text-pika-accent disabled:opacity-30"
+                      >
+                        <Plus size={14} />
+                      </button>
+                    </ProTooltip>
                   </div>
                   <div className="w-[50px] pro-table-cell justify-center">
                     {track.analyzed ? (
@@ -517,17 +522,19 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                   </div>
                   <div className="w-[70px] pro-table-cell px-2 justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     {track.analyzed ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedTrackId(track.id);
-                          setShowInspector(true);
-                        }}
-                        className="p-1 hover:text-pika-accent"
-                      >
-                        <Eye size={14} />
-                      </button>
+                      <ProTooltip content="Open Inspector">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTrackId(track.id);
+                            setShowInspector(true);
+                          }}
+                          className="p-1 hover:text-pika-accent"
+                        >
+                          <Eye size={14} />
+                        </button>
+                      </ProTooltip>
                     ) : (
                       <button
                         type="button"

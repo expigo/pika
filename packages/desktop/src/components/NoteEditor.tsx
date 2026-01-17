@@ -1,6 +1,7 @@
 /**
  * NoteEditor Component
- * Inline editor for DJ personal notes on a track
+ * Modal for editing track notes
+ * Overhauled for "Pro" look with Tailwind and glassmorphism.
  */
 
 import { Check, FileText, X } from "lucide-react";
@@ -43,52 +44,89 @@ export function NoteEditor({ track, onClose, onSave }: Props) {
   };
 
   return (
-    <div style={styles.overlay} onClick={onClose}>
-      <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <div style={styles.header}>
-          <div style={styles.headerTitle}>
-            <FileText size={16} />
-            Track Notes
+    <div
+      className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-[2000] animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        className="bg-pika-surface-1 border border-white/5 rounded-3xl w-[480px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-white/5 bg-white/5">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 border border-emerald-500/20">
+              <FileText size={20} />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-white tracking-tight leading-none">
+                Track Intelligence
+              </h2>
+              <p className="text-[10px] text-slate-500 uppercase font-bold tracking-widest mt-1">
+                Personal Notes & Field Guide
+              </p>
+            </div>
           </div>
-          <button type="button" onClick={onClose} style={styles.closeButton}>
-            <X size={18} />
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 hover:text-white hover:bg-white/5 transition-all"
+          >
+            <X size={20} />
           </button>
         </div>
 
-        <div style={styles.trackInfo}>
-          <strong>{track.title || "Untitled"}</strong>
-          <span style={styles.artist}>{track.artist || "Unknown"}</span>
+        {/* Track Info Banner */}
+        <div className="px-5 py-4 bg-slate-950/40 border-b border-white/5 space-y-0.5">
+          <h3 className="text-sm font-bold text-slate-100 truncate">{track.title || "Untitled"}</h3>
+          <p className="text-[11px] text-slate-500 font-medium truncate">
+            {track.artist || "Unknown Artist"}
+          </p>
         </div>
 
-        <div style={styles.editorSection}>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value.slice(0, 500))}
-            placeholder="Add notes about this track... (e.g., crowd reaction, when to play, transitions)"
-            style={styles.textarea}
-            autoFocus
-          />
-          <div style={styles.charCount}>{notes.length}/500</div>
+        <div className="p-5">
+          <div className="relative group">
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, 500))}
+              placeholder="Add field notes... (e.g., transition energy, crowd reaction, specific phrasing tips)"
+              className="w-full h-40 bg-slate-950 border border-white/10 rounded-2xl p-4 text-sm font-medium text-slate-200 focus:border-emerald-500/50 transition-all outline-none placeholder:text-slate-700 shadow-inner resize-none leading-relaxed"
+              autoFocus
+            />
+            <div className="absolute bottom-4 right-4 text-[10px] font-bold text-slate-600 uppercase tracking-widest bg-slate-950/80 px-2 py-1 rounded border border-white/5">
+              {notes.length} / 500
+            </div>
+          </div>
         </div>
 
-        <div style={styles.actions}>
-          {track.notes && (
+        {/* Footer Actions */}
+        <div className="p-5 border-t border-white/5 bg-white/5 flex items-center justify-between">
+          <div className="flex gap-4">
+            {track.notes && (
+              <button
+                type="button"
+                onClick={handleClear}
+                className="text-[10px] font-black text-red-500/70 hover:text-red-500 uppercase tracking-widest transition-colors"
+              >
+                Wipe Notes
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleClear}
-              disabled={saving}
-              style={styles.clearButton}
+              onClick={onClose}
+              className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-widest transition-colors"
             >
-              Clear Notes
+              Discard
             </button>
-          )}
-          <div style={styles.spacer} />
-          <button type="button" onClick={onClose} style={styles.cancelButton}>
-            Cancel
-          </button>
-          <button type="button" onClick={handleSave} disabled={saving} style={styles.saveButton}>
-            <Check size={16} />
-            {saving ? "Saving..." : "Save"}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="px-8 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black rounded-2xl transition-all shadow-xl active:scale-95 disabled:opacity-50"
+          >
+            {saving ? "Saving..." : "Save Intelligence"}
           </button>
         </div>
       </div>
@@ -96,122 +134,4 @@ export function NoteEditor({ track, onClose, onSave }: Props) {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  overlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0, 0, 0, 0.7)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 1000,
-  },
-  modal: {
-    background: "#1e293b",
-    borderRadius: "12px",
-    border: "1px solid #334155",
-    width: "450px",
-    maxWidth: "90vw",
-    overflow: "hidden",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "1rem",
-    borderBottom: "1px solid #334155",
-  },
-  headerTitle: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    fontWeight: 600,
-    fontSize: "1rem",
-  },
-  closeButton: {
-    background: "transparent",
-    border: "none",
-    color: "#94a3b8",
-    cursor: "pointer",
-    padding: "4px",
-    display: "flex",
-  },
-  trackInfo: {
-    padding: "0.75rem 1rem",
-    background: "#0f172a",
-    display: "flex",
-    flexDirection: "column",
-    gap: "2px",
-    fontSize: "0.9rem",
-  },
-  artist: {
-    color: "#64748b",
-    fontSize: "0.8rem",
-  },
-  editorSection: {
-    padding: "1rem",
-    position: "relative",
-  },
-  textarea: {
-    width: "100%",
-    height: "120px",
-    padding: "12px",
-    background: "#0f172a",
-    border: "1px solid #334155",
-    borderRadius: "8px",
-    color: "#e2e8f0",
-    fontSize: "0.9rem",
-    resize: "none",
-    outline: "none",
-    fontFamily: "inherit",
-    lineHeight: 1.5,
-  },
-  charCount: {
-    position: "absolute",
-    bottom: "1.5rem",
-    right: "1.5rem",
-    fontSize: "0.7rem",
-    color: "#64748b",
-  },
-  actions: {
-    display: "flex",
-    alignItems: "center",
-    gap: "8px",
-    padding: "1rem",
-    borderTop: "1px solid #334155",
-  },
-  clearButton: {
-    padding: "8px 16px",
-    background: "rgba(239, 68, 68, 0.1)",
-    border: "1px solid rgba(239, 68, 68, 0.3)",
-    borderRadius: "6px",
-    color: "#ef4444",
-    cursor: "pointer",
-    fontSize: "0.85rem",
-  },
-  spacer: {
-    flex: 1,
-  },
-  cancelButton: {
-    padding: "8px 16px",
-    background: "transparent",
-    border: "1px solid #475569",
-    borderRadius: "6px",
-    color: "#94a3b8",
-    cursor: "pointer",
-    fontSize: "0.85rem",
-  },
-  saveButton: {
-    display: "flex",
-    alignItems: "center",
-    gap: "6px",
-    padding: "8px 16px",
-    background: "linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)",
-    border: "none",
-    borderRadius: "6px",
-    color: "#fff",
-    fontWeight: 600,
-    cursor: "pointer",
-    fontSize: "0.85rem",
-  },
-};
+export default NoteEditor;

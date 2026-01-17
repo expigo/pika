@@ -59,7 +59,7 @@ export function TrackFingerprint({ metrics, showLabels = true, size = "100%" }: 
   return (
     <div className="relative group overflow-hidden" style={{ width: size, height: size }}>
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart cx="50%" cy="50%" outerRadius="36%" data={data}>
+        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
           <defs>
             <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="4" result="blur" />
