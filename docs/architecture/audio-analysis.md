@@ -92,16 +92,39 @@ export const tracks = sqliteTable("tracks", {
 });
 ```
 
-## 7. Known Limitations
+## 7. Deep Intelligence (Derived Analytics)
+
+As of January 17, 2026, Pika! implements advanced analytical heuristics on top of core fingerprints. These are calculated on the frontend during recap viewing.
+
+### A. Transition Friction map
+- **Goal:** Detect vibrational jarring between tracks.
+- **Formula:** Euclidean distance between multiple normalized fingerprints (`energy`, `danceability`, `brightness`, `acousticness`, `groove`).
+- **Scale:** 0% (Perfect Vibe Match) to 100% (High Friction).
+
+### B. Harmonic Flow Audit
+- **Goal:** Assess musical compatibility between tracks using keys.
+- **Implementation:** Maps traditional keys to the **Camelot Wheel** system.
+- **Categories:**
+  - `Perfect Match`: Same key or adjacent Camelot number (e.g. 5A -> 5A or 4A/6A).
+  - `Harmonic`: Relative major/minor shift (e.g. 5A -> 5B).
+  - `Energy Boost`: Vertical shift on the Camelot wheel.
+  - `Crunchy`: Non-harmonic relationship.
+
+### C. "The Drift" Indicator
+- **Goal:** Identify segments where the DJ's tempo trajectory diverges from crowd feedback.
+- **Detection:** Flags segments where crowd votes for "Slower" or "Faster" persist while the actual track BPM remains static or moves in the opposite direction.
+
+## 8. Known Limitations
 
 1.  **Missing "High Res" Contour:** The `energy_contour` (time-series data) described in early designs is **NOT** currently implemented in the database schema or frontend, although `librosa` could generate it.
 2.  **Performance:** Analysis happens sequentially (one track at a time).
 3.  **Accuracy:** Key detection is a best-guess estimate using Chroma features.
 
-## 8. Change Log
+## 9. Change Log
 
 | Date | Change |
 | :--- | :--- |
+| 2026-01-17 | Implemented Deep Intelligence: Friction Map, Harmonic Flow, and "The Drift" |
 | 2026-01-16 | Added Settings panel, Pause/Resume, Schema versioning, CPU priority delays |
 | 2026-01-16 | Added pre-gig set analysis, progressive on-play, single-track analysis |
 | 2026-01-15 | Initial documentation |

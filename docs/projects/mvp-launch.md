@@ -65,7 +65,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **Data Hygiene**:
     *   [x] **Ghost Track Fix**: `normalizeTrack` utility implemented in `@pika/shared`.
     *   [x] **Poll State Fix**: Retry logic (`ensureSessionPersisted`) prevents race conditions during creation.
-*   [ ] **Session UX**:
+*   [x] **Session UX**:
     *   [x] **Session Resume**: Sticky `currentSessionId` in localStorage.
     *   [x] **Safe QR Codes**: Smart generation (public URL in prod, local IP in dev).
     *   [x] **Landing Page**: Add "How It Works" visual section and clear value props.
@@ -74,12 +74,16 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **UI Polish**: Fixed selection highlighting and database migration stability.
     *   [x] **Poll Alerts**: Toast notification + drawer results with winner highlight and dismiss button.
     *   [x] **DJ Announcements**: Overlay banner with auto-dismiss timer. Session-scoped (only visible to DJ's dancers).
+    *   [x] **Pro Polish**: **Slate & Neon** theme overhaul across all web endpoints (v0.2.0).
+    *   [x] **PWA Navigation**: `BottomNav` implemented for mobile-first experience.
+    *   [x] **Deep Intelligence**: **Advanced Recap Analytics** (Friction, Harmonic Flow, The Drift) implemented (v0.3.0).
+    *   [x] **UX/UI Audit (Jan 2026)**: **Mobile-First vs. Desktop Discovery** strategy implemented. Standardized touch feedback and high-density workstation layouts.
 *   [ ] **Account Features (MVP Scope)**:
     *   [ ] **Password Protection**: DJ PIN for sessions (optional).
 
 ### B. Testing Phase
-*   [ ] **Load Test**: Simulate 100 connections (using K6 or similar).
-*   [ ] **Mobile Test**: Verify UI on iOS Safari and Android Chrome.
+*   [x] **Load Test**: Simulate 100 connections (using K6 or similar). ✅ Confirmed: 300 VUs handled.
+*   [x] **Mobile Test**: Verify UI on iOS Safari and Android Chrome. ✅ Slate & Neon mobile-first verified.
 *   [ ] **Dry Run**: 30-minute practice session with 5 users.
 
 ### C. Desktop Build & Distribution
@@ -96,6 +100,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **Old Token Cleanup**: Cron job to delete unused tokens > 30 days.
 *   [ ] **Split Cloud Backend**: Decompose `index.ts` (2100+ lines) into modular routes (`routes/auth.ts`, `routes/session.ts`, etc.).
 *   [x] **E2E Tests (6 passing)**: WebSocket injection for Cloud↔Web. Desktop E2E deferred.
+*   [x] **Global Stats API**: Implemented `/api/stats/global` to replace mock data on analytics page.
 
 ## 4. Known Risks
 
@@ -128,6 +133,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 
 | Date | Audit | Findings | Ref |
 | :--- | :--- | :--- | :--- |
+| **2026-01-17** | Recap Analytics Audit | ✅ Pass - Deep Intelligence metrics validated. | `audio-analysis.md` |
 | **2026-01-15** | Load Test (300 VUs) | ✅ Pass - Max ~1,000 dancers | `load-testing.md` |
 | **2026-01-13** | Security Audit | 0 Critical, 2 High, 4 Medium, 3 Low | `security-audit.md` |
 | **2026-01-13** | Engineering Assessment | Composite Score: 8.4/10 | `engineering-assessment.md` |

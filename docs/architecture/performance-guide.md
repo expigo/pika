@@ -75,6 +75,9 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Offline queue** | SQLite `offline_queue` table | ✅ Done |
 | **Heartbeat monitor** | Reconnect on disconnect | ✅ Done |
 | **Batch sync** | POST fingerprints at session end | ✅ Done |
+| **Debounced Broadcasts** | 2-second heartbeat for listener counts | ✅ Done |
+| **TTL Caching** | 5-minute cache for `/stats/top-tracks` | ✅ Done |
+| **Sticky Participants** | 5-minute window for pocketed phones | ✅ Done |
 
 ---
 
@@ -119,10 +122,29 @@ This document tracks performance considerations, bottlenecks, and optimization s
 
 ---
 
+## 6. Aesthetic Intensity (Design Choice)
+
+| Feature | Pattern | Intent |
+|---------|---------|--------|
+| **Premium Backdrop** | `blur-[120px]` | Create deep atmospheric depth |
+| **Glow Effects** | `shadow-purple-500/20` | Highlight active room presence |
+| **Glassmorphism** | `bg-slate-900/50` | Maintain layered UI hierarchy |
+
+### Bottlenecks
+- **GPU Overdraw**: On low-end mobile devices, multiple 120px blurs can cause frame drops during scrolling.
+
+### Mitigation
+- **Strategic Deployment**: Blurs are only used on top-level absolute background elements to minimize layout recalculations.
+- **Intentional Trade-off**: We prioritize the "Premium" look over support for legacy ultra-low-end mobile devices. The Pika! core audience (DJs/Dancers) is expected to use reasonably modern hardware for the connected floor experience.
+
+---
+
 ## Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-01-16 | Restored `blur-[120px]` on all devices; documented Aesthetic Intensity |
+| 2026-01-16 | Added debounced broadcasts, TTL caching, sticky participants (Pro Enhancements) |
 | 2026-01-16 | Added CPU priority, skip live analysis, pause/resume, batch sync |
 | 2026-01-15 | Initial document, O(log n) track lookup refactor |
 | 2026-01-15 | Added audio analysis pipeline section |

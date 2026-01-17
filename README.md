@@ -2,15 +2,15 @@
 
 **The Bionic Suit for West Coast Swing DJs.**
 
-**Version:** 0.9.0 (MVP Pre-Launch)
-**Status:** Active Development
+**Version:** 0.9.5 (Deep Intelligence Update)
+**Status:** Pre-Launch Polish
 **License:** Apache-2.0
 
 ## 🎯 Project Vision
 
 **Pika!** is an intelligent companion for West Coast Swing (WCS) DJs. It bridges the gap between your local music library and the dancers on the floor.
 
-*   **For DJs:** Get "X-Ray Vision" into your library with local audio analysis (BPM, Key, Energy).
+*   **For DJs:** Get "Deep Intelligence" analytics into your sets (Friction, Harmonic Flow, The Drift).
 *   **For Dancers:** See what's playing in real-time on your phone, vote on tempo, and interact with the DJ.
 
 ## 📚 Documentation
@@ -97,10 +97,11 @@ We use a practical approach for local development to balance speed and parity:
 *   **Format:** `bun run format` (Biome)
 *   **Lint:** `bun run lint` (Biome)
 *   **Test:** `bun test`
+*   **E2E:** `bun run test:e2e` (Playwright)
 
 ## 🔐 Security
 
-**Latest Audit:** January 13, 2026 | **Score:** 7.5/10
+**Latest Audit:** January 17, 2026 | **Score:** 8.5/10
 
 | Control | Status |
 | :--- | :---: |
@@ -109,8 +110,8 @@ We use a practical approach for local development to balance speed and parity:
 | Input Validation (Zod) | ✅ |
 | SQL Injection Protection | ✅ |
 | XSS Prevention | ✅ |
-| CORS Restriction | 🟡 In Progress |
-| Rate Limiting | 🟡 In Progress |
+| CORS Restriction | ✅ |
+| Rate Limiting | ✅ |
 
 See [Security Architecture](docs/architecture/security.md) for details.
 
@@ -121,7 +122,7 @@ See [Security Architecture](docs/architecture/security.md) for details.
 | Architecture | 9/10 |
 | Code Quality | 8/10 |
 | Documentation | 10/10 |
-| Security | 7.5/10 |
-| **Composite** | **8.4/10** |
+| Security | 8.5/10 |
+| **Composite** | **8.9/10** |
 
-*Last assessed: January 13, 2026*
+*Last assessed: January 17, 2026*

@@ -2,8 +2,8 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** BPM Pipeline Complete
-**Status:** Release v0.1.10
+**Current Focus:** Deep Intelligence & Analytics
+**Status:** Release v0.3.0
 
 ---
 
@@ -12,11 +12,14 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   Status: **Launch Ready** (Security Hardened)
-    *   **Recent Completions (Jan 16, 2026):**
-        *   ✅ BPM Pipeline: Settings Panel, Analysis Modes, Schema Versioning
-        *   ✅ Performance: CPU Priority delays, Pause/Resume analysis
-        *   ✅ Cloud Sync: Post-session fingerprint sync, Refresh Recap button
+    *   Status: **Launch Ready** (Deep Intelligence v1)
+    *   **Recent Completions (Jan 17, 2026):**
+        *   ✅ Deep Intelligence: Friction Map, Harmonic Flow, The Drift logic.
+        *   ✅ Stats API: Migration of global analytics from mock to real data.
+        *   ✅ UI Polish: Pro Theme (Slate & Neon) applied to all endpoints.
+        *   ✅ Performance: WebSocket debouncing & TTL caching.
+    *   **Previous Completions (Jan 16, 2026):**
+        *   ✅ BPM Pipeline: Settings Panel, Analysis Modes, Schema Versioning.
 
 ---
 
@@ -24,7 +27,7 @@ This is the central index for the Pika! project, tracking active development, fu
 *   [**Authentication**](architecture/auth-system.md) - DJ accounts, token management, security.
 *   [**Security**](architecture/security.md) - Threat model, vulnerabilities, remediation plans.
 *   [**Deployment**](architecture/deployment.md) - VPS, Cloudflare Tunnel, CI/CD, Docker.
-*   [**Audio Analysis**](architecture/audio-analysis.md) - Local Python sidecar, librosa integration, settings.
+*   [**Audio Analysis**](architecture/audio-analysis.md) - Local Python sidecar, librosa integration, Deep Intelligence heuristics.
 *   [**Schema Versioning**](architecture/schema-versioning.md) - Track analysis versioning for re-analysis.
 *   [**Performance Guide**](architecture/performance-guide.md) - Optimization strategies and bottlenecks.
 *   [**Social Signals**](architecture/social-signals.md) - Likes, Votes, Listener Counts.
@@ -33,12 +36,13 @@ This is the central index for the Pika! project, tracking active development, fu
 ---
 
 ## 🔐 Security & Quality
-*   **Latest Audit:** January 13, 2026
-*   **Security Score:** 7.5/10 (2 High, 4 Medium, 3 Low findings)
-*   **Engineering Score:** 8.4/10 (Composite assessment)
+*   **Latest Audit:** January 17, 2026
+*   **Security Score:** 8.5/10 (Critical items resolved)
+*   **Engineering Score:** 8.9/10 (Composite assessment)
 
 | Audit | Date | Findings | Status |
 | :--- | :--- | :--- | :--- |
+| Recap Analytics Audit | 2026-01-17 | Deep Intelligence Validation | ✅ Pass |
 | Security Audit | 2026-01-13 | CORS, Rate Limiting gaps | **Resolved** |
 | Engineering Assessment | 2026-01-13 | Code decomposition needed | Open |
 
@@ -65,18 +69,16 @@ This is the central index for the Pika! project, tracking active development, fu
 
 ### Q1: The Launch 🚀
 *   **Goal:** Successfully run pilot event with DJ Pikachu.
-*   **Key Tech:** VPS, Cloudflare, Basic Auth.
+*   **Key Tech:** VPS, Cloudflare, Deep Intelligence Recap.
 *   **Status:** [MVP Launch Plan](projects/mvp-launch.md)
 
 ### Q2: Accounts & Community 👥
 *   **Goal:** Allow Dancers to save history; Organize Events.
 *   **Key Tech:** Auth.js, Postgres Roles, "Organizations".
-*   **Ref:** [Account System Vision](blueprints/account-system-vision.md)
 
 ### Q3: Ecosystem & Scale 🌍
 *   **Goal:** Global Charts, Public API, Mobile App.
 *   **Key Tech:** Redis Cluster, React Native, Public API keys.
-*   **Ref:** [Pika! Charts](blueprints/pika-charts.md)
 
 ---
 

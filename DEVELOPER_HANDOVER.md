@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** January 15, 2026
-**Version:** 0.1.9 (MVP Phase)
+**Date:** January 17, 2026
+**Version:** 0.3.0 (Deep Intelligence Phase)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -25,7 +25,7 @@ The system is divided into three distinct environments (monorepo via **Bun Works
     *   **Capabilities:** Real-time broadcasting, Session management, Auth (DJs), Voting/Polling system.
 
 3.  **Web (The Face)** - `@pika/web`
-    *   **Tech:** Next.js 16, React 19, TailwindCSS 4.
+    *   **Tech:** Next.js 15, React 19, TailwindCSS 4, Recharts.
     *   **Role:** The public-facing interface for Dancers and the Landing Page.
     *   **Features:** Live "Now Playing" view, History, Voting/Polls, and DJ Registration.
 
@@ -40,6 +40,7 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
 *   **Performance:** Bun provides extremely fast startup and WebSocket performance.
 *   **Unified Server:** Hono allows us to run HTTP (REST) and WebSockets on the same port in a single instance.
 *   **Native WebSockets:** We use `Bun.serve({ websocket: ... })` which is more performant than the Node.js `ws` library.
+*   **Caching:** Implemented `withCache` for read-heavy operations like global stats.
 
 ### Why Next.js for Web?
 *   **SEO:** Critical for the landing page and viral sharing of "Live" links.
@@ -60,12 +61,13 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   Tempo Voting (Faster/Slower).
     *   Polls/Questions pushed by DJ.
     *   DJ Announcements with auto-dismiss timer.
+*   **Deep Intelligence (Jan 17, 2026):**
+    *   **Transition Friction:** Euclidean distance on audio fingerprints (BPM, Energy, Groove, etc.).
+    *   **Harmonic Flow:** Camelot-based compatibility scoring.
+    *   **"The Drift":** Detects DJ/Crowd tempo divergence.
 *   **Persistence:**
     *   Postgres DB stores Sessions, Played Tracks, Likes, and Tempo Votes.
 *   **Feedback Loop:** "Like" mechanism and Tempo Feedback are fully functional and persist to DB.
-*   **Crowd Control (Jan 2026):**
-    *   **Polls:** DJ can start polls with timer. Results persist until dismissed with toast notification.
-    *   **Announcements:** Session-scoped overlay banners with auto-dismiss and manual cancel.
 *   **Security Hardening (v0.1.9):**
     *   **CSP Headers:** Content-Security-Policy via Next.js middleware.
     *   **CSRF Protection:** X-Pika-Client header validation on auth endpoints.
@@ -76,7 +78,7 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
 ### 🚧 WIP / Missing
 *   **DJ Dashboard (Web):** While DJs can register, a full web-based dashboard for them to manage past sets or edit profile details is incomplete.
 *   **Offline Mode Polish:** Desktop app handles offline analysis well, but the UI for "Queued Updates" when reconnecting to internet needs refinement.
-*   **Advanced Analytics:** We collect the data (Energy, BPM, Votes), but we don't yet have a visualization suite for DJs to review their performance post-gig.
+*   **Session State Persistence:** Sessions are currently held in a Map in `cloud/index.ts`. Migration to Redis is required for zero-downtime deploys.
 
 ---
 
@@ -116,7 +118,7 @@ pika/
 │   │
 │   ├── web/
 │   │   ├── src/app/live/                 <-- Dancer View
-│   │   └── src/app/page.tsx              <-- Landing Page
+│   │   └── src/app/dj/[slug]/recap/[id]/analytics/page.tsx <-- Deep Intelligence page
 ```
 
 ---
@@ -146,18 +148,6 @@ pika/
 *   No XSS vulnerabilities (React JSX escaping)
 *   Well-scoped Tauri desktop permissions
 
-### Needs Immediate Attention 🚨
-| Issue | Severity | Status |
-| :--- | :---: | :--- |
-| Permissive CORS | HIGH | ✅ Fixed (v0.1.0) |
-| No Auth Rate Limiting | HIGH | ✅ Fixed (v0.1.9) |
-| Hardcoded DB Password | MEDIUM | ✅ Fixed (env vars) |
-| CSRF Protection | MEDIUM | ✅ Fixed (v0.1.9) |
-| WS Connection Rate Limit | LOW | ✅ Fixed (v0.1.9) |
-| CSP Headers | LOW | ✅ Fixed (v0.1.9) |
-
-**Full Details:** See [docs/architecture/security.md](docs/architecture/security.md)
-
 ---
 
 ## 8. Codebase Health (Jan 2026 Assessment)
@@ -168,10 +158,7 @@ pika/
 *   **Architecture:** Clean Split-Brain design (Desktop ↔ Cloud ↔ Web)
 *   **Type Safety:** Strict TypeScript, Zod schemas, Drizzle ORM
 *   **Documentation:** Exceptional (10/10) - comprehensive roadmaps and specs
-*   **CI/CD:** Automated deployment, cross-platform builds, staging environment.
-*   **Testing:** Playwright E2E suite (6 tests) uses WebSocket injection for Cloud↔Web testing.
-*   **Security:** CSP, CSRF, rate limiting all implemented.
-*   **Capacity:** Load tested 300 VUs, verified for ~1,000 concurrent dancers.
+*   **Analytics:** Integrated **Deep Intelligence** for set review.
 
 ### Areas for Improvement
 | Observation | Impact | Recommendation |
@@ -180,13 +167,13 @@ pika/
 | `useLiveSession.ts` is 877 lines | Maintainability | Decompose into smaller hooks |
 | Desktop E2E | Coverage | Add macOS CI runner for Tauri tests (Phase 3) |
 
-### File Size Reference
+### Large File Reference
 | File | Lines | Status |
 | :--- | :---: | :--- |
-| `packages/cloud/src/index.ts` | 2,106 | 🟡 Needs split |
+| `packages/cloud/src/index.ts` | 2,120 | 🟡 Needs split |
 | `packages/desktop/src/hooks/useLiveSession.ts` | 877 | 🟡 Needs split |
-| `packages/web/src/hooks/useLiveListener.ts` | 963 | 🟡 Needs split |
-| `packages/shared/src/schemas.ts` | 384 | ✅ OK |
+| `packages/desktop/src/components/LivePerformanceMode.tsx` | 1,867 | 🟡 Needs split |
+| `packages/web/src/app/dj/[slug]/recap/[id]/analytics/page.tsx` | 915 | ✅ Advanced Logic |
 
 ---
 
@@ -195,23 +182,20 @@ pika/
 ### A. Desktop SQLite Migrations
 The desktop app uses a local \`pika.db\` SQLite file. Unlike the cloud Postgres (which uses \`drizzle-kit\`), the desktop app **cannot** rely on Drizzle for auto-migrations.
 **Rule:** Any schema change to \`sqliteTable\` in \`schema.ts\` MUST have a corresponding \`ALTER TABLE\` statement in \`packages/desktop/src/db/index.ts\` inside \`initializeDb\`.
-**Why:** User databases persist across updates. If you only update \`CREATE TABLE\`, existing users will crash with \"Failed query\" errors.
 
 ### B. Versioning & Releases
 We use a unified versioning script: \`bun run bump <version>\`.
-**Component:** \`scripts/bump-version.ts\`
 **Targets:**
 *   All \`package.json\` files.
 *   \`cargo.toml\` and \`tauri.conf.json\`.
 *   **CRITICAL:** \`packages/shared/src/index.ts\` (export const PIKA_VERSION).
-If the shared constant desyncs from the main package version, the UI will display the wrong version and debugging becomes a nightmare.
 
-### C. Windows MSI Compatibility
-The Windows installer (WiX) is **extremely strict** about version formats.
-*   **Allowed:** \`0.1.5\` (Major.Minor.Patch)
-*   **Forbidden:** \`0.1.5-rc.1\`, \`0.1.5-beta\`
-**Workaround:** For beta/RC builds intended for Windows, bump the Patch version (e.g., \`0.1.4\` -> \`0.1.5\`) instead of using SemVer pre-release tags." 
+### C. File Restoration & Code Safety
+**Incident (Jan 2026):** Several critical files were accidentally emptied (truncated to 0 bytes) during a refactor. 
+- **Lesson:** Always verify file sizes before committing or pushing. 
+- **Recovery:** Git restore is your friend. 
+- **Prevention:** Use Biome/Lint tools to catch errors before they propagate.
 
 ---
 
-*Last Updated: January 15, 2026 (v0.1.9)*
+*Last Updated: January 17, 2026 (v0.3.0)*

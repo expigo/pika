@@ -1,6 +1,6 @@
 # Prioritized Roadmap & Feature Matrix
 
-**Date:** January 15, 2026
+**Date:** January 17, 2026
 **Status:** Living Document
 
 This document organizes the Pika! roadmap by **weighted priority**, balancing user value against implementation complexity.
@@ -67,6 +67,7 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **Landing Page "How-To"** | **7** | 3 | **DONE** | **Visual Polish.** Added "How It Works" visual section and smart `/download` page. |
 | **Session Resume UX** | **6** | 3 | **DONE** | Sticky `sessionId` in `localStorage` prevents context loss on refresh. |
 | **"Thank You" Rain** | **8** | 3 | **DONE** | **User Delight.** Dancers click "Thank You" -> Confetti rains on DJ screen. End-of-night ritual. |
+| **Pro Enhancements** | **9** | 5 | **DONE** | **Slate & Neon Theme.** Full aesthetic overhaul + TTL caching + Debounced broadcasts. |
 
 ---
 
@@ -75,6 +76,7 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 
 | Feature | Value | Complexity | Priority | Notes |
 | :--- | :---: | :---: | :---: | :--- |
+| **Deep Intelligence** | **9** | 6 | **DONE** | **Recap Analytics.** Implemented Friction, Harmonic Flow, and "The Drift" v1. |
 | **Account System (Auth.js)** | **9** | 9 | **HIGH** | **Strategic unlock.** Required for "My History", "Favorites", and multi-DJ events. |
 | **Pika! Charts** | **9** | 8 | **HIGH** | **The Moat.** Aggregated "Billboard" charts for WCS music. Unique value prop. |
 | **Session Persistence (Redis)**| **8** | 7 | **MED** | Move session state from memory to Redis to allow zero-downtime deploys. |
@@ -82,20 +84,32 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 
 ---
 
-## 4. � Tier 3: Growth Features (Post-MVP)
+## 4.  Tier 3: Growth Features (Post-MVP)
 *Focus: Retention, Monetization Potential, and Ecosystem Expansion.*
 
 | Feature | Value | Complexity | Priority | Notes |
 | :--- | :---: | :---: | :---: | :--- |
+| **Global Analytics Fix** | **8** | 3 | **DONE** | Validated `/api/stats/global` with real usage data. |
 | **DJ Dashboard (Web)** | **9** | 5 | **HIGH** | DJs review past sets, manage profile, regenerate tokens. |
-| **Set History Analytics** | **8** | 6 | **MED** | BPM/energy timelines, tempo feedback graphs, engagement heatmaps. |
+| **Set History Analytics** | **8** | 6 | **DONE** | **Deep Intelligence.** Integrated into `/recap/[id]/analytics`. |
 | **PWA (Lite Mobile)** | **7** | 2 | **HIGH** | Quick win before native. Add to home screen, basic offline. |
 | **Organizer Role** | **6** | 7 | **MED** | Event branding, multi-DJ coordination, aggregate stats. |
 | **Native Mobile App** | **5** | 10 | **LOW** | Push notifications, widgets. Only after PMF validated. |
 
 ---
 
-## 4.1 🎛️ DJ Dashboard (Web) - Detailed Spec
+## 4.1 📈 Set History Analytics (Deep Intelligence) - DONE
+**Goal achieved on Jan 17, 2026.**
+
+**Features Implemented:**
+- **Transition Friction Map:** Calculated using Euclidean distance of audio fingerprints.
+- **Harmonic Flow Audit:** Camelot-based compatibility scoring.
+- **"The Drift" Indicator:** Detecting DJ/Crowd tempo divergence.
+- **Global BPM Stats:** Range and average calculations.
+
+---
+
+## 4.2 🎛️ DJ Dashboard (Web) - Detailed Spec
 
 **Goal:** A web portal where DJs manage their profile, view past sessions, and access analytics.
 
@@ -121,73 +135,6 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | Avatar upload | S3 or Cloudflare R2 integration | 3h |
 
 **Total Effort: ~10 hours**
-
-**UI Mockup:**
-```
-┌─────────────────────────────────────────────┐
-│  🎧 DJ Pikachu                    [Logout]  │
-├─────────────────────────────────────────────┤
-│ ┌──────────────┐  Recent Sessions           │
-│ │   Avatar     │  ├── Jan 14 (48 tracks) ❤️127│
-│ │              │  ├── Jan 10 (32 tracks) ❤️84 │
-│ └──────────────┘  └── Jan 7 (65 tracks) ❤️203│
-│ [Edit Profile]                               │
-│                   🔥 Top Liked Tracks        │
-│ API Token         1. "Lover" - Taylor (42❤️) │
-│ pk_dj_...[Copy]   2. "Smooth" - Rob T (38❤️) │
-│ [Regenerate]      3. "Uptown" - Bruno (31❤️) │
-└─────────────────────────────────────────────┘
-```
-
----
-
-## 4.2 📈 Set History Analytics - Detailed Spec
-
-**Goal:** Visual dashboard showing BPM trends, energy curves, and crowd feedback over time.
-
-**User Stories:**
-- As a DJ, I want to see when the floor peaked so I can replicate that energy.
-- As a DJ, I want to know if my tempo was too fast based on crowd feedback.
-- As a DJ, I want to identify songs that got cold reactions.
-
-**Data Available:**
-- `played_tracks` → BPM, energy, danceability, timestamps
-- `tempo_votes` → Faster/Slower/Perfect per track
-- `likes` → Count per track
-- `session_events` → Connect/disconnect patterns
-
-**Components:**
-
-| Component | Description | Effort |
-|-----------|-------------|:------:|
-| BPM Timeline chart | Line chart: X=time, Y=BPM | 3h |
-| Energy Curve | Area chart with energy values | 2h |
-| Tempo Feedback bars | Stacked bar (F/S/P per song) | 2h |
-| Like Heatmap | Highlight high-engagement moments | 2h |
-| Export to PDF | Generate downloadable report | 3h |
-
-**Total Effort: ~12 hours**
-
-**Tech Stack:** Chart.js or Recharts, server-side data aggregation
-
-**UI Mockup:**
-```
-Session: Jan 14, 2026 (8:30 PM - 11:45 PM)
-────────────────────────────────────────────
-BPM    130 ─┐    ┌─┐      ┌───┐
-       120  └────┘ └──────┘   └─────
-       110 ─────────────────────────────────
-            8:30  9:00  9:30  10:00  10:30
-
-Energy  High ████████░░░░████████████░░░
-        Med  ░░░░░░░░████░░░░░░░░░░░░████
-        Low  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-
-Crowd Tempo Feedback:
-  🐢 Slower: 12% | ✓ Perfect: 73% | 🐇 Faster: 15%
-
-[Download PDF Report]
-```
 
 ---
 
@@ -225,19 +172,6 @@ export const eventDjs = pgTable("event_djs", {
 });
 ```
 
-**Components:**
-
-| Component | Description | Effort |
-|-----------|-------------|:------:|
-| DB schema migration | `events` + `event_djs` tables | 2h |
-| Organizer registration flow | `/organizer/register` | 3h |
-| Event creation wizard | Name, dates, add DJs | 3h |
-| Branded dancer view | Dynamic theme from event config | 3h |
-| `/events/[slug]` page | Event-specific landing page | 2h |
-| Event analytics dashboard | All DJs, all sessions aggregated | 4h |
-
-**Total Effort: ~17 hours**
-
 ---
 
 ## 4.4 📱 Native Mobile App - Detailed Spec
@@ -248,10 +182,6 @@ export const eventDjs = pgTable("event_djs", {
 - As a dancer, I want a push notification when my favorite DJ goes live.
 - As a dancer, I want to queue likes while in a WiFi dead zone.
 - As a dancer, I want a home screen widget showing "Now Playing".
-
-**Current State:**
-- Web is mobile-responsive ✅
-- PWA could be intermediate step (recommended first)
 
 **PWA First Approach (Recommended):**
 
@@ -290,35 +220,28 @@ export const eventDjs = pgTable("event_djs", {
 | :--- | :---: | :---: | :---: | :--- |
 | **Spotify Integration** | **6** | 8 | **LOW** | "Add to Playlist" button. High complexity (Auth tokens). |
 | **Venue Profiles** | **4** | 5 | **LOW** | Saved venue configs. Low priority until scale. |
-| **Pika! Charts** | **9** | 8 | **FUTURE** | Aggregated "Billboard" charts for WCS music. Strategic moat. |
 
 ---
 
 ## 6. Development Plan (Sequenced)
 
-### Phase 1: The "Stability Fix" ✅ COMPLETE
-1.  ✅ **CI/CD Migrations:** Modify `package.json` `start` script.
-2.  ✅ **PyInstaller Matrix:** Create `.github/workflows/build-desktop.yml`.
-3.  ✅ **Desktop Offline Queue:** Implement `PendingUpdateQueue` in `useLiveSession.ts`.
+### Phase 2.6: The "Pro Polish" (Aesthetics & Perf) ✅ COMPLETE
+*Completed Jan 16, 2026. Slate & Neon design system implemented.*
 
-### Phase 2: The "Launch Polish" ✅ COMPLETE
-1.  ✅ **Ghost Data Fix:** Add normalization logic in `packages/shared`.
-2.  ✅ **QR Codes:** Switch to dynamic generation based on environment.
-3.  ✅ **Landing Page:** Design & implement "How it works".
-4.  ✅ **"Thank You" Rain:** Confetti feedback system implemented.
+1.  ✅ **Pro UI Components:** `ProCard`, `ProHeader`, `VibeBadge` implemented.
+2.  ✅ **Frontend Overhaul:** `/live`, `/recap`, `/dj/[slug]`, `/my-likes`, `/analytics` updated.
+3.  ✅ **TTL Caching:** 5m cache for global stats in Cloud.
+4.  ✅ **Debounced Broadcasts:** 2s interval for listener counts to reduce traffic.
+5.  ✅ **Sticky Participants:** 5m window for pocketed phones.
+6.  ✅ **PWA Nav:** `BottomNav` implemented for mobile-first experience.
 
-### Phase 2.5: The "Security Hardening" 🔐 ✅ COMPLETE (v0.1.9)
-*Completed Jan 15, 2026. All critical items addressed.*
+### Phase 2.7: Deep Intelligence & Analytics Fixes ✅ COMPLETE
+*Completed Jan 17, 2026. Real-world aggregate data and advanced heuristics.*
 
-1.  ✅ **CORS Restriction:** Origins restricted to `pika.stream` domains.
-2.  ✅ **Rate Limiting:** `hono-rate-limiter` on auth routes (5 req/15min).
-3.  ✅ **Secrets Migration:** `POSTGRES_PASSWORD` moved to env vars.
-4.  ✅ **CSRF Protection:** X-Pika-Client header validation.
-5.  ✅ **CSP Headers:** Content-Security-Policy via Next.js middleware.
-6.  ✅ **WS Rate Limiting:** 20 connections/min per IP.
-7.  ✅ **Session Telemetry:** DJ connect/disconnect event tracking.
-8.  ✅ **E2E Test Suite:** Playwright hybrid tests for critical paths.
-9.  🟡 **Email Validation:** Deferred (low risk for MVP demo).
+1.  ✅ **Transition Intelligence:** Friction & Harmonic Flow logic.
+2.  ✅ **The Drift:** Crowd-sourced tempo feedback divergence analysis.
+3.  ✅ **Global Stats API:** Migrated `/analytics` from mock to real DB data.
+4.  ✅ **Code Quality:** Fixed Lucide icon types and React hook dependency warnings.
 
 ### Phase 3: The "Account Era" (Post-Launch)
 1.  [ ] **Auth.js Setup:** Scaffolding for Dancer/DJ login.
@@ -332,8 +255,6 @@ export const eventDjs = pgTable("event_djs", {
 3.  [ ] **Decompose Hooks:** Split `useLiveSession.ts` into smaller hooks.
 
 ### Phase 5: Growth Features (Post-MVP) 🚀
-*See Section 4 for detailed specs.*
-
 1.  [ ] **DJ Dashboard:** Web portal for DJs (~10h)
 2.  [ ] **PWA:** Quick mobile improvement (~5h)
 3.  [ ] **Set Analytics:** BPM/energy visualizations (~12h)
@@ -347,6 +268,8 @@ export const eventDjs = pgTable("event_djs", {
 
 | Date | Change | Context |
 | :--- | :--- | :--- |
+| **2026-01-17** | **Deep Intelligence v1** | Implemented advanced analytics for set recaps. Fixed global stats API. |
+| **2026-01-16** | **Pro Enhancements Complete** | Slate & Neon theme, TTL cache, Debounced broadcasts, PWA BottomNav. |
 | **2026-01-15** | E2E Tests Fixed (6 passing) | WebSocket injection replaces Tauri mocks. |
 | **2026-01-15** | **Release v0.1.9** | Security hardening complete: CSP, CSRF, telemetry, WS rate limiting. |
 | **2026-01-15** | Added Tier 3 Growth Features | Detailed specs for DJ Dashboard, Analytics, Organizer Role, Native App. |
@@ -358,4 +281,4 @@ export const eventDjs = pgTable("event_djs", {
 
 ---
 
-*Last Updated: January 15, 2026 (v0.1.9)*
+*Last Updated: January 17, 2026 (Deep Intelligence v0.3.0)*
