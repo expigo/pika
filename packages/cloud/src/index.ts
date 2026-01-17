@@ -7,7 +7,7 @@ import {
   WebSocketMessageSchema,
 } from "@pika/shared";
 import type { ServerWebSocket } from "bun";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
@@ -81,6 +81,18 @@ const csrfCheck = async (c: Context, next: Next) => {
 // Apply CSRF check to auth routes
 app.use("/api/auth/*", csrfCheck);
 
+// Global Error Handler to prevent ERR_EMPTY_RESPONSE
+app.onError((err, c) => {
+  console.error("🔥 Server Error:", err);
+  return c.json(
+    {
+      error: "Internal Server Error",
+      message: err.message,
+    },
+    500,
+  );
+});
+
 // Active sessions store (for WebSocket connections - in-memory)
 interface LiveSession {
   sessionId: string;
@@ -101,52 +113,123 @@ const activeSessions = new Map<string, LiveSession>();
 // ============================================================================
 // Track connected listeners (dancers) per session for accurate crowd size.
 // Uses reference counting: multiple tabs from same client count as ONE listener.
-// Map: sessionId -> Map<clientId, connectionCount>
-const sessionListeners = new Map<string, Map<string, number>>();
-const djConnections = new Set<string>(); // Track DJ connections to exclude from count
+// Map: sessionId -> Map<clientId, { count: number, lastSeen: number }>
+const sessionListeners = new Map<string, Map<string, { count: number; lastSeen: number }>>();
 
-// Get listener count for a specific session (unique clients, not connections)
+// Participants stay "active" in the count for 5 minutes after disconnect
+const PARTICIPANT_TTL = 5 * 60 * 1000;
+
 function getListenerCount(sessionId: string): number {
-  return sessionListeners.get(sessionId)?.size ?? 0;
+  const clients = sessionListeners.get(sessionId);
+  if (!clients) return 0;
+
+  const now = Date.now();
+  let participantCount = 0;
+
+  for (const client of clients.values()) {
+    // A participant is counted if they are:
+    // 1. Currently connected (count > 0)
+    // 2. OR were seen in the last 5 minutes (sticky window)
+    if (client.count > 0 || now - client.lastSeen < PARTICIPANT_TTL) {
+      participantCount++;
+    }
+  }
+
+  return participantCount;
 }
 
 // Add listener connection to a session (increments reference count)
-// Returns true if this is a NEW client (unique count increased)
+// Returns true if this is a NEW discovery (not seen in sticky window)
 function addListener(sessionId: string, clientId: string): boolean {
   if (!sessionListeners.has(sessionId)) {
     sessionListeners.set(sessionId, new Map());
   }
-  const clients = sessionListeners.get(sessionId)!;
-  const currentCount = clients.get(clientId) ?? 0;
-  const isNewClient = currentCount === 0;
-  clients.set(clientId, currentCount + 1);
+  const clients = sessionListeners.get(sessionId);
+  if (!clients) return false;
+  const client = clients.get(clientId) || { count: 0, lastSeen: 0 };
+
+  const isNewDiscovery = client.count === 0 && Date.now() - client.lastSeen > PARTICIPANT_TTL;
+
+  client.count++;
+  client.lastSeen = Date.now();
+  clients.set(clientId, client);
+
   console.log(
-    `👥 Listener connection added: ${clientId.substring(0, 8)}... (${currentCount + 1} connections, isNew: ${isNewClient})`,
+    `👥 Listener added: ${clientId.substring(0, 8)}... (Active: ${client.count}, isNew: ${isNewDiscovery})`,
   );
-  return isNewClient;
+  return isNewDiscovery;
 }
 
 // Remove listener connection from a session (decrements reference count)
-// Returns true if client was completely removed (unique count decreased)
+// Returns false (we don't broadcast drops immediately due to sticky logic)
 function removeListener(sessionId: string, clientId: string): boolean {
   const clients = sessionListeners.get(sessionId);
   if (!clients) return false;
 
-  const currentCount = clients.get(clientId) ?? 0;
-  if (currentCount <= 1) {
-    // Last connection from this client, remove entirely
-    clients.delete(clientId);
-    console.log(`👥 Listener removed: ${clientId.substring(0, 8)}... (no more connections)`);
-    return true; // Unique count changed
-  } else {
-    // Still has other connections open
-    clients.set(clientId, currentCount - 1);
-    console.log(
-      `👥 Listener connection closed: ${clientId.substring(0, 8)}... (${currentCount - 1} connections remaining)`,
-    );
-    return false; // Unique count unchanged
-  }
+  const client = clients.get(clientId);
+  if (!client) return false;
+
+  client.count = Math.max(0, client.count - 1);
+  client.lastSeen = Date.now();
+
+  console.log(
+    `👥 Listener connection closed: ${clientId.substring(0, 8)}... (Remaining: ${client.count})`,
+  );
+  return false;
 }
+
+// Periodic cleanup of truly stale participants (disconnected > 1 hour)
+setInterval(
+  () => {
+    const now = Date.now();
+    const CLEANUP_THRESHOLD = 60 * 60 * 1000;
+
+    for (const [_sessionId, clients] of sessionListeners.entries()) {
+      for (const [clientId, data] of clients.entries()) {
+        if (data.count === 0 && now - data.lastSeen > CLEANUP_THRESHOLD) {
+          clients.delete(clientId);
+        }
+      }
+    }
+  },
+  30 * 60 * 1000,
+); // Every 30 mins
+
+// ============================================================================
+// Performance Utilities: In-memory Cache & Debouncing
+// ============================================================================
+
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+const globalCache = new Map<string, CacheEntry<unknown>>();
+
+/**
+ * Simple TTL cache helper
+ */
+async function withCache<T>(key: string, ttlMs: number, fetcher: () => Promise<T>): Promise<T> {
+  const cached = globalCache.get(key);
+  const now = Date.now();
+
+  if (cached && cached.expiresAt > now) {
+    return cached.data as T;
+  }
+
+  const freshData = await fetcher();
+  globalCache.set(key, {
+    data: freshData,
+    expiresAt: now + ttlMs,
+  });
+  return freshData;
+}
+
+// Track cached counts to avoid redundant broadcasts
+const cachedListenerCounts = new Map<string, number>();
+
+// Capture a reference to any active WebSocket to use for global broadcasts
+let activeBroadcaster: ServerWebSocket<unknown> | null = null;
 
 // ============================================================================
 // Rate Limiting: Track likes per client per track
@@ -220,7 +303,7 @@ function recordLike(sessionId: string, clientId: string, track: TrackInfo): void
   if (!likesSent.has(key)) {
     likesSent.set(key, new Set());
   }
-  likesSent.get(key)!.add(getTrackKey(track));
+  likesSent.get(key)?.add(getTrackKey(track));
 }
 
 // Clean up likes when session ends
@@ -261,11 +344,6 @@ function getActivePoll(pollId: number): ActivePoll | undefined {
 function getSessionPoll(sessionId: string): ActivePoll | undefined {
   const pollId = sessionActivePoll.get(sessionId);
   return pollId ? activePolls.get(pollId) : undefined;
-}
-
-function hasClientVoted(pollId: number, clientId: string): boolean {
-  const poll = activePolls.get(pollId);
-  return poll ? poll.votedClients.has(clientId) : true;
 }
 
 function endPoll(pollId: number): ActivePoll | undefined {
@@ -381,12 +459,11 @@ async function logSessionEvent(
 }
 
 // ============================================================================
-// Application-Level ACK Helpers
+// Protocol Helpers (ACK/NACK)
 // ============================================================================
 
 /**
- * Send acknowledgment for a successfully processed message.
- * Used for critical operations like BROADCAST_TRACK.
+ * Send an acknowledgment for a received message.
  */
 function sendAck(ws: { send: (data: string) => void }, messageId: string): void {
   if (!messageId) return; // Only ACK if messageId was provided
@@ -402,7 +479,7 @@ function sendAck(ws: { send: (data: string) => void }, messageId: string): void 
 }
 
 /**
- * Send negative acknowledgment for a failed message.
+ * Send a negative acknowledgment with an error message.
  */
 function sendNack(ws: { send: (data: string) => void }, messageId: string, error: string): void {
   if (!messageId) return; // Only NACK if messageId was provided
@@ -418,7 +495,7 @@ function sendNack(ws: { send: (data: string) => void }, messageId: string, error
 }
 
 // ============================================================================
-// Database Persistence Helpers
+// Poll Management
 // ============================================================================
 
 // Track which sessions have been persisted to avoid race conditions
@@ -433,7 +510,6 @@ async function ensureSessionPersisted(sessionId: string): Promise<boolean> {
   if (persistedSessions.has(sessionId)) return true;
 
   try {
-    const { eq } = await import("drizzle-orm");
     const results = await db
       .select({ id: schema.sessions.id })
       .from(schema.sessions)
@@ -630,7 +706,6 @@ async function persistTempoVotes(
  */
 async function endSessionInDb(sessionId: string): Promise<void> {
   try {
-    const { eq } = await import("drizzle-orm");
     await db
       .update(schema.sessions)
       .set({ endedAt: new Date() })
@@ -884,7 +959,10 @@ app.post("/api/auth/login", authLimiter, async (c) => {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
-    const user = users[0]!; // We checked length > 0
+    const user = users[0];
+    if (!user) {
+      return c.json({ error: "Invalid email or password" }, 401);
+    }
 
     // Verify password
     const validPassword = await verifyPassword(password, user.passwordHash);
@@ -1023,9 +1101,16 @@ app.get("/api/sessions/active", (c) => {
       ? {
           title: session.currentTrack.title,
           artist: session.currentTrack.artist,
+          bpm: session.currentTrack.bpm,
         }
       : null,
-    listenerCount: sessionListeners.get(session.sessionId)?.size || 0,
+    listenerCount: getListenerCount(session.sessionId),
+    // Calculate Vibe Momentum (0.0 to 1.0)
+    // Formula: (Listeners * 0.4) + (RecentLikes * 0.6) - normalized
+    momentum: Math.min(
+      1,
+      getListenerCount(session.sessionId) * 0.05 + (likesSent.get(session.sessionId) ? 0.2 : 0), // Simplistic start
+    ),
   }));
 
   return c.json({
@@ -1040,7 +1125,6 @@ app.get("/api/session/:sessionId/history", async (c) => {
   const sessionId = c.req.param("sessionId");
 
   try {
-    const { desc, eq } = await import("drizzle-orm");
     const tracks = await db
       .select({
         id: schema.playedTracks.id,
@@ -1065,8 +1149,6 @@ app.get("/api/session/:sessionId/recap", async (c) => {
   const sessionId = c.req.param("sessionId");
 
   try {
-    const { eq, count } = await import("drizzle-orm");
-
     // Get session metadata from database (activeSessions is cleared when session ends)
     const sessionData = await db
       .select({
@@ -1113,15 +1195,21 @@ app.get("/api/session/:sessionId/recap", async (c) => {
 
     const totalLikes = likesResult[0]?.count || 0;
 
-    // Get per-track like counts
-    const trackLikeCounts = new Map<number, number>(); // Map<playedTrackId, count>
+    // Get per-track like counts (Batched query to avoid N+1)
+    const trackLikesData = await db
+      .select({
+        playedTrackId: schema.likes.playedTrackId,
+        count: count(),
+      })
+      .from(schema.likes)
+      .where(eq(schema.likes.sessionId, sessionId))
+      .groupBy(schema.likes.playedTrackId);
 
-    for (const track of tracks) {
-      const likeCount = await db
-        .select({ count: count() })
-        .from(schema.likes)
-        .where(eq(schema.likes.playedTrackId, track.id));
-      trackLikeCounts.set(track.id, likeCount[0]?.count || 0);
+    const trackLikeCounts = new Map<number, number>();
+    for (const item of trackLikesData) {
+      if (item.playedTrackId) {
+        trackLikeCounts.set(item.playedTrackId, item.count);
+      }
     }
 
     // Get per-track tempo votes
@@ -1369,16 +1457,15 @@ app.get("/api/client/:clientId/likes", async (c) => {
   }
 
   try {
-    const { eq, desc } = await import("drizzle-orm");
-
+    console.log(`🔍 Fetching likes for client: ${clientId}`);
     // Get all likes for this client, ordered by most recent first
     const likes = await db
       .select({
         id: schema.likes.id,
         sessionId: schema.likes.sessionId,
-        trackArtist: schema.playedTracks.artist,
-        trackTitle: schema.playedTracks.title,
-        createdAt: schema.likes.createdAt,
+        artist: schema.playedTracks.artist,
+        title: schema.playedTracks.title,
+        likedAt: schema.likes.createdAt,
       })
       .from(schema.likes)
       .innerJoin(schema.playedTracks, eq(schema.likes.playedTrackId, schema.playedTracks.id))
@@ -1386,43 +1473,55 @@ app.get("/api/client/:clientId/likes", async (c) => {
       .orderBy(desc(schema.likes.createdAt))
       .limit(100); // Reasonable limit
 
-    // Get session info for each unique session
+    // Get session info for each unique session in a single batch
     const sessionIds = [...new Set(likes.map((l) => l.sessionId).filter(Boolean))];
     const sessionsMap = new Map<string, { djName: string; startedAt: Date | null }>();
 
-    for (const sessionId of sessionIds) {
-      if (!sessionId) continue;
-      const session = await db
+    console.log(`📊 Found ${likes.length} likes, unique sessions: ${sessionIds.length}`);
+
+    if (sessionIds.length > 0) {
+      console.log(`📦 Batch fetching sessions: ${sessionIds.join(", ")}`);
+      const sessions = await db
         .select({
+          id: schema.sessions.id,
           djName: schema.sessions.djName,
           startedAt: schema.sessions.startedAt,
         })
         .from(schema.sessions)
-        .where(eq(schema.sessions.id, sessionId))
-        .limit(1);
-      if (session[0]) {
-        sessionsMap.set(sessionId, session[0]);
+        .where(inArray(schema.sessions.id, sessionIds as string[]));
+
+      for (const session of sessions) {
+        sessionsMap.set(session.id, session);
       }
+      console.log(`✅ Fetched ${sessions.length} session metadata records`);
     }
 
     // Enrich likes with session info
-    const enrichedLikes = likes.map((like) => ({
-      id: like.id,
-      sessionId: like.sessionId,
-      djName: like.sessionId ? sessionsMap.get(like.sessionId)?.djName : null,
-      sessionDate: like.sessionId ? sessionsMap.get(like.sessionId)?.startedAt : null,
-      artist: like.trackArtist,
-      title: like.trackTitle,
-      likedAt: like.createdAt,
-    }));
+    const enrichedLikes = likes.map((like) => {
+      if (like.sessionId) {
+        const sessionInfo = sessionsMap.get(like.sessionId);
+        if (sessionInfo) {
+          return {
+            ...like,
+            djName: sessionInfo.djName,
+            sessionDate: sessionInfo.startedAt,
+          };
+        }
+      }
+      return {
+        ...like,
+        djName: null,
+        sessionDate: null,
+      };
+    });
 
     return c.json({
       clientId,
       totalLikes: enrichedLikes.length,
       likes: enrichedLikes,
     });
-  } catch (e) {
-    console.error("Failed to fetch client likes:", e);
+  } catch (error) {
+    console.error("Failed to fetch client likes:", error);
     return c.json({ error: "Failed to fetch likes" }, 500);
   }
 });
@@ -1438,8 +1537,6 @@ app.get("/api/dj/:slug", async (c) => {
   const slug = c.req.param("slug");
 
   try {
-    const { eq, count, sql, desc } = await import("drizzle-orm");
-
     // Find all sessions where DJ name slugifies to this slug
     const allSessions = await db
       .select({
@@ -1458,27 +1555,42 @@ app.get("/api/dj/:slug", async (c) => {
       return c.json({ error: "DJ not found" }, 404);
     }
 
-    // Get the DJ name from first session (we already checked length > 0 above)
-    const firstSession = djSessions[0]!;
+    const firstSession = djSessions[0];
+    if (!firstSession) {
+      return c.json({ error: "DJ not found" }, 404);
+    }
     const djName = firstSession.djName;
 
-    // Get track counts for each session
-    const sessionsWithCounts = await Promise.all(
-      djSessions.map(async (session) => {
-        const trackCountResult = await db
-          .select({ count: count() })
-          .from(schema.playedTracks)
-          .where(eq(schema.playedTracks.sessionId, session.id));
+    // Limit to 20 most recent sessions BEFORE fetching counts to avoid N+1
+    const recentSessions = djSessions
+      .sort((a, b) => (b.startedAt?.getTime() || 0) - (a.startedAt?.getTime() || 0))
+      .slice(0, 20);
 
-        return {
-          id: session.id,
-          djName: session.djName,
-          startedAt: session.startedAt?.toISOString() || new Date().toISOString(),
-          endedAt: session.endedAt?.toISOString() || null,
-          trackCount: trackCountResult[0]?.count || 0,
-        };
-      }),
-    );
+    const sessionIds = recentSessions.map((s) => s.id);
+    const countsMap = new Map<string, number>();
+
+    if (sessionIds.length > 0) {
+      const trackCounts = await db
+        .select({
+          sessionId: schema.playedTracks.sessionId,
+          count: count(),
+        })
+        .from(schema.playedTracks)
+        .where(inArray(schema.playedTracks.sessionId, sessionIds))
+        .groupBy(schema.playedTracks.sessionId);
+
+      for (const row of trackCounts) {
+        if (row.sessionId) countsMap.set(row.sessionId, row.count);
+      }
+    }
+
+    const sessionsWithCounts = recentSessions.map((session) => ({
+      id: session.id,
+      djName: session.djName,
+      startedAt: session.startedAt?.toISOString() || new Date().toISOString(),
+      endedAt: session.endedAt?.toISOString() || null,
+      trackCount: countsMap.get(session.id) || 0,
+    }));
 
     // Calculate totals
     const totalSessions = sessionsWithCounts.length;
@@ -1491,9 +1603,93 @@ app.get("/api/dj/:slug", async (c) => {
       totalSessions,
       totalTracks,
     });
-  } catch (e) {
-    console.error("Failed to fetch DJ profile:", e);
+  } catch (error) {
+    console.error("Failed to fetch DJ profile:", error);
     return c.json({ error: "Failed to fetch DJ profile" }, 500);
+  }
+});
+
+// ============================================================================
+// Global Stats & Discovery API
+// ============================================================================
+
+/**
+ * Get the most liked tracks across all sessions.
+ * This is used for the "Live" zero-state to show community favorites.
+ */
+app.get("/api/stats/top-tracks", async (c) => {
+  try {
+    const topTracks = await withCache("top-tracks", 5 * 60 * 1000, async () => {
+      return await db
+        .select({
+          artist: schema.playedTracks.artist,
+          title: schema.playedTracks.title,
+          likeCount: count(),
+        })
+        .from(schema.playedTracks)
+        .innerJoin(schema.likes, eq(schema.playedTracks.id, schema.likes.playedTrackId))
+        .groupBy(schema.playedTracks.artist, schema.playedTracks.title)
+        .orderBy(desc(count()))
+        .limit(10);
+    });
+
+    return c.json(topTracks);
+  } catch (e) {
+    console.error("Failed to fetch top tracks:", e);
+    return c.json([], 500);
+  }
+});
+
+/**
+ * Get recent completed sessions.
+ */
+app.get("/api/sessions/recent", async (c) => {
+  try {
+    const recentSessions = await withCache("recent-sessions", 5 * 60 * 1000, async () => {
+      return await db
+        .select({
+          id: schema.sessions.id,
+          djName: schema.sessions.djName,
+          startedAt: schema.sessions.startedAt,
+          endedAt: schema.sessions.endedAt,
+        })
+        .from(schema.sessions)
+        .where(isNotNull(schema.sessions.endedAt))
+        .orderBy(desc(schema.sessions.endedAt))
+        .limit(5);
+    });
+
+    return c.json(recentSessions);
+  } catch (e) {
+    console.error("Failed to fetch recent sessions:", e);
+    return c.json([], 500);
+  }
+});
+
+/**
+ * Get global aggregate statistics for the analytics dashboard.
+ * Returns total sessions, tracks, and likes across all time.
+ */
+app.get("/api/stats/global", async (c) => {
+  try {
+    const stats = await withCache("global-stats", 5 * 60 * 1000, async () => {
+      const [sessionsResult, tracksResult, likesResult] = await Promise.all([
+        db.select({ count: count() }).from(schema.sessions),
+        db.select({ count: count() }).from(schema.playedTracks),
+        db.select({ count: count() }).from(schema.likes),
+      ]);
+
+      return {
+        totalSessions: sessionsResult[0]?.count ?? 0,
+        totalTracks: tracksResult[0]?.count ?? 0,
+        totalLikes: likesResult[0]?.count ?? 0,
+      };
+    });
+
+    return c.json(stats);
+  } catch (e) {
+    console.error("Failed to fetch global stats:", e);
+    return c.json({ totalSessions: 0, totalTracks: 0, totalLikes: 0 }, 500);
   }
 });
 
@@ -1566,7 +1762,7 @@ app.get(
     let djSessionId: string | null = null;
 
     return {
-      onOpen(event, ws) {
+      onOpen(_event, ws) {
         console.log("🔌 Client connected");
 
         // Subscribe all clients to the live-session channel
@@ -1593,13 +1789,18 @@ app.get(
           const data = event.data.toString();
           const json = JSON.parse(data);
 
-          // Extract clientId from message if present (for SUBSCRIBE and SEND_LIKE)
-          // Only log the first time we identify this client on this connection
+          // Extracted clientId
           if (json.clientId && !clientId) {
             clientId = json.clientId;
             console.log(`📋 Client identified: ${clientId}`);
           } else if (json.clientId) {
             clientId = json.clientId; // Update silently
+          }
+          // Capture broadcaster for the heartbeat interval
+          // This ensures we always have a reference to the active DJ's WebSocket
+          // for sending heartbeat messages.
+          if (djSessionId) {
+            activeBroadcaster = ws.raw as ServerWebSocket;
           }
 
           // Validate message against Zod schema
@@ -1610,8 +1811,9 @@ app.get(
             return;
           }
 
-          const message: WebSocketMessage = result.data;
+          const message = result.data as WebSocketMessage & { messageId?: string };
           const rawWs = ws.raw as ServerWebSocket;
+          const messageId = message.messageId;
 
           // Skip logging frequent messages (SUBSCRIBE is logged separately when new)
           if (message.type !== "SUBSCRIBE") {
@@ -1645,8 +1847,6 @@ app.get(
                   } else {
                     console.log(`⚠️ Invalid token provided, using anonymous mode`);
                   }
-                } else {
-                  console.log(`⚠️ No token provided, session will be anonymous`);
                 }
 
                 const session: LiveSession = {
@@ -1675,6 +1875,8 @@ app.get(
                     djName,
                   }),
                 );
+
+                if (messageId) sendAck(ws, messageId);
 
                 // Broadcast to all subscribers
                 rawWs.publish(
@@ -1744,11 +1946,23 @@ app.get(
                     track: message.track,
                   }),
                 );
+                if (messageId) sendAck(ws, messageId);
+              } else {
+                if (messageId) sendNack(ws, messageId, "Session not found");
               }
               break;
             }
 
             case "TRACK_STOPPED": {
+              // 🔐 Security: Verify this connection owns the session
+              if (djSessionId !== message.sessionId) {
+                console.warn(
+                  `⚠️ Unauthorized track stop attempt: connection owns ${djSessionId || "none"}, tried to stop track for ${message.sessionId}`,
+                );
+                if (messageId) sendNack(ws, messageId, "Unauthorized track stop");
+                return;
+              }
+
               const session = activeSessions.get(message.sessionId);
               if (session) {
                 delete session.currentTrack;
@@ -1761,11 +1975,23 @@ app.get(
                     sessionId: message.sessionId,
                   }),
                 );
+                if (messageId) sendAck(ws, messageId);
+              } else {
+                if (messageId) sendNack(ws, messageId, "Session not found");
               }
               break;
             }
 
             case "END_SESSION": {
+              // 🔐 Security: Verify this connection owns the session
+              if (djSessionId !== message.sessionId) {
+                console.warn(
+                  `⚠️ Unauthorized end session attempt: connection owns ${djSessionId || "none"}, tried to end ${message.sessionId}`,
+                );
+                if (messageId) sendNack(ws, messageId, "Unauthorized end session");
+                return;
+              }
+
               const session = activeSessions.get(message.sessionId);
               if (session) {
                 console.log(`👋 Session ended: ${session.djName}`);
@@ -1803,6 +2029,9 @@ app.get(
                     sessionId: message.sessionId,
                   }),
                 );
+                if (messageId) sendAck(ws, messageId);
+              } else {
+                if (messageId) sendNack(ws, messageId, "Session not found");
               }
               break;
             }
@@ -1816,6 +2045,7 @@ app.get(
 
               if (!likeSessionId) {
                 console.log("⚠️ Like rejected: no active session found");
+                if (messageId) sendNack(ws, messageId, "No active session found");
                 break;
               }
 
@@ -1828,6 +2058,7 @@ app.get(
                     message: "Client ID required for likes",
                   }),
                 );
+                if (messageId) sendNack(ws, messageId, "Client ID required for likes");
                 break;
               }
 
@@ -1846,6 +2077,7 @@ app.get(
                     payload: { track },
                   }),
                 );
+                if (messageId) sendNack(ws, messageId, "Already liked this track");
                 break;
               }
 
@@ -1866,6 +2098,7 @@ app.get(
                   payload: { track },
                 }),
               );
+              if (messageId) sendAck(ws, messageId);
               break;
             }
 
@@ -1882,6 +2115,9 @@ app.get(
                 console.log(
                   `🦄 Thank You received from ${clientId} in session ${message.sessionId}`,
                 );
+                if (messageId) sendAck(ws, messageId);
+              } else {
+                if (messageId) sendNack(ws, messageId, "Unsupported reaction type");
               }
               break;
             }
@@ -1897,7 +2133,16 @@ app.get(
               const djSession = activeSessions.get(announcementSessionId);
               if (!djSession) {
                 console.log(`⚠️ Announcement rejected: session ${announcementSessionId} not found`);
+                if (messageId) sendNack(ws, messageId, "Session not found");
                 break;
+              }
+              // 🔐 Security: Verify this connection owns the session
+              if (djSessionId !== announcementSessionId) {
+                console.warn(
+                  `⚠️ Unauthorized announcement attempt: connection owns ${djSessionId || "none"}, tried to announce to ${announcementSessionId}`,
+                );
+                if (messageId) sendNack(ws, messageId, "Unauthorized announcement");
+                return;
               }
 
               // Calculate endsAt if duration is provided
@@ -1929,6 +2174,7 @@ app.get(
               console.log(
                 `📢 Announcement from ${djSession.djName}: "${announcementMessage}"${durationSeconds ? ` (${durationSeconds}s timer)` : ""}`,
               );
+              if (messageId) sendAck(ws, messageId);
               break;
             }
 
@@ -1939,7 +2185,16 @@ app.get(
               const session = activeSessions.get(cancelSessionId);
               if (!session) {
                 console.log(`⚠️ Cancel announcement rejected: session ${cancelSessionId} not found`);
+                if (messageId) sendNack(ws, messageId, "Session not found");
                 break;
+              }
+              // 🔐 Security: Verify this connection owns the session
+              if (djSessionId !== cancelSessionId) {
+                console.warn(
+                  `⚠️ Unauthorized cancel announcement attempt: connection owns ${djSessionId || "none"}, tried to cancel for ${cancelSessionId}`,
+                );
+                if (messageId) sendNack(ws, messageId, "Unauthorized cancel announcement");
+                return;
               }
 
               // Clear the active announcement
@@ -1955,6 +2210,7 @@ app.get(
               );
 
               console.log(`📢❌ Announcement cancelled for session ${cancelSessionId}`);
+              if (messageId) sendAck(ws, messageId);
               break;
             }
 
@@ -1964,6 +2220,7 @@ app.get(
               // Require clientId for rate limiting
               if (!clientId) {
                 console.log("⚠️ Tempo request rejected: no clientId provided");
+                if (messageId) sendNack(ws, messageId, "Client ID required for tempo requests");
                 break;
               }
 
@@ -1998,6 +2255,7 @@ app.get(
                   ...feedback,
                 }),
               );
+              if (messageId) sendAck(ws, messageId);
               break;
             }
 
@@ -2012,10 +2270,10 @@ app.get(
               }
 
               // Mark this connection as a listener
-              if (isNewSubscription) {
+              if (isNewSubscription && targetSession && clientId) {
                 isListener = true;
                 subscribedSessionId = targetSession;
-                const isNewUniqueClient = addListener(targetSession!, clientId!);
+                const isNewUniqueClient = addListener(targetSession, clientId);
 
                 const count = getListenerCount(targetSession);
                 console.log(`👥 Listener count for ${targetSession}: ${count}`);
@@ -2114,6 +2372,7 @@ app.get(
                   );
                 }
               }
+              if (messageId) sendAck(ws, messageId);
               break;
             }
 
@@ -2143,10 +2402,21 @@ app.get(
                 durationSeconds,
               });
 
+              // 🔐 Security: Verify this connection owns the session
+              if (djSessionId !== pollSessionId) {
+                console.warn(
+                  `⚠️ Unauthorized start poll attempt: connection owns ${djSessionId || "none"}, tried to start poll for ${pollSessionId}`,
+                );
+                if (messageId)
+                  sendNack(ws, messageId, "Unauthorized to start poll for this session");
+                return;
+              }
+
               // Check if there's already an active poll for this session
               const existingPoll = getSessionPoll(pollSessionId);
               if (existingPoll) {
                 console.log("⚠️ Poll already active for session:", pollSessionId);
+                if (messageId) sendNack(ws, messageId, "Poll already active for this session");
                 break;
               }
 
@@ -2164,6 +2434,7 @@ app.get(
                 console.log("📊 Poll ID from database:", pollId);
                 if (!pollId) {
                   console.log("❌ Failed to create poll in database - no ID returned");
+                  if (messageId) sendNack(ws, messageId, "Failed to create poll in database");
                   return;
                 }
 
@@ -2186,6 +2457,7 @@ app.get(
                 sessionActivePoll.set(pollSessionId, pollId);
 
                 console.log(`📊 Poll started: "${question}" with ${options.length} options`);
+                if (messageId) sendAck(ws, messageId);
 
                 // Broadcast to all dancers
                 rawWs.publish(
@@ -2228,7 +2500,7 @@ app.get(
                       // Also send directly to DJ who created the poll
                       try {
                         ws.send(endMessage);
-                      } catch (e) {
+                      } catch (_e) {
                         console.log(
                           "⚠️ Could not send POLL_ENDED to DJ (connection may have closed)",
                         );
@@ -2242,18 +2514,31 @@ app.get(
                     }
                   }, durationSeconds * 1000);
                 }
-              })().catch((e) => {
-                console.error("❌ Error in poll creation IIFE:", e);
+              })().catch((error) => {
+                console.error("❌ Error in poll creation IIFE:", error);
+                if (messageId)
+                  sendNack(ws, messageId, `Server error during poll creation: ${error.message}`);
               });
               break;
             }
 
             case "END_POLL": {
               const { pollId } = message as { pollId: number };
+              const pollToClose = getActivePoll(pollId);
+
+              // 🔐 Security: Verify this connection owns the session
+              if (!pollToClose || djSessionId !== pollToClose.sessionId) {
+                console.warn(
+                  `⚠️ Unauthorized end poll attempt: connection owns ${djSessionId || "none"}, tried to end poll ${pollId} for session ${pollToClose?.sessionId || "unknown"}`,
+                );
+                if (messageId) sendNack(ws, messageId, "Unauthorized to end this poll");
+                return;
+              }
 
               const poll = endPoll(pollId);
               if (!poll) {
                 console.log("⚠️ Poll not found:", pollId);
+                if (messageId) sendNack(ws, messageId, "Poll not found or already ended");
                 break;
               }
 
@@ -2278,6 +2563,7 @@ app.get(
               console.log(
                 `📊 Poll ended: "${poll.question}" - Winner: ${poll.options[winnerIndex]}`,
               );
+              if (messageId) sendAck(ws, messageId);
               break;
             }
 
@@ -2286,23 +2572,38 @@ app.get(
               const { sessionId: cancelSessionId } = message as { sessionId: string };
               const pollId = sessionActivePoll.get(cancelSessionId);
 
-              if (!pollId) {
-                console.log("⚠️ No active poll for session to cancel:", cancelSessionId);
-                break;
+              // 🔐 Security: Verify this connection owns the session
+              if (djSessionId !== cancelSessionId) {
+                console.warn(
+                  `⚠️ Unauthorized cancel poll attempt: connection owns ${djSessionId || "none"}, tried to cancel poll for ${cancelSessionId}`,
+                );
+                if (messageId)
+                  sendNack(ws, messageId, "Unauthorized to cancel poll for this session");
+                return;
               }
 
-              const poll = endPoll(pollId);
-              if (poll) {
-                closePollInDb(pollId);
-                rawWs.publish(
-                  "live-session",
-                  JSON.stringify({
-                    type: "POLL_ENDED",
-                    pollId,
-                    cancelled: true,
-                  }),
-                );
-                console.log(`📊 Poll cancelled: "${poll.question}"`);
+              if (pollId !== undefined) {
+                const poll = endPoll(pollId);
+                if (poll) {
+                  closePollInDb(pollId);
+                  const broadcaster = activeBroadcaster;
+                  if (broadcaster) {
+                    broadcaster.publish(
+                      "live-session",
+                      JSON.stringify({
+                        type: "POLL_ENDED",
+                        pollId,
+                        cancelled: true,
+                      }),
+                    );
+                  }
+                  console.log(`📊 Poll cancelled: "${poll.question}"`);
+                  if (messageId) sendAck(ws, messageId);
+                } else {
+                  if (messageId) sendNack(ws, messageId, "Poll not found or already ended");
+                }
+              } else {
+                if (messageId) sendNack(ws, messageId, "No active poll found for this session");
               }
               break;
             }
@@ -2321,13 +2622,16 @@ app.get(
               const poll = getActivePoll(pollId);
               if (!poll) {
                 console.log("⚠️ Poll not found or closed:", pollId);
-                ws.send(
-                  JSON.stringify({
-                    type: "VOTE_REJECTED",
-                    pollId,
-                    reason: "Poll not found or closed",
-                  }),
-                );
+                const broadcaster = activeBroadcaster;
+                if (broadcaster) {
+                  broadcaster.send(
+                    JSON.stringify({
+                      type: "VOTE_REJECTED",
+                      pollId,
+                      reason: "Poll not found or closed",
+                    }),
+                  );
+                }
                 break;
               }
 
@@ -2361,42 +2665,45 @@ app.get(
                 break;
               }
 
-              // Record vote in memory (poll is guaranteed to exist after guard)
-              const currentValue = poll!.votes[optionIndex];
-              if (currentValue !== undefined) {
-                poll!.votes[optionIndex] = currentValue + 1;
+              // Record vote in memory
+              if (poll) {
+                const currentValue = poll.votes[optionIndex];
+                if (currentValue !== undefined) {
+                  poll.votes[optionIndex] = currentValue + 1;
+                }
+                poll.votedClients.add(voterId);
+
+                // Persist vote to database (fire-and-forget)
+                recordPollVote(pollId, voterId, optionIndex);
+
+                const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
+                console.log(
+                  `📊 Vote on "${poll.question}": ${poll.options[optionIndex]} (total: ${totalVotes})`,
+                );
+
+                // Confirm vote to sender
+                ws.send(
+                  JSON.stringify({
+                    type: "VOTE_CONFIRMED",
+                    pollId,
+                    optionIndex,
+                    votes: poll.votes,
+                    totalVotes,
+                  }),
+                );
+
+                // Send update to all others (DJ included)
+                const rawWs = ws.raw as ServerWebSocket;
+                rawWs.publish(
+                  "live-session",
+                  JSON.stringify({
+                    type: "POLL_UPDATE",
+                    pollId,
+                    votes: poll.votes,
+                    totalVotes,
+                  }),
+                );
               }
-              poll!.votedClients.add(voterId);
-
-              // Persist vote to database (fire-and-forget)
-              recordPollVote(pollId, voterId, optionIndex);
-
-              const totalVotes = poll!.votes.reduce((a, b) => a + b, 0);
-              console.log(
-                `📊 Vote on "${poll!.question}": ${poll!.options[optionIndex]} (total: ${totalVotes})`,
-              );
-
-              // Confirm vote to sender
-              ws.send(
-                JSON.stringify({
-                  type: "VOTE_CONFIRMED",
-                  pollId,
-                  optionIndex,
-                  votes: poll!.votes,
-                  totalVotes,
-                }),
-              );
-
-              // Send update to all others (DJ included)
-              rawWs.publish(
-                "live-session",
-                JSON.stringify({
-                  type: "POLL_UPDATE",
-                  pollId,
-                  votes: poll!.votes,
-                  totalVotes,
-                }),
-              );
 
               break;
             }
@@ -2420,7 +2727,7 @@ app.get(
         }
       },
 
-      onClose(event, ws) {
+      onClose(_event, ws) {
         console.log("❌ Client disconnected");
 
         // End DJ session if this was a DJ connection
@@ -2470,27 +2777,15 @@ app.get(
         if (isListener && clientId && subscribedSessionId) {
           const wasRemoved = removeListener(subscribedSessionId, clientId);
 
-          // Only broadcast if unique client count actually changed
+          // Only update the count; the 2-second heartbeat will handle the broadcast
           if (wasRemoved) {
-            const count = getListenerCount(subscribedSessionId);
-            console.log(`👥 Listener count for ${subscribedSessionId}: ${count}`);
-
-            // Broadcast updated count for this session
-            const rawWs = ws.raw as ServerWebSocket;
-            rawWs.publish(
-              "live-session",
-              JSON.stringify({
-                type: "LISTENER_COUNT",
-                sessionId: subscribedSessionId,
-                count,
-              }),
-            );
+            getListenerCount(subscribedSessionId);
           }
         }
       },
 
-      onError(event, ws) {
-        console.error("⚠️ WebSocket error:", event);
+      onError(_event, _ws) {
+        console.error("⚠️ WebSocket error");
       },
     };
   }),
@@ -2508,6 +2803,39 @@ const hostname = process.env["HOST"] ?? "0.0.0.0";
 console.log(`🚀 Pika! Cloud server starting on http://${hostname}:${port}`);
 console.log(`📡 WebSocket endpoint: ws://${hostname}:${port}/ws`);
 console.log(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "localhost (default)"}`);
+
+/**
+ * Debounced broadcast of listener counts (Heartbeat).
+ * Runs every 2 seconds to batch updates and reduce overhead for high-traffic events.
+ * Only broadcasts for a session if the count has actually changed.
+ */
+setInterval(() => {
+  const broadcaster = activeBroadcaster;
+  if (!broadcaster) return;
+
+  for (const sessionId of activeSessions.keys()) {
+    const currentCount = getListenerCount(sessionId);
+    const lastBroadcasted = cachedListenerCounts.get(sessionId);
+
+    if (currentCount !== lastBroadcasted) {
+      cachedListenerCounts.set(sessionId, currentCount);
+
+      try {
+        // Broadcast via the captured Bun server reference
+        broadcaster.publish(
+          "live-session",
+          JSON.stringify({
+            type: "LISTENER_COUNT",
+            sessionId,
+            count: currentCount,
+          }),
+        );
+      } catch (e) {
+        console.warn("⚠️ Broadcast failed (non-blocking):", e);
+      }
+    }
+  }
+}, 2000);
 
 export default {
   port,
