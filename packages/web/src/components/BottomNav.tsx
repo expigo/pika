@@ -15,7 +15,7 @@ export function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/80 backdrop-blur-xl border-t border-slate-800/50 px-4 pb-safe-offset-4 pt-3 sm:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-lg border-t border-slate-800/50 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:hidden transition-all duration-300">
       <div className="max-w-md mx-auto flex items-center justify-around">
         {navItems.map((item) => {
           // Robust active check for nested routes
@@ -25,7 +25,7 @@ export function BottomNav() {
             <Link
               key={item.href}
               href={item.href}
-              className={`relative flex flex-col items-center gap-1.5 p-2 transition-all duration-300 active:scale-90 ${
+              className={`relative flex flex-col items-center gap-1.5 p-2 transition-all duration-300 active:scale-95 touch-manipulation ${
                 isActive ? "text-purple-500" : "text-slate-500"
               }`}
             >
