@@ -9,6 +9,7 @@ import {
   Circle,
   Clock,
   Eye,
+  FileText,
   Filter,
   Flame,
   History,
@@ -689,6 +690,27 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                       <span className="text-[11px] text-slate-600 italic">No tags assigned</span>
                     )}
                   </div>
+                </div>
+
+                <div className="p-4 bg-slate-900/30 rounded-xl border border-white/5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase">
+                      <FileText size={12} /> Personal Notes
+                    </div>
+                    <button
+                      onClick={() => setNoteEditorTrack(selectedTrack)}
+                      className="text-[10px] font-bold text-emerald-500 hover:underline uppercase"
+                    >
+                      {selectedTrack.notes ? "Edit" : "Add Note"}
+                    </button>
+                  </div>
+                  {selectedTrack.notes ? (
+                    <p className="text-xs text-slate-300 leading-relaxed italic">
+                      "{selectedTrack.notes}"
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-slate-600 italic">No notes for this track.</p>
+                  )}
                 </div>
 
                 <div className="p-4 bg-slate-900/30 rounded-xl border border-slate-800/30">

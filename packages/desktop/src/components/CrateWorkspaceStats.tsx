@@ -57,8 +57,14 @@ export function CrateWorkspaceStats() {
         </div>
 
         <div className="flex flex-col items-end gap-1.5">
-          <div className="flex items-center gap-2 px-2 py-0.5 bg-pika-purple/5 border border-pika-purple/10 rounded-md text-[10px] text-pika-purple-light font-bold font-mono">
-            {stats.avgBpm} <span className="opacity-40 text-[8px]">BPM</span>
+          <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 px-2 py-0.5 bg-pika-accent/10 border border-pika-accent/20 rounded-md text-[9px] text-pika-accent font-black uppercase tracking-tighter">
+              <div className="w-1 h-1 rounded-full bg-pika-accent animate-pulse" />
+              {stats.avgEnergy} <span className="opacity-60">Intensity</span>
+            </div>
+            <div className="flex items-center gap-2 px-2 py-0.5 bg-pika-purple/5 border border-pika-purple/10 rounded-md text-[10px] text-pika-purple-light font-bold font-mono">
+              {stats.avgBpm} <span className="opacity-40 text-[8px]">BPM</span>
+            </div>
           </div>
           <div className="flex items-baseline gap-1.5 leading-none">
             <span className="text-sm font-bold text-slate-300 tracking-tight">{durationStr}</span>
@@ -67,21 +73,11 @@ export function CrateWorkspaceStats() {
         </div>
       </div>
 
-      {/* Main Chart Area - Now truly filling space */}
+      {/* Main Chart Area */}
       <div className="flex-1 min-h-0 relative flex flex-col bg-slate-950/40 rounded-2xl border border-white/5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] overflow-hidden">
         {setAverageMetrics ? (
           <div className="flex-1 min-h-0 w-full relative">
             <TrackFingerprint metrics={setAverageMetrics} />
-
-            {/* Intensity Badge Overlay */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-1 bg-white/5 border border-white/10 rounded-full backdrop-blur-md shadow-2xl">
-              <div className="flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-pika-accent animate-pulse" />
-                <span className="text-[10px] font-black text-white uppercase tracking-widest">
-                  {stats.avgEnergy} Intensity
-                </span>
-              </div>
-            </div>
           </div>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 opacity-20">
