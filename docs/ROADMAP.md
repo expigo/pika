@@ -2,8 +2,8 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** Desktop UI/UX Polish & Architecture Cleanup
-**Status:** Release v0.3.1 (Desktop Audit Complete)
+**Current Focus:** Production Readiness & Live Performance Optimization
+**Status:** Release v0.2.0 (Production Readiness Complete)
 
 ---
 
@@ -12,8 +12,12 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   Status: **Launch Ready** (Desktop Audit Complete)
-    *   **Recent Completions (Jan 17, 2026 - Desktop Audit):**
+    *   **Recent Completions (Jan 17, 2026 - Production Readiness):**
+        *   ✅ **Live HUD:** Clock, Battery meter, and elapsed Track Timer.
+        *   ✅ **Stability:** Flicker-free UI via tabular numbers and standardized island heights.
+        *   ✅ **Wake-Up Sync:** Intelligent re-sync logic for mobile dancers.
+        *   ✅ **Refined Reactions:** Haptic Peak/Brick badges in the HUD.
+    *   **Previous Completions (Jan 17, 2026 - Desktop Audit):**
         *   ✅ UI/UX: Library virtualization (10k+ tracks), keyboard shortcuts, reduced motion accessibility.
         *   ✅ Features: Custom tags, DJ notes, set templates, BPM flow visualization.
         *   ✅ Architecture: Cloud lib modules extracted, useLiveStore separated, lazy loading.
