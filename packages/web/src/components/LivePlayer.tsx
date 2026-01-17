@@ -1,19 +1,6 @@
 "use client";
 
-import {
-  Activity,
-  Check,
-  Clock,
-  Heart,
-  Music2,
-  Radio,
-  Share2,
-  Users,
-  Wifi,
-  WifiOff,
-  X,
-  Zap,
-} from "lucide-react";
+import { Activity, Check, Clock, Heart, Music2, Radio, Share2, Users, X } from "lucide-react";
 import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
@@ -28,6 +15,9 @@ function formatRelativeTime(dateString?: string): string {
   const date = new Date(dateString);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
+
+  if (Number.isNaN(diffMs)) return "";
+
   const diffMins = Math.floor(diffMs / 60000);
 
   if (diffMins < 1) return "NOW";
