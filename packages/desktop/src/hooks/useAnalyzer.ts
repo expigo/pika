@@ -63,116 +63,119 @@ export function useAnalyzer(): UseAnalyzerReturn {
     }
   }, []);
 
-  const startAnalysis = useCallback(async (baseUrl: string) => {
-    // Use ref to prevent concurrent runs
-    if (isAnalyzingRef.current) {
-      console.log("Analysis already in progress");
-      return;
-    }
-
-    console.log("Starting analysis with baseUrl:", baseUrl);
-
-    shouldContinue.current = true;
-    isPausedRef.current = false;
-    isAnalyzingRef.current = true;
-    setIsAnalyzing(true);
-    setIsPaused(false);
-    setError(null);
-    setProgress(0);
-
-    try {
-      // Get initial count of unanalyzed tracks
-      const total = await trackRepository.getUnanalyzedCount();
-      console.log("Total unanalyzed tracks:", total);
-      setTotalToAnalyze(total);
-
-      if (total === 0) {
-        console.log("No tracks to analyze");
-        setError("No unanalyzed tracks found");
+  const startAnalysis = useCallback(
+    async (baseUrl: string) => {
+      // Use ref to prevent concurrent runs
+      if (isAnalyzingRef.current) {
+        console.log("Analysis already in progress");
         return;
       }
 
-      let processed = 0;
+      console.log("Starting analysis with baseUrl:", baseUrl);
 
-      // Process tracks one by one
-      while (shouldContinue.current) {
-        const track = await trackRepository.getNextUnanalyzedTrack();
-        console.log("Next track:", track);
+      shouldContinue.current = true;
+      isPausedRef.current = false;
+      isAnalyzingRef.current = true;
+      setIsAnalyzing(true);
+      setIsPaused(false);
+      setError(null);
+      setProgress(0);
 
-        if (!track) {
-          // No more tracks to analyze
-          console.log("No more tracks to analyze");
-          break;
+      try {
+        // Get initial count of unanalyzed tracks
+        const total = await trackRepository.getUnanalyzedCount();
+        console.log("Total unanalyzed tracks:", total);
+        setTotalToAnalyze(total);
+
+        if (total === 0) {
+          console.log("No tracks to analyze");
+          setError("No unanalyzed tracks found");
+          return;
         }
 
-        setCurrentTrack(track);
+        let processed = 0;
 
-        try {
-          // Call the Python sidecar analysis endpoint
-          const url = `${baseUrl}/analyze?path=${encodeURIComponent(track.filePath)}`;
-          console.log("Fetching:", url);
+        // Process tracks one by one
+        while (shouldContinue.current) {
+          const track = await trackRepository.getNextUnanalyzedTrack();
+          console.log("Next track:", track);
 
-          const response = await fetch(url, { method: "GET" });
-          console.log("Response status:", response.status);
+          if (!track) {
+            // No more tracks to analyze
+            console.log("No more tracks to analyze");
+            break;
+          }
 
-          if (response.ok) {
-            const result: AnalysisResult = await response.json();
-            console.log("Analysis result:", result);
+          setCurrentTrack(track);
 
-            if (result.error) {
-              // Sidecar returned an error in the response body
-              console.error(`Analysis error for ${track.filePath}:`, result.error);
-              await trackRepository.markTrackAnalyzed(track.id, null);
+          try {
+            // Call the Python sidecar analysis endpoint
+            const url = `${baseUrl}/analyze?path=${encodeURIComponent(track.filePath)}`;
+            console.log("Fetching:", url);
+
+            const response = await fetch(url, { method: "GET" });
+            console.log("Response status:", response.status);
+
+            if (response.ok) {
+              const result: AnalysisResult = await response.json();
+              console.log("Analysis result:", result);
+
+              if (result.error) {
+                // Sidecar returned an error in the response body
+                console.error(`Analysis error for ${track.filePath}:`, result.error);
+                await trackRepository.markTrackAnalyzed(track.id, null);
+              } else {
+                await trackRepository.markTrackAnalyzed(track.id, result);
+              }
             } else {
-              await trackRepository.markTrackAnalyzed(track.id, result);
+              // HTTP error
+              console.error(
+                `Analysis failed for ${track.filePath}:`,
+                response.status,
+                response.statusText,
+              );
+              await trackRepository.markTrackAnalyzed(track.id, null);
             }
-          } else {
-            // HTTP error
-            console.error(
-              `Analysis failed for ${track.filePath}:`,
-              response.status,
-              response.statusText,
-            );
+          } catch (e) {
+            // Network or parsing error
+            console.error(`Error analyzing ${track.filePath}:`, e);
             await trackRepository.markTrackAnalyzed(track.id, null);
           }
-        } catch (e) {
-          // Network or parsing error
-          console.error(`Error analyzing ${track.filePath}:`, e);
-          await trackRepository.markTrackAnalyzed(track.id, null);
-        }
 
-        processed++;
-        setProgress(processed);
+          processed++;
+          setProgress(processed);
 
-        // Add delay between tracks based on CPU priority setting
-        if (shouldContinue.current && processed < totalToAnalyze) {
-          const priority = await settingsRepository.get("analysis.cpuPriority");
-          const delay = priority === "high" ? 0 : priority === "low" ? 3000 : 1000;
-          if (delay > 0) {
-            await new Promise((r) => setTimeout(r, delay));
+          // Add delay between tracks based on CPU priority setting
+          if (shouldContinue.current && processed < totalToAnalyze) {
+            const priority = await settingsRepository.get("analysis.cpuPriority");
+            const delay = priority === "high" ? 0 : priority === "low" ? 3000 : 1000;
+            if (delay > 0) {
+              await new Promise((r) => setTimeout(r, delay));
+            }
+          }
+
+          // Wait if paused
+          if (isPausedRef.current && shouldContinue.current) {
+            await new Promise<void>((resolve) => {
+              resumeResolve.current = resolve;
+            });
           }
         }
 
-        // Wait if paused
-        if (isPausedRef.current && shouldContinue.current) {
-          await new Promise<void>((resolve) => {
-            resumeResolve.current = resolve;
-          });
-        }
+        console.log("Analysis loop completed. Processed:", processed);
+      } catch (e) {
+        console.error("Analysis error:", e);
+        setError(String(e));
+      } finally {
+        isAnalyzingRef.current = false;
+        isPausedRef.current = false;
+        setIsAnalyzing(false);
+        setIsPaused(false);
+        setCurrentTrack(null);
       }
-
-      console.log("Analysis loop completed. Processed:", processed);
-    } catch (e) {
-      console.error("Analysis error:", e);
-      setError(String(e));
-    } finally {
-      isAnalyzingRef.current = false;
-      isPausedRef.current = false;
-      setIsAnalyzing(false);
-      setIsPaused(false);
-      setCurrentTrack(null);
-    }
-  }, []);
+    },
+    [totalToAnalyze],
+  );
 
   /**
    * Analyze specific tracks by ID (for pre-gig set analysis)

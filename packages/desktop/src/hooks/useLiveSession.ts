@@ -103,6 +103,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   activePoll: null,
   endedPoll: null,
   liveLikes: 0,
+  isLiveSession: false,
 
   setStatus: (status) => set({ status }),
   setNowPlaying: (nowPlaying) => set({ nowPlaying }),
@@ -458,7 +459,7 @@ export function useLiveSession() {
     async (track: NowPlayingTrack) => {
       console.log("[Live] Track changed:", track.artist, "-", track.title);
       console.log(
-        "[Live] State check - isLiveFlag:",
+        "[Live] State check - it isLiveFlag:",
         isLiveFlag,
         "currentDbSessionId:",
         currentDbSessionId,
@@ -506,9 +507,7 @@ export function useLiveSession() {
         );
       }
 
-      // Send to cloud if live (with deduplication) - uses enriched track with fingerprint
-      // Send to cloud if live (with deduplication) - uses enriched track with fingerprint
-      // We removed the readystate check so sendMessage can queue it if offline!
+      // Send to cloud if session is active (sendMessage handles queueing if socket is down)
       if (isLiveFlag && currentSessionId) {
         broadcastTrack(currentSessionId, toTrackInfo(enrichedTrack));
       }
@@ -545,6 +544,7 @@ export function useLiveSession() {
       setStatus("connecting");
       setError(null);
       setSessionId(newSessionId);
+      isLiveFlag = true; // Use is now LIVE (Performance Mode) regardless of socket state
 
       try {
         // Create database session for history tracking
@@ -606,7 +606,6 @@ export function useLiveSession() {
 
         socket.onopen = () => {
           console.log("[Live] Connected to cloud");
-          isLiveFlag = true;
           setStatus("live");
           setError(null);
 
@@ -1059,7 +1058,9 @@ export function useLiveSession() {
     activePoll,
     endedPoll,
     liveLikes,
-    isLive: status === "live",
+    isLive: isLiveFlag && !!dbSessionId,
+    isSessionActive: !!dbSessionId,
+    isCloudConnected: status === "live",
     goLive,
     endSet,
     clearNowPlaying,

@@ -21,7 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getListenerUrl } from "../config";
 import type { PlayReaction } from "../db/schema";
@@ -221,7 +221,7 @@ export function LivePerformanceMode({
   const CANNON_THRESHOLD = 5;
 
   // Cannon burst effect (one-shot from bottom)
-  const fireCannon = () => {
+  const fireCannon = useCallback(() => {
     console.log("🚀 CANNON MODE!");
     const count = 200;
     const defaults = {
@@ -248,10 +248,10 @@ export function LivePerformanceMode({
       angle: 120,
       colors: ["#a78bfa", "#f472b6", "#fbbf24", "#22c55e"],
     });
-  };
+  }, []);
 
   // Gentle rain effect (continuous from top)
-  const ensureRainLoop = (rainDuration: number) => {
+  const ensureRainLoop = useCallback((rainDuration: number) => {
     const now = Date.now();
 
     // If already raining, just extend the time
@@ -295,7 +295,7 @@ export function LivePerformanceMode({
         colors: ["#a78bfa", "#f472b6", "#fbbf24"],
       });
     }, 250);
-  };
+  }, []);
 
   // Reaction Subscription (Confetti with Velocity Tracking)
   useEffect(() => {
@@ -325,8 +325,7 @@ export function LivePerformanceMode({
         }
       }
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fireCannon, ensureRainLoop]);
 
   const handleReaction = async (reaction: PlayReaction) => {
     await updateReaction(reaction);

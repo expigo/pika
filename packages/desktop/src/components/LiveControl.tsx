@@ -32,7 +32,8 @@ export function LiveControl() {
     status,
     nowPlaying,
     error,
-    isLive,
+    isSessionActive,
+    isCloudConnected,
     sessionId,
     listenerCount,
     tempoFeedback,
@@ -63,7 +64,7 @@ export function LiveControl() {
   const recapUrl = lastSessionId ? getRecapUrl(lastSessionId, djName, localIp) : null;
 
   const handleGoLiveClick = () => {
-    if (isLive) {
+    if (isSessionActive) {
       // Save session ID before ending so we can show recap link
       if (sessionId) {
         setLastSessionId(sessionId);
@@ -168,23 +169,27 @@ export function LiveControl() {
       <button
         type="button"
         onClick={handleGoLiveClick}
-        disabled={status === "connecting"}
+        disabled={status === "connecting" && !isSessionActive}
         style={{
           ...styles.liveButton,
-          ...(isLive ? styles.liveButtonActive : {}),
-          ...(status === "connecting" ? styles.liveButtonConnecting : {}),
+          ...(isSessionActive ? styles.liveButtonActive : {}),
+          ...(status === "connecting" && !isSessionActive ? styles.liveButtonConnecting : {}),
         }}
       >
         <div style={styles.buttonContent}>
-          {status === "connecting" ? (
+          {status === "connecting" && !isSessionActive ? (
             <>
               <Wifi size={18} style={styles.pulseIcon} />
               <span>Connecting...</span>
             </>
-          ) : isLive ? (
+          ) : isSessionActive ? (
             <>
-              <Radio size={18} style={styles.pulseIcon} />
-              <span>LIVE</span>
+              {isCloudConnected ? (
+                <Radio size={18} style={styles.pulseIcon} />
+              ) : (
+                <WifiOff size={18} style={{ opacity: 0.8 }} />
+              )}
+              <span>{isCloudConnected ? "LIVE" : "SYNCING"}</span>
             </>
           ) : (
             <>
@@ -195,20 +200,28 @@ export function LiveControl() {
         </div>
       </button>
 
+      {/* Cloud Health Indicator for Active Session */}
+      {isSessionActive && !isCloudConnected && (
+        <div style={styles.syncIndicator} title="Cloud disconnected. Updates are queued locally.">
+          <AlertCircle size={14} />
+          <span>OFFLINE</span>
+        </div>
+      )}
+
       {/* Listener Count Badge */}
-      {isLive && (
+      {isSessionActive && isCloudConnected && (
         <div style={styles.listenerBadge}>
           <Users size={14} />
           <span>{listenerCount}</span>
         </div>
       )}
 
-      {/* DJ Name Badge (when live, clickable to edit) */}
-      {isLive && hasSetDjName && (
+      {/* DJ Name Badge (when active, clickable to edit) */}
+      {isSessionActive && hasSetDjName && (
         <button
           type="button"
           onClick={handleEditDjName}
-          style={styles.djNameBadge}
+          style={isCloudConnected ? styles.djNameBadge : styles.djNameBadgeSyncing}
           title={`Broadcasting as ${djName} (click to edit)`}
         >
           <span>{djName}</span>
@@ -216,8 +229,8 @@ export function LiveControl() {
         </button>
       )}
 
-      {/* DJ Name Badge (when not live, just display with edit option) */}
-      {!isLive && hasSetDjName && (
+      {/* DJ Name Badge (when not active, just display with edit option) */}
+      {!isSessionActive && hasSetDjName && (
         <button
           type="button"
           onClick={handleEditDjName}
@@ -230,7 +243,7 @@ export function LiveControl() {
       )}
 
       {/* Tempo Feedback Display */}
-      {isLive && tempoFeedback && tempoFeedback.total > 0 && (
+      {isSessionActive && tempoFeedback && tempoFeedback.total > 0 && (
         <div style={styles.tempoFeedback}>
           <Gauge size={14} style={{ opacity: 0.7 }} />
           <div style={styles.tempoVotes}>
@@ -434,8 +447,8 @@ export function LiveControl() {
         </div>
       )}
 
-      {/* QR Code Button (only when live) */}
-      {isLive && sessionId && (
+      {/* QR Code Button (only when connected live) */}
+      {isSessionActive && isCloudConnected && sessionId && (
         <button
           type="button"
           onClick={() => setShowQR(true)}
@@ -447,7 +460,7 @@ export function LiveControl() {
       )}
 
       {/* Recap Link (after session ends) */}
-      {!isLive && lastSessionId && recapUrl && (
+      {!isSessionActive && lastSessionId && recapUrl && (
         <div style={styles.recapBanner}>
           <div style={styles.recapContent}>
             <Link2 size={16} />
@@ -479,7 +492,7 @@ export function LiveControl() {
           </div>
         )}
 
-        {isLive && nowPlaying && (
+        {isSessionActive && nowPlaying && (
           <div style={styles.nowPlaying}>
             <Music2 size={14} style={styles.musicIcon} />
             <div style={styles.trackInfo}>
@@ -499,7 +512,7 @@ export function LiveControl() {
           </div>
         )}
 
-        {isLive && !nowPlaying && (
+        {isSessionActive && !nowPlaying && (
           <div style={styles.waiting}>
             <span>Waiting for track...</span>
           </div>
@@ -507,7 +520,7 @@ export function LiveControl() {
       </div>
 
       {/* QR Code Modal */}
-      {showQR && qrUrl && (
+      {showQR && qrUrl && isCloudConnected && (
         <div style={styles.modalOverlay} onClick={() => setShowQR(false)}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
@@ -614,6 +627,20 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     transition: "all 0.2s",
   },
+  djNameBadgeSyncing: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.4rem",
+    padding: "0.35rem 0.6rem",
+    background: "rgba(148, 163, 184, 0.15)",
+    border: "1px dashed rgba(148, 163, 184, 0.4)",
+    borderRadius: "6px",
+    color: "#94a3b8",
+    fontSize: "0.75rem",
+    fontWeight: 500,
+    cursor: "pointer",
+    transition: "all 0.2s",
+  },
   djNameBadgeOffline: {
     display: "flex",
     alignItems: "center",
@@ -655,6 +682,19 @@ const styles: Record<string, React.CSSProperties> = {
   tempoFaster: {
     color: "#fb923c",
     fontWeight: 500,
+  },
+  syncIndicator: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.4rem",
+    padding: "0.35rem 0.6rem",
+    background: "rgba(239, 68, 68, 0.1)",
+    border: "1px solid rgba(239, 68, 68, 0.3)",
+    borderRadius: "6px",
+    color: "#ef4444",
+    fontSize: "0.75rem",
+    fontWeight: "bold",
+    animation: "pulse 2s ease-in-out infinite",
   },
   qrButton: {
     display: "flex",

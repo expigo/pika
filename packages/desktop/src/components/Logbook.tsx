@@ -178,7 +178,7 @@ export function Logbook() {
       }
     }
     loadData();
-  }, []);
+  }, [selectedSessionId]);
 
   // Load session details when selection changes
   useEffect(() => {

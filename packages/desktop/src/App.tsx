@@ -15,7 +15,7 @@ import { useSidecar } from "./hooks/useSidecar";
 import { setSidecarUrl } from "./services/progressiveAnalysisService";
 import "./App.css";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getLocalIp } from "./config";
 
 type ViewMode = "builder" | "logbook";
@@ -63,14 +63,14 @@ function App() {
   // Check if we're in Tauri
   const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-  const refreshTracks = () => {
+  const refreshTracks = useCallback(() => {
     if (!inTauri) return;
     setRefreshTrigger((prev) => prev + 1);
-  };
+  }, [inTauri]);
 
   useEffect(() => {
     refreshTracks();
-  }, [inTauri]);
+  }, [refreshTracks]);
 
   // Set sidecar URL for progressive analysis service
   useEffect(() => {
@@ -149,7 +149,7 @@ function App() {
               title="Enter Performance Mode"
             >
               <Maximize2 size={16} />
-              <span>Perform</span>
+              <span>Performance Mode</span>
             </button>
           )}
           <div style={styles.toolbarDivider} />

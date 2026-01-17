@@ -45,6 +45,18 @@ export function useSidecar(): UseSidecarResult {
   const childRef = useRef<Child | null>(null);
   const isSpawningRef = useRef(false);
 
+  const fetchHealth = useCallback(async (url: string) => {
+    try {
+      const response = await fetch(`${url}/health`);
+      if (response.ok) {
+        const data = (await response.json()) as HealthData;
+        setHealthData(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch health:", err);
+    }
+  }, []);
+
   const spawnSidecar = useCallback(async () => {
     // Check if we're running in Tauri
     if (!isTauri()) {
@@ -131,19 +143,7 @@ export function useSidecar(): UseSidecarResult {
       setStatus("error");
       isSpawningRef.current = false;
     }
-  }, []);
-
-  const fetchHealth = async (url: string) => {
-    try {
-      const response = await fetch(`${url}/health`);
-      if (response.ok) {
-        const data = (await response.json()) as HealthData;
-        setHealthData(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch health:", err);
-    }
-  };
+  }, [fetchHealth, status]);
 
   const restart = useCallback(async () => {
     isSpawningRef.current = false;
