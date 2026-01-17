@@ -33,6 +33,12 @@ export const tracks = sqliteTable("tracks", {
 
   // Two-Tier Track Key System
   trackKey: text("track_key"),
+
+  // Custom tags (JSON array: ["blues", "competition", "opener"])
+  tags: text("tags").default("[]"),
+
+  // DJ personal notes for the track
+  notes: text("notes"),
 });
 
 // ============================================================================
@@ -155,5 +161,31 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(),
 
   /** Unix timestamp when setting was last updated */
+  updatedAt: int("updated_at").notNull(),
+});
+
+// ============================================================================
+// Set Templates Table - Reusable set structures (Phase 2.3)
+// ============================================================================
+
+export const setTemplates = sqliteTable("set_templates", {
+  id: int("id").primaryKey({ autoIncrement: true }),
+
+  /** Template name (e.g., "3-Hour Social Dance") */
+  name: text("name").notNull(),
+
+  /** Optional description */
+  description: text("description"),
+
+  /**
+   * JSON array of slot definitions:
+   * [{ position: 1, targetBpmMin: 70, targetBpmMax: 80, targetEnergy: 6, notes: "Opener" }, ...]
+   */
+  slots: text("slots").notNull(),
+
+  /** Unix timestamp when created */
+  createdAt: int("created_at").notNull(),
+
+  /** Unix timestamp when last updated */
   updatedAt: int("updated_at").notNull(),
 });

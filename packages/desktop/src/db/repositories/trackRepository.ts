@@ -52,6 +52,12 @@ export interface Track {
 
   // Two-Tier Track Key System
   trackKey: string | null;
+
+  // Custom tags (JSON array stored as string)
+  tags: string | null;
+
+  // DJ personal notes
+  notes: string | null;
 }
 
 // Raw SQL query for track selection with proper aliasing
@@ -71,7 +77,9 @@ const TRACK_SELECT_SQL = `
 		duration,
 		analyzed,
 		analysis_version as analysisVersion,
-		track_key as trackKey
+		track_key as trackKey,
+		tags,
+		notes
 	FROM tracks
 `;
 
@@ -358,6 +366,64 @@ export const trackRepository = {
     } catch (e) {
       console.error("Failed to reset analysis:", e);
       return false;
+    }
+  },
+
+  /**
+   * Update track tags (JSON array stored as string)
+   */
+  async updateTrackTags(trackId: number, tags: string[]): Promise<boolean> {
+    try {
+      const sqlite = await getSqlite();
+      await sqlite.execute(`UPDATE tracks SET tags = ? WHERE id = ?`, [
+        JSON.stringify(tags),
+        trackId,
+      ]);
+      return true;
+    } catch (e) {
+      console.error("Failed to update track tags:", e);
+      return false;
+    }
+  },
+
+  /**
+   * Update track notes
+   */
+  async updateTrackNotes(trackId: number, notes: string | null): Promise<boolean> {
+    try {
+      const sqlite = await getSqlite();
+      await sqlite.execute(`UPDATE tracks SET notes = ? WHERE id = ?`, [notes, trackId]);
+      return true;
+    } catch (e) {
+      console.error("Failed to update track notes:", e);
+      return false;
+    }
+  },
+
+  /**
+   * Get all unique tags across all tracks
+   */
+  async getAllTags(): Promise<string[]> {
+    try {
+      const sqlite = await getSqlite();
+      const result = await sqlite.select<{ tags: string }[]>(
+        `SELECT DISTINCT tags FROM tracks WHERE tags IS NOT NULL AND tags != '[]'`,
+      );
+      const allTags = new Set<string>();
+      for (const row of result) {
+        try {
+          const parsed = JSON.parse(row.tags) as string[];
+          for (const tag of parsed) {
+            allTags.add(tag);
+          }
+        } catch {
+          // Ignore invalid JSON
+        }
+      }
+      return Array.from(allTags).sort();
+    } catch (e) {
+      console.error("Failed to get all tags:", e);
+      return [];
     }
   },
 

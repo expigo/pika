@@ -104,6 +104,23 @@ async function initializeDb(): Promise<void> {
     } catch {
       // Index already exists
     }
+
+    // Migration: Add tags column for custom tagging feature (Phase 2)
+    try {
+      await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN tags TEXT DEFAULT '[]';`);
+      console.log("Migration: Added tags column to tracks table");
+    } catch {
+      // Column already exists, ignore error
+    }
+
+    // Migration: Add notes column for DJ personal notes (Phase 2)
+    try {
+      await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN notes TEXT;`);
+      console.log("Migration: Added notes column to tracks table");
+    } catch {
+      // Column already exists, ignore error
+    }
+
     // Create sessions table (Logbook)
     await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS sessions (
@@ -178,6 +195,18 @@ async function initializeDb(): Promise<void> {
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY NOT NULL,
                 value TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+        `);
+
+    // Create set_templates table (Phase 2.3: Set Templates)
+    await sqliteInstance.execute(`
+            CREATE TABLE IF NOT EXISTS set_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                slots TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL
             );
         `);
