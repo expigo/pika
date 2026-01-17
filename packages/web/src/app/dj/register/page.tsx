@@ -203,7 +203,7 @@ export default function RegisterPage() {
                       type="text"
                       required
                       placeholder="DJ NAME"
-                      className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-sm italic uppercase font-black"
+                      className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-base italic uppercase font-black"
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
                     />
@@ -220,7 +220,7 @@ export default function RegisterPage() {
                       type="email"
                       required
                       placeholder="DJ@EXAMPLE.COM"
-                      className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-sm uppercase"
+                      className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-base uppercase"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                     />
@@ -238,7 +238,7 @@ export default function RegisterPage() {
                         type="password"
                         required
                         placeholder="••••••••"
-                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-sm"
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-base"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                       />
@@ -254,7 +254,7 @@ export default function RegisterPage() {
                         type="password"
                         required
                         placeholder="••••••••"
-                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-sm"
+                        className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-base"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                       />
