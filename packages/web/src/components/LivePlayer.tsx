@@ -2,7 +2,6 @@
 
 import {
   Activity,
-  ArrowRight,
   Check,
   Clock,
   Heart,
@@ -20,7 +19,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
-import { ProCard, ProHeader } from "./ui/ProCard";
+import { ProCard } from "./ui/ProCard";
 
 // Format relative time (e.g., "2m ago")
 function formatRelativeTime(dateString?: string): string {
@@ -41,11 +40,13 @@ function formatRelativeTime(dateString?: string): string {
 }
 
 // Poll countdown timer component
-function PollCountdown({ endsAt }: { endsAt: string }) {
+function PollCountdown({ endsAt }: { endsAt?: string | null }) {
   const [timeLeft, setTimeLeft] = useState<number>(0);
 
   useEffect(() => {
+    if (!endsAt) return;
     const endTime = new Date(endsAt).getTime();
+    if (Number.isNaN(endTime)) return;
 
     const updateCountdown = () => {
       const remaining = Math.max(0, endTime - Date.now());
@@ -57,8 +58,8 @@ function PollCountdown({ endsAt }: { endsAt: string }) {
     return () => clearInterval(interval);
   }, [endsAt]);
 
-  if (timeLeft <= 0) {
-    return <span className="text-amber-400">⏰ CLOSING...</span>;
+  if (!endsAt || timeLeft <= 0) {
+    return null;
   }
 
   const seconds = Math.floor(timeLeft / 1000);
@@ -277,7 +278,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 {currentTrack.bpm && (
                   <div className="mb-10">
                     <span className="px-4 py-1.5 bg-purple-500/10 border border-purple-500/20 rounded-full text-[10px] font-black text-purple-400 uppercase tracking-[0.2em]">
-                      {Math.round(currentTrack.bpm)} BPM // VIBE SYNCED
+                      {Math.round(currentTrack.bpm)} BPM
                     </span>
                   </div>
                 )}
@@ -413,9 +414,6 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                         </div>
                       );
                     })}
-                    <div className="pt-4 text-center">
-                      <PollCountdown endsAt={activePoll.endsAt || ""} />
-                    </div>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 gap-3">
@@ -437,6 +435,13 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                         {option}
                       </button>
                     ))}
+                  </div>
+                )}
+
+                {/* Shared Poll Footer: Timer */}
+                {activePoll.endsAt && (
+                  <div className="pt-8 text-center border-t border-slate-800/30 mt-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
+                    <PollCountdown endsAt={activePoll.endsAt} />
                   </div>
                 )}
               </div>
