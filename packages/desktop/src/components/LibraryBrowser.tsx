@@ -14,15 +14,18 @@ import {
   Flame,
   Heart,
   History,
+  MessageSquare,
   Music,
   Plus,
   RefreshCw,
   Search,
+  Tag,
   Trash2,
   X,
 } from "lucide-react";
 import { fetch } from "@tauri-apps/plugin-http";
-import { useEffect, useMemo, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AnalysisResult,
   type Track,
@@ -36,6 +39,10 @@ import { toCamelot } from "../utils/transitionEngine";
 import { SmartCrate } from "./SmartCrate";
 import { TrackFingerprint } from "./TrackFingerprint";
 import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
+import { useLiveStore } from "../hooks/useLiveSession";
+import { TagEditor } from "./TagEditor";
+import { NoteEditor } from "./NoteEditor";
+import { TagPill } from "./TagPill";
 
 type SortKey = "artist" | "title" | "bpm" | "key" | "energy" | "analyzed" | "duration";
 type SortDirection = "asc" | "desc";
@@ -67,12 +74,25 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
 
   const addTrack = useSetStore((state) => state.addTrack);
   const activeSet = useSetStore((state) => state.activeSet);
+  const playedTrackKeys = useLiveStore((state) => state.playedTrackKeys);
   const { baseUrl: sidecarBaseUrl } = useSidecar();
   const { settings } = useSettings();
   const showAdvancedMetrics = settings["display.advancedMetrics"];
 
   // Single-track analysis state
   const [analyzingTrackId, setAnalyzingTrackId] = useState<number | null>(null);
+
+  // Tag and Note editor state
+  const [tagEditorTrack, setTagEditorTrack] = useState<Track | null>(null);
+  const [noteEditorTrack, setNoteEditorTrack] = useState<Track | null>(null);
+
+  // Callback to refresh track after tag/note changes
+  const refreshTrackData = useCallback(async (trackId: number) => {
+    const updated = await trackRepository.getTrackById(trackId);
+    if (updated) {
+      setTracks((prev) => prev.map((t) => (t.id === trackId ? updated : t)));
+    }
+  }, []);
 
   // Get the selected track object
   const selectedTrack = useMemo(
@@ -192,6 +212,15 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
     });
     return sorted;
   }, [tracks, searchQuery, bpmFilter, sortKey, sortDirection]);
+
+  // Virtualization setup for large libraries
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: filteredAndSortedTracks.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 44, // Fixed row height for performance
+    overscan: 5, // Render 5 extra rows above/below viewport
+  });
 
   // Keyboard shortcuts for selection
   useEffect(() => {
@@ -523,59 +552,78 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
       )}
 
       <div style={styles.tableContainer}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={{ ...styles.th, width: "40px" }}>Add</th>
-              <th style={styles.th} onClick={() => handleSort("analyzed")}>
-                <div style={styles.thContent}>
-                  Status <SortIcon columnKey="analyzed" />
-                </div>
-              </th>
-              <th style={styles.th} onClick={() => handleSort("artist")}>
-                <div style={styles.thContent}>
-                  Artist <SortIcon columnKey="artist" />
-                </div>
-              </th>
-              <th style={styles.th} onClick={() => handleSort("title")}>
-                <div style={styles.thContent}>
-                  Title <SortIcon columnKey="title" />
-                </div>
-              </th>
-              <th style={{ ...styles.th, width: "70px" }} onClick={() => handleSort("bpm")}>
-                <div style={styles.thContent}>
-                  BPM <SortIcon columnKey="bpm" />
-                </div>
-              </th>
-              <th style={{ ...styles.th, width: "50px" }} onClick={() => handleSort("key")}>
-                <div style={styles.thContent}>
-                  Key <SortIcon columnKey="key" />
-                </div>
-              </th>
-              <th style={{ ...styles.th, width: "60px" }} onClick={() => handleSort("duration")}>
-                <div style={styles.thContent}>
-                  <Clock size={14} style={{ marginRight: 4 }} />
-                  <SortIcon columnKey="duration" />
-                </div>
-              </th>
-              <th style={{ ...styles.th, width: "80px" }} onClick={() => handleSort("energy")}>
-                <div style={styles.thContent}>
-                  Energy <SortIcon columnKey="energy" />
-                </div>
-              </th>
-              <th style={{ ...styles.th, width: "40px" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filteredAndSortedTracks.map((track, index) => {
+        {/* Table Header (fixed) */}
+        <div style={styles.tableHeader}>
+          <div style={{ ...styles.thCell, width: "40px" }}>Add</div>
+          <div style={{ ...styles.thCell, width: "50px" }} onClick={() => handleSort("analyzed")}>
+            <div style={styles.thContent}>
+              Status <SortIcon columnKey="analyzed" />
+            </div>
+          </div>
+          <div style={{ ...styles.thCell, flex: 1 }} onClick={() => handleSort("artist")}>
+            <div style={styles.thContent}>
+              Artist <SortIcon columnKey="artist" />
+            </div>
+          </div>
+          <div style={{ ...styles.thCell, flex: 1 }} onClick={() => handleSort("title")}>
+            <div style={styles.thContent}>
+              Title <SortIcon columnKey="title" />
+            </div>
+          </div>
+          <div style={{ ...styles.thCell, width: "70px" }} onClick={() => handleSort("bpm")}>
+            <div style={styles.thContent}>
+              BPM <SortIcon columnKey="bpm" />
+            </div>
+          </div>
+          <div style={{ ...styles.thCell, width: "50px" }} onClick={() => handleSort("key")}>
+            <div style={styles.thContent}>
+              Key <SortIcon columnKey="key" />
+            </div>
+          </div>
+          <div style={{ ...styles.thCell, width: "60px" }} onClick={() => handleSort("duration")}>
+            <div style={styles.thContent}>
+              <Clock size={14} style={{ marginRight: 4 }} />
+              <SortIcon columnKey="duration" />
+            </div>
+          </div>
+          <div style={{ ...styles.thCell, width: "80px" }} onClick={() => handleSort("energy")}>
+            <div style={styles.thContent}>
+              Energy <SortIcon columnKey="energy" />
+            </div>
+          </div>
+          <div style={{ ...styles.thCell, width: "60px" }}></div>
+        </div>
+
+        {/* Virtualized Track List */}
+        <div ref={scrollContainerRef} style={styles.virtualListContainer}>
+          <div
+            style={{
+              height: `${rowVirtualizer.getTotalSize()}px`,
+              width: "100%",
+              position: "relative",
+            }}
+          >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+              const track = filteredAndSortedTracks[virtualRow.index];
+              const index = virtualRow.index;
               const inSet = isInSet(track.id);
               const isSelected = selectedTrackIds.has(track.id);
+              const trackKey = `${track.artist}:${track.title}`;
+              const isPlayedThisSession = playedTrackKeys.has(trackKey);
               return (
-                <tr
+                <div
                   key={track.id}
+                  data-index={virtualRow.index}
+                  ref={rowVirtualizer.measureElement}
                   onClick={(e) => handleRowClick(e, track.id, index)}
                   style={{
-                    ...styles.tr,
+                    ...styles.virtualRow,
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    height: `${virtualRow.size}px`,
+                    transform: `translateY(${virtualRow.start}px)`,
                     opacity: inSet ? 0.5 : 1,
                     background: isSelected ? "rgba(59, 130, 246, 0.2)" : "transparent",
                     cursor: "pointer",
@@ -583,10 +631,13 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                     WebkitUserSelect: "none",
                   }}
                 >
-                  <td style={styles.td}>
+                  <div style={{ ...styles.tdCell, width: "40px" }}>
                     <button
                       type="button"
-                      onClick={() => addTrack(track)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addTrack(track);
+                      }}
                       disabled={inSet}
                       style={{
                         ...styles.addButton,
@@ -597,30 +648,42 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                     >
                       <Plus size={14} />
                     </button>
-                  </td>
-                  <td style={styles.td}>
+                  </div>
+                  <div style={{ ...styles.tdCell, width: "50px" }}>
                     {track.analyzed ? (
                       <CheckCircle size={16} color="#22c55e" />
                     ) : (
                       <Circle size={16} color="#6b7280" />
                     )}
-                  </td>
-                  <td style={styles.td}>
-                    {track.artist || <span style={styles.unknown}>Unknown</span>}
-                  </td>
-                  <td style={styles.td}>
-                    {track.title || (
-                      <span style={styles.filename}>{getFileName(track.filePath)}</span>
+                  </div>
+                  <div style={{ ...styles.tdCell, flex: 1, overflow: "hidden" }}>
+                    <span style={styles.cellText}>
+                      {track.artist || <span style={styles.unknown}>Unknown</span>}
+                    </span>
+                  </div>
+                  <div style={{ ...styles.tdCell, flex: 1, overflow: "hidden" }}>
+                    <span style={styles.cellText}>
+                      {track.title || (
+                        <span style={styles.filename}>{getFileName(track.filePath)}</span>
+                      )}
+                    </span>
+                    {isPlayedThisSession && (
+                      <span style={styles.playedBadge} title="Played this session">
+                        ✓
+                      </span>
                     )}
-                  </td>
-                  <td style={{ ...styles.td, textAlign: "right" }}>
+                  </div>
+                  <div style={{ ...styles.tdCell, width: "70px", justifyContent: "flex-end" }}>
                     {track.bpm ? track.bpm.toFixed(0) : "-"}
-                  </td>
-                  <td style={{ ...styles.td, textAlign: "center" }}>{track.key || "-"}</td>
-                  <td
+                  </div>
+                  <div style={{ ...styles.tdCell, width: "50px", justifyContent: "center" }}>
+                    {track.key || "-"}
+                  </div>
+                  <div
                     style={{
-                      ...styles.td,
-                      textAlign: "right",
+                      ...styles.tdCell,
+                      width: "60px",
+                      justifyContent: "flex-end",
                       fontFamily: "monospace",
                       fontSize: "0.8rem",
                       color: "#94a3b8",
@@ -629,8 +692,8 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                     {track.duration
                       ? `${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, "0")}`
                       : "-"}
-                  </td>
-                  <td style={styles.td}>
+                  </div>
+                  <div style={{ ...styles.tdCell, width: "80px" }}>
                     <div style={styles.energyContainer}>
                       <div
                         style={{
@@ -643,13 +706,16 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                         {track.energy !== null ? Math.round(track.energy) : "-"}
                       </span>
                     </div>
-                  </td>
-                  <td style={styles.td}>
+                  </div>
+                  <div style={{ ...styles.tdCell, width: "60px" }}>
                     <div style={styles.actionButtons}>
                       {track.analyzed ? (
                         <button
                           type="button"
-                          onClick={() => setSelectedTrackId(track.id)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTrackId(track.id);
+                          }}
                           style={styles.viewButton}
                           title="View fingerprint"
                         >
@@ -674,19 +740,22 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                       )}
                       <button
                         type="button"
-                        onClick={() => handleDeleteTrack(track)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTrack(track);
+                        }}
                         style={styles.deleteButton}
                         title="Remove from library"
                       >
                         <Trash2 size={14} />
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               );
             })}
-          </tbody>
-        </table>
+          </div>
+        </div>
       </div>
 
       {/* Track Details Modal */}
@@ -811,6 +880,53 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
               </div>
             )}
 
+            {/* Tags & Notes Section */}
+            <div style={styles.tagsNotesSection}>
+              <div style={styles.tagsNotesHeader}>
+                <span style={styles.tagsTitle}>Tags & Notes</span>
+                <div style={styles.tagsActions}>
+                  <button
+                    type="button"
+                    onClick={() => setTagEditorTrack(selectedTrack)}
+                    style={styles.editTagsButton}
+                    title="Edit tags"
+                  >
+                    <Tag size={14} />
+                    Edit Tags
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNoteEditorTrack(selectedTrack)}
+                    style={styles.editNotesButton}
+                    title="Edit notes"
+                  >
+                    <MessageSquare size={14} />
+                    {selectedTrack.notes ? "Edit Note" : "Add Note"}
+                  </button>
+                </div>
+              </div>
+              {/* Current Tags */}
+              <div style={styles.tagsContainer}>
+                {(() => {
+                  const parsedTags: string[] = selectedTrack.tags
+                    ? JSON.parse(selectedTrack.tags)
+                    : [];
+                  return parsedTags.length > 0 ? (
+                    parsedTags.map((tag: string) => <TagPill key={tag} tag={tag} />)
+                  ) : (
+                    <span style={styles.noTags}>No tags</span>
+                  );
+                })()}
+              </div>
+              {/* Notes Preview */}
+              {selectedTrack.notes && (
+                <div style={styles.notesPreview}>
+                  <span style={styles.notesIcon}>📝</span>
+                  <span style={styles.notesContent}>{selectedTrack.notes}</span>
+                </div>
+              )}
+            </div>
+
             {/* Action Buttons */}
             <div style={styles.modalActions}>
               {isInSet(selectedTrack.id) ? (
@@ -833,6 +949,32 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Tag Editor Modal */}
+      {tagEditorTrack && (
+        <TagEditor
+          track={tagEditorTrack}
+          onClose={() => setTagEditorTrack(null)}
+          onSave={async (tags) => {
+            await trackRepository.updateTrackTags(tagEditorTrack.id, tags);
+            await refreshTrackData(tagEditorTrack.id);
+            setTagEditorTrack(null);
+          }}
+        />
+      )}
+
+      {/* Note Editor Modal */}
+      {noteEditorTrack && (
+        <NoteEditor
+          track={noteEditorTrack}
+          onClose={() => setNoteEditorTrack(null)}
+          onSave={async (notes) => {
+            await trackRepository.updateTrackNotes(noteEditorTrack.id, notes);
+            await refreshTrackData(noteEditorTrack.id);
+            setNoteEditorTrack(null);
+          }}
+        />
       )}
     </div>
   );
@@ -1018,8 +1160,59 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableContainer: {
     flex: 1,
-    overflowX: "auto",
-    overflowY: "auto",
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
+  tableHeader: {
+    display: "flex",
+    background: "#1e293b",
+    borderBottom: "1px solid #334155",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    color: "#94a3b8",
+    flexShrink: 0,
+  },
+  thCell: {
+    display: "flex",
+    alignItems: "center",
+    padding: "0.5rem 0.75rem",
+    cursor: "pointer",
+    userSelect: "none",
+    whiteSpace: "nowrap",
+  },
+  virtualListContainer: {
+    flex: 1,
+    overflow: "auto",
+  },
+  virtualRow: {
+    display: "flex",
+    alignItems: "center",
+    borderBottom: "1px solid #1e293b",
+    fontSize: "0.8rem",
+  },
+  tdCell: {
+    display: "flex",
+    alignItems: "center",
+    padding: "0.5rem 0.75rem",
+    minHeight: "44px",
+    boxSizing: "border-box",
+  },
+  cellText: {
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  playedBadge: {
+    marginLeft: "6px",
+    padding: "2px 6px",
+    background: "rgba(239, 68, 68, 0.2)",
+    border: "1px solid rgba(239, 68, 68, 0.4)",
+    borderRadius: "4px",
+    color: "#ef4444",
+    fontSize: "0.65rem",
+    fontWeight: 600,
+    flexShrink: 0,
   },
   table: {
     width: "100%",
@@ -1360,5 +1553,85 @@ const styles: Record<string, React.CSSProperties> = {
   moreTag: {
     fontSize: "0.6875rem",
     color: "#64748b",
+  },
+  // Tags & Notes Section
+  tagsNotesSection: {
+    marginTop: "1rem",
+    padding: "1rem",
+    background: "#1e293b",
+    borderRadius: "8px",
+  },
+  tagsNotesHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "0.75rem",
+  },
+  tagsTitle: {
+    fontSize: "0.875rem",
+    fontWeight: 600,
+    color: "#e2e8f0",
+  },
+  tagsActions: {
+    display: "flex",
+    gap: "0.5rem",
+  },
+  editTagsButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    padding: "0.375rem 0.625rem",
+    background: "#334155",
+    border: "none",
+    borderRadius: "4px",
+    color: "#94a3b8",
+    fontSize: "0.75rem",
+    cursor: "pointer",
+  },
+  editNotesButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.25rem",
+    padding: "0.375rem 0.625rem",
+    background: "#334155",
+    border: "none",
+    borderRadius: "4px",
+    color: "#94a3b8",
+    fontSize: "0.75rem",
+    cursor: "pointer",
+  },
+  tagsContainer: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "0.375rem",
+    minHeight: "24px",
+  },
+  noTags: {
+    fontSize: "0.75rem",
+    color: "#64748b",
+    fontStyle: "italic",
+  },
+  notesPreview: {
+    marginTop: "0.75rem",
+    padding: "0.5rem 0.75rem",
+    background: "#0f172a",
+    borderRadius: "6px",
+    display: "flex",
+    gap: "0.5rem",
+    alignItems: "flex-start",
+  },
+  notesIcon: {
+    fontSize: "0.875rem",
+  },
+  notesContent: {
+    fontSize: "0.8rem",
+    color: "#94a3b8",
+    fontStyle: "italic",
+    flex: 1,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    display: "-webkit-box",
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: "vertical",
   },
 };
