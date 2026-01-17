@@ -355,6 +355,58 @@ export function LivePerformanceMode({
     onExit();
   };
 
+  // Keyboard shortcuts for quick DJ actions
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in a modal/input
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
+        return;
+      }
+
+      switch (e.key.toLowerCase()) {
+        case "p":
+          if (currentPlay) handleReaction("peak");
+          break;
+        case "b":
+          if (currentPlay) handleReaction("brick");
+          break;
+        case "n":
+          if (currentPlay) openNoteModal();
+          break;
+        case "escape":
+          // Close any open modal first, then exit
+          if (showNoteModal) {
+            setShowNoteModal(false);
+          } else if (showPollModal) {
+            setShowPollModal(false);
+          } else if (showAnnouncementModal) {
+            setShowAnnouncementModal(false);
+          } else if (showQrModal) {
+            setShowQrModal(false);
+          } else if (showCrowdDrawer) {
+            setShowCrowdDrawer(false);
+          } else {
+            handleExit();
+          }
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [
+    currentPlay,
+    handleExit,
+    handleReaction,
+    openNoteModal,
+    showNoteModal,
+    showPollModal,
+    showAnnouncementModal,
+    showQrModal,
+    showCrowdDrawer,
+  ]);
+
   return (
     <div style={styles.overlay}>
       {/* Header */}
@@ -1853,15 +1905,28 @@ const styles: Record<string, React.CSSProperties> = {
   },
 };
 
-// Add CSS animation for pulsing dot
+// Add CSS animation for pulsing dot with reduced motion support
 if (typeof document !== "undefined") {
-  const styleSheet = document.createElement("style");
-  styleSheet.textContent = `
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
+  const styleId = "live-performance-mode-styles";
+  if (!document.getElementById(styleId)) {
+    const styleSheet = document.createElement("style");
+    styleSheet.id = styleId;
+    styleSheet.textContent = `
+      @keyframes pulse {
+        0% { opacity: 1; }
+        50% { opacity: 0.5; }
+        100% { opacity: 1; }
+      }
+      
+      /* Respect user accessibility preferences */
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation-duration: 0.01ms !important;
+          animation-iteration-count: 1 !important;
+          transition-duration: 0.01ms !important;
         }
+      }
     `;
-  document.head.appendChild(styleSheet);
+    document.head.appendChild(styleSheet);
+  }
 }
