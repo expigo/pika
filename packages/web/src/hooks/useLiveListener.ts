@@ -1,6 +1,6 @@
 "use client";
 
-import { getTrackKey, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
+import { MESSAGE_TYPES, getTrackKey, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 
@@ -241,7 +241,7 @@ export function useLiveListener(targetSessionId?: string) {
 
       socket.send(
         JSON.stringify({
-          type: "SUBSCRIBE",
+          type: MESSAGE_TYPES.SUBSCRIBE,
           clientId,
           sessionId: sessionToSubscribe,
         }),
@@ -264,7 +264,7 @@ export function useLiveListener(targetSessionId?: string) {
               if (sessionId && socket.readyState === WebSocket.OPEN) {
                 socket.send(
                   JSON.stringify({
-                    type: "SEND_LIKE",
+                    type: MESSAGE_TYPES.SEND_LIKE,
                     clientId,
                     sessionId: sessionId,
                     payload: { track },
@@ -297,7 +297,7 @@ export function useLiveListener(targetSessionId?: string) {
       // (Self-healing removed in favor of heartbeat monitor)
 
       switch (message.type) {
-        case "SESSIONS_LIST": {
+        case MESSAGE_TYPES.SESSIONS_LIST: {
           if (message.sessions && message.sessions.length > 0) {
             if (targetSessionId) {
               // Find the specific session we're targeting
@@ -332,7 +332,7 @@ export function useLiveListener(targetSessionId?: string) {
                 // This ensures homepage visitors are counted as listeners
                 socketRef.current?.send(
                   JSON.stringify({
-                    type: "SUBSCRIBE",
+                    type: MESSAGE_TYPES.SUBSCRIBE,
                     clientId,
                     sessionId: session.sessionId,
                   }),
@@ -346,7 +346,7 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "SESSION_STARTED": {
+        case MESSAGE_TYPES.SESSION_STARTED: {
           // Filter: Only handle if matches target or no target set (homepage)
           if (targetSessionId && message.sessionId !== targetSessionId) {
             return;
@@ -378,7 +378,7 @@ export function useLiveListener(targetSessionId?: string) {
 
             socketRef.current?.send(
               JSON.stringify({
-                type: "SUBSCRIBE",
+                type: MESSAGE_TYPES.SUBSCRIBE,
                 clientId,
                 sessionId: message.sessionId,
               }),
@@ -389,7 +389,7 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "NOW_PLAYING": {
+        case MESSAGE_TYPES.NOW_PLAYING: {
           // Filter: Only handle if matches target or no target set
           if (targetSessionId && message.sessionId !== targetSessionId) {
             return;
@@ -426,7 +426,7 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "TRACK_STOPPED": {
+        case MESSAGE_TYPES.TRACK_STOPPED: {
           // Filter: Only handle if matches target or current session
           if (targetSessionId && message.sessionId !== targetSessionId) {
             return;
@@ -456,7 +456,7 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "SESSION_ENDED": {
+        case MESSAGE_TYPES.SESSION_ENDED: {
           // Filter: Only handle if matches target or current session
           if (targetSessionId && message.sessionId !== targetSessionId) {
             return;
@@ -485,15 +485,19 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "LISTENER_COUNT": {
-          const count = (message as { type: "LISTENER_COUNT"; count: number }).count;
+        case MESSAGE_TYPES.LISTENER_COUNT: {
+          const count = (message as { type: typeof MESSAGE_TYPES.LISTENER_COUNT; count: number })
+            .count;
           setState((prev) => ({ ...prev, listenerCount: count }));
           break;
         }
 
-        case "TEMPO_RESET": {
+        case MESSAGE_TYPES.TEMPO_RESET: {
           // Server is telling us to reset tempo vote (track changed)
-          const resetMsg = message as { type: "TEMPO_RESET"; sessionId: string };
+          const resetMsg = message as {
+            type: typeof MESSAGE_TYPES.TEMPO_RESET;
+            sessionId: string;
+          };
 
           // Only reset if this is for our session
           if (targetSessionId && resetMsg.sessionId !== targetSessionId) {
@@ -512,10 +516,10 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "POLL_STARTED": {
+        case MESSAGE_TYPES.POLL_STARTED: {
           // New poll from DJ (or existing poll for new subscriber)
           const pollMsg = message as {
-            type: "POLL_STARTED";
+            type: typeof MESSAGE_TYPES.POLL_STARTED;
             pollId: number;
             question: string;
             options: string[];
@@ -565,10 +569,10 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "POLL_UPDATE": {
+        case MESSAGE_TYPES.POLL_UPDATE: {
           // Live vote counts (only relevant if user has already voted)
           const updateMsg = message as {
-            type: "POLL_UPDATE";
+            type: typeof MESSAGE_TYPES.POLL_UPDATE;
             pollId: number;
             votes: number[];
             totalVotes: number;
@@ -591,8 +595,8 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "CANCEL_POLL":
-        case "POLL_ENDED": {
+        case MESSAGE_TYPES.CANCEL_POLL:
+        case MESSAGE_TYPES.POLL_ENDED: {
           // Poll ended by DJ or auto-close
           console.log("[Listener] Poll ended/cancelled");
 
@@ -604,10 +608,10 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "VOTE_REJECTED": {
+        case MESSAGE_TYPES.VOTE_REJECTED: {
           // Server rejected our vote (duplicate or invalid)
           const rejectMsg = message as {
-            type: "VOTE_REJECTED";
+            type: typeof MESSAGE_TYPES.VOTE_REJECTED;
             pollId: number;
             reason: string;
             votes?: number[];
@@ -636,10 +640,10 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "VOTE_CONFIRMED": {
+        case MESSAGE_TYPES.VOTE_CONFIRMED: {
           // Server confirmed our vote
           const confirmMsg = message as {
-            type: "VOTE_CONFIRMED";
+            type: typeof MESSAGE_TYPES.VOTE_CONFIRMED;
             pollId: number;
             optionIndex: number;
             votes: number[];
@@ -665,10 +669,10 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "POLL_ID_UPDATED": {
+        case MESSAGE_TYPES.POLL_ID_UPDATED: {
           // Poll ID was updated after DB persistence
           const idUpdateMsg = message as {
-            type: "POLL_ID_UPDATED";
+            type: typeof MESSAGE_TYPES.POLL_ID_UPDATED;
             oldPollId: number;
             newPollId: number;
           };
@@ -695,10 +699,10 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "ANNOUNCEMENT_RECEIVED": {
+        case MESSAGE_TYPES.ANNOUNCEMENT_RECEIVED: {
           // DJ announcement to all dancers
           const announcementMsg = message as {
-            type: "ANNOUNCEMENT_RECEIVED";
+            type: typeof MESSAGE_TYPES.ANNOUNCEMENT_RECEIVED;
             sessionId: string;
             message: string;
             djName?: string;
@@ -736,9 +740,12 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
 
-        case "ANNOUNCEMENT_CANCELLED": {
+        case MESSAGE_TYPES.ANNOUNCEMENT_CANCELLED: {
           // DJ cancelled the announcement
-          const cancelMsg = message as { type: "ANNOUNCEMENT_CANCELLED"; sessionId: string };
+          const cancelMsg = message as {
+            type: typeof MESSAGE_TYPES.ANNOUNCEMENT_CANCELLED;
+            sessionId: string;
+          };
 
           // Only accept cancellations for our session
           if (cancelMsg.sessionId !== state.sessionId) {

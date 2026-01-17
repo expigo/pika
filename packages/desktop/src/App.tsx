@@ -1,14 +1,20 @@
-import { PIKA_VERSION } from "@pika/shared";
-import { Calendar, LayoutGrid, Maximize2, Settings as SettingsIcon } from "lucide-react";
+import {
+  Calendar,
+  History as HistoryIcon,
+  LayoutGrid,
+  Maximize2,
+  Settings as SettingsIcon,
+} from "lucide-react";
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { AnalyzerStatus } from "./components/AnalyzerStatus";
 import { LibraryBrowser } from "./components/LibraryBrowser";
-import { LibraryImporter } from "./components/LibraryImporter";
 import { LiveControl } from "./components/LiveControl";
 import { OfflineQueueIndicator } from "./components/OfflineQueueIndicator";
 import { SetCanvas } from "./components/SetCanvas";
-import { getStoredSettings, useDjSettings } from "./hooks/useDjSettings";
+import { EnergyWave } from "./components/EnergyWave";
+import { CrateWorkspaceStats } from "./components/CrateWorkspaceStats";
+import { useDjSettings } from "./hooks/useDjSettings";
 import { useLiveSession } from "./hooks/useLiveSession";
 import { useSidecar } from "./hooks/useSidecar";
 import { setSidecarUrl } from "./services/progressiveAnalysisService";
@@ -38,10 +44,8 @@ const LazyFallback = () => (
   </div>
 );
 
-type ViewMode = "builder" | "logbook";
-
 function App() {
-  const { status, baseUrl, healthData, error, restart } = useSidecar();
+  const { status, baseUrl } = useSidecar();
   const {
     isLive,
     status: liveSessionStatus,
@@ -59,29 +63,27 @@ function App() {
     sessionId,
     forceSync,
   } = useLiveSession();
-  const {
-    setServerEnv,
-    djName,
-    djInfo,
-    isAuthenticated,
-    isValidating,
-    validationError,
-    setAuthToken,
-    clearToken,
-  } = useDjSettings();
+  const { djName, djInfo, isAuthenticated } = useDjSettings();
+
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isPerformanceMode, setIsPerformanceMode] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("builder");
-  const [tokenInput, setTokenInput] = useState(getStoredSettings().authToken || "");
-  const [localIp, setLocalIp] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"crate" | "stage" | "insights" | "archive">("crate");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Fetch local IP once on mount
+  // Resizer state
+  const [splitOffset, setSplitOffset] = useState(65); // Percentage for horizontal split (Library vs Selected)
+  const [topHeight, setTopHeight] = useState(300); // Initial height for top row in pixels
+  const [topSplitOffset, setTopSplitOffset] = useState(75); // Percentage for top row split (X-Ray vs Stats)
+
+  const [isResizingH, setIsResizingH] = useState(false);
+  const [isResizingV, setIsResizingV] = useState(false);
+  const [isResizingTopH, setIsResizingTopH] = useState(false);
+  const [localIp, setLocalIp] = useState<string | null>(null);
+
   useEffect(() => {
     getLocalIp().then(setLocalIp);
   }, []);
 
-  // Check if we're in Tauri
   const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
   const refreshTracks = useCallback(() => {
@@ -93,14 +95,302 @@ function App() {
     refreshTracks();
   }, [refreshTracks]);
 
-  // Set sidecar URL for progressive analysis service
   useEffect(() => {
     setSidecarUrl(baseUrl);
   }, [baseUrl]);
 
+  // Handle stage view click (performance mode)
+  const handleStageClick = () => {
+    if (isLive) {
+      setIsPerformanceMode(true);
+    } else {
+      setViewMode("stage");
+    }
+  };
+
+  const isAnyResizing = isResizingH || isResizingV || isResizingTopH;
+
   return (
-    <div style={styles.appContainer}>
-      {/* Performance Mode Overlay */}
+    <div className={`app-shell ${isAnyResizing ? "select-none cursor-resizing" : ""}`}>
+      {/* 1. Sidebar Navigation */}
+      <nav className="pro-nav">
+        <div className="flex flex-col items-center gap-6">
+          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg mb-4">
+            <span className="font-bold text-xl text-white">P!</span>
+          </div>
+
+          <button
+            type="button"
+            className={`pro-nav-item ${viewMode === "crate" ? "active" : ""}`}
+            onClick={() => setViewMode("crate")}
+            title="Digging & The Crate"
+          >
+            <LayoutGrid size={24} />
+          </button>
+
+          <button
+            type="button"
+            className={`pro-nav-item ${viewMode === "stage" ? "active" : ""}`}
+            onClick={handleStageClick}
+            title="The Stage & Performance"
+          >
+            <Maximize2 size={24} />
+          </button>
+
+          <button
+            type="button"
+            className={`pro-nav-item ${viewMode === "archive" ? "active" : ""}`}
+            onClick={() => setViewMode("archive")}
+            title="The Lab & Archives"
+          >
+            <HistoryIcon size={24} />
+          </button>
+
+          <button
+            type="button"
+            className={`pro-nav-item ${viewMode === "insights" ? "active" : ""}`}
+            onClick={() => setViewMode("insights")}
+            title="Analytics & Intelligence"
+          >
+            <Calendar size={24} />
+          </button>
+        </div>
+
+        <div className="mt-auto flex flex-col items-center gap-4">
+          <OfflineQueueIndicator />
+          <button
+            type="button"
+            className="pro-nav-item"
+            onClick={() => setIsSettingsOpen(true)}
+            title="Settings"
+          >
+            <SettingsIcon size={24} />
+          </button>
+        </div>
+      </nav>
+
+      {/* 2. Unified Header */}
+      <header className="pro-header">
+        <div className="flex items-center gap-6">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-pika-accent leading-none mb-1">
+              {viewMode === "crate" && "Digging"}
+              {viewMode === "stage" && "Performance"}
+              {viewMode === "archive" && "Archives"}
+              {viewMode === "insights" && "Intelligence"}
+            </span>
+            <h1 className="text-xl font-bold tracking-tight text-white leading-none">
+              {viewMode === "crate" && "The Crate"}
+              {viewMode === "stage" && "The Stage"}
+              {viewMode === "archive" && "The Lab"}
+              {viewMode === "insights" && "Intelligence"}
+            </h1>
+          </div>
+          <div className="h-8 w-[1px] bg-slate-800/50" />
+        </div>
+
+        <div className="flex items-center gap-6">
+          <AnalyzerStatus baseUrl={baseUrl} onComplete={refreshTracks} />
+          <div className="h-8 w-[1px] bg-slate-800" />
+          <LiveControl />
+
+          {isAuthenticated && djInfo && (
+            <div className="flex items-center gap-3 pl-4 border-l border-slate-800">
+              <div className="text-right">
+                <div className="text-sm font-semibold text-slate-200">{djInfo.displayName}</div>
+                <div className="text-[10px] text-emerald-500 font-bold uppercase tracking-tighter">
+                  Pro DJ
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-400">
+                {djInfo.displayName[0]}
+              </div>
+            </div>
+          )}
+        </div>
+      </header>
+
+      {/* 3. Main Content Area */}
+      <main className="pro-main">
+        {status !== "ready" && status !== "browser" && (
+          <div className="fixed top-24 left-1/2 -translate-x-1/2 z-[2000] px-4 py-1.5 bg-amber-500/10 border border-amber-500/20 rounded-full backdrop-blur-md animate-pulse shadow-2xl shadow-amber-500/5 pointer-events-none">
+            <span className="text-[10px] font-black text-amber-500 uppercase tracking-[0.2em] flex items-center gap-2">
+              <span className="w-1 h-1 bg-amber-500 rounded-full animate-ping" />
+              Engine Status: {status}
+            </span>
+          </div>
+        )}
+
+        {viewMode === "crate" && (
+          <div className="flex flex-col h-full w-full p-4 gap-3 overflow-hidden select-none">
+            {/* TOP ROW: X-RAY & STATS */}
+            <div className="flex w-full gap-3 shrink-0" style={{ height: `${topHeight}px` }}>
+              <div
+                className="pro-table-container min-w-0 bg-pika-surface/40 rounded-3xl border border-slate-900 overflow-hidden relative"
+                style={{ width: `${topSplitOffset}%` }}
+              >
+                <div className="absolute top-4 left-4 z-20">
+                  <span className="px-2 py-1 bg-pika-accent/10 border border-pika-accent/20 rounded-md text-[9px] font-black text-pika-accent uppercase tracking-widest backdrop-blur-md">
+                    Live Set X-Ray
+                  </span>
+                </div>
+                <EnergyWave />
+              </div>
+
+              {/* Top Horizontal Resizer */}
+              <div
+                className={`pro-resizer-h ${isResizingTopH ? "active" : ""}`}
+                onMouseDown={(e) => {
+                  setIsResizingTopH(true);
+                  const startX = e.clientX;
+                  const startWidth = topSplitOffset;
+                  const handleMouseMove = (mmE: MouseEvent) => {
+                    const deltaX = mmE.clientX - startX;
+                    const deltaPercent = (deltaX / window.innerWidth) * 100;
+                    setTopSplitOffset(Math.min(90, Math.max(50, startWidth + deltaPercent)));
+                  };
+                  const handleMouseUp = () => {
+                    setIsResizingTopH(false);
+                    window.removeEventListener("mousemove", handleMouseMove);
+                    window.removeEventListener("mouseup", handleMouseUp);
+                  };
+                  window.addEventListener("mousemove", handleMouseMove);
+                  window.addEventListener("mouseup", handleMouseUp);
+                }}
+              >
+                <div className="pro-resizer-grabber" />
+              </div>
+
+              <div
+                className="min-w-0 bg-pika-surface/40 rounded-3xl border border-slate-900 overflow-hidden"
+                style={{ flex: 1 }}
+              >
+                <CrateWorkspaceStats />
+              </div>
+            </div>
+
+            {/* Vertical Resizer */}
+            <div
+              className={`pro-resizer-v ${isResizingV ? "active" : ""}`}
+              onMouseDown={(e) => {
+                setIsResizingV(true);
+                const startY = e.clientY;
+                const startHeight = topHeight;
+                const handleMouseMove = (mmE: MouseEvent) => {
+                  const deltaY = mmE.clientY - startY;
+                  setTopHeight(Math.min(600, Math.max(120, startHeight + deltaY)));
+                };
+                const handleMouseUp = () => {
+                  setIsResizingV(false);
+                  window.removeEventListener("mousemove", handleMouseMove);
+                  window.removeEventListener("mouseup", handleMouseUp);
+                };
+                window.addEventListener("mousemove", handleMouseMove);
+                window.addEventListener("mouseup", handleMouseUp);
+              }}
+            >
+              <div className="pro-resizer-grabber" />
+            </div>
+
+            {/* BOTTOM ROW: LIBRARY & TRACK LIST */}
+            <div className="flex flex-1 w-full gap-3 min-h-0">
+              <div className="min-w-0 h-full" style={{ width: `${splitOffset}%` }}>
+                <LibraryBrowser refreshTrigger={refreshTrigger} />
+              </div>
+
+              {/* Main Horizontal Resizer */}
+              <div
+                className={`pro-resizer-h ${isResizingH ? "active" : ""}`}
+                onMouseDown={(e) => {
+                  setIsResizingH(true);
+                  const startX = e.clientX;
+                  const startWidth = splitOffset;
+                  const handleMouseMove = (mmE: MouseEvent) => {
+                    const deltaX = mmE.clientX - startX;
+                    const deltaPercent = (deltaX / window.innerWidth) * 100;
+                    setSplitOffset(Math.min(85, Math.max(15, startWidth + deltaPercent)));
+                  };
+                  const handleMouseUp = () => {
+                    setIsResizingH(false);
+                    window.removeEventListener("mousemove", handleMouseMove);
+                    window.removeEventListener("mouseup", handleMouseUp);
+                  };
+                  window.addEventListener("mousemove", handleMouseMove);
+                  window.addEventListener("mouseup", handleMouseUp);
+                }}
+              >
+                <div className="pro-resizer-grabber" />
+              </div>
+
+              <div className="flex-1 min-w-0 h-full">
+                <SetCanvas />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewMode === "archive" && (
+          <div className="flex flex-col items-center justify-center h-full gap-6 text-slate-500 bg-slate-950/20 rounded-3xl border border-slate-900 mx-4">
+            <div className="p-8 bg-pika-accent/5 rounded-full border border-pika-accent/10 shadow-2xl shadow-pika-accent/5">
+              <HistoryIcon size={64} strokeWidth={1} className="text-pika-accent animate-pulse" />
+            </div>
+            <div className="text-center space-y-3 max-w-sm">
+              <h2 className="text-2xl font-bold text-white tracking-tight">The Lab</h2>
+              <p className="text-sm leading-relaxed text-slate-400">
+                This is where you'll polish your **Performance Mixes** and analyze **Set
+                Lineage**—comparing your planned energy levels with real-time dancer feedback from
+                your session history.
+              </p>
+              <div className="pt-4">
+                <span className="px-3 py-1 bg-slate-900 text-slate-500 text-[10px] font-bold uppercase tracking-widest rounded-full border border-slate-800">
+                  Feature In Development
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {viewMode === "stage" && (
+          <div className="flex flex-col items-center justify-center h-full gap-8 p-12">
+            <div className="max-w-md text-center space-y-4">
+              <div className="w-20 h-20 bg-indigo-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-500 shadow-[0_0_30px_rgba(99,102,241,0.2)]">
+                <Maximize2 size={40} />
+              </div>
+              <h2 className="text-2xl font-bold text-slate-100">Performance Ready</h2>
+              <p className="text-slate-400 text-sm leading-relaxed">
+                Connect your session to enter the heroic Stage Mode. Once live, you can trigger
+                reactions, polls, and announcements.
+              </p>
+              {!isLive ? (
+                <div className="bg-slate-900/50 border border-slate-800 rounded-xl p-6 mt-8 space-y-4">
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+                    Quick Connect
+                  </p>
+                  <LiveControl />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsPerformanceMode(true)}
+                  className="mt-8 px-8 py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold shadow-lg shadow-indigo-500/20 transition-all transform hover:scale-105"
+                >
+                  Enter Stage Mode
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {viewMode === "insights" && (
+          <div className="h-full w-full p-4">
+            <Suspense fallback={<LazyFallback />}>
+              <Logbook />
+            </Suspense>
+          </div>
+        )}
+      </main>
+
+      {/* Overlays */}
       {isPerformanceMode && (
         <Suspense fallback={<LazyFallback />}>
           <LivePerformanceMode
@@ -126,545 +416,13 @@ function App() {
         </Suspense>
       )}
 
-      {/* Toast notifications */}
-      <Toaster theme="dark" position="top-right" richColors />
-
-      {/* Header */}
-      <header style={styles.header}>
-        <div style={styles.headerLeft}>
-          <h1 className="dashboard-title" style={styles.title}>
-            Pika! Desktop
-          </h1>
-          <span style={styles.version}>v{PIKA_VERSION}</span>
-
-          {/* View Toggle */}
-          <div style={styles.viewTabs}>
-            <button
-              type="button"
-              onClick={() => setViewMode("builder")}
-              style={{
-                ...styles.viewTab,
-                ...(viewMode === "builder" ? styles.viewTabActive : {}),
-              }}
-            >
-              <LayoutGrid size={14} />
-              Set Builder
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode("logbook")}
-              style={{
-                ...styles.viewTab,
-                ...(viewMode === "logbook" ? styles.viewTabActive : {}),
-              }}
-            >
-              <Calendar size={14} />
-              Logbook
-            </button>
-          </div>
-        </div>
-
-        {/* Toolbar */}
-        <div style={styles.toolbar}>
-          <LiveControl />
-          <OfflineQueueIndicator />
-          {isLive && (
-            <button
-              type="button"
-              onClick={() => setIsPerformanceMode(true)}
-              style={styles.performanceButton}
-              title="Enter Performance Mode"
-            >
-              <Maximize2 size={16} />
-              <span>Performance Mode</span>
-            </button>
-          )}
-          <div style={styles.toolbarDivider} />
-          <LibraryImporter onImportComplete={refreshTracks} />
-          <AnalyzerStatus baseUrl={baseUrl} onComplete={refreshTracks} />
-          <button
-            type="button"
-            onClick={() => setIsSettingsOpen(true)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.25rem",
-              padding: "0.5rem",
-              background: "transparent",
-              border: "1px solid #334155",
-              borderRadius: "6px",
-              color: "#94a3b8",
-              cursor: "pointer",
-            }}
-            title="Settings"
-          >
-            <SettingsIcon size={16} />
-          </button>
-        </div>
-      </header>
-
-      {/* Settings Modal */}
       <Suspense fallback={<LazyFallback />}>
         <Settings isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       </Suspense>
 
-      {/* Status Banner */}
-      {status !== "ready" && status !== "browser" && (
-        <div style={styles.statusBanner}>
-          {status === "starting" && (
-            <span style={styles.statusText}>⏳ Starting analysis engine...</span>
-          )}
-          {status === "error" && (
-            <>
-              <span style={styles.statusError}>⚠️ {error}</span>
-              <button type="button" onClick={restart} style={styles.retryButton}>
-                Retry
-              </button>
-            </>
-          )}
-          {status === "idle" && (
-            <>
-              <span style={styles.statusText}>Engine stopped</span>
-              <button type="button" onClick={restart} style={styles.retryButton}>
-                Start
-              </button>
-            </>
-          )}
-        </div>
-      )}
-
-      {status === "browser" && (
-        <div style={styles.statusBanner}>
-          <span style={styles.statusText}>
-            🌐 Running in browser - open the desktop app for full functionality
-          </span>
-        </div>
-      )}
-
-      {/* Settings panel - hidden by default */}
-      <details style={styles.debugSection}>
-        <summary style={styles.debugSummary}>
-          ⚙️ Settings{" "}
-          {isAuthenticated && <span style={styles.authBadge}>✓ {djInfo?.displayName}</span>}
-        </summary>
-        <div style={styles.debugPanel}>
-          {/* DJ Account */}
-          <div style={styles.settingsSection}>
-            <div style={styles.settingsLabel}>
-              <span>🎧 DJ Account</span>
-              {isAuthenticated ? (
-                <span style={styles.tokenStatus}>✅ Verified</span>
-              ) : (
-                <span style={styles.tokenStatusPending}>⚠️ Not logged in</span>
-              )}
-            </div>
-
-            {/* Show logged in state or token input */}
-            {isAuthenticated && djInfo ? (
-              // Logged in - show DJ info
-              <div style={styles.loggedInBox}>
-                <div style={styles.djInfoRow}>
-                  <span style={styles.djInfoLabel}>DJ Name:</span>
-                  <span style={styles.djInfoValue}>{djInfo.displayName}</span>
-                </div>
-                <div style={styles.djInfoRow}>
-                  <span style={styles.djInfoLabel}>Email:</span>
-                  <span style={styles.djInfoValue}>{djInfo.email}</span>
-                </div>
-                <div style={styles.djInfoRow}>
-                  <span style={styles.djInfoLabel}>Profile:</span>
-                  <a
-                    href={`https://pika.stream/dj/${djInfo.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={styles.profileLink}
-                  >
-                    pika.stream/dj/{djInfo.slug}
-                  </a>
-                </div>
-                <button type="button" onClick={clearToken} style={styles.logoutBtn}>
-                  Sign Out
-                </button>
-              </div>
-            ) : (
-              // Not logged in - show token input
-              <>
-                <div style={styles.tokenInputRow}>
-                  <input
-                    type="password"
-                    value={tokenInput}
-                    onChange={(e) => setTokenInput(e.target.value)}
-                    placeholder="pk_dj_your_token_here"
-                    style={styles.tokenInput}
-                    disabled={isValidating}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setAuthToken(tokenInput)}
-                    disabled={isValidating || !tokenInput}
-                    style={styles.validateBtn}
-                  >
-                    {isValidating ? "..." : "Connect"}
-                  </button>
-                </div>
-                {validationError && <p style={styles.errorText}>{validationError}</p>}
-                <p style={styles.tokenHint}>
-                  Enter your DJ token to authenticate sessions.{" "}
-                  <a
-                    href="https://pika.stream/dj/register"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={styles.linkText}
-                  >
-                    Get one here
-                  </a>
-                </p>
-              </>
-            )}
-          </div>
-
-          {/* Environment */}
-          <div style={styles.settingsSection}>
-            <div style={styles.settingsLabel}>🌐 Environment</div>
-            <select
-              defaultValue={getStoredSettings().serverEnv}
-              onChange={(e) => {
-                const env = e.target.value as "dev" | "prod";
-                setServerEnv(env);
-              }}
-              style={styles.envSelect}
-            >
-              <option value="prod">Production (pika.stream)</option>
-              <option value="staging">Staging (staging.pika.stream)</option>
-              <option value="dev">Development (localhost)</option>
-            </select>
-          </div>
-
-          {/* Debug Info (collapsed) */}
-          <details style={{ marginTop: "1rem" }}>
-            <summary style={{ cursor: "pointer", color: "#64748b", fontSize: "0.75rem" }}>
-              🔧 Debug Info
-            </summary>
-            <div style={{ fontSize: "0.75rem", color: "#64748b", marginTop: "0.5rem" }}>
-              <div>inTauri={String(inTauri)}</div>
-              <div>Status: {status}</div>
-              <div>Base URL: {baseUrl ?? "null"}</div>
-              <div>Health: {healthData ? JSON.stringify(healthData) : "null"}</div>
-              <div>Error: {error ?? "null"}</div>
-              <div>Authenticated: {String(isAuthenticated)}</div>
-            </div>
-          </details>
-        </div>
-      </details>
-
-      {/* Main Content */}
-      <main style={styles.mainContent}>
-        {viewMode === "builder" ? (
-          <>
-            {/* Left Panel - Library Browser (60%) */}
-            <div style={styles.leftPanel}>
-              <LibraryBrowser refreshTrigger={refreshTrigger} />
-            </div>
-
-            {/* Right Panel - Set Canvas (40%) */}
-            <div style={styles.rightPanel}>
-              <SetCanvas />
-            </div>
-          </>
-        ) : (
-          /* Logbook View */
-          <div style={styles.fullPanel}>
-            <Suspense fallback={<LazyFallback />}>
-              <Logbook />
-            </Suspense>
-          </div>
-        )}
-      </main>
+      <Toaster theme="dark" position="top-right" richColors />
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  appContainer: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100vh",
-    overflow: "hidden",
-    background: "#030711",
-    color: "#e2e8f0",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0.75rem 1rem",
-    background: "#1e293b",
-    borderBottom: "1px solid #334155",
-    flexShrink: 0,
-  },
-  headerLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.75rem",
-  },
-  title: {
-    margin: 0,
-    fontSize: "1.25rem",
-    fontWeight: "bold",
-  },
-  version: {
-    fontSize: "0.75rem",
-    opacity: 0.6,
-    marginRight: "0.5rem",
-  },
-  viewTabs: {
-    display: "flex",
-    gap: "0.25rem",
-    marginLeft: "0.5rem",
-    padding: "0.25rem",
-    background: "#0f172a",
-    borderRadius: "8px",
-  },
-  viewTab: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.375rem",
-    padding: "0.5rem 0.75rem",
-    background: "transparent",
-    color: "#64748b",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "0.8125rem",
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "all 0.15s",
-  },
-  viewTabActive: {
-    background: "#334155",
-    color: "#e2e8f0",
-  },
-  toolbar: {
-    display: "flex",
-    gap: "0.75rem",
-    alignItems: "center",
-  },
-  toolbarDivider: {
-    width: "1px",
-    height: "24px",
-    background: "#334155",
-  },
-  performanceButton: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.375rem",
-    padding: "0.5rem 0.75rem",
-    background: "#7c3aed",
-    color: "white",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "0.875rem",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  statusBanner: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "1rem",
-    padding: "0.5rem 1rem",
-    background: "#1e293b",
-    borderBottom: "1px solid #334155",
-    fontSize: "0.875rem",
-    flexShrink: 0,
-  },
-  statusText: {
-    opacity: 0.8,
-  },
-  statusError: {
-    color: "#f87171",
-  },
-  retryButton: {
-    padding: "0.25rem 0.75rem",
-    background: "#3b82f6",
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "0.75rem",
-  },
-  debugSection: {
-    padding: "0.25rem 1rem",
-    background: "#1e293b",
-    borderBottom: "1px solid #334155",
-    fontSize: "0.75rem",
-    flexShrink: 0,
-  },
-  debugSummary: {
-    cursor: "pointer",
-    opacity: 0.6,
-  },
-  debugPanel: {
-    padding: "0.5rem 0",
-    opacity: 0.7,
-  },
-  mainContent: {
-    flex: 1,
-    display: "flex",
-    gap: "1rem",
-    padding: "1rem",
-    overflow: "hidden",
-    minHeight: 0,
-  },
-  leftPanel: {
-    flex: "0 0 60%",
-    display: "flex",
-    flexDirection: "column",
-    minHeight: 0,
-    overflow: "hidden",
-  },
-  rightPanel: {
-    flex: "0 0 calc(40% - 1rem)",
-    display: "flex",
-    flexDirection: "column",
-    minHeight: 0,
-    overflow: "hidden",
-  },
-  fullPanel: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    minHeight: 0,
-    overflow: "hidden",
-  },
-  debugRow: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    marginBottom: "0.5rem",
-  },
-  envSelect: {
-    background: "#334155",
-    color: "#e2e8f0",
-    border: "1px solid #475569",
-    borderRadius: "4px",
-    padding: "0.25rem 0.5rem",
-    fontSize: "0.8rem",
-    width: "100%",
-  },
-  settingsSection: {
-    marginBottom: "1rem",
-  },
-  settingsLabel: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    marginBottom: "0.5rem",
-    color: "#e2e8f0",
-  },
-  tokenInputRow: {
-    display: "flex",
-    gap: "0.5rem",
-  },
-  tokenInput: {
-    flex: 1,
-    background: "#334155",
-    color: "#e2e8f0",
-    border: "1px solid #475569",
-    borderRadius: "4px",
-    padding: "0.5rem",
-    fontSize: "0.8rem",
-    fontFamily: "monospace",
-  },
-  tokenLink: {
-    display: "flex",
-    alignItems: "center",
-    padding: "0.5rem 0.75rem",
-    background: "#3b82f6",
-    color: "white",
-    borderRadius: "4px",
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    textDecoration: "none",
-    whiteSpace: "nowrap",
-  },
-  tokenHint: {
-    fontSize: "0.7rem",
-    color: "#64748b",
-    marginTop: "0.5rem",
-    marginBottom: 0,
-  },
-  tokenStatus: {
-    fontSize: "0.7rem",
-    color: "#22c55e",
-  },
-  tokenStatusPending: {
-    fontSize: "0.7rem",
-    color: "#f59e0b",
-  },
-  authBadge: {
-    marginLeft: "0.5rem",
-    fontSize: "0.7rem",
-    color: "#22c55e",
-    fontWeight: 500,
-  },
-  loggedInBox: {
-    background: "rgba(34, 197, 94, 0.1)",
-    border: "1px solid rgba(34, 197, 94, 0.3)",
-    borderRadius: "8px",
-    padding: "0.75rem",
-    marginTop: "0.5rem",
-  },
-  djInfoRow: {
-    display: "flex",
-    gap: "0.5rem",
-    marginBottom: "0.35rem",
-    fontSize: "0.8rem",
-  },
-  djInfoLabel: {
-    color: "#64748b",
-    minWidth: "60px",
-  },
-  djInfoValue: {
-    color: "#e2e8f0",
-    fontWeight: 500,
-  },
-  profileLink: {
-    color: "#a78bfa",
-    textDecoration: "none",
-    fontSize: "0.8rem",
-  },
-  logoutBtn: {
-    marginTop: "0.75rem",
-    padding: "0.35rem 0.75rem",
-    background: "rgba(239, 68, 68, 0.1)",
-    border: "1px solid rgba(239, 68, 68, 0.3)",
-    borderRadius: "4px",
-    color: "#ef4444",
-    fontSize: "0.75rem",
-    cursor: "pointer",
-  },
-  validateBtn: {
-    padding: "0.5rem 1rem",
-    background: "#22c55e",
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  errorText: {
-    fontSize: "0.7rem",
-    color: "#ef4444",
-    marginTop: "0.5rem",
-    marginBottom: 0,
-  },
-  linkText: {
-    color: "#a78bfa",
-    textDecoration: "underline",
-  },
-};
 
 export default App;

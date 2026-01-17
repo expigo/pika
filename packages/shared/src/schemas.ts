@@ -6,8 +6,48 @@
 import { z } from "zod";
 
 // ============================================================================
-// Track Schemas
+// Message Type Constants
 // ============================================================================
+
+export const MESSAGE_TYPES = {
+  // Client -> Server
+  REGISTER_SESSION: "REGISTER_SESSION",
+  BROADCAST_TRACK: "BROADCAST_TRACK",
+  TRACK_STOPPED: "TRACK_STOPPED",
+  END_SESSION: "END_SESSION",
+  SUBSCRIBE: "SUBSCRIBE",
+  SEND_LIKE: "SEND_LIKE",
+  SEND_TEMPO_REQUEST: "SEND_TEMPO_REQUEST",
+  START_POLL: "START_POLL",
+  END_POLL: "END_POLL",
+  CANCEL_POLL: "CANCEL_POLL",
+  VOTE_ON_POLL: "VOTE_ON_POLL",
+  SEND_REACTION: "SEND_REACTION",
+  SEND_ANNOUNCEMENT: "SEND_ANNOUNCEMENT",
+  CANCEL_ANNOUNCEMENT: "CANCEL_ANNOUNCEMENT",
+
+  // Server -> Client
+  SESSION_REGISTERED: "SESSION_REGISTERED",
+  SESSION_STARTED: "SESSION_STARTED",
+  NOW_PLAYING: "NOW_PLAYING",
+  SESSION_ENDED: "SESSION_ENDED",
+  SESSIONS_LIST: "SESSIONS_LIST",
+  LIKE_RECEIVED: "LIKE_RECEIVED",
+  LISTENER_COUNT: "LISTENER_COUNT",
+  TEMPO_FEEDBACK: "TEMPO_FEEDBACK",
+  TEMPO_RESET: "TEMPO_RESET",
+  POLL_STARTED: "POLL_STARTED",
+  POLL_UPDATE: "POLL_UPDATE",
+  POLL_ENDED: "POLL_ENDED",
+  POLL_ID_UPDATED: "POLL_ID_UPDATED",
+  VOTE_REJECTED: "VOTE_REJECTED",
+  VOTE_CONFIRMED: "VOTE_CONFIRMED",
+  REACTION_RECEIVED: "REACTION_RECEIVED",
+  ANNOUNCEMENT_RECEIVED: "ANNOUNCEMENT_RECEIVED",
+  ANNOUNCEMENT_CANCELLED: "ANNOUNCEMENT_CANCELLED",
+  ACK: "ACK",
+  NACK: "NACK",
+} as const;
 
 /**
  * Basic track info for WebSocket messages
@@ -87,35 +127,35 @@ export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 // --- Client -> Server Messages ---
 
 export const RegisterSessionSchema = z.object({
-  type: z.literal("REGISTER_SESSION"),
+  type: z.literal(MESSAGE_TYPES.REGISTER_SESSION),
   sessionId: z.string().optional(),
   djName: z.string().optional(),
 });
 
 export const BroadcastTrackSchema = z.object({
-  type: z.literal("BROADCAST_TRACK"),
+  type: z.literal(MESSAGE_TYPES.BROADCAST_TRACK),
   sessionId: z.string(),
   track: TrackInfoSchema,
 });
 
 export const TrackStoppedSchema = z.object({
-  type: z.literal("TRACK_STOPPED"),
+  type: z.literal(MESSAGE_TYPES.TRACK_STOPPED),
   sessionId: z.string(),
 });
 
 export const EndSessionSchema = z.object({
-  type: z.literal("END_SESSION"),
+  type: z.literal(MESSAGE_TYPES.END_SESSION),
   sessionId: z.string(),
 });
 
 export const SubscribeSchema = z.object({
-  type: z.literal("SUBSCRIBE"),
+  type: z.literal(MESSAGE_TYPES.SUBSCRIBE),
   sessionId: z.string().optional(), // Session to subscribe to (for listener tracking)
   clientId: z.string().optional(), // Client identifier (for unique listener count)
 });
 
 export const SendLikeSchema = z.object({
-  type: z.literal("SEND_LIKE"),
+  type: z.literal(MESSAGE_TYPES.SEND_LIKE),
   sessionId: z.string().optional(), // Explicit session targeting
   clientId: z.string().optional(), // For server-side tracking
   payload: z.object({
@@ -126,30 +166,30 @@ export const SendLikeSchema = z.object({
 // --- Server -> Client Messages ---
 
 export const SessionRegisteredSchema = z.object({
-  type: z.literal("SESSION_REGISTERED"),
+  type: z.literal(MESSAGE_TYPES.SESSION_REGISTERED),
   sessionId: z.string(),
 });
 
 export const SessionStartedSchema = z.object({
-  type: z.literal("SESSION_STARTED"),
+  type: z.literal(MESSAGE_TYPES.SESSION_STARTED),
   sessionId: z.string(),
   djName: z.string(),
 });
 
 export const NowPlayingSchema = z.object({
-  type: z.literal("NOW_PLAYING"),
+  type: z.literal(MESSAGE_TYPES.NOW_PLAYING),
   sessionId: z.string(),
   djName: z.string(),
   track: TrackInfoSchema,
 });
 
 export const SessionEndedSchema = z.object({
-  type: z.literal("SESSION_ENDED"),
+  type: z.literal(MESSAGE_TYPES.SESSION_ENDED),
   sessionId: z.string(),
 });
 
 export const SessionsListSchema = z.object({
-  type: z.literal("SESSIONS_LIST"),
+  type: z.literal(MESSAGE_TYPES.SESSIONS_LIST),
   sessions: z.array(
     z.object({
       sessionId: z.string(),
@@ -160,14 +200,14 @@ export const SessionsListSchema = z.object({
 });
 
 export const LikeReceivedSchema = z.object({
-  type: z.literal("LIKE_RECEIVED"),
+  type: z.literal(MESSAGE_TYPES.LIKE_RECEIVED),
   payload: z.object({
     track: TrackInfoSchema,
   }),
 });
 
 export const ListenerCountSchema = z.object({
-  type: z.literal("LISTENER_COUNT"),
+  type: z.literal(MESSAGE_TYPES.LISTENER_COUNT),
   sessionId: z.string().optional(), // Per-session listener count
   count: z.number(),
 });
@@ -178,14 +218,14 @@ export type TempoPreference = z.infer<typeof TempoPreferenceSchema>;
 
 // Client -> Server: Dancer sends tempo preference
 export const SendTempoRequestSchema = z.object({
-  type: z.literal("SEND_TEMPO_REQUEST"),
+  type: z.literal(MESSAGE_TYPES.SEND_TEMPO_REQUEST),
   sessionId: z.string(),
   preference: TempoPreferenceSchema,
 });
 
 // Server -> DJ: Aggregated tempo feedback
 export const TempoFeedbackSchema = z.object({
-  type: z.literal("TEMPO_FEEDBACK"),
+  type: z.literal(MESSAGE_TYPES.TEMPO_FEEDBACK),
   faster: z.number(), // count of "faster" votes
   slower: z.number(), // count of "slower" votes
   perfect: z.number(), // count of "perfect" votes
@@ -194,7 +234,7 @@ export const TempoFeedbackSchema = z.object({
 
 // Server -> Clients: Reset tempo votes (track changed)
 export const TempoResetSchema = z.object({
-  type: z.literal("TEMPO_RESET"),
+  type: z.literal(MESSAGE_TYPES.TEMPO_RESET),
   sessionId: z.string(),
 });
 
@@ -204,7 +244,7 @@ export const TempoResetSchema = z.object({
 
 // DJ -> Server: Start a new poll
 export const StartPollSchema = z.object({
-  type: z.literal("START_POLL"),
+  type: z.literal(MESSAGE_TYPES.START_POLL),
   sessionId: z.string(),
   question: z.string(),
   options: z.array(z.string()).min(2).max(5), // 2-5 options
@@ -213,19 +253,19 @@ export const StartPollSchema = z.object({
 
 // DJ -> Server: End poll early
 export const EndPollSchema = z.object({
-  type: z.literal("END_POLL"),
+  type: z.literal(MESSAGE_TYPES.END_POLL),
   pollId: z.number(),
 });
 
 // DJ -> Server: Cancel poll (by session, used when poll ID not yet assigned)
 export const CancelPollSchema = z.object({
-  type: z.literal("CANCEL_POLL"),
+  type: z.literal(MESSAGE_TYPES.CANCEL_POLL),
   sessionId: z.string(),
 });
 
 // Dancer -> Server: Vote on a poll
 export const VoteOnPollSchema = z.object({
-  type: z.literal("VOTE_ON_POLL"),
+  type: z.literal(MESSAGE_TYPES.VOTE_ON_POLL),
   pollId: z.number(),
   optionIndex: z.number(),
   clientId: z.string(),
@@ -233,7 +273,7 @@ export const VoteOnPollSchema = z.object({
 
 // Server -> Dancers: New poll started
 export const PollStartedSchema = z.object({
-  type: z.literal("POLL_STARTED"),
+  type: z.literal(MESSAGE_TYPES.POLL_STARTED),
   pollId: z.number(),
   question: z.string(),
   options: z.array(z.string()),
@@ -242,7 +282,7 @@ export const PollStartedSchema = z.object({
 
 // Server -> DJ: Live poll results update
 export const PollUpdateSchema = z.object({
-  type: z.literal("POLL_UPDATE"),
+  type: z.literal(MESSAGE_TYPES.POLL_UPDATE),
   pollId: z.number(),
   votes: z.array(z.number()), // Vote count per option [12, 8, 5]
   totalVotes: z.number(),
@@ -250,7 +290,7 @@ export const PollUpdateSchema = z.object({
 
 // Server -> All: Poll has ended
 export const PollEndedSchema = z.object({
-  type: z.literal("POLL_ENDED"),
+  type: z.literal(MESSAGE_TYPES.POLL_ENDED),
   pollId: z.number(),
   results: z.array(z.number()), // Final vote count per option
   totalVotes: z.number(),
@@ -259,14 +299,14 @@ export const PollEndedSchema = z.object({
 
 // Server -> All: Poll ID updated (temp ID -> DB ID)
 export const PollIdUpdatedSchema = z.object({
-  type: z.literal("POLL_ID_UPDATED"),
+  type: z.literal(MESSAGE_TYPES.POLL_ID_UPDATED),
   oldPollId: z.number(),
   newPollId: z.number(),
 });
 
 // Server -> Client: Vote rejected
 export const VoteRejectedSchema = z.object({
-  type: z.literal("VOTE_REJECTED"),
+  type: z.literal(MESSAGE_TYPES.VOTE_REJECTED),
   pollId: z.number(),
   reason: z.string(),
   votes: z.array(z.number()).optional(),
@@ -275,7 +315,7 @@ export const VoteRejectedSchema = z.object({
 
 // Server -> Client: Vote confirmed
 export const VoteConfirmedSchema = z.object({
-  type: z.literal("VOTE_CONFIRMED"),
+  type: z.literal(MESSAGE_TYPES.VOTE_CONFIRMED),
   pollId: z.number(),
   optionIndex: z.number(),
   votes: z.array(z.number()),
@@ -287,13 +327,13 @@ export const VoteConfirmedSchema = z.object({
 // ============================================================================
 
 export const SendReactionSchema = z.object({
-  type: z.literal("SEND_REACTION"),
+  type: z.literal(MESSAGE_TYPES.SEND_REACTION),
   sessionId: z.string(),
   reaction: z.literal("thank_you"),
 });
 
 export const ReactionReceivedSchema = z.object({
-  type: z.literal("REACTION_RECEIVED"),
+  type: z.literal(MESSAGE_TYPES.REACTION_RECEIVED),
   sessionId: z.string(),
   reaction: z.literal("thank_you"),
 });
@@ -304,7 +344,7 @@ export const ReactionReceivedSchema = z.object({
 
 // DJ -> Server: Send announcement to dancers
 export const SendAnnouncementSchema = z.object({
-  type: z.literal("SEND_ANNOUNCEMENT"),
+  type: z.literal(MESSAGE_TYPES.SEND_ANNOUNCEMENT),
   sessionId: z.string(),
   message: z.string().max(200),
   durationSeconds: z.number().min(60).max(3600).optional(), // 1 min to 1 hour
@@ -312,7 +352,7 @@ export const SendAnnouncementSchema = z.object({
 
 // Server -> Dancers: Announcement received
 export const AnnouncementReceivedSchema = z.object({
-  type: z.literal("ANNOUNCEMENT_RECEIVED"),
+  type: z.literal(MESSAGE_TYPES.ANNOUNCEMENT_RECEIVED),
   sessionId: z.string(),
   message: z.string(),
   djName: z.string().optional(),
@@ -322,13 +362,13 @@ export const AnnouncementReceivedSchema = z.object({
 
 // DJ -> Server: Cancel active announcement
 export const CancelAnnouncementSchema = z.object({
-  type: z.literal("CANCEL_ANNOUNCEMENT"),
+  type: z.literal(MESSAGE_TYPES.CANCEL_ANNOUNCEMENT),
   sessionId: z.string(),
 });
 
 // Server -> Dancers: Announcement cancelled
 export const AnnouncementCancelledSchema = z.object({
-  type: z.literal("ANNOUNCEMENT_CANCELLED"),
+  type: z.literal(MESSAGE_TYPES.ANNOUNCEMENT_CANCELLED),
   sessionId: z.string(),
 });
 
@@ -340,7 +380,7 @@ export const AnnouncementCancelledSchema = z.object({
  * Server -> Client: Acknowledge successful message processing
  */
 export const AckSchema = z.object({
-  type: z.literal("ACK"),
+  type: z.literal(MESSAGE_TYPES.ACK),
   messageId: z.string(),
   status: z.literal("ok"),
   timestamp: z.string().optional(), // ISO timestamp
@@ -352,7 +392,7 @@ export type Ack = z.infer<typeof AckSchema>;
  * Server -> Client: Negative acknowledgment (error occurred)
  */
 export const NackSchema = z.object({
-  type: z.literal("NACK"),
+  type: z.literal(MESSAGE_TYPES.NACK),
   messageId: z.string(),
   error: z.string(),
   timestamp: z.string().optional(), // ISO timestamp

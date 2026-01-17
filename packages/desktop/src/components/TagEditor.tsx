@@ -34,12 +34,7 @@ export function TagEditor({ track, onClose, onSave }: Props) {
 
   // Parse existing tags from track
   useEffect(() => {
-    try {
-      const parsed = JSON.parse(track.tags || "[]") as string[];
-      setTags(parsed);
-    } catch {
-      setTags([]);
-    }
+    setTags(track.tags || []);
 
     // Load all existing tags for suggestions
     trackRepository.getAllTags().then(setExistingTags).catch(console.error);

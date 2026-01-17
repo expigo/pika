@@ -89,6 +89,28 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Flicker-Free UI:** Standardized `h-14` island heights and `tabular-nums` typography for rock-solid visual stability.
     *   **Panic Sync Refinement:** Relocated to far-left Status Island for logical grouping.
 
+---
+
+## 10. Design Language & Workspace Taxonomy
+
+To maintain a consistent "Pro DJ" feel, we use a specific taxonomy for the application workspaces:
+
+| UI Workspace | View Mode | Purpose |
+| :--- | :--- | :--- |
+| **The Crate** | `crate` | **Preparation Hub.** Digging, filtering, and curating your "Performance Mix". |
+| **The Stage** | `stage` | **Execution Hub.** Real-time controls, reaction monitoring, and Hero Mode. |
+| **The Lab** | `archive` | **Refinement Hub.** Analyzing "Set Lineage" (Comparing your Plan vs. Actual Performance). |
+| **Intelligence** | `insights` | **Data Hub.** Historical global stats and cross-session listener trends. |
+
+### The "Set Lineage" Strategy
+A core differentiator of Pika! is the ability to link **Planned Sets** to **Actual Play Data**:
+*   **Planned (The Crate):** The DJ chooses tracks and sees an "X-Ray" (Energy Wave) of the expected vibe.
+*   **Actual (The Stage):** As the DJ plays (even if they deviate from the plan), Pika! captures the real-time history and listener feedback.
+*   **Lineage (The Lab):** After the session, the DJ can overlay the "Plan" vs "Actual" energy waves to see where the vibe shifted and why. This works even for unplanned sets by using "Live Capture" to promote a history log into a new Crate template.
+
+---
+
+
 ### 🚧 WIP / Missing
 *   **DJ Dashboard (Web):** While DJs can register, a full web-based dashboard for them to manage past sets or edit profile details is incomplete.
 *   **Offline Mode Polish:** Desktop app handles offline analysis well, but the UI for "Queued Updates" when reconnecting to internet needs refinement.

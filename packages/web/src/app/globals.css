@@ -1,5 +1,5 @@
 @import "tailwindcss";
-@import "../../../../packages/shared/src/theme.css";
+@import "@pika/shared/theme.css";
 
 :root {
   --background: #ffffff;

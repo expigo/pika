@@ -11,6 +11,19 @@ import type { PlayWithTrack } from "../db/repositories/sessionRepository";
 import { NetworkHealthIndicator } from "./NetworkHealthIndicator";
 import type { LiveStatus } from "../hooks/useLiveSession";
 
+interface BatteryManager extends EventTarget {
+  level: number;
+  charging: boolean;
+  onlevelchange: ((this: BatteryManager, ev: Event) => void) | null;
+  onchargingchange: ((this: BatteryManager, ev: Event) => void) | null;
+}
+
+declare global {
+  interface Navigator {
+    getBattery(): Promise<BatteryManager>;
+  }
+}
+
 interface Props {
   loading?: boolean;
   playCount: number;
@@ -53,24 +66,19 @@ export function LiveHUD({
   }, [currentPlay?.playedAt]);
 
   useEffect(() => {
-    // @ts-ignore - Battery Status API
-    if (typeof navigator !== "undefined" && (navigator as any).getBattery) {
-      // @ts-ignore
-      (navigator as any)
+    if (typeof navigator !== "undefined" && "getBattery" in navigator) {
+      navigator
         .getBattery()
-        .then((batt: any) => {
+        .then((batt) => {
           const update = () => setBattery({ level: batt.level, charging: batt.charging });
           update();
-          batt.addEventListener("levelchange", update);
-          batt.addEventListener("chargingchange", update);
+          batt.onlevelchange = update;
+          batt.onchargingchange = update;
         })
         .catch(() => {
-          // Fallback or hide
           setBattery(null);
         });
     } else {
-      // For desktop/fixed machines, we might want to mock or hide.
-      // Let's try to detect if we are on a laptop indirectly or just hide it.
       setBattery(null);
     }
   }, []);

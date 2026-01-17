@@ -1,6 +1,14 @@
 import { Activity, Zap } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Area, AreaChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { useSetStore } from "../hooks/useSetBuilder";
 
 interface ChartDataPoint {
@@ -100,7 +108,7 @@ interface Props {
   showBpmLine?: boolean;
 }
 
-export function EnergyWave({ height = 120, showBpmLine = true }: Props) {
+export function EnergyWave({ showBpmLine = true }: Props) {
   const activeSet = useSetStore((state) => state.activeSet);
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
@@ -166,80 +174,109 @@ export function EnergyWave({ height = 120, showBpmLine = true }: Props) {
   };
 
   return (
-    <div style={{ ...styles.container, height }}>
+    <div className="relative w-full h-full bg-slate-950/20 group">
       {isEmpty && (
-        <div style={styles.emptyOverlay}>
-          <span>Drag tracks here to see the energy wave</span>
+        <div className="absolute inset-0 flex items-center justify-center text-slate-600 text-[10px] font-bold uppercase tracking-widest pointer-events-none">
+          <Activity size={16} className="mr-2 opacity-50" />
+          Energy Flow Analysis Pending
         </div>
       )}
 
-      {/* Legend */}
-      {!isEmpty && showBpmLine && (
-        <div style={styles.legend}>
-          <div style={styles.legendItem}>
-            <span style={{ ...styles.legendDot, background: "#f97316" }} />
+      {/* Legend - Moved to bottom for better room */}
+      {!isEmpty && (
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-4 text-[8px] font-bold uppercase tracking-widest text-slate-600 z-10 bg-slate-900/40 px-3 py-1 rounded-full border border-slate-800/50 backdrop-blur-sm">
+          <div className="flex items-center gap-1.5">
+            <div className="w-1.5 h-1.5 rounded-full bg-pika-accent shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
             Energy
           </div>
-          <div style={styles.legendItem}>
-            <span style={{ ...styles.legendDot, background: "#3b82f6" }} />
-            BPM
-          </div>
-          <div style={styles.legendItem}>
-            <span style={{ ...styles.legendDot, background: "#ef4444" }} />
-            &gt;15 Jump
-          </div>
+          {showBpmLine && (
+            <div className="flex items-center gap-1.5">
+              <div className="w-1.5 h-1.5 rounded-full bg-pika-purple-light shadow-[0_0_8px_rgba(168,85,247,0.4)]" />
+              Tempo
+            </div>
+          )}
         </div>
       )}
 
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={normalizedBpmData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-          {/* Gradient definitions */}
+        <AreaChart data={normalizedBpmData} margin={{ top: 60, right: 15, left: 15, bottom: 25 }}>
           <defs>
-            <linearGradient id="energyGradient" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8} />
-              <stop offset="40%" stopColor="#22c55e" stopOpacity={0.8} />
-              <stop offset="70%" stopColor="#eab308" stopOpacity={0.8} />
-              <stop offset="100%" stopColor="#ef4444" stopOpacity={0.9} />
+            <linearGradient id="energyGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-pika-accent)" stopOpacity={0.8} />
+              <stop offset="100%" stopColor="var(--color-pika-accent)" stopOpacity={0} />
             </linearGradient>
-            <linearGradient id="energyStroke" x1="0" y1="1" x2="0" y2="0">
-              <stop offset="0%" stopColor="#3b82f6" />
-              <stop offset="40%" stopColor="#22c55e" />
-              <stop offset="70%" stopColor="#eab308" />
-              <stop offset="100%" stopColor="#ef4444" />
+            <linearGradient id="bpmGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-pika-purple-light)" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="var(--color-pika-purple-light)" stopOpacity={0} />
             </linearGradient>
           </defs>
 
-          <XAxis dataKey="name" hide />
-          <YAxis domain={[0, 100]} hide />
-
-          {!isEmpty && (
-            <Tooltip content={<CustomTooltip />} cursor={{ stroke: "#64748b", strokeWidth: 1 }} />
+          {/* Guidelines */}
+          <XAxis
+            dataKey="index"
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(value) => (value + 1).toString()}
+            interval="preserveStartEnd"
+            minTickGap={1}
+            style={{ fontSize: "0.6rem", fill: "#64748b" }}
+          />
+          <YAxis
+            yAxisId="left"
+            orientation="left"
+            stroke="var(--color-pika-accent)"
+            tickLine={false}
+            axisLine={false}
+            domain={[0, 100]}
+            ticks={[25, 50, 75, 100]}
+            tickFormatter={(value) => `${value}%`}
+            style={{ fontSize: "0.6rem", fill: "#475569" }}
+          />
+          {showBpmLine && (
+            <YAxis
+              yAxisId="right"
+              orientation="right"
+              stroke="var(--color-pika-purple-light)"
+              tickLine={false}
+              axisLine={false}
+              domain={[0, 100]}
+              tickFormatter={(value) => `${Math.round((value / 100) * 100 + 60)}`}
+              style={{ fontSize: "0.6rem", fill: "#475569" }}
+            />
           )}
 
-          {/* Energy Area */}
-          <Area
-            type="monotone"
-            dataKey="energy"
-            stroke="url(#energyStroke)"
-            strokeWidth={2}
-            fill="url(#energyGradient)"
-            animationDuration={500}
-            animationEasing="ease-out"
-            dot={!isEmpty ? { r: 4, fill: "#1e293b", stroke: "#64748b", strokeWidth: 2 } : false}
-            activeDot={!isEmpty ? { r: 6, fill: "#f97316", stroke: "#fff", strokeWidth: 2 } : false}
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ stroke: "rgba(148, 163, 184, 0.4)", strokeWidth: 1 }}
           />
 
-          {/* BPM Line (optional) */}
-          {showBpmLine && !isEmpty && (
-            <Line
+          {/* Grid Lines for Reading Energy */}
+          <ReferenceLine yAxisId="left" y={25} stroke="#1e293b" strokeDasharray="3 3" />
+          <ReferenceLine yAxisId="left" y={50} stroke="#334155" strokeDasharray="3 3" />
+          <ReferenceLine yAxisId="left" y={75} stroke="#1e293b" strokeDasharray="3 3" />
+
+          <Area
+            yAxisId="left"
+            type="monotone"
+            dataKey="energy"
+            stroke="var(--color-pika-accent)"
+            strokeWidth={3}
+            fill="url(#energyGradient)"
+            animationDuration={1000}
+            connectNulls
+          />
+          {showBpmLine && (
+            <Area
+              yAxisId="right"
               type="monotone"
               dataKey="normalizedBpm"
-              stroke="#3b82f6"
+              stroke="var(--color-pika-purple-light)"
               strokeWidth={2}
-              strokeDasharray="4 2"
+              strokeDasharray="6 6"
+              fill="url(#bpmGradient)"
               dot={renderBpmDot}
               activeDot={false}
-              animationDuration={500}
+              animationDuration={1000}
               connectNulls
             />
           )}
@@ -248,44 +285,3 @@ export function EnergyWave({ height = 120, showBpmLine = true }: Props) {
     </div>
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    position: "relative",
-    background: "linear-gradient(180deg, #0f172a 0%, #1e293b 100%)",
-    borderRadius: "8px",
-    overflow: "hidden",
-    border: "1px solid #334155",
-  },
-  emptyOverlay: {
-    position: "absolute",
-    inset: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "#64748b",
-    fontSize: "0.75rem",
-    zIndex: 1,
-    pointerEvents: "none",
-  },
-  legend: {
-    position: "absolute",
-    top: "6px",
-    right: "8px",
-    display: "flex",
-    gap: "10px",
-    fontSize: "0.65rem",
-    color: "#94a3b8",
-    zIndex: 2,
-  },
-  legendItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: "4px",
-  },
-  legendDot: {
-    width: "8px",
-    height: "8px",
-    borderRadius: "50%",
-  },
-};

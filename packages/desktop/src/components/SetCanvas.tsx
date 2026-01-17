@@ -22,20 +22,20 @@ import {
   Music,
   Trash2,
   TriangleAlert,
-  Zap,
   FlaskConical,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 import type { Track } from "../db/repositories/trackRepository";
 import { useAnalyzer } from "../hooks/useAnalyzer";
-import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
-import { getSetStats, useSetStore } from "../hooks/useSetBuilder";
+import { useSetStore } from "../hooks/useSetBuilder";
 import { useSidecar } from "../hooks/useSidecar";
 import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
-import { EnergyWave } from "./EnergyWave";
-import { SaveLoadSets } from "./SaveLoadSets";
 import { type FingerprintMetrics, TrackFingerprint } from "./TrackFingerprint";
 import { TemplateManager } from "./TemplateManager";
+import { getEnergyColor } from "../utils/trackUtils";
 
 interface SortableTrackRowProps {
   track: Track;
@@ -53,84 +53,92 @@ function SortableTrackRow({ track, index, onRemove, transitionWarning }: Sortabl
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 1000 : "auto",
+    zIndex: isDragging ? 10 : 0,
+    position: "relative",
   };
 
-  const getEnergyColor = (energy: number | null) => {
-    if (energy === null) return "#4b5563";
-    const normalized = energy / 100;
-    if (normalized < 0.4) return "#3b82f6";
-    if (normalized <= 0.7) return "#22c55e";
-    return "#f97316";
-  };
-
-  // Build tooltip for warning badge
-  const warningTooltip = transitionWarning?.issues.join(" • ") || "";
   const showWarning = transitionWarning && transitionWarning.warningLevel !== "none";
-  const warningColor = transitionWarning?.warningLevel === "red" ? "#ef4444" : "#eab308";
+  const warningColor =
+    transitionWarning?.warningLevel === "red" ? "text-red-500" : "text-amber-500";
 
   return (
-    <div ref={setNodeRef} style={{ ...styles.rowWrapper, ...style }}>
-      {/* Main row content */}
-      <div style={styles.row}>
-        <div {...attributes} {...listeners} style={styles.dragHandle} title="Drag to reorder">
-          <GripVertical size={16} />
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`pro-table-row group ${isDragging ? "opacity-40" : "opacity-100"} bg-pika-surface-1`}
+    >
+      <div
+        {...attributes}
+        {...listeners}
+        className="w-[30px] pro-table-cell justify-center cursor-grab active:cursor-grabbing text-slate-600 hover:text-slate-400"
+      >
+        <GripVertical size={14} />
+      </div>
+
+      <div className="w-[30px] pro-table-cell justify-center font-mono text-[10px] text-slate-500">
+        {index + 1}
+      </div>
+
+      <div className="flex-1 pro-table-cell gap-2">
+        <div className="flex flex-col min-w-0">
+          <span className="text-[10px] font-bold text-slate-500 uppercase leading-none truncate">
+            {track.artist || "Unknown"}
+          </span>
+          <span className="text-xs font-semibold text-slate-200 truncate">
+            {track.title || "Untitled"}
+          </span>
         </div>
-        <span style={styles.index}>{index + 1}</span>
-        <div style={styles.trackInfo}>
-          <span style={styles.artist}>{track.artist || "Unknown"}</span>
-          <span style={styles.title}>{track.title || "Untitled"}</span>
-        </div>
-        <span style={styles.bpm}>{track.bpm?.toFixed(0) || "-"}</span>
-        <span style={styles.key}>{track.key || "-"}</span>
-        <div style={styles.energyContainer}>
+        {showWarning && (
           <div
+            className={`${warningColor} animate-pulse`}
+            title={transitionWarning?.issues.join(" • ")}
+          >
+            <TriangleAlert size={12} />
+          </div>
+        )}
+      </div>
+
+      <div className="w-[50px] pro-table-cell justify-end font-mono text-xs text-slate-400">
+        {track.bpm?.toFixed(0) || "-"}
+      </div>
+
+      <div className="w-[40px] pro-table-cell justify-center font-bold text-pika-purple-light text-xs">
+        {track.key || "-"}
+      </div>
+
+      <div className="w-[60px] pro-table-cell">
+        <div className="energy-pill">
+          <div
+            className="energy-pill-fill"
             style={{
-              ...styles.energyBar,
               width: `${Math.min(100, track.energy ?? 0)}%`,
               backgroundColor: getEnergyColor(track.energy),
             }}
           />
         </div>
+      </div>
+
+      <div className="w-[40px] pro-table-cell justify-center opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           type="button"
           onClick={() => onRemove(track.id)}
-          style={styles.removeButton}
+          className="p-1 text-slate-500 hover:text-red-500"
           title="Remove from set"
         >
           <Trash2 size={14} />
         </button>
       </div>
-
-      {/* Transition warning badge (at bottom of row) */}
-      {showWarning && (
-        <div
-          style={{
-            ...styles.warningBadge,
-            borderColor: warningColor,
-            background:
-              warningColor === "#ef4444" ? "rgba(239, 68, 68, 0.15)" : "rgba(234, 179, 8, 0.15)",
-          }}
-          title={warningTooltip}
-        >
-          <TriangleAlert size={12} color={warningColor} />
-          <span style={{ ...styles.warningText, color: warningColor }}>
-            {transitionWarning?.issues[0]}
-          </span>
-        </div>
-      )}
     </div>
   );
 }
 
 export function SetCanvas() {
   const { activeSet, removeTrack, reorderTracks, clearSet, refreshTracks } = useSetStore();
-  const stats = useMemo(() => getSetStats(activeSet), [activeSet]);
   const { baseUrl } = useSidecar();
-  const { isAnalyzing, startSetAnalysis, progress, totalToAnalyze } = useAnalyzer();
+  const { isAnalyzing, startSetAnalysis } = useAnalyzer();
   const { triggerRefresh: triggerLibraryRefresh } = useLibraryRefresh();
   const [isAnalyzingSet, setIsAnalyzingSet] = useState(false);
+  const [showDiscoveryMode, setShowDiscoveryMode] = useState(false);
 
   // Calculate average fingerprint metrics for the set
   const setAverageMetrics: FingerprintMetrics = useMemo(() => {
@@ -179,106 +187,75 @@ export function SetCanvas() {
     }
   };
 
+  // Main render
+
   return (
-    <div style={styles.container}>
+    <div className="pro-table-container h-full flex flex-col select-none">
       {/* Header */}
-      <div style={styles.header}>
-        <div style={styles.headerTitle}>
-          <ListMusic size={20} />
-          <span>Set Builder</span>
+      <div className="flex items-center justify-between p-3 border-b border-pika-border bg-pika-surface-1">
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col">
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter leading-none">
+              The Crate
+            </span>
+            <span className="text-xs font-bold text-slate-100 flex items-center gap-2">
+              <ListMusic size={12} className="text-pika-accent" />
+              {activeSet.length > 0 ? "Mix" : "Empty"}
+            </span>
+          </div>
         </div>
-        <div style={styles.headerActions}>
-          <SaveLoadSets />
+
+        <div className="flex gap-1.5">
+          {activeSet.length > 0 && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!baseUrl) return;
+                setIsAnalyzingSet(true);
+                const unanalyzedIds = activeSet.filter((t) => !t.analyzed).map((t) => t.id);
+                await startSetAnalysis(baseUrl, unanalyzedIds);
+                await refreshTracks();
+                triggerLibraryRefresh();
+                setIsAnalyzingSet(false);
+              }}
+              disabled={!baseUrl || isAnalyzing}
+              className={`pro-btn pro-btn-secondary !p-1 flex items-center gap-1 ${isAnalyzingSet ? "animate-pulse" : ""}`}
+              title={!baseUrl ? "Engine disconnected" : "Analyze Set"}
+            >
+              <Zap size={12} className={isAnalyzingSet ? "fill-pika-accent" : ""} />
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => setShowTemplateManager(true)}
-            style={styles.templatesButton}
-            title="Manage set templates"
+            onClick={() => setShowDiscoveryMode(!showDiscoveryMode)}
+            className={`pro-btn pro-btn-secondary !p-1 ${showDiscoveryMode ? "!bg-pika-accent/10 !border-pika-accent/30 !text-pika-accent" : ""}`}
           >
-            <LayoutTemplate size={14} />
-            Templates
+            <Sparkles size={12} />
           </button>
-          {activeSet.length > 0 && (
-            <>
-              {/* Analyze Set Button */}
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!baseUrl) return;
-                  setIsAnalyzingSet(true);
-                  const unanalyzedIds = activeSet.filter((t) => !t.analyzed).map((t) => t.id);
-                  await startSetAnalysis(baseUrl, unanalyzedIds);
-                  // Refresh tracks to get updated analysis data
-                  await refreshTracks();
-                  // Also refresh the library view
-                  triggerLibraryRefresh();
-                  setIsAnalyzingSet(false);
-                }}
-                disabled={!baseUrl || isAnalyzing}
-                style={{
-                  ...styles.analyzeButton,
-                  opacity: !baseUrl || isAnalyzing ? 0.5 : 1,
-                  cursor: !baseUrl || isAnalyzing ? "not-allowed" : "pointer",
-                }}
-                title={!baseUrl ? "Analysis engine not ready" : "Analyze unanalyzed tracks in set"}
-              >
-                <FlaskConical size={14} />
-                {isAnalyzingSet ? `${progress}/${totalToAnalyze}` : "Analyze Set"}
-              </button>
-              <button type="button" onClick={clearSet} style={styles.clearButton}>
-                Clear All
-              </button>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={clearSet}
+            className="pro-btn pro-btn-secondary !p-1 hover:!text-red-500"
+          >
+            <Trash2 size={12} />
+          </button>
         </div>
       </div>
 
-      {/* Energy Wave Visualization */}
-      <div style={styles.waveContainer}>
-        <EnergyWave height={100} />
-      </div>
-
-      {/* Stats */}
-      <div style={styles.stats}>
-        <div style={styles.statsLeft}>
-          <div style={styles.stat}>
-            <Music size={14} />
-            <span>{stats.totalTracks} tracks</span>
-          </div>
-          {stats.totalTracks > 0 && (
-            <>
-              <div style={styles.stat}>
-                <span>Avg BPM: {stats.avgBpm}</span>
-              </div>
-              <div style={styles.stat}>
-                <Zap size={14} color="#f97316" />
-                <span>Energy: {stats.avgEnergy}</span>
-              </div>
-            </>
-          )}
+      {/* Main Content */}
+      <div className="flex-1 relative overflow-hidden flex flex-col">
+        {/* Table Header */}
+        <div className="pro-table-header px-1">
+          <div className="w-[30px] pro-table-cell"></div>
+          <div className="w-[30px] pro-table-cell justify-center">#</div>
+          <div className="flex-1 pro-table-cell">Track</div>
+          <div className="w-[50px] pro-table-cell justify-end">BPM</div>
+          <div className="w-[40px] pro-table-cell justify-center">Key</div>
+          <div className="w-[60px] pro-table-cell">NRG</div>
+          <div className="w-[40px] pro-table-cell"></div>
         </div>
 
-        {/* Set Fingerprint */}
-        {stats.totalTracks > 0 && (
-          <div style={styles.setFingerprint}>
-            <TrackFingerprint
-              metrics={setAverageMetrics}
-              size={100}
-              showLabels={false}
-              title="Set Profile"
-            />
-          </div>
-        )}
-      </div>
-
-      {/* Track List */}
-      <div style={styles.listContainer}>
-        {activeSet.length === 0 ? (
-          <div style={styles.emptyState}>
-            <ListMusic size={48} style={{ opacity: 0.3 }} />
-            <p>Click + on tracks to add them to your set</p>
-          </div>
-        ) : (
+        <div className="flex-1 pro-scroll-area">
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -289,24 +266,103 @@ export function SetCanvas() {
               items={activeSet.map((t) => t.id)}
               strategy={verticalListSortingStrategy}
             >
-              {activeSet.map((track, index) => {
-                // Analyze transition to next track
-                const nextTrack = activeSet[index + 1];
-                const transition = nextTrack ? analyzeTransition(track, nextTrack) : undefined;
-
-                return (
+              {activeSet.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-slate-600 gap-4 opacity-40">
+                  <Music size={48} />
+                  <p className="text-sm font-medium">Your crate is empty.</p>
+                </div>
+              ) : (
+                activeSet.map((track, idx) => (
                   <SortableTrackRow
                     key={track.id}
                     track={track}
-                    index={index}
+                    index={idx}
                     onRemove={removeTrack}
-                    nextTrack={nextTrack}
-                    transitionWarning={transition}
+                    nextTrack={activeSet[idx + 1]}
+                    transitionWarning={
+                      idx < activeSet.length - 1
+                        ? analyzeTransition(track, activeSet[idx + 1])
+                        : undefined
+                    }
                   />
-                );
-              })}
+                ))
+              )}
             </SortableContext>
           </DndContext>
+        </div>
+
+        {/* Discovery Overlay Sidebar */}
+        {showDiscoveryMode && (
+          <div className="absolute top-0 right-0 w-80 h-full bg-pika-surface-1/95 border-l border-pika-border shadow-2xl backdrop-blur-xl animate-in slide-in-from-right transition-all z-20">
+            <div className="flex items-center justify-between p-4 border-b border-pika-border">
+              <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+                <FlaskConical size={14} className="text-pika-accent" />
+                Discovery Engine
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowDiscoveryMode(false)}
+                className="text-slate-500 hover:text-slate-200"
+              >
+                <Trash2 size={14} className="rotate-45" />
+              </button>
+            </div>
+            <div className="p-4 space-y-6 overflow-y-auto h-full">
+              <p className="text-[10px] text-slate-500 leading-relaxed uppercase tracking-widest font-bold">
+                Analyzing flow...
+              </p>
+              <div className="space-y-4">
+                {activeSet.length > 0 ? (
+                  <div className="space-y-4">
+                    <div className="p-3 bg-pika-surface-2 border border-pika-border rounded-lg space-y-3">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        Set Profile
+                      </span>
+                      <div className="flex justify-center py-2">
+                        <TrackFingerprint metrics={setAverageMetrics} size={160} />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-pika-surface-2 border border-pika-border rounded-lg space-y-3">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">
+                        Transitions
+                      </span>
+                      <div className="space-y-2">
+                        {activeSet.map((t, i) => {
+                          if (i === activeSet.length - 1) return null;
+                          const next = activeSet[i + 1];
+                          const analysis = analyzeTransition(t, next);
+                          return (
+                            <div
+                              key={`${t.id}-${next.id}`}
+                              className="flex justify-between items-center text-[10px]"
+                            >
+                              <span className="text-slate-500 truncate max-w-[120px]">
+                                {t.title} → {next.title}
+                              </span>
+                              <span
+                                className={
+                                  analysis.warningLevel === "red"
+                                    ? "text-red-500"
+                                    : analysis.warningLevel === "yellow"
+                                      ? "text-amber-500"
+                                      : "text-emerald-500"
+                                }
+                              >
+                                {analysis.warningLevel === "none" ? "Perfect" : analysis.issues[0]}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-600 italic">Add tracks to analyze flow.</p>
+                )}
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
@@ -325,202 +381,4 @@ export function SetCanvas() {
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100%",
-    background: "#0f172a",
-    borderRadius: "8px",
-    border: "1px solid #1e293b",
-    overflow: "hidden",
-  },
-  header: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0.75rem 1rem",
-    background: "#1e293b",
-    borderBottom: "1px solid #334155",
-  },
-  headerTitle: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    fontWeight: "bold",
-  },
-  headerActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-  },
-  clearButton: {
-    padding: "0.25rem 0.75rem",
-    background: "transparent",
-    color: "#ef4444",
-    border: "1px solid #ef4444",
-    borderRadius: "4px",
-    cursor: "pointer",
-    fontSize: "0.75rem",
-  },
-  analyzeButton: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.25rem",
-    padding: "0.25rem 0.75rem",
-    background: "#22c55e",
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    fontSize: "0.75rem",
-  },
-  templatesButton: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.25rem",
-    padding: "0.25rem 0.75rem",
-    background: "#6366f1",
-    color: "white",
-    border: "none",
-    borderRadius: "4px",
-    fontSize: "0.75rem",
-    cursor: "pointer",
-  },
-  waveContainer: {
-    padding: "0.5rem",
-    background: "#0f172a",
-  },
-  stats: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "1rem",
-    padding: "0.5rem 1rem",
-    background: "#1e293b",
-    borderBottom: "1px solid #334155",
-    fontSize: "0.75rem",
-    opacity: 0.8,
-  },
-  statsLeft: {
-    display: "flex",
-    flexDirection: "column" as const,
-    gap: "0.25rem",
-  },
-  stat: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.25rem",
-  },
-  setFingerprint: {
-    flexShrink: 0,
-  },
-  listContainer: {
-    flex: 1,
-    overflowY: "auto",
-    padding: "0.5rem",
-  },
-  emptyState: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    height: "100%",
-    opacity: 0.5,
-    textAlign: "center",
-    padding: "2rem",
-  },
-  rowWrapper: {
-    marginBottom: "0.25rem",
-  },
-  row: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    padding: "0.5rem",
-    background: "#1e293b",
-    borderRadius: "4px",
-    fontSize: "0.8rem",
-  },
-  dragHandle: {
-    cursor: "grab",
-    padding: "0.25rem",
-    color: "#64748b",
-    display: "flex",
-    alignItems: "center",
-  },
-  index: {
-    width: "24px",
-    textAlign: "center",
-    color: "#64748b",
-    fontSize: "0.75rem",
-  },
-  trackInfo: {
-    flex: 1,
-    overflow: "hidden",
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.125rem",
-  },
-  artist: {
-    fontWeight: "500",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  title: {
-    fontSize: "0.7rem",
-    opacity: 0.7,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-  },
-  bpm: {
-    width: "40px",
-    textAlign: "right",
-    fontSize: "0.75rem",
-  },
-  key: {
-    width: "32px",
-    textAlign: "center",
-    fontSize: "0.75rem",
-  },
-  energyContainer: {
-    width: "40px",
-    height: "8px",
-    background: "#334155",
-    borderRadius: "4px",
-    overflow: "hidden",
-  },
-  energyBar: {
-    height: "100%",
-    transition: "width 0.2s",
-  },
-  removeButton: {
-    padding: "0.25rem",
-    background: "transparent",
-    color: "#ef4444",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    opacity: 0.6,
-  },
-  warningBadge: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "0.25rem",
-    padding: "0.125rem 0.5rem",
-    marginTop: "0.125rem",
-    marginLeft: "auto",
-    marginRight: "auto",
-    width: "fit-content",
-    borderRadius: "10px",
-    border: "1px solid",
-    fontSize: "0.65rem",
-  },
-  warningText: {
-    fontWeight: 500,
-  },
-};
+export default SetCanvas;

@@ -1,4 +1,4 @@
-import { parseWebSocketMessage, type TrackInfo } from "@pika/shared";
+import { MESSAGE_TYPES, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { useCallback, useEffect, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
@@ -165,7 +165,7 @@ function broadcastTrack(sessionId: string, track: TrackInfo): boolean {
   useLiveStore.getState().addPlayedTrack(trackKey);
 
   sendMessage({
-    type: "BROADCAST_TRACK",
+    type: MESSAGE_TYPES.BROADCAST_TRACK,
     sessionId,
     track,
   });
@@ -478,7 +478,7 @@ export function useLiveSession() {
           // Register session with DJ name and auth token from settings
           const token = getAuthToken();
           sendMessage({
-            type: "REGISTER_SESSION",
+            type: MESSAGE_TYPES.REGISTER_SESSION,
             sessionId: newSessionId,
             djName: getDjName(),
             ...(token ? { token } : {}), // Include token if available
@@ -509,12 +509,12 @@ export function useLiveSession() {
 
           console.log("[Live] Received:", message);
 
-          if (message.type === "SESSION_REGISTERED") {
+          if (message.type === MESSAGE_TYPES.SESSION_REGISTERED) {
             console.log("[Live] Session registered:", message.sessionId);
           }
 
           // Handle likes from listeners (batched notifications)
-          if (message.type === "LIKE_RECEIVED") {
+          if (message.type === MESSAGE_TYPES.LIKE_RECEIVED) {
             const track = message.payload?.track;
             if (track) {
               console.log("[Live] Like received for:", track.title);
@@ -542,7 +542,7 @@ export function useLiveSession() {
           }
 
           // Handle listener count updates (only for our session)
-          if (message.type === "LISTENER_COUNT") {
+          if (message.type === MESSAGE_TYPES.LISTENER_COUNT) {
             const sessionId = message.sessionId;
             const count = message.count;
 
@@ -554,7 +554,7 @@ export function useLiveSession() {
           }
 
           // Handle tempo feedback updates
-          if (message.type === "TEMPO_FEEDBACK") {
+          if (message.type === MESSAGE_TYPES.TEMPO_FEEDBACK) {
             console.log("[Live] Tempo feedback:", message);
             useLiveStore.getState().setTempoFeedback({
               faster: message.faster,
@@ -565,7 +565,7 @@ export function useLiveSession() {
           }
 
           // Handle poll started confirmation with real ID
-          if (message.type === "POLL_STARTED") {
+          if (message.type === MESSAGE_TYPES.POLL_STARTED) {
             console.log("[Live] Poll started confirmed:", message);
             const currentPoll = useLiveStore.getState().activePoll;
             // Update optimistic poll with real ID and endsAt
@@ -579,7 +579,7 @@ export function useLiveSession() {
           }
 
           // Handle poll updates (votes coming in)
-          if (message.type === "POLL_UPDATE") {
+          if (message.type === MESSAGE_TYPES.POLL_UPDATE) {
             console.log("[Live] Poll update:", message);
             const currentPoll = useLiveStore.getState().activePoll;
             // Match by ID, or match any active poll (in case ID update was missed)
@@ -594,7 +594,7 @@ export function useLiveSession() {
           }
 
           // Handle poll ended
-          if (message.type === "POLL_ENDED") {
+          if (message.type === MESSAGE_TYPES.POLL_ENDED) {
             console.log("[Live] Poll ended:", message);
             const currentPoll = useLiveStore.getState().activePoll;
 
@@ -625,7 +625,7 @@ export function useLiveSession() {
           }
 
           // Handle reactions
-          if (message.type === "REACTION_RECEIVED") {
+          if (message.type === MESSAGE_TYPES.REACTION_RECEIVED) {
             console.log("[Live] Reaction received:", message.reaction);
             reactionListeners.forEach((cb) => {
               cb(message.reaction);
@@ -666,7 +666,7 @@ export function useLiveSession() {
     if (socketInstance) {
       if (socketInstance.readyState === WebSocket.OPEN) {
         sendMessage({
-          type: "END_SESSION",
+          type: MESSAGE_TYPES.END_SESSION,
           sessionId: currentSessionId,
         });
       }
@@ -734,7 +734,7 @@ export function useLiveSession() {
 
     if (isLiveFlag && socketInstance?.readyState === WebSocket.OPEN) {
       sendMessage({
-        type: "TRACK_STOPPED",
+        type: MESSAGE_TYPES.TRACK_STOPPED,
         sessionId: currentSessionId,
       });
     }
@@ -764,7 +764,7 @@ export function useLiveSession() {
     useLiveStore.getState().setActivePoll(optimisticPoll);
 
     sendMessage({
-      type: "START_POLL",
+      type: MESSAGE_TYPES.START_POLL,
       sessionId: currentSessionId,
       question,
       options,
@@ -789,14 +789,14 @@ export function useLiveSession() {
     // If poll has a valid ID, send END_POLL to server
     if (poll.id >= 0) {
       sendMessage({
-        type: "END_POLL",
+        type: MESSAGE_TYPES.END_POLL,
         pollId: poll.id,
       });
       console.log("[Live] Poll ended manually");
     } else {
       // Poll ID not yet assigned - send cancel by session
       sendMessage({
-        type: "CANCEL_POLL",
+        type: MESSAGE_TYPES.CANCEL_POLL,
         sessionId: currentSessionId,
       });
       console.log("[Live] Poll cancelled (no ID yet)");

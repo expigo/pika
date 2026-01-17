@@ -36,13 +36,15 @@ function getRandomPort(): number {
   return Math.floor(Math.random() * (65535 - 49152 + 1)) + 49152;
 }
 
+// Global key for sidecar child
+const SIDE_PROCESS_KEY = "__PIKA_SIDECAR_CHILD__";
+
 export function useSidecar(): UseSidecarResult {
   const [status, setStatus] = useState<SidecarStatus>("idle");
   const [baseUrl, setBaseUrl] = useState<string | null>(null);
   const [healthData, setHealthData] = useState<HealthData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const childRef = useRef<Child | null>(null);
   const isSpawningRef = useRef(false);
 
   const fetchHealth = useCallback(async (url: string) => {
@@ -58,29 +60,27 @@ export function useSidecar(): UseSidecarResult {
   }, []);
 
   const spawnSidecar = useCallback(async () => {
-    // Check if we're running in Tauri
     if (!isTauri()) {
-      console.warn("Not running in Tauri, sidecar not available");
       setStatus("browser");
-      setError("Sidecar only available in desktop app");
       return;
     }
 
-    // Prevent multiple spawns
     if (isSpawningRef.current) return;
     isSpawningRef.current = true;
 
-    // Kill existing process if any
-    if (childRef.current) {
+    // Aggressive cleanup using globalThis
+    const existingChild = (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] as
+      | Child
+      | undefined;
+    if (existingChild) {
       try {
-        await childRef.current.kill();
-      } catch {
+        await existingChild.kill();
+      } catch (_e) {
         // Ignore kill errors
       }
-      childRef.current = null;
+      (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = undefined;
     }
 
-    // Reset state
     setStatus("starting");
     setBaseUrl(null);
     setHealthData(null);
@@ -89,14 +89,9 @@ export function useSidecar(): UseSidecarResult {
     const port = getRandomPort();
 
     try {
-      // Create the sidecar command
       const command = Command.sidecar("binaries/api", ["--port", port.toString()]);
 
-      // Listen for stdout to detect when the sidecar is ready
       command.stdout.on("data", (line: string) => {
-        console.log("[Sidecar stdout]:", line);
-
-        // Look for our ready message: "SIDECAR_READY port=XXXXX"
         if (line.includes("SIDECAR_READY")) {
           const match = line.match(/port=(\d+)/);
           if (match) {
@@ -104,29 +99,28 @@ export function useSidecar(): UseSidecarResult {
             const url = `http://127.0.0.1:${detectedPort}`;
             setBaseUrl(url);
             setStatus("ready");
-
-            // Fetch health data once ready
             fetchHealth(url);
           }
         }
+        console.log("[Sidecar stdout]:", line);
       });
 
-      // Listen for stderr
       command.stderr.on("data", (line: string) => {
         console.log("[Sidecar stderr]:", line);
+        if (line.includes("address already in use")) {
+          setStatus("error");
+          setError("Port collision. Retrying...");
+          isSpawningRef.current = false;
+        }
       });
 
-      // Handle process close
       command.on("close", (data) => {
         console.log("[Sidecar closed]:", data);
-        if (status !== "error") {
-          setStatus("idle");
-        }
-        childRef.current = null;
+        setStatus((prev) => (prev !== "error" ? "idle" : prev));
+        (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = undefined;
         isSpawningRef.current = false;
       });
 
-      // Handle errors
       command.on("error", (err) => {
         console.error("[Sidecar error]:", err);
         setError(String(err));
@@ -134,32 +128,28 @@ export function useSidecar(): UseSidecarResult {
         isSpawningRef.current = false;
       });
 
-      // Spawn the process
       const child = await command.spawn();
-      childRef.current = child;
+      (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = child;
     } catch (err) {
       console.error("Failed to spawn sidecar:", err);
       setError(err instanceof Error ? err.message : String(err));
       setStatus("error");
       isSpawningRef.current = false;
     }
-  }, [fetchHealth, status]);
+  }, [fetchHealth]);
 
   const restart = useCallback(async () => {
     isSpawningRef.current = false;
     await spawnSidecar();
   }, [spawnSidecar]);
 
-  // Spawn sidecar on mount
   useEffect(() => {
     spawnSidecar();
-
-    // Cleanup on unmount
     return () => {
-      if (childRef.current) {
-        childRef.current.kill().catch(() => {
-          // Ignore kill errors on unmount
-        });
+      const child = (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] as Child | undefined;
+      if (child) {
+        child.kill().catch(() => {});
+        (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = undefined;
       }
     };
   }, [spawnSidecar]);

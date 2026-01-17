@@ -19,9 +19,14 @@ export interface AppSettings {
 
   // Library settings
   "library.vdjPath": string;
+  "library.bpmThresholds": {
+    slow: number;
+    medium: number;
+  };
 
   // Display settings
   "display.advancedMetrics": boolean;
+  "display.showTooltips": boolean;
 
   // Network settings
   "network.apiUrl": string;
@@ -35,7 +40,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
   "analysis.afterSession": true,
   "analysis.cpuPriority": "low",
   "library.vdjPath": "auto",
+  "library.bpmThresholds": {
+    slow: 85,
+    medium: 115,
+  },
   "display.advancedMetrics": false,
+  "display.showTooltips": true,
   "network.apiUrl": "https://api.pika.stream",
 };
 

@@ -18,7 +18,7 @@ export {
   LikeReceivedSchema,
   NowPlayingSchema,
   parseAnalysisResult,
-  // Validation helpers
+  MESSAGE_TYPES,
   parseWebSocketMessage,
   // WebSocket message schemas
   RegisterSessionSchema,

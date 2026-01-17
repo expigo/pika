@@ -26,7 +26,17 @@ struct VirtualDJSong {
     #[serde(rename = "Comment", default)]
     _comment: Option<serde::de::IgnoredAny>,
     #[serde(rename = "Poi", default)]
-    _poi: Vec<serde::de::IgnoredAny>,
+    pois: Vec<VirtualDJPoi>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct VirtualDJPoi {
+    #[serde(rename = "@Name", default)]
+    name: Option<String>,
+    #[serde(rename = "@Pos", default)]
+    pos: Option<String>,
+    #[serde(rename = "@Type", default)]
+    _type: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -107,11 +117,28 @@ impl From<VirtualDJSong> for VirtualDJTrack {
             .and_then(|b| convert_virtualdj_bpm(b));
         
         // Parse duration from Infos.SongLength (stored as float seconds)
-        let duration = song.infos.as_ref()
+        // Fallback to Poi realEnd if SongLength is missing or 0
+        let mut duration_secs = song.infos.as_ref()
             .and_then(|i| i.song_length.as_ref())
             .and_then(|s| s.parse::<f64>().ok())
-            .map(|d| d.round() as i32);
+            .unwrap_or(0.0);
+            
+        if duration_secs <= 0.0 {
+            // Secondary fallback: check Pois for 'realEnd' or the last point
+            if let Some(poi) = song.pois.iter().find(|p| p.name.as_deref() == Some("realEnd")) {
+                duration_secs = poi.pos.as_ref().and_then(|p| p.parse::<f64>().ok()).unwrap_or(0.0);
+            } else if let Some(last_poi) = song.pois.last() {
+                // Last ditch effort: use the position of the last POI
+                 duration_secs = last_poi.pos.as_ref().and_then(|p| p.parse::<f64>().ok()).unwrap_or(0.0);
+            }
+        }
         
+        let duration = if duration_secs > 0.1 { Some(duration_secs.round() as i32) } else { None };
+        
+        if duration.is_none() {
+            println!("[VDJ] Warning: No duration found for track: {}", song.file_path);
+        }
+
         VirtualDJTrack {
             file_path: song.file_path,
             artist: song.tags.as_ref().and_then(|t| t.author.clone()),

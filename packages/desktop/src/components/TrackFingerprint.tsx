@@ -9,10 +9,6 @@ import {
   Tooltip,
 } from "recharts";
 
-/**
- * Generic fingerprint metrics interface
- * Used for both individual tracks and set averages
- */
 export interface FingerprintMetrics {
   energy: number | null;
   danceability: number | null;
@@ -23,10 +19,8 @@ export interface FingerprintMetrics {
 
 interface Props {
   metrics: FingerprintMetrics;
-  size?: number;
   showLabels?: boolean;
-  /** Optional title to show above the chart */
-  title?: string;
+  size?: number | string;
 }
 
 interface DataPoint {
@@ -35,105 +29,86 @@ interface DataPoint {
   fullMark: number;
 }
 
-// Neon color palette matching the app's dark/neon aesthetic
-const COLORS = {
-  stroke: "#f472b6", // Pink
-  fill: "rgba(244, 114, 182, 0.3)", // Semi-transparent pink
-  grid: "#334155", // Slate
-  axis: "#64748b", // Slate gray
-  text: "#e2e8f0", // Light slate
-};
-
-/**
- * TrackFingerprint Component
- *
- * A radar chart visualization of audio fingerprint metrics.
- * Displays: Energy, Danceability, Brightness, Acousticness, Groove
- *
- * Can be used for individual tracks or set averages.
- */
-export function TrackFingerprint({ metrics, size = 200, showLabels = true, title }: Props) {
-  // Map metrics to chart data, defaulting null values to 0
+export function TrackFingerprint({ metrics, showLabels = true, size = "100%" }: Props) {
   const data: DataPoint[] = useMemo(
     () => [
-      {
-        metric: "Energy",
-        value: metrics.energy ?? 0,
-        fullMark: 100,
-      },
-      {
-        metric: "Dance",
-        value: metrics.danceability ?? 0,
-        fullMark: 100,
-      },
-      {
-        metric: "Bright",
-        value: metrics.brightness ?? 0,
-        fullMark: 100,
-      },
-      {
-        metric: "Acoustic",
-        value: metrics.acousticness ?? 0,
-        fullMark: 100,
-      },
-      {
-        metric: "Groove",
-        value: metrics.groove ?? 0,
-        fullMark: 100,
-      },
+      { metric: "Energy", value: metrics.energy ?? 0, fullMark: 100 },
+      { metric: "Dance", value: metrics.danceability ?? 0, fullMark: 100 },
+      { metric: "Bright", value: metrics.brightness ?? 0, fullMark: 100 },
+      { metric: "Acoustic", value: metrics.acousticness ?? 0, fullMark: 100 },
+      { metric: "Groove", value: metrics.groove ?? 0, fullMark: 100 },
     ],
     [metrics],
   );
 
-  // Check if there's any fingerprint data
   const hasData = useMemo(() => data.some((d) => d.value > 0), [data]);
 
   if (!hasData) {
     return (
-      <div style={{ ...styles.container, width: size, height: size }}>
-        <div style={styles.noData}>
-          <span style={styles.noDataText}>No analysis data</span>
-        </div>
+      <div
+        className="flex items-center justify-center opacity-30 bg-slate-900/10 rounded-full"
+        style={{ width: size, height: size }}
+      >
+        <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
+          No Analysis
+        </span>
       </div>
     );
   }
 
   return (
-    <div style={{ ...styles.container, width: size, height: size }}>
-      {title && <div style={styles.title}>{title}</div>}
+    <div className="relative group overflow-hidden" style={{ width: size, height: size }}>
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
-          {/* Grid lines */}
-          <PolarGrid stroke={COLORS.grid} strokeOpacity={0.5} />
+        <RadarChart cx="50%" cy="50%" outerRadius="36%" data={data}>
+          <defs>
+            <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="4" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            <linearGradient id="radarGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="var(--color-pika-purple)" stopOpacity={0.8} />
+              <stop offset="100%" stopColor="var(--color-pika-purple)" stopOpacity={0.2} />
+            </linearGradient>
+          </defs>
 
-          {/* Axis labels */}
+          <PolarGrid stroke="rgba(148, 163, 184, 0.08)" />
+
           {showLabels && (
             <PolarAngleAxis
               dataKey="metric"
               tick={{
-                fill: COLORS.text,
+                fill: "rgba(148, 163, 184, 0.7)",
                 fontSize: 10,
-                fontWeight: 500,
+                fontWeight: 800,
+                fontFamily: "Outfit, sans-serif",
+                letterSpacing: "0.02em",
               }}
-              tickLine={false}
             />
           )}
 
-          {/* Radius axis (hidden but sets scale) */}
           <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
 
-          {/* The radar shape */}
+          {/* Background Ghost Shadow - Shows the "Total potential" */}
+          <Radar
+            dataKey="fullMark"
+            stroke="none"
+            fill="rgba(255, 255, 255, 0.02)"
+            fillOpacity={1}
+            isAnimationActive={false}
+          />
+
           <Radar
             name="Fingerprint"
             dataKey="value"
-            stroke={COLORS.stroke}
-            strokeWidth={2}
-            fill={COLORS.fill}
-            animationDuration={500}
+            stroke="var(--color-pika-purple)"
+            strokeWidth={3}
+            fill="url(#radarGradient)"
+            fillOpacity={0.7}
+            animationDuration={800}
             animationEasing="ease-out"
+            filter="url(#glow)"
           />
 
-          {/* Tooltip on hover */}
           <Tooltip content={<CustomTooltip />} cursor={false} />
         </RadarChart>
       </ResponsiveContainer>
@@ -151,61 +126,17 @@ function CustomTooltip({ active, payload }: TooltipProps) {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
-      <div style={tooltipStyles.container}>
-        <div style={tooltipStyles.metric}>{data.metric}</div>
-        <div style={tooltipStyles.value}>{Math.round(data.value)}</div>
+      <div className="bg-slate-950/95 border border-white/10 backdrop-blur-xl rounded-xl p-3 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">
+          {data.metric}
+        </div>
+        <div className="text-xl font-black text-pika-accent tracking-tighter">
+          {Math.round(data.value)}%
+        </div>
       </div>
     );
   }
   return null;
 }
-
-const tooltipStyles: Record<string, React.CSSProperties> = {
-  container: {
-    background: "rgba(15, 23, 42, 0.95)",
-    border: "1px solid #334155",
-    borderRadius: "6px",
-    padding: "0.5rem 0.75rem",
-    boxShadow: "0 4px 12px rgba(0, 0, 0, 0.3)",
-  },
-  metric: {
-    fontSize: "0.75rem",
-    color: "#94a3b8",
-    marginBottom: "0.125rem",
-  },
-  value: {
-    fontSize: "1rem",
-    fontWeight: "bold",
-    color: "#f472b6",
-  },
-};
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    position: "relative",
-  },
-  title: {
-    position: "absolute",
-    top: 0,
-    left: "50%",
-    transform: "translateX(-50%)",
-    fontSize: "0.625rem",
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    color: "#64748b",
-    letterSpacing: "0.05em",
-  },
-  noData: {
-    position: "absolute",
-    inset: 0,
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  noDataText: {
-    fontSize: "0.75rem",
-    color: "#64748b",
-  },
-};
 
 export default TrackFingerprint;

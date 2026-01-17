@@ -53,11 +53,18 @@ export interface Track {
   // Two-Tier Track Key System
   trackKey: string | null;
 
-  // Custom tags (JSON array stored as string)
-  tags: string | null;
+  // Custom tags (parsed from JSON array)
+  tags: string[];
 
   // DJ personal notes
   notes: string | null;
+}
+
+/**
+ * Raw row type from database before remapping
+ */
+interface TrackRow extends Omit<Track, "tags"> {
+  tags: string | null;
 }
 
 // Raw SQL query for track selection with proper aliasing
@@ -135,10 +142,9 @@ export const trackRepository = {
   },
 
   async getAllTracks(): Promise<Track[]> {
-    // Use raw SQL with explicit column aliasing
     const sqlite = await getSqlite();
-    const result = await sqlite.select<Track[]>(`${TRACK_SELECT_SQL} ORDER BY artist ASC`);
-    return result;
+    const result = await sqlite.select<TrackRow[]>(`${TRACK_SELECT_SQL} ORDER BY artist ASC`);
+    return result.map(remapTrack);
   },
 
   /**
@@ -146,10 +152,10 @@ export const trackRepository = {
    */
   async getUnanalyzedTracks(): Promise<Track[]> {
     const sqlite = await getSqlite();
-    const result = await sqlite.select<Track[]>(
+    const result = await sqlite.select<TrackRow[]>(
       `${TRACK_SELECT_SQL} WHERE analyzed = 0 OR analyzed IS NULL`,
     );
-    return result;
+    return result.map(remapTrack);
   },
 
   /**
@@ -167,8 +173,8 @@ export const trackRepository = {
 
   async getTrackById(id: number): Promise<Track | null> {
     const sqlite = await getSqlite();
-    const result = await sqlite.select<Track[]>(`${TRACK_SELECT_SQL} WHERE id = ?`, [id]);
-    return result[0] ?? null;
+    const result = await sqlite.select<TrackRow[]>(`${TRACK_SELECT_SQL} WHERE id = ?`, [id]);
+    return result[0] ? remapTrack(result[0]) : null;
   },
 
   /**
@@ -177,10 +183,10 @@ export const trackRepository = {
    */
   async findByTrackKey(trackKey: string): Promise<Track | null> {
     const sqlite = await getSqlite();
-    const result = await sqlite.select<Track[]>(`${TRACK_SELECT_SQL} WHERE track_key = ?`, [
+    const result = await sqlite.select<TrackRow[]>(`${TRACK_SELECT_SQL} WHERE track_key = ?`, [
       trackKey,
     ]);
-    return result[0] ?? null;
+    return result[0] ? remapTrack(result[0]) : null;
   },
 
   /**
@@ -271,8 +277,10 @@ export const trackRepository = {
 
   async getNextUnanalyzedTrack(): Promise<Track | null> {
     const sqlite = await getSqlite();
-    const result = await sqlite.select<Track[]>(`${TRACK_SELECT_SQL} WHERE analyzed = 0 LIMIT 1`);
-    return result[0] ?? null;
+    const result = await sqlite.select<TrackRow[]>(
+      `${TRACK_SELECT_SQL} WHERE analyzed = 0 LIMIT 1`,
+    );
+    return result[0] ? remapTrack(result[0]) : null;
   },
 
   async markTrackAnalyzed(id: number, analysisData: AnalysisResult | null): Promise<void> {
@@ -555,6 +563,24 @@ export const trackRepository = {
     return result;
   },
 };
+
+/**
+ * Maps a raw database row to a clean Track object
+ */
+function remapTrack(row: TrackRow): Track {
+  let tags: string[] = [];
+  if (row.tags) {
+    try {
+      tags = JSON.parse(row.tags);
+    } catch {
+      tags = [];
+    }
+  }
+  return {
+    ...row,
+    tags,
+  };
+}
 
 // Track play history interface
 export interface TrackPlayHistory {

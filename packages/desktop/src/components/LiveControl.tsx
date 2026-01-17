@@ -164,150 +164,150 @@ export function LiveControl() {
   };
 
   return (
-    <div style={styles.container}>
+    <div className="flex items-center gap-3">
       {/* Live Button */}
       <button
         type="button"
         onClick={handleGoLiveClick}
         disabled={status === "connecting" && !isSessionActive}
-        style={{
-          ...styles.liveButton,
-          ...(isSessionActive ? styles.liveButtonActive : {}),
-          ...(status === "connecting" && !isSessionActive ? styles.liveButtonConnecting : {}),
-        }}
+        className={`px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-2 shadow-lg ${
+          isSessionActive
+            ? "bg-red-600 text-white shadow-red-500/20 active:scale-95"
+            : status === "connecting"
+              ? "bg-amber-600 text-white shadow-amber-500/20 cursor-wait"
+              : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200 border border-slate-700"
+        }`}
       >
-        <div style={styles.buttonContent}>
-          {status === "connecting" && !isSessionActive ? (
-            <>
-              <Wifi size={18} style={styles.pulseIcon} />
-              <span>Connecting...</span>
-            </>
-          ) : isSessionActive ? (
-            <>
-              {isCloudConnected ? (
-                <Radio size={18} style={styles.pulseIcon} />
-              ) : (
-                <WifiOff size={18} style={{ opacity: 0.8 }} />
-              )}
-              <span>{isCloudConnected ? "LIVE" : "SYNCING"}</span>
-            </>
-          ) : (
-            <>
-              <WifiOff size={18} />
-              <span>GO LIVE</span>
-            </>
-          )}
-        </div>
+        {status === "connecting" && !isSessionActive ? (
+          <>
+            <Wifi size={14} className="animate-pulse" />
+            <span>Connecting...</span>
+          </>
+        ) : isSessionActive ? (
+          <>
+            {isCloudConnected ? (
+              <Radio size={14} className="animate-pulse" />
+            ) : (
+              <WifiOff size={14} className="opacity-80" />
+            )}
+            <span>{isCloudConnected ? "LIVE" : "SYNCING"}</span>
+          </>
+        ) : (
+          <>
+            <WifiOff size={14} />
+            <span>GO LIVE</span>
+          </>
+        )}
       </button>
 
       {/* Cloud Health Indicator for Active Session */}
       {isSessionActive && !isCloudConnected && (
-        <div style={styles.syncIndicator} title="Cloud disconnected. Updates are queued locally.">
-          <AlertCircle size={14} />
+        <div
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-red-500/10 border border-red-500/30 rounded-lg text-red-500 text-[10px] font-bold animate-pulse"
+          title="Cloud disconnected. Updates are queued locally."
+        >
+          <AlertCircle size={12} />
           <span>OFFLINE</span>
         </div>
       )}
 
       {/* Listener Count Badge */}
       {isSessionActive && isCloudConnected && (
-        <div style={styles.listenerBadge}>
-          <Users size={14} />
-          <span>{listenerCount}</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-500 text-[10px] font-bold shadow-sm shadow-emerald-500/5">
+          <Users size={12} />
+          <span className="tabular-nums">{listenerCount}</span>
         </div>
       )}
 
       {/* DJ Name Badge (when active, clickable to edit) */}
-      {isSessionActive && hasSetDjName && (
+      {(isSessionActive || hasSetDjName) && (
         <button
           type="button"
           onClick={handleEditDjName}
-          style={isCloudConnected ? styles.djNameBadge : styles.djNameBadgeSyncing}
-          title={`Broadcasting as ${djName} (click to edit)`}
-        >
-          <span>{djName}</span>
-          <Edit3 size={12} style={{ opacity: 0.6 }} />
-        </button>
-      )}
-
-      {/* DJ Name Badge (when not active, just display with edit option) */}
-      {!isSessionActive && hasSetDjName && (
-        <button
-          type="button"
-          onClick={handleEditDjName}
-          style={styles.djNameBadgeOffline}
+          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all border ${
+            isSessionActive
+              ? isCloudConnected
+                ? "bg-pika-accent/10 border-pika-accent/30 text-pika-accent"
+                : "bg-slate-800/50 border-slate-700/50 text-slate-400"
+              : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
+          }`}
           title={`DJ Name: ${djName} (click to edit)`}
         >
-          <span>{djName}</span>
-          <Edit3 size={12} style={{ opacity: 0.6 }} />
+          <span>{djName || "Set DJ Name"}</span>
+          <Edit3 size={12} className="opacity-50" />
         </button>
       )}
 
       {/* Tempo Feedback Display */}
       {isSessionActive && tempoFeedback && tempoFeedback.total > 0 && (
-        <div style={styles.tempoFeedback}>
-          <Gauge size={14} style={{ opacity: 0.7 }} />
-          <div style={styles.tempoVotes}>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 border border-indigo-500/30 rounded-lg text-indigo-400 text-[10px] font-bold">
+          <Gauge size={14} className="opacity-70" />
+          <div className="flex items-center gap-2">
             {tempoFeedback.slower > 0 && (
-              <span style={styles.tempoSlower} title="Slower requests">
-                🐢 {tempoFeedback.slower}
-              </span>
+              <span className="text-blue-400">S:{tempoFeedback.slower}</span>
             )}
             {tempoFeedback.perfect > 0 && (
-              <span style={styles.tempoPerfect} title="Perfect">
-                👌 {tempoFeedback.perfect}
-              </span>
+              <span className="text-emerald-400">P:{tempoFeedback.perfect}</span>
             )}
             {tempoFeedback.faster > 0 && (
-              <span style={styles.tempoFaster} title="Faster requests">
-                🐇 {tempoFeedback.faster}
-              </span>
+              <span className="text-orange-400">F:{tempoFeedback.faster}</span>
             )}
           </div>
         </div>
       )}
-
       {/* DJ Name Prompt Modal (first-time setup) */}
       {showDjNamePrompt && (
-        <div style={styles.modalOverlay} onClick={() => setShowDjNamePrompt(false)}>
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowDjNamePrompt(false)}
+        >
           <div
-            style={{ ...styles.modal, ...styles.sessionModalContent }}
+            className="w-full max-w-md bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={styles.sessionModalTitle}>
-              <Settings size={20} />
-              What's Your DJ Name?
-            </h3>
-            <p style={styles.modalSubtitle}>
-              This will be shown to dancers during your live sessions.
-            </p>
-            <input
-              type="text"
-              value={djNameInput}
-              onChange={(e) => setDjNameInput(e.target.value)}
-              placeholder="e.g. DJ Smooth, Sarah B, etc."
-              style={styles.sessionInput}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && djNameInput.trim()) handleDjNameSubmit();
-                if (e.key === "Escape") setShowDjNamePrompt(false);
-              }}
-            />
-            <div style={styles.sessionModalActions}>
-              <button
-                type="button"
-                onClick={() => setShowDjNamePrompt(false)}
-                style={styles.cancelBtn}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDjNameSubmit}
-                style={styles.startBtn}
-                disabled={!djNameInput.trim()}
-              >
-                Continue
-              </button>
+            <div className="p-6 space-y-6">
+              <div className="flex items-center gap-3 text-pika-accent">
+                <Settings size={24} />
+                <h3 className="text-xl font-bold text-white tracking-tight">
+                  What's Your DJ Name?
+                </h3>
+              </div>
+              <p className="text-sm text-slate-400">
+                This will be shown to dancers during your live sessions.
+              </p>
+
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={djNameInput}
+                  onChange={(e) => setDjNameInput(e.target.value)}
+                  placeholder="e.g. DJ Smooth, Sarah B, etc."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder:text-slate-600 focus:border-pika-accent outline-none transition-all font-medium"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && djNameInput.trim()) handleDjNameSubmit();
+                    if (e.key === "Escape") setShowDjNamePrompt(false);
+                  }}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowDjNamePrompt(false)}
+                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDjNameSubmit}
+                  disabled={!djNameInput.trim()}
+                  className="flex-1 px-4 py-3 bg-pika-accent hover:bg-pika-accent-light text-white font-bold rounded-xl transition-all shadow-lg shadow-pika-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Continue
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -315,44 +315,53 @@ export function LiveControl() {
 
       {/* Edit DJ Name Modal (for changing after initial setup) */}
       {showEditDjName && (
-        <div style={styles.modalOverlay} onClick={() => setShowEditDjName(false)}>
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowEditDjName(false)}
+        >
           <div
-            style={{ ...styles.modal, ...styles.sessionModalContent }}
+            className="w-full max-w-md bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={styles.sessionModalTitle}>
-              <Edit3 size={20} />
-              Edit DJ Name
-            </h3>
-            <p style={styles.modalSubtitle}>Change how you appear to dancers.</p>
-            <input
-              type="text"
-              value={djNameInput}
-              onChange={(e) => setDjNameInput(e.target.value)}
-              placeholder="Your DJ name"
-              style={styles.sessionInput}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && djNameInput.trim()) handleDjNameSubmit();
-                if (e.key === "Escape") setShowEditDjName(false);
-              }}
-            />
-            <div style={styles.sessionModalActions}>
-              <button
-                type="button"
-                onClick={() => setShowEditDjName(false)}
-                style={styles.cancelBtn}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDjNameSubmit}
-                style={styles.startBtn}
-                disabled={!djNameInput.trim()}
-              >
-                Save
-              </button>
+            <div className="p-6 space-y-6">
+              <div className="flex items-center gap-3 text-pika-accent">
+                <Edit3 size={24} />
+                <h3 className="text-xl font-bold text-white tracking-tight">Edit DJ Name</h3>
+              </div>
+              <p className="text-sm text-slate-400">Change how you appear to dancers.</p>
+
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={djNameInput}
+                  onChange={(e) => setDjNameInput(e.target.value)}
+                  placeholder="Your DJ name"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder:text-slate-600 focus:border-pika-accent outline-none transition-all font-medium"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && djNameInput.trim()) handleDjNameSubmit();
+                    if (e.key === "Escape") setShowEditDjName(false);
+                  }}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowEditDjName(false)}
+                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDjNameSubmit}
+                  disabled={!djNameInput.trim()}
+                  className="flex-1 px-4 py-3 bg-pika-accent hover:bg-pika-accent-light text-white font-bold rounded-xl transition-all shadow-lg shadow-pika-accent/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -360,88 +369,115 @@ export function LiveControl() {
 
       {/* Include Current Track Prompt */}
       {showIncludeTrackPrompt && pendingTrack && (
-        <div style={styles.modalOverlay} onClick={() => handleIncludeTrack(false)}>
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => handleIncludeTrack(false)}
+        >
           <div
-            style={{ ...styles.modal, ...styles.sessionModalContent }}
+            className="w-full max-w-md bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={styles.sessionModalTitle}>
-              <Music2 size={20} />
-              Include Current Track?
-            </h3>
-            <div style={styles.trackPreview}>
-              <p style={styles.trackPreviewTitle}>{pendingTrack.title}</p>
-              <p style={styles.trackPreviewArtist}>{pendingTrack.artist}</p>
-            </div>
-
-            {/* Stale track warning */}
-            {pendingTrack.isStale && (
-              <div style={styles.staleWarning}>
-                <AlertTriangle size={16} />
-                <span>
-                  This track may be from a previous session. Make sure it's actually playing before
-                  including.
-                </span>
+            <div className="p-6 space-y-6">
+              <div className="flex items-center gap-3 text-pika-accent">
+                <Music2 size={24} />
+                <h3 className="text-xl font-bold text-white tracking-tight">
+                  Include Current Track?
+                </h3>
               </div>
-            )}
 
-            <p style={styles.modalSubtitle}>
-              {pendingTrack.isStale
-                ? "The last track in VirtualDJ history. Is this actually playing now?"
-                : "This song is currently playing. Include it in this session's tracklist?"}
-            </p>
-            <div style={styles.sessionModalActions}>
-              <button
-                type="button"
-                onClick={() => handleIncludeTrack(false)}
-                style={styles.cancelBtn}
-              >
-                Skip This Song
-              </button>
-              <button
-                type="button"
-                onClick={() => handleIncludeTrack(true)}
-                style={styles.startBtn}
-              >
-                <Check size={16} />
-                Include It
-              </button>
+              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-center space-y-1">
+                <p className="text-lg font-bold text-white truncate">{pendingTrack.title}</p>
+                <p className="text-sm text-slate-500 truncate">{pendingTrack.artist}</p>
+              </div>
+
+              {pendingTrack.isStale && (
+                <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 text-xs leading-relaxed">
+                  <AlertTriangle size={16} className="shrink-0" />
+                  <span>
+                    This track might be from an old session. Check if it's currently playing.
+                  </span>
+                </div>
+              )}
+
+              <p className="text-sm text-slate-400">
+                {pendingTrack.isStale
+                  ? "Found in history, but might be stale. Include in your live set?"
+                  : "This song is currently playing. Should we add it to your live set list?"}
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleIncludeTrack(false)}
+                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-700"
+                >
+                  Skip
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleIncludeTrack(true)}
+                  className="flex-1 px-4 py-3 bg-pika-accent hover:bg-pika-accent-light text-white font-bold rounded-xl transition-all shadow-lg shadow-pika-accent/20 flex items-center justify-center gap-2"
+                >
+                  <Check size={18} />
+                  Include It
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Session Name Modal */}
+      {/* Session Name Modal - Already updated previously or should be updated now */}
       {showNameModal && (
-        <div style={styles.modalOverlay} onClick={handleCancelSession}>
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setShowNameModal(false)}
+        >
           <div
-            style={{ ...styles.modal, ...styles.sessionModalContent }}
+            className="w-full max-w-md bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={styles.sessionModalTitle}>
-              <Edit3 size={20} />
-              Name Your Session
-            </h3>
-            <input
-              type="text"
-              value={sessionName}
-              onChange={(e) => setSessionName(e.target.value)}
-              placeholder="e.g. Friday Night @ Club XYZ"
-              style={styles.sessionInput}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleStartSession();
-                if (e.key === "Escape") handleCancelSession();
-              }}
-            />
-            <div style={styles.sessionModalActions}>
-              <button type="button" onClick={handleCancelSession} style={styles.cancelBtn}>
-                Cancel
-              </button>
-              <button type="button" onClick={handleStartSession} style={styles.startBtn}>
-                <Radio size={16} />
-                Start Live Session
-              </button>
+            <div className="p-6 space-y-6">
+              <div className="flex items-center gap-3 text-pika-accent">
+                <Edit3 size={24} />
+                <h3 className="text-xl font-bold text-white tracking-tight">Name Your Session</h3>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                  Session Title
+                </label>
+                <input
+                  type="text"
+                  value={sessionName}
+                  onChange={(e) => setSessionName(e.target.value)}
+                  placeholder="e.g. Friday Night Social"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder:text-slate-600 focus:border-pika-accent outline-none transition-all font-medium"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleStartSession();
+                    if (e.key === "Escape") handleCancelSession();
+                  }}
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={handleCancelSession}
+                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStartSession}
+                  className="flex-1 px-4 py-3 bg-pika-accent hover:bg-pika-accent-light text-white font-bold rounded-xl transition-all shadow-lg shadow-pika-accent/20 flex items-center justify-center gap-2"
+                >
+                  <Radio size={18} />
+                  Go Live
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -452,59 +488,67 @@ export function LiveControl() {
         <button
           type="button"
           onClick={() => setShowQR(true)}
-          style={styles.qrButton}
+          className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 rounded-lg transition-all shadow-lg"
           title="Show QR Code"
         >
-          <QrCode size={20} />
+          <QrCode size={18} />
         </button>
       )}
 
       {/* Recap Link (after session ends) */}
       {!isSessionActive && lastSessionId && recapUrl && (
-        <div style={styles.recapBanner}>
-          <div style={styles.recapContent}>
-            <Link2 size={16} />
-            <span>Session recap ready!</span>
+        <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-2 pl-3 ml-2 animate-in slide-in-from-left-4 duration-300">
+          <div className="flex items-center gap-2 text-emerald-500 text-[11px] font-bold">
+            <Link2 size={14} />
+            <span>Recap Ready!</span>
           </div>
-          <div style={styles.recapActions}>
-            <button type="button" onClick={handleCopyRecapLink} style={styles.recapCopyBtn}>
-              {recapCopied ? <Check size={14} /> : <Link2 size={14} />}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={handleCopyRecapLink}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold rounded-lg transition-all shadow-lg shadow-emerald-500/10"
+            >
+              {recapCopied ? <Check size={12} /> : <Link2 size={12} />}
               {recapCopied ? "Copied!" : "Copy Link"}
             </button>
             <button
               type="button"
               onClick={handleDismissRecap}
-              style={styles.recapDismissBtn}
+              className="p-1.5 text-slate-500 hover:text-slate-300 transition-all"
               title="Dismiss"
             >
-              <X size={14} />
+              <X size={12} />
             </button>
           </div>
         </div>
       )}
 
       {/* Status & Now Playing */}
-      <div style={styles.statusArea}>
+      <div className="flex flex-col gap-1 ml-2">
         {error && (
-          <div style={styles.error}>
-            <AlertCircle size={14} />
+          <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-bold animate-pulse">
+            <AlertCircle size={12} />
             <span>{error}</span>
           </div>
         )}
 
         {isSessionActive && nowPlaying && (
-          <div style={styles.nowPlaying}>
-            <Music2 size={14} style={styles.musicIcon} />
-            <div style={styles.trackInfo}>
-              <span style={styles.nowPlayingLabel}>Now Playing</span>
-              <span style={styles.trackTitle}>
+          <div className="flex items-center gap-3 bg-slate-800/40 border border-slate-700/50 rounded-xl px-3 py-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+            <div className="flex items-center justify-center w-6 h-6 bg-emerald-500/10 rounded-full text-emerald-500 shrink-0">
+              <Music2 size={12} className="animate-[spin_4s_linear_infinite]" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[8px] font-black uppercase tracking-widest text-emerald-500 leading-none mb-0.5">
+                Now Playing
+              </span>
+              <span className="text-[11px] font-bold text-slate-200 truncate max-w-[160px]">
                 {nowPlaying.artist} - {nowPlaying.title}
               </span>
             </div>
             <button
               type="button"
               onClick={clearNowPlaying}
-              style={styles.clearButton}
+              className="p-1 text-slate-500 hover:text-slate-300 transition-all"
               title="Clear now playing"
             >
               <X size={12} />
@@ -513,463 +557,63 @@ export function LiveControl() {
         )}
 
         {isSessionActive && !nowPlaying && (
-          <div style={styles.waiting}>
-            <span>Waiting for track...</span>
+          <div className="text-[10px] font-medium text-slate-500 italic ml-1 animate-pulse">
+            Waiting for track...
           </div>
         )}
       </div>
 
       {/* QR Code Modal */}
       {showQR && qrUrl && isCloudConnected && (
-        <div style={styles.modalOverlay} onClick={() => setShowQR(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>Scan to Listen</h3>
-              <button type="button" onClick={() => setShowQR(false)} style={styles.modalClose}>
-                <X size={20} />
-              </button>
+        <div
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300"
+          onClick={() => setShowQR(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-8 flex flex-col items-center gap-6">
+              <div className="flex items-center justify-between w-full">
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-pika-accent">
+                    Live Session
+                  </span>
+                  <h3 className="text-xl font-bold text-white tracking-tight mt-1">
+                    Scan to Listener
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowQR(false)}
+                  className="p-2 text-slate-500 hover:text-white transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="p-4 bg-white rounded-3xl shadow-inner-xl ring-8 ring-slate-800/50">
+                <QRCodeSVG
+                  value={qrUrl}
+                  size={240}
+                  bgColor="#ffffff"
+                  fgColor="#000000"
+                  level="H"
+                  includeMargin={false}
+                />
+              </div>
+
+              <div className="flex flex-col items-center gap-2 w-full">
+                <p className="text-[10px] font-mono text-slate-500 break-all text-center px-4">
+                  {qrUrl}
+                </p>
+                <div className="h-[1px] w-full bg-slate-800/50 my-2" />
+                <p className="text-xs font-medium text-slate-400">Share this with your dancers!</p>
+              </div>
             </div>
-            <div style={styles.qrContainer}>
-              <QRCodeSVG
-                value={qrUrl}
-                size={256}
-                bgColor="#ffffff"
-                fgColor="#0f172a"
-                level="M"
-                includeMargin={true}
-              />
-            </div>
-            <p style={styles.qrUrl}>{qrUrl}</p>
-            <p style={styles.qrHint}>Share this with your audience!</p>
           </div>
         </div>
       )}
     </div>
   );
 }
-
-const pulseKeyframes = `
-@keyframes pulse {
-	0%, 100% { opacity: 1; }
-	50% { opacity: 0.5; }
-}
-`;
-
-// Inject keyframes
-if (typeof document !== "undefined") {
-  const styleSheet = document.createElement("style");
-  styleSheet.textContent = pulseKeyframes;
-  document.head.appendChild(styleSheet);
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    display: "flex",
-    alignItems: "center",
-    gap: "1rem",
-  },
-  liveButton: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0.5rem 1rem",
-    background: "linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontWeight: "bold",
-    fontSize: "0.875rem",
-    boxShadow: "0 2px 8px rgba(220, 38, 38, 0.3)",
-    transition: "all 0.2s ease",
-    minWidth: "120px",
-  },
-  liveButtonActive: {
-    background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-    boxShadow: "0 0 20px rgba(239, 68, 68, 0.5)",
-  },
-  liveButtonConnecting: {
-    background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
-    boxShadow: "0 2px 8px rgba(245, 158, 11, 0.3)",
-    cursor: "wait",
-  },
-  buttonContent: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-  },
-  pulseIcon: {
-    animation: "pulse 1s ease-in-out infinite",
-  },
-  listenerBadge: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.35rem",
-    padding: "0.35rem 0.6rem",
-    background: "rgba(34, 197, 94, 0.15)",
-    border: "1px solid rgba(34, 197, 94, 0.4)",
-    borderRadius: "6px",
-    color: "#22c55e",
-    fontSize: "0.8rem",
-    fontWeight: 600,
-  },
-  djNameBadge: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.4rem",
-    padding: "0.35rem 0.6rem",
-    background: "rgba(251, 146, 60, 0.15)",
-    border: "1px solid rgba(251, 146, 60, 0.4)",
-    borderRadius: "6px",
-    color: "#fb923c",
-    fontSize: "0.75rem",
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "all 0.2s",
-  },
-  djNameBadgeSyncing: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.4rem",
-    padding: "0.35rem 0.6rem",
-    background: "rgba(148, 163, 184, 0.15)",
-    border: "1px dashed rgba(148, 163, 184, 0.4)",
-    borderRadius: "6px",
-    color: "#94a3b8",
-    fontSize: "0.75rem",
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "all 0.2s",
-  },
-  djNameBadgeOffline: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.4rem",
-    padding: "0.35rem 0.6rem",
-    background: "rgba(100, 116, 139, 0.15)",
-    border: "1px solid rgba(100, 116, 139, 0.3)",
-    borderRadius: "6px",
-    color: "#94a3b8",
-    fontSize: "0.75rem",
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "all 0.2s",
-  },
-  tempoFeedback: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    padding: "0.35rem 0.6rem",
-    background: "rgba(139, 92, 246, 0.15)",
-    border: "1px solid rgba(139, 92, 246, 0.3)",
-    borderRadius: "6px",
-    color: "#a78bfa",
-    fontSize: "0.75rem",
-  },
-  tempoVotes: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-  },
-  tempoSlower: {
-    color: "#60a5fa",
-    fontWeight: 500,
-  },
-  tempoPerfect: {
-    color: "#22c55e",
-    fontWeight: 500,
-  },
-  tempoFaster: {
-    color: "#fb923c",
-    fontWeight: 500,
-  },
-  syncIndicator: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.4rem",
-    padding: "0.35rem 0.6rem",
-    background: "rgba(239, 68, 68, 0.1)",
-    border: "1px solid rgba(239, 68, 68, 0.3)",
-    borderRadius: "6px",
-    color: "#ef4444",
-    fontSize: "0.75rem",
-    fontWeight: "bold",
-    animation: "pulse 2s ease-in-out infinite",
-  },
-  qrButton: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0.5rem",
-    background: "rgba(255, 255, 255, 0.1)",
-    color: "white",
-    border: "1px solid rgba(255, 255, 255, 0.2)",
-    borderRadius: "8px",
-    cursor: "pointer",
-    transition: "all 0.2s ease",
-  },
-  recapBanner: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "0.75rem",
-    padding: "0.5rem 0.75rem",
-    background:
-      "linear-gradient(135deg, rgba(34, 197, 94, 0.15) 0%, rgba(16, 185, 129, 0.15) 100%)",
-    border: "1px solid rgba(34, 197, 94, 0.3)",
-    borderRadius: "8px",
-    flex: 1,
-  },
-  recapContent: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    color: "#22c55e",
-    fontSize: "0.8rem",
-    fontWeight: 500,
-  },
-  recapActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.35rem",
-  },
-  recapCopyBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.35rem",
-    padding: "0.35rem 0.6rem",
-    background: "#22c55e",
-    border: "none",
-    borderRadius: "6px",
-    color: "#fff",
-    fontSize: "0.75rem",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  recapDismissBtn: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "0.35rem",
-    background: "transparent",
-    border: "none",
-    color: "#64748b",
-    cursor: "pointer",
-  },
-  statusArea: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.25rem",
-  },
-  error: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.25rem",
-    color: "#ef4444",
-    fontSize: "0.75rem",
-  },
-  nowPlaying: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    background: "rgba(34, 197, 94, 0.1)",
-    border: "1px solid rgba(34, 197, 94, 0.3)",
-    borderRadius: "6px",
-    padding: "0.5rem 0.75rem",
-  },
-  musicIcon: {
-    color: "#22c55e",
-    flexShrink: 0,
-  },
-  trackInfo: {
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-  },
-  nowPlayingLabel: {
-    fontSize: "0.625rem",
-    textTransform: "uppercase",
-    color: "#22c55e",
-    fontWeight: "bold",
-  },
-  trackTitle: {
-    fontSize: "0.75rem",
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    maxWidth: "200px",
-  },
-  clearButton: {
-    padding: "0.25rem",
-    background: "transparent",
-    color: "#64748b",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-    opacity: 0.6,
-    marginLeft: "auto",
-  },
-  waiting: {
-    fontSize: "0.75rem",
-    color: "#64748b",
-    fontStyle: "italic",
-  },
-  // Modal styles
-  modalOverlay: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0, 0, 0, 0.8)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9999,
-  },
-  modal: {
-    background: "#1e293b",
-    borderRadius: "16px",
-    padding: "1.5rem",
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: "1rem",
-    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
-    border: "1px solid #334155",
-    maxWidth: "90vw",
-  },
-  modalHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-  },
-  modalTitle: {
-    margin: 0,
-    fontSize: "1.25rem",
-    fontWeight: "bold",
-    color: "#f1f5f9",
-  },
-  modalClose: {
-    padding: "0.25rem",
-    background: "transparent",
-    color: "#64748b",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-    display: "flex",
-    alignItems: "center",
-  },
-  qrContainer: {
-    background: "#ffffff",
-    padding: "1rem",
-    borderRadius: "12px",
-  },
-  qrUrl: {
-    fontSize: "0.75rem",
-    color: "#94a3b8",
-    margin: 0,
-    fontFamily: "monospace",
-    wordBreak: "break-all",
-    textAlign: "center",
-  },
-  qrHint: {
-    fontSize: "0.875rem",
-    color: "#64748b",
-    margin: 0,
-  },
-  // Session name modal specific styles
-  sessionInput: {
-    width: "100%",
-    padding: "0.75rem 1rem",
-    background: "#0f172a",
-    border: "1px solid #334155",
-    borderRadius: "8px",
-    color: "#e2e8f0",
-    fontSize: "1rem",
-    fontFamily: "inherit",
-    boxSizing: "border-box" as const,
-  },
-  sessionModalActions: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "0.75rem",
-    marginTop: "1.25rem",
-    width: "100%",
-  },
-  cancelBtn: {
-    padding: "0.625rem 1rem",
-    background: "transparent",
-    color: "#94a3b8",
-    border: "1px solid #334155",
-    borderRadius: "8px",
-    fontSize: "0.875rem",
-    cursor: "pointer",
-  },
-  startBtn: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    padding: "0.625rem 1rem",
-    background: "#ef4444",
-    color: "white",
-    border: "none",
-    borderRadius: "8px",
-    fontSize: "0.875rem",
-    fontWeight: "bold",
-    cursor: "pointer",
-  },
-  sessionModalContent: {
-    width: "100%",
-    maxWidth: "400px",
-    display: "flex",
-    flexDirection: "column" as const,
-    alignItems: "stretch",
-  },
-  sessionModalTitle: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    margin: "0 0 1rem 0",
-    fontSize: "1.125rem",
-    fontWeight: "bold",
-    color: "#e2e8f0",
-  },
-  modalSubtitle: {
-    margin: "0 0 1rem 0",
-    fontSize: "0.875rem",
-    color: "#94a3b8",
-    lineHeight: 1.5,
-  },
-  trackPreview: {
-    padding: "1rem",
-    background: "rgba(255, 255, 255, 0.05)",
-    borderRadius: "8px",
-    marginBottom: "1rem",
-    textAlign: "center" as const,
-  },
-  trackPreviewTitle: {
-    margin: "0 0 0.25rem 0",
-    fontSize: "1rem",
-    fontWeight: 600,
-    color: "#ffffff",
-  },
-  trackPreviewArtist: {
-    margin: 0,
-    fontSize: "0.875rem",
-    color: "#94a3b8",
-  },
-  staleWarning: {
-    display: "flex",
-    alignItems: "flex-start",
-    gap: "0.5rem",
-    padding: "0.75rem 1rem",
-    background: "rgba(245, 158, 11, 0.15)",
-    border: "1px solid rgba(245, 158, 11, 0.3)",
-    borderRadius: "8px",
-    color: "#fbbf24",
-    fontSize: "0.8rem",
-    lineHeight: 1.4,
-    marginTop: "0.75rem",
-  },
-};
