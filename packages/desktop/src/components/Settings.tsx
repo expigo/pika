@@ -161,6 +161,25 @@ export function Settings({ isOpen, onClose }: Props) {
 
               {/* Display Section */}
               <Section title="Interface & OS" icon={<Info size={14} />}>
+                <div className="flex items-center justify-between p-4 bg-slate-900/40 border border-white/5 rounded-2xl">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-200">Display Profile</span>
+                    <span className="text-[11px] text-slate-500 mt-0.5">
+                      Optimize for environment & eye strain
+                    </span>
+                  </div>
+                  <select
+                    value={settings["display.profile"]}
+                    onChange={(e) => handleSelect("display.profile", e.target.value)}
+                    disabled={isSaving}
+                    className="bg-slate-950 border border-white/10 rounded-xl px-3 py-2 text-xs font-bold text-slate-200 focus:border-pika-accent transition-all outline-none"
+                  >
+                    <option value="high-contrast">High Contrast (Default)</option>
+                    <option value="midnight">Midnight (Reduced Strain)</option>
+                    <option value="stealth">Stealth (Low Light)</option>
+                  </select>
+                </div>
+
                 <ToggleSetting
                   label="Advanced Global Metrics"
                   description="Energy, Groove, and Vibe columns in library"

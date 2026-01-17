@@ -4,27 +4,25 @@
 @theme {
   --animate-pulse-fast: pulse-fast 0.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-pulse-slow: pulse-slow 4s ease-in-out infinite;
-  --font-pika: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-pika: "Outfit", "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  /* Brand Colors */
-  --color-pika-purple: oklch(0.62 0.25 310);
-  --color-pika-purple-light: oklch(0.75 0.15 310);
-  --color-pika-purple-dark: oklch(0.45 0.3 310);
+  /* Theme-aware variables */
+  --color-pika-bg: var(--pika-bg);
+  --color-pika-surface-1: var(--pika-surface-1);
+  --color-pika-surface-2: var(--pika-surface-2);
+  --color-pika-surface-3: var(--pika-surface-3);
+  --color-pika-border: var(--pika-border);
+  --color-pika-border-light: var(--pika-border-light);
 
-  /* Surface Colors (Pro Dark Mode) */
-  --color-pika-bg: #030711;
-  --color-pika-surface-1: #0a0a0f;
-  --color-pika-surface-2: #0f172a;
-  --color-pika-surface-3: #1e293b;
-  --color-pika-border: #1e293b;
-  --color-pika-border-light: #334155;
+  --color-pika-purple: var(--pika-purple);
+  --color-pika-purple-light: var(--pika-purple-light);
+  --color-pika-purple-dark: var(--pika-purple-dark);
 
-  /* Accent Colors */
-  --color-pika-accent: #7c3aed;
-  --color-pika-accent-glow: rgba(124, 58, 237, 0.3);
+  --color-pika-accent: var(--pika-accent);
+  --color-pika-accent-glow: var(--pika-accent-glow);
 
-  /* Status Colors */
-  --color-pika-success: #22c55e;
+  /* Status (usually fixed across themes) */
+  --color-pika-success: #10b981;
   --color-pika-warning: #f59e0b;
   --color-pika-error: #ef4444;
 
@@ -71,27 +69,6 @@
       transform: scale(1.05) translate3d(4px, 0, 0);
     }
   }
-
-  @keyframes battery-low {
-    0%,
-    100% {
-      opacity: 1;
-      filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.5));
-    }
-    50% {
-      opacity: 0.5;
-      filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.8));
-    }
-  }
-
-  @keyframes progress-shimmer {
-    0% {
-      transform: translateX(-100%);
-    }
-    100% {
-      transform: translateX(100%);
-    }
-  }
 }
 
 :root {
@@ -101,24 +78,71 @@
   font-weight: 400;
 
   color-scheme: dark;
-  color: #e2e8f0;
-  background-color: var(--color-pika-bg);
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
-  /* Custom Utilities */
-  --glass-bg: rgba(15, 23, 42, 0.7);
-  --glass-border: rgba(51, 65, 85, 0.4);
-  --glass-blur: blur(12px);
-
-  /* Global selection lock for Pro feel */
+  /* Global selection lock */
   -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
   user-select: none !important;
+
+  /* Theme: High Contrast (Default) */
+  --pika-bg: #030711;
+  --pika-surface-1: #0a0a0f;
+  --pika-surface-2: #0f172a;
+  --pika-surface-3: #1e293b;
+  --pika-border: #1e293b;
+  --pika-border-light: #334155;
+  --pika-purple: oklch(0.62 0.25 310);
+  --pika-purple-light: oklch(0.75 0.15 310);
+  --pika-purple-dark: oklch(0.45 0.3 310);
+  --pika-accent: #7c3aed;
+  --pika-accent-glow: rgba(124, 58, 237, 0.3);
+  --pika-text: #f8fafc;
+  --pika-text-dim: #64748b;
+
+  /* Utilities */
+  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.05);
+  --glass-blur: blur(20px);
+}
+
+:root.theme-midnight {
+  --pika-bg: #111111;
+  --pika-surface-1: #1a1a1a;
+  --pika-surface-2: #242424;
+  --pika-surface-3: #2e2e2e;
+  --pika-border: #2e2e2e;
+  --pika-border-light: #404040;
+  --pika-purple: #9333ea;
+  --pika-purple-light: #c084fc;
+  --pika-accent: #a855f7;
+  --pika-accent-glow: rgba(168, 85, 247, 0.15);
+  --pika-text: #e2e8f0;
+  --pika-text-dim: #71717a;
+  --glass-bg: rgba(26, 26, 26, 0.8);
+}
+
+:root.theme-stealth {
+  --pika-bg: #080808;
+  --pika-surface-1: #0d0d0d;
+  --pika-surface-2: #141414;
+  --pika-surface-3: #1a1a1a;
+  --pika-border: #222222;
+  --pika-border-light: #2a2a2a;
+  --pika-purple: #f97316;
+  --pika-purple-light: #fb923c;
+  --pika-accent: #f97316;
+  --pika-accent-glow: rgba(249, 115, 22, 0.1);
+  --pika-text: #d4d4d8;
+  --pika-text-dim: #52525b;
+  --glass-bg: rgba(13, 13, 13, 0.9);
+}
+
+body {
+  color: var(--pika-text);
+  background-color: var(--pika-bg);
+  margin: 0;
+  overflow: hidden;
 }
 
 input,

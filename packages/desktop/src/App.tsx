@@ -17,6 +17,7 @@ import { CrateWorkspaceStats } from "./components/CrateWorkspaceStats";
 import { useDjSettings } from "./hooks/useDjSettings";
 import { useLiveSession } from "./hooks/useLiveSession";
 import { useSidecar } from "./hooks/useSidecar";
+import { useSettings } from "./hooks/useSettings";
 import { setSidecarUrl } from "./services/progressiveAnalysisService";
 import { getLocalIp } from "./config";
 import "./App.css";
@@ -45,6 +46,7 @@ const LazyFallback = () => (
 );
 
 function App() {
+  const { settings } = useSettings();
   const { status, baseUrl } = useSidecar();
   const {
     isLive,
@@ -110,8 +112,17 @@ function App() {
 
   const isAnyResizing = isResizingH || isResizingV || isResizingTopH;
 
+  const themeClass =
+    settings["display.profile"] === "midnight"
+      ? "theme-midnight"
+      : settings["display.profile"] === "stealth"
+        ? "theme-stealth"
+        : "";
+
   return (
-    <div className={`app-shell ${isAnyResizing ? "select-none cursor-resizing" : ""}`}>
+    <div
+      className={`app-shell ${themeClass} ${isAnyResizing ? "select-none cursor-resizing" : ""}`}
+    >
       {/* 1. Sidebar Navigation */}
       <nav className="pro-nav">
         <div className="flex flex-col items-center gap-6">

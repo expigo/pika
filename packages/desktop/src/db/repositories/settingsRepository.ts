@@ -27,6 +27,7 @@ export interface AppSettings {
   // Display settings
   "display.advancedMetrics": boolean;
   "display.showTooltips": boolean;
+  "display.profile": "high-contrast" | "midnight" | "stealth";
 
   // Network settings
   "network.apiUrl": string;
@@ -46,6 +47,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   "display.advancedMetrics": false,
   "display.showTooltips": true,
+  "display.profile": "high-contrast",
   "network.apiUrl": "https://api.pika.stream",
 };
 
