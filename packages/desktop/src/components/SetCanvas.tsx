@@ -17,7 +17,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   GripVertical,
-  LayoutTemplate,
   ListMusic,
   Music,
   Trash2,
@@ -25,6 +24,7 @@ import {
   FlaskConical,
   Sparkles,
   Zap,
+  ChevronRight,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
@@ -35,6 +35,7 @@ import { useSidecar } from "../hooks/useSidecar";
 import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
 import { type FingerprintMetrics, TrackFingerprint } from "./TrackFingerprint";
 import { TemplateManager } from "./TemplateManager";
+import { SaveLoadSets } from "./SaveLoadSets";
 import { getEnergyColor } from "../utils/trackUtils";
 
 interface SortableTrackRowProps {
@@ -133,7 +134,8 @@ function SortableTrackRow({ track, index, onRemove, transitionWarning }: Sortabl
 }
 
 export function SetCanvas() {
-  const { activeSet, removeTrack, reorderTracks, clearSet, refreshTracks } = useSetStore();
+  const { activeSet, removeTrack, reorderTracks, clearSet, refreshTracks, currentSetName } =
+    useSetStore();
   const { baseUrl } = useSidecar();
   const { isAnalyzing, startSetAnalysis } = useAnalyzer();
   const { triggerRefresh: triggerLibraryRefresh } = useLibraryRefresh();
@@ -187,58 +189,67 @@ export function SetCanvas() {
     }
   };
 
-  // Main render
-
   return (
     <div className="pro-table-container h-full flex flex-col select-none">
       {/* Header */}
       <div className="flex items-center justify-between p-3 border-b border-pika-border bg-pika-surface-1">
         <div className="flex items-center gap-3">
           <div className="flex flex-col">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter leading-none">
-              The Crate
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter leading-none mb-1">
+              Active Set
             </span>
-            <span className="text-xs font-bold text-slate-100 flex items-center gap-2">
-              <ListMusic size={12} className="text-pika-accent" />
-              {activeSet.length > 0 ? "Mix" : "Empty"}
-            </span>
+            <div className="flex items-center gap-2">
+              <ListMusic size={14} className="text-pika-accent" />
+              <span className="text-sm font-bold text-slate-100 flex items-center gap-2">
+                {currentSetName || (activeSet.length > 0 ? "Temporary Jam" : "Empty Crate")}
+                {currentSetName && <ChevronRight size={12} className="text-slate-600" />}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div className="flex gap-1.5">
-          {activeSet.length > 0 && (
+        <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-1.5 border-r border-pika-border pr-2.5 mr-1">
+            <SaveLoadSets />
+          </div>
+
+          <div className="flex gap-1.5">
+            {activeSet.length > 0 && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (!baseUrl) return;
+                  setIsAnalyzingSet(true);
+                  const unanalyzedIds = activeSet.filter((t) => !t.analyzed).map((t) => t.id);
+                  await startSetAnalysis(baseUrl, unanalyzedIds);
+                  await refreshTracks();
+                  triggerLibraryRefresh();
+                  setIsAnalyzingSet(false);
+                }}
+                disabled={!baseUrl || isAnalyzing}
+                className={`pro-btn pro-btn-secondary !p-1.5 flex items-center gap-1 ${isAnalyzingSet ? "animate-pulse" : ""}`}
+                title={!baseUrl ? "Engine disconnected" : "Analyze Set Flow"}
+              >
+                <Zap size={12} className={isAnalyzingSet ? "fill-pika-accent" : ""} />
+              </button>
+            )}
             <button
               type="button"
-              onClick={async () => {
-                if (!baseUrl) return;
-                setIsAnalyzingSet(true);
-                const unanalyzedIds = activeSet.filter((t) => !t.analyzed).map((t) => t.id);
-                await startSetAnalysis(baseUrl, unanalyzedIds);
-                await refreshTracks();
-                triggerLibraryRefresh();
-                setIsAnalyzingSet(false);
-              }}
-              disabled={!baseUrl || isAnalyzing}
-              className={`pro-btn pro-btn-secondary !p-1 flex items-center gap-1 ${isAnalyzingSet ? "animate-pulse" : ""}`}
-              title={!baseUrl ? "Engine disconnected" : "Analyze Set"}
+              onClick={() => setShowDiscoveryMode(!showDiscoveryMode)}
+              className={`pro-btn pro-btn-secondary !p-1.5 ${showDiscoveryMode ? "!bg-pika-accent/10 !border-pika-accent/30 !text-pika-accent" : ""}`}
+              title="Toggle Discovery Mode"
             >
-              <Zap size={12} className={isAnalyzingSet ? "fill-pika-accent" : ""} />
+              <Sparkles size={12} />
             </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setShowDiscoveryMode(!showDiscoveryMode)}
-            className={`pro-btn pro-btn-secondary !p-1 ${showDiscoveryMode ? "!bg-pika-accent/10 !border-pika-accent/30 !text-pika-accent" : ""}`}
-          >
-            <Sparkles size={12} />
-          </button>
-          <button
-            type="button"
-            onClick={clearSet}
-            className="pro-btn pro-btn-secondary !p-1 hover:!text-red-500"
-          >
-            <Trash2 size={12} />
-          </button>
+            <button
+              type="button"
+              onClick={clearSet}
+              className="pro-btn pro-btn-secondary !p-1.5 hover:!text-red-500"
+              title="Wipe Crate"
+            >
+              <Trash2 size={12} />
+            </button>
+          </div>
         </div>
       </div>
 

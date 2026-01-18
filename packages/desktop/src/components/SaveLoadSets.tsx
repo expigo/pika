@@ -2,6 +2,7 @@ import { Clock, FileText, FolderOpen, Music, Save, Trash2, X } from "lucide-reac
 import { useEffect, useState } from "react";
 import type { SavedSet } from "../db/repositories/savedSetRepository";
 import { useSetStore } from "../hooks/useSetBuilder";
+import { toast } from "sonner";
 
 // Format relative time
 function formatRelativeTime(timestamp: number): string {
@@ -48,8 +49,10 @@ export function SaveLoadSets() {
       await saveCurrentSet(saveName.trim());
       setShowSaveModal(false);
       setSaveName("");
+      toast.success("Set saved successfully");
     } catch (e) {
       console.error("Failed to save set:", e);
+      toast.error("Failed to save set");
     } finally {
       setIsSaving(false);
     }
@@ -61,8 +64,10 @@ export function SaveLoadSets() {
     setIsSaving(true);
     try {
       await updateCurrentSet();
+      toast.success("Set updated successfully");
     } catch (e) {
       console.error("Failed to update set:", e);
+      toast.error("Failed to update set");
     } finally {
       setIsSaving(false);
     }
@@ -71,12 +76,18 @@ export function SaveLoadSets() {
   const handleLoad = async (setId: number) => {
     await loadSet(setId);
     setShowLoadModal(false);
+    toast.info("Set loaded");
   };
 
   const handleDelete = async (e: React.MouseEvent, set: SavedSet) => {
     e.stopPropagation();
     if (confirm(`Delete "${set.name}"? This cannot be undone.`)) {
-      await deleteSavedSet(set.id);
+      try {
+        await deleteSavedSet(set.id);
+        toast.info("Set deleted");
+      } catch (e) {
+        toast.error("Failed to delete set");
+      }
     }
   };
 
@@ -84,8 +95,7 @@ export function SaveLoadSets() {
 
   return (
     <>
-      {/* Action Buttons */}
-      <div style={styles.buttonGroup}>
+      <div className="flex gap-1.5 items-center">
         {/* Save As New */}
         <button
           type="button"
@@ -94,14 +104,11 @@ export function SaveLoadSets() {
             setShowSaveModal(true);
           }}
           disabled={activeSet.length === 0}
-          style={{
-            ...styles.button,
-            opacity: activeSet.length === 0 ? 0.5 : 1,
-          }}
+          className="pro-btn pro-btn-secondary !p-1.5"
           title="Save as new set"
         >
-          <Save size={14} />
-          Save
+          <Save size={12} />
+          <span className="text-[10px] font-bold uppercase tracking-tighter">Save</span>
         </button>
 
         {/* Update Existing */}
@@ -110,11 +117,11 @@ export function SaveLoadSets() {
             type="button"
             onClick={handleUpdate}
             disabled={isSaving}
-            style={styles.button}
+            className="pro-btn pro-btn-secondary !p-1.5"
             title={`Update "${currentSetName}"`}
           >
-            <Save size={14} />
-            Update
+            <Save size={12} className="text-pika-accent" />
+            <span className="text-[10px] font-bold uppercase tracking-tighter">Sync</span>
           </button>
         )}
 
@@ -122,73 +129,78 @@ export function SaveLoadSets() {
         <button
           type="button"
           onClick={() => setShowLoadModal(true)}
-          style={styles.button}
+          className="pro-btn pro-btn-secondary !p-1.5 font-bold"
           title="Load saved set"
         >
-          <FolderOpen size={14} />
-          Load
+          <FolderOpen size={12} />
+          <span className="text-[10px] font-bold uppercase tracking-tighter">Open</span>
         </button>
       </div>
 
-      {/* Current Set Info */}
-      {currentSetName && (
-        <div style={styles.currentSetBadge}>
-          <FileText size={12} />
-          <span>{currentSetName}</span>
-        </div>
-      )}
-
       {/* Save Modal */}
       {showSaveModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowSaveModal(false)}>
-          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>
-                <Save size={18} />
-                Save Set
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSaveModal(false)}
+          />
+          <div className="relative w-full max-w-sm bg-pika-surface-1 border border-pika-border rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-pika-border">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-100">
+                <Save size={16} className="text-pika-accent" />
+                Archive Set
               </h3>
               <button
                 type="button"
                 onClick={() => setShowSaveModal(false)}
-                style={styles.closeButton}
+                className="text-slate-500 hover:text-slate-200 p-1"
               >
                 <X size={18} />
               </button>
             </div>
-            <div style={styles.modalBody}>
-              <label style={styles.label}>Set Name</label>
-              <input
-                type="text"
-                value={saveName}
-                onChange={(e) => setSaveName(e.target.value)}
-                placeholder="e.g., Friday Night Warmup"
-                style={styles.input}
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleSave();
-                  if (e.key === "Escape") setShowSaveModal(false);
-                }}
-              />
-              <p style={styles.hint}>{activeSet.length} tracks will be saved</p>
+
+            <div className="p-5 space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Set Specification
+                </label>
+                <input
+                  type="text"
+                  value={saveName}
+                  onChange={(e) => setSaveName(e.target.value)}
+                  placeholder="e.g. Midnight Underground Phase 1"
+                  className="w-full bg-slate-950 border border-pika-border rounded-lg px-4 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-pika-accent/50 transition-colors"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleSave();
+                    if (e.key === "Escape") setShowSaveModal(false);
+                  }}
+                />
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-pika-accent/5 border border-pika-accent/10 rounded-lg">
+                <Music size={12} className="text-pika-accent" />
+                <span className="text-[11px] text-slate-400">
+                  <span className="font-bold text-slate-200">{activeSet.length}</span> tracks will
+                  be committed to the archive.
+                </span>
+              </div>
             </div>
-            <div style={styles.modalFooter}>
+
+            <div className="flex justify-end gap-3 p-4 bg-slate-900/50 border-t border-pika-border">
               <button
                 type="button"
                 onClick={() => setShowSaveModal(false)}
-                style={styles.cancelButton}
+                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-slate-200 transition-colors"
               >
-                Cancel
+                Abort
               </button>
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={!saveName.trim() || isSaving}
-                style={{
-                  ...styles.primaryButton,
-                  opacity: !saveName.trim() || isSaving ? 0.5 : 1,
-                }}
+                className="pro-btn-primary px-5 py-2 text-xs font-bold disabled:opacity-50"
               >
-                {isSaving ? "Saving..." : "Save Set"}
+                {isSaving ? "Persisting..." : "Commit Set"}
               </button>
             </div>
           </div>
@@ -197,51 +209,57 @@ export function SaveLoadSets() {
 
       {/* Load Modal */}
       {showLoadModal && (
-        <div style={styles.modalOverlay} onClick={() => setShowLoadModal(false)}>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
           <div
-            style={{ ...styles.modal, ...styles.loadModal }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={styles.modalHeader}>
-              <h3 style={styles.modalTitle}>
-                <FolderOpen size={18} />
-                Load Saved Set
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowLoadModal(false)}
+          />
+          <div className="relative w-full max-w-md bg-pika-surface-1 border border-pika-border rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-pika-border shrink-0">
+              <h3 className="flex items-center gap-2 text-sm font-bold text-slate-100">
+                <FolderOpen size={16} className="text-pika-accent" />
+                Retrieve Archive
               </h3>
               <button
                 type="button"
                 onClick={() => setShowLoadModal(false)}
-                style={styles.closeButton}
+                className="text-slate-500 hover:text-slate-200 p-1"
               >
                 <X size={18} />
               </button>
             </div>
-            <div style={styles.modalBody}>
+
+            <div className="flex-1 overflow-y-auto p-2">
               {savedSets.length === 0 ? (
-                <div style={styles.emptyState}>
-                  <FileText size={32} style={{ opacity: 0.4 }} />
-                  <p>No saved sets yet</p>
+                <div className="flex flex-col items-center justify-center py-12 text-slate-600 gap-3 opacity-40">
+                  <FileText size={48} strokeWidth={1} />
+                  <p className="text-sm font-medium uppercase tracking-widest">No archives found</p>
                 </div>
               ) : (
-                <div style={styles.setList}>
+                <div className="grid gap-1">
                   {savedSets.map((set) => (
                     <div
                       key={set.id}
                       onClick={() => handleLoad(set.id)}
-                      style={{
-                        ...styles.setItem,
-                        background:
-                          set.id === currentSetId ? "rgba(59, 130, 246, 0.2)" : "transparent",
-                      }}
+                      className={`group flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer ${
+                        set.id === currentSetId
+                          ? "bg-pika-accent/10 border-pika-accent/30 shadow-[0_0_20px_rgba(var(--pika-accent-rgb),0.05)]"
+                          : "bg-transparent border-transparent hover:bg-slate-900/50 hover:border-slate-800"
+                      }`}
                     >
-                      <div style={styles.setInfo}>
-                        <span style={styles.setName}>{set.name}</span>
-                        <div style={styles.setMeta}>
-                          <span style={styles.metaItem}>
-                            <Music size={12} />
-                            {set.trackCount} tracks
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <span
+                          className={`text-sm font-bold truncate ${set.id === currentSetId ? "text-pika-accent" : "text-slate-200"}`}
+                        >
+                          {set.name}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                            <Music size={10} />
+                            {set.trackCount} Tracks
                           </span>
-                          <span style={styles.metaItem}>
-                            <Clock size={12} />
+                          <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold uppercase tracking-tighter">
+                            <Clock size={10} />
                             {formatRelativeTime(set.updatedAt)}
                           </span>
                         </div>
@@ -249,7 +267,7 @@ export function SaveLoadSets() {
                       <button
                         type="button"
                         onClick={(e) => handleDelete(e, set)}
-                        style={styles.deleteButton}
+                        className="p-2 text-slate-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all transform hover:scale-110"
                         title="Delete set"
                       >
                         <Trash2 size={14} />
@@ -259,9 +277,10 @@ export function SaveLoadSets() {
                 </div>
               )}
             </div>
+
             {hasUnsavedChanges && savedSets.length > 0 && (
-              <div style={styles.warningBanner}>
-                ⚠️ Loading will replace your current {activeSet.length} tracks
+              <div className="p-3 bg-amber-500/5 border-t border-amber-500/20 text-[10px] font-bold text-amber-500/80 text-center uppercase tracking-widest leading-relaxed">
+                Caution: Loading will overwrite active crate session ({activeSet.length} tracks)
               </div>
             )}
           </div>
@@ -270,204 +289,3 @@ export function SaveLoadSets() {
     </>
   );
 }
-
-// ============================================================================
-// Styles
-// ============================================================================
-
-const styles: Record<string, React.CSSProperties> = {
-  buttonGroup: {
-    display: "flex",
-    gap: "0.5rem",
-  },
-  button: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.35rem",
-    padding: "0.35rem 0.6rem",
-    background: "rgba(255, 255, 255, 0.1)",
-    border: "1px solid rgba(255, 255, 255, 0.2)",
-    borderRadius: "6px",
-    color: "#e2e8f0",
-    fontSize: "0.75rem",
-    fontWeight: 500,
-    cursor: "pointer",
-    transition: "all 0.15s",
-  },
-  currentSetBadge: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.35rem",
-    padding: "0.25rem 0.5rem",
-    background: "rgba(34, 197, 94, 0.15)",
-    border: "1px solid rgba(34, 197, 94, 0.3)",
-    borderRadius: "4px",
-    color: "#22c55e",
-    fontSize: "0.7rem",
-    fontWeight: 500,
-  },
-  modalOverlay: {
-    position: "fixed",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    background: "rgba(0, 0, 0, 0.7)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9999,
-  },
-  modal: {
-    background: "#1e293b",
-    borderRadius: "12px",
-    border: "1px solid #334155",
-    width: "100%",
-    maxWidth: "400px",
-    boxShadow: "0 20px 40px rgba(0, 0, 0, 0.5)",
-  },
-  loadModal: {
-    maxWidth: "480px",
-    maxHeight: "70vh",
-    display: "flex",
-    flexDirection: "column",
-  },
-  modalHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "1rem",
-    borderBottom: "1px solid #334155",
-  },
-  modalTitle: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
-    margin: 0,
-    fontSize: "1rem",
-    fontWeight: 600,
-    color: "#e2e8f0",
-  },
-  closeButton: {
-    background: "transparent",
-    border: "none",
-    color: "#64748b",
-    cursor: "pointer",
-    padding: "0.25rem",
-    display: "flex",
-  },
-  modalBody: {
-    padding: "1rem",
-    overflow: "auto",
-  },
-  modalFooter: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: "0.5rem",
-    padding: "1rem",
-    borderTop: "1px solid #334155",
-  },
-  label: {
-    display: "block",
-    marginBottom: "0.5rem",
-    fontSize: "0.85rem",
-    fontWeight: 500,
-    color: "#94a3b8",
-  },
-  input: {
-    width: "100%",
-    padding: "0.6rem 0.8rem",
-    background: "#0f172a",
-    border: "1px solid #334155",
-    borderRadius: "6px",
-    color: "#e2e8f0",
-    fontSize: "0.9rem",
-    outline: "none",
-  },
-  hint: {
-    marginTop: "0.5rem",
-    fontSize: "0.75rem",
-    color: "#64748b",
-  },
-  cancelButton: {
-    padding: "0.5rem 1rem",
-    background: "transparent",
-    border: "1px solid #475569",
-    borderRadius: "6px",
-    color: "#94a3b8",
-    fontSize: "0.85rem",
-    cursor: "pointer",
-  },
-  primaryButton: {
-    padding: "0.5rem 1rem",
-    background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)",
-    border: "none",
-    borderRadius: "6px",
-    color: "#fff",
-    fontSize: "0.85rem",
-    fontWeight: 600,
-    cursor: "pointer",
-  },
-  emptyState: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: "2rem",
-    color: "#64748b",
-    gap: "0.5rem",
-  },
-  setList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.5rem",
-  },
-  setItem: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0.75rem",
-    borderRadius: "8px",
-    border: "1px solid #334155",
-    cursor: "pointer",
-    transition: "all 0.15s",
-  },
-  setInfo: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.25rem",
-  },
-  setName: {
-    fontWeight: 600,
-    color: "#e2e8f0",
-    fontSize: "0.9rem",
-  },
-  setMeta: {
-    display: "flex",
-    gap: "0.75rem",
-  },
-  metaItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.25rem",
-    fontSize: "0.75rem",
-    color: "#64748b",
-  },
-  deleteButton: {
-    padding: "0.4rem",
-    background: "transparent",
-    border: "none",
-    color: "#ef4444",
-    cursor: "pointer",
-    opacity: 0.6,
-    transition: "opacity 0.15s",
-  },
-  warningBanner: {
-    padding: "0.75rem 1rem",
-    background: "rgba(234, 179, 8, 0.1)",
-    borderTop: "1px solid rgba(234, 179, 8, 0.3)",
-    color: "#eab308",
-    fontSize: "0.8rem",
-    textAlign: "center",
-  },
-};
