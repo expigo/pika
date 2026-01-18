@@ -5,9 +5,18 @@
  */
 
 import { open } from "@tauri-apps/plugin-dialog";
-import { AlertTriangle, FolderOpen, Settings as SettingsIcon, X, Info } from "lucide-react";
+import {
+  AlertTriangle,
+  FolderOpen,
+  Settings as SettingsIcon,
+  X,
+  Info,
+  Globe,
+  Key,
+} from "lucide-react";
 import { useState } from "react";
 import { type AppSettings, useSettings } from "../hooks/useSettings";
+import { useDjSettings } from "../hooks/useDjSettings";
 
 interface Props {
   isOpen: boolean;
@@ -16,7 +25,10 @@ interface Props {
 
 export function Settings({ isOpen, onClose }: Props) {
   const { settings, updateSetting, resetSettings, isLoading } = useSettings();
+  const { serverEnv, setServerEnv, authToken, setAuthToken, validationError, isValidating } =
+    useDjSettings();
   const [isSaving, setIsSaving] = useState(false);
+  const [localToken, setLocalToken] = useState(authToken);
 
   if (!isOpen) return null;
 
@@ -275,6 +287,77 @@ export function Settings({ isOpen, onClose }: Props) {
                           className="w-full accent-pika-accent"
                         />
                       </div>
+                    </div>
+                  </div>
+                </div>
+              </Section>
+              <Section title="Developer & Network" icon={<Globe size={14} />}>
+                <div className="p-5 bg-slate-950/40 border border-white/5 rounded-2xl space-y-5">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                        Environment
+                      </label>
+                      <span className="text-[10px] bg-red-500/10 text-red-500 px-2 py-0.5 rounded font-bold uppercase">
+                        Requires Restart
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      {(["prod", "staging", "dev"] as const).map((env) => (
+                        <button
+                          key={env}
+                          onClick={() => setServerEnv(env)}
+                          className={`py-2 rounded-xl text-[11px] font-black uppercase tracking-wider border transition-all ${
+                            serverEnv === env
+                              ? "bg-pika-accent text-white border-pika-accent shadow-lg shadow-pika-accent/20"
+                              : "bg-slate-900 text-slate-500 border-white/5 hover:border-white/10 hover:text-white"
+                          }`}
+                        >
+                          {env}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-white/5" />
+
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none flex items-center gap-2">
+                      <Key size={12} />
+                      Authentication
+                    </label>
+                    <div className="space-y-2">
+                      <input
+                        type="password"
+                        value={localToken}
+                        onChange={(e) => setLocalToken(e.target.value)}
+                        placeholder="Paste DJ Token (pk_dj_...)"
+                        className="w-full bg-slate-950/80 border border-white/5 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-pika-accent outline-none transition-all placeholder:text-slate-700"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setAuthToken(localToken)}
+                          disabled={isValidating || localToken === authToken}
+                          className="flex-1 py-2 bg-white text-slate-950 rounded-xl text-[11px] font-black uppercase tracking-wider hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                        >
+                          {isValidating ? "Validating..." : "Login"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setAuthToken("");
+                            setLocalToken("");
+                          }}
+                          className="px-4 py-2 bg-slate-800 text-slate-400 rounded-xl text-[11px] font-bold hover:text-white transition-all"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      {validationError && (
+                        <p className="text-[10px] text-red-500 font-bold bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                          {validationError}
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

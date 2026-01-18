@@ -1,6 +1,7 @@
-import { BarChart2, Clock, Megaphone, X, MessageSquare } from "lucide-react";
+import { BarChart2, Clock, Megaphone, X, MessageSquare, Trash2 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import type { ActivePoll } from "./LivePerformanceMode";
+import { POLL_PRESETS } from "./PollPresets";
 import type { PlayWithTrack } from "../db/repositories/sessionRepository";
 import { useEffect, useState } from "react";
 
@@ -315,8 +316,37 @@ export function LiveInteractions({
           >
             <h3 className="text-2xl font-black text-white mb-1">📊 Create Poll</h3>
             <p className="text-slate-500 font-medium mb-6 uppercase text-xs tracking-widest">
-              Ask the crowd anything
+              Ask the crowd anything or use a preset
             </p>
+
+            <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setPollQuestion("");
+                  setPollOptions(["", ""]);
+                  setPollDuration(null);
+                }}
+                className="p-2 bg-slate-800 hover:bg-red-500/20 border border-white/10 hover:border-red-500 rounded-xl text-slate-400 hover:text-red-500 transition-all flex-shrink-0"
+                title="Clear"
+              >
+                <Trash2 size={16} />
+              </button>
+              <div className="w-px h-6 bg-white/10 mx-1 flex-shrink-0" />
+              {POLL_PRESETS.map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => {
+                    setPollQuestion(preset.question);
+                    setPollOptions(preset.options);
+                    if (preset.duration) setPollDuration(preset.duration);
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-pika-purple/20 border border-white/10 hover:border-pika-purple text-slate-300 hover:text-white rounded-xl text-xs font-bold whitespace-nowrap transition-all"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
 
             <input
               className="w-full bg-black border border-white/10 rounded-xl p-4 text-white font-bold text-xl focus:border-pika-purple outline-none transition-all mb-4"
