@@ -45,6 +45,11 @@ export const MESSAGE_TYPES = {
   REACTION_RECEIVED: "REACTION_RECEIVED",
   ANNOUNCEMENT_RECEIVED: "ANNOUNCEMENT_RECEIVED",
   ANNOUNCEMENT_CANCELLED: "ANNOUNCEMENT_CANCELLED",
+
+  // System
+  GET_SESSIONS: "GET_SESSIONS",
+  PING: "PING",
+  PONG: "PONG",
   ACK: "ACK",
   NACK: "NACK",
 } as const;
@@ -163,7 +168,21 @@ export const SendLikeSchema = z.object({
   }),
 });
 
+export const GetSessionsSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.GET_SESSIONS),
+  clientId: z.string().optional(),
+});
+
+export const PingSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.PING),
+});
+
 // --- Server -> Client Messages ---
+
+export const PongSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.PONG),
+  timestamp: z.string().optional(),
+});
 
 export const SessionRegisteredSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_REGISTERED),
@@ -415,16 +434,19 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   SubscribeSchema,
   SendLikeSchema,
   SendTempoRequestSchema,
-  // Polls
+  // Client Polls
   StartPollSchema,
   EndPollSchema,
   CancelPollSchema,
   VoteOnPollSchema,
-  // Reactions
+  // Client Reactions
   SendReactionSchema,
-  // Announcements
+  // Client Announcements
   SendAnnouncementSchema,
   CancelAnnouncementSchema,
+  // Client System
+  GetSessionsSchema,
+  PingSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -442,22 +464,23 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   ListenerCountSchema,
   TempoFeedbackSchema,
   TempoResetSchema,
-  TrackStoppedSchema, // Can also come from server
-  // Polls
+  TrackStoppedSchema,
+  // Server Polls
   PollStartedSchema,
   PollUpdateSchema,
   PollEndedSchema,
   PollIdUpdatedSchema,
   VoteRejectedSchema,
   VoteConfirmedSchema,
-  // Reactions
+  // Server Reactions
   ReactionReceivedSchema,
-  // Announcements
+  // Server Announcements
   AnnouncementReceivedSchema,
   AnnouncementCancelledSchema,
-  // ACK/NACK (Reliable Delivery)
+  // Server System
   AckSchema,
   NackSchema,
+  PongSchema,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;
