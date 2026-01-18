@@ -98,8 +98,31 @@ Server-side protection against replay attacks and duplicate processing from netw
 
 Since the Desktop app periodically polls VirtualDJ (every 1-2s), it may detect the same track multiple times.
 
+### Client-Side (Desktop)
 *   **Last Broadcast Pointer:** The client stores `lastBroadcastedTrackKey` (Artist + Title). It will not send a `BROADCAST_TRACK` message if it matches the last sent one.
 *   **Ghost Tracks:** If a DJ plays a file not imported into the Pika! library, the system generates a "Ghost Track" (ID: `ghost://...`) to ensure the play is still recorded and broadcast.
+
+### Server-Side (Cloud)
+*   **lastPersistedTrackKey Map (v0.2.5):** In-memory Map tracks the last persisted track per session. Skips duplicate `persistTrack()` calls.
+*   **Nonce Tracking:** `checkAndRecordNonce()` prevents duplicate message processing within 5-minute window.
+
+### ⚠️ Known Limitation: Server Restart Edge Case
+
+**Scenario:**
+1. DJ plays "Song A" at 9:00 PM
+2. Server persists "Song A" (ID: 100)
+3. Server restarts at 9:01 PM (Map cleared)
+4. Desktop reconnects, re-broadcasts "Song A" (still playing)
+5. Server persists "Song A" again (ID: 101) → **Duplicate**
+
+**Impact:** Minor (cosmetic duplicate in recap)
+
+**Why Acceptable:**
+*   Server restarts during active sessions are rare
+*   Duplicate track is harmless (no data corruption)
+*   Self-healing on next track change
+
+**When to Revisit:** If frequent deploys during peak hours cause noticeable duplicates, add a DB query check before insert.
 
 ## 7. Web App Offline Queue (v0.2.4) ✅ IMPLEMENTED
 
