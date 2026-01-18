@@ -6,13 +6,13 @@ import {
   ChevronRight,
   ExternalLink,
   Flame,
+  Globe,
   Heart,
   History,
   Music2,
   Radio,
   Trophy,
   Users,
-  Globe,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
@@ -181,7 +181,7 @@ export default function LivePage() {
               Avg Vibe: {avgBpm > 0 ? `${Math.round(avgBpm)} BPM` : "CALM"}
             </VibeBadge>
             <VibeBadge variant="slate" icon={Users}>
-              {totalDancers} Dancers Live
+              {totalDancers} {totalDancers === 1 ? "Dancer" : "Dancers"} Online
             </VibeBadge>
           </div>
         </div>
@@ -243,9 +243,33 @@ export default function LivePage() {
                   </div>
 
                   <div className="flex flex-col items-end gap-3">
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-xl">
-                      <Users className="w-3.5 h-3.5 text-slate-500" />
-                      <span className="text-[11px] font-black text-white">
+                    <div
+                      className={`flex items-center gap-2 px-3 py-1.5 border rounded-xl ${
+                        (session.listenerCount || 0) >= 50
+                          ? "bg-red-500/10 border-red-500/20"
+                          : (session.listenerCount || 0) >= 10
+                            ? "bg-purple-500/10 border-purple-500/20"
+                            : "bg-slate-950 border-slate-800"
+                      }`}
+                    >
+                      <Users
+                        className={`w-3.5 h-3.5 ${
+                          (session.listenerCount || 0) >= 50
+                            ? "text-red-500"
+                            : (session.listenerCount || 0) >= 10
+                              ? "text-purple-500"
+                              : "text-slate-500"
+                        }`}
+                      />
+                      <span
+                        className={`text-[11px] font-black ${
+                          (session.listenerCount || 0) >= 50
+                            ? "text-red-500"
+                            : (session.listenerCount || 0) >= 10
+                              ? "text-purple-500"
+                              : "text-white"
+                        }`}
+                      >
                         {session.listenerCount || 0}
                       </span>
                     </div>

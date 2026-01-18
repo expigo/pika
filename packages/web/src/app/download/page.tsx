@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Download, Monitor, Shield, Laptop, Zap } from "lucide-react";
+import { ArrowLeft, Download, Laptop, Monitor, Shield, Zap } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";

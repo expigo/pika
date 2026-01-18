@@ -7,7 +7,7 @@ import Link from "next/link";
  * Error boundary for live session pages.
  * Catches errors and allows user to retry or navigate away.
  */
-export default function Error({
+export default function LiveError({
   error,
   reset,
 }: {

@@ -2,14 +2,14 @@
 
 import {
   ArrowLeft,
-  Smartphone,
-  Share,
-  PlusSquare,
-  MoreVertical,
   Download,
-  Zap,
+  MoreVertical,
+  PlusSquare,
+  Share,
   ShieldCheck,
+  Smartphone,
   Wifi,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { ProCard } from "@/components/ui/ProCard";

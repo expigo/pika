@@ -1,5 +1,6 @@
 "use client";
 
+import { calculateVibeFriction, getHarmonicCompatibility, type TrackInfo } from "@pika/shared";
 import {
   Activity,
   ArrowLeft,
@@ -14,9 +15,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { ProCard, ProHeader } from "@/components/ui/ProCard";
-import { VibeBadge } from "@/components/ui/VibeBadge";
-import { calculateVibeFriction, getHarmonicCompatibility, type TrackInfo } from "@pika/shared";
 import {
   Area,
   AreaChart,
@@ -35,6 +33,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ProCard, ProHeader } from "@/components/ui/ProCard";
+import { VibeBadge } from "@/components/ui/VibeBadge";
 
 // API base URL
 function getApiBaseUrl(): string {

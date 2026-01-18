@@ -12,8 +12,8 @@ import {
   Share2,
   User,
 } from "lucide-react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";

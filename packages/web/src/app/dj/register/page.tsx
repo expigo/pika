@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowRight, Lock, Mail, ShieldCheck, User, CheckCircle } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle, Lock, Mail, ShieldCheck, User } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";

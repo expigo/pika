@@ -1,8 +1,8 @@
 "use client";
 
-import { ProCard } from "@/components/ui/ProCard";
 import { ArrowRight, Download, Globe, LayoutGrid, LogIn, Smartphone, UserPlus } from "lucide-react";
 import Link from "next/link";
+import { ProCard } from "@/components/ui/ProCard";
 
 export default function MenuPage() {
   const menuGroups = [
