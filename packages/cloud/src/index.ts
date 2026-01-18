@@ -13,11 +13,14 @@ import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { rateLimiter } from "hono-rate-limiter";
+import { z } from "zod";
 import { db, schema } from "./db";
+import { auth as authRoutes } from "./routes/auth";
 
 // NOTE: lib/ modules are created but not yet wired in to reduce risk.
 // Future refactoring can import from ./lib to use extracted utilities.
 // Available modules: listeners, tempo, cache, protocol, auth
+// Auth routes are now wired from ./routes/auth
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
@@ -84,6 +87,9 @@ const csrfCheck = async (c: Context, next: Next) => {
 
 // Apply CSRF check to auth routes
 app.use("/api/auth/*", csrfCheck);
+
+// Wire auth routes from extracted module
+app.route("/api/auth", authRoutes);
 
 // Global Error Handler to prevent ERR_EMPTY_RESPONSE
 app.onError((err, c) => {
@@ -848,7 +854,14 @@ app.post("/api/auth/register", authLimiter, async (c) => {
       return c.json({ error: "Password must be at least 8 characters" }, 400);
     }
 
-    if (!email.includes("@")) {
+    if (password.length > 128) {
+      return c.json({ error: "Password must be at most 128 characters" }, 400);
+    }
+
+    // Proper email validation using Zod
+    const emailSchema = z.string().email();
+    const emailResult = emailSchema.safeParse(email);
+    if (!emailResult.success) {
       return c.json({ error: "Invalid email format" }, 400);
     }
 
