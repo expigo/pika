@@ -1877,21 +1877,8 @@ app.get(
           const data = event.data.toString();
           const json = JSON.parse(data);
 
-          // Extracted clientId
-          if (json.clientId && !clientId) {
-            clientId = json.clientId;
-            console.log(`📋 Client identified: ${clientId}`);
-          } else if (json.clientId) {
-            clientId = json.clientId; // Update silently
-          }
-          // Capture broadcaster for the heartbeat interval
-          // This ensures we always have a reference to the active DJ's WebSocket
-          // for sending heartbeat messages.
-          if (djSessionId) {
-            activeBroadcaster = ws.raw as ServerWebSocket;
-          }
-
-          // Validate message against Zod schema
+          // 🔐 11/10 Security: Strict Schema-First Validation
+          // We validate the entire message structure BEFORE extracting any fields.
           const result = WebSocketMessageSchema.safeParse(json);
 
           if (!result.success) {
@@ -1899,9 +1886,22 @@ app.get(
             return;
           }
 
-          const message = result.data as WebSocketMessage & { messageId?: string };
+          const message = result.data as WebSocketMessage & {
+            messageId?: string;
+            clientId?: string;
+          };
           const rawWs = ws.raw as ServerWebSocket;
           const messageId = message.messageId;
+
+          // Extracted clientId from VALIDATED data
+          if (message.clientId) {
+            clientId = message.clientId;
+          }
+
+          // Capture broadcaster reference for heartbeat
+          if (djSessionId) {
+            activeBroadcaster = rawWs;
+          }
 
           // Skip logging frequent messages (SUBSCRIBE is logged separately when new)
           if (message.type !== "SUBSCRIBE") {
@@ -2395,14 +2395,27 @@ app.get(
                 }
               }
 
-              // Send current sessions list
-              const sessions = Array.from(activeSessions.values());
-              ws.send(
-                JSON.stringify({
-                  type: "SESSIONS_LIST",
-                  sessions,
-                }),
-              );
+              // 🚀 11/10 Performance: Lean session listing & backpressure awareness
+              // We only send the fields needed for the Join screen, and skip if buffer is full.
+              const leanSessions = Array.from(activeSessions.values()).map((s) => ({
+                sessionId: s.sessionId,
+                djName: s.djName,
+                currentTrack: s.currentTrack,
+              }));
+
+              if (rawWs.getBufferedAmount() < 1024 * 64) {
+                // Only send if buffered amount is < 64KB
+                ws.send(
+                  JSON.stringify({
+                    type: "SESSIONS_LIST",
+                    sessions: leanSessions,
+                  }),
+                );
+              } else {
+                console.warn(
+                  `⏳ Backpressure: Skipping SESSIONS_LIST for ${clientId} (buffer full)`,
+                );
+              }
 
               // Send current listener count for the target session
               if (targetSession) {
