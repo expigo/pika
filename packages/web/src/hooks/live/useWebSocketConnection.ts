@@ -32,6 +32,13 @@ export function useWebSocketConnection({
   targetSessionId,
 }: UseWebSocketConnectionProps): UseWebSocketConnectionReturn {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
+  const statusRef = useRef<ConnectionStatus>("connecting");
+
+  // Sync ref with state
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
+
   const [sessionId, setSessionId] = useState<string | null>(targetSessionId ?? null);
   const [djName, setDjName] = useState<string | null>(null);
   const [listenerCount, setListenerCount] = useState(0);
@@ -68,56 +75,90 @@ export function useWebSocketConnection({
 
     socketRef.current = socket;
 
-    socket.onopen = () => {
+    // Event handlers
+    const handleOpen = () => {
       console.log("[Connection] Connected to cloud");
       setStatus("connected");
       lastPongRef.current = Date.now();
+      setLastHeartbeat(Date.now());
 
       // Send initial message based on context
-      if (targetSessionId) {
-        socket.send(
-          JSON.stringify({
-            type: MESSAGE_TYPES.SUBSCRIBE,
-            clientId,
-            sessionId: targetSessionId,
-          }),
-        );
-      } else {
-        socket.send(
-          JSON.stringify({
-            type: "GET_SESSIONS",
-            clientId,
-          }),
-        );
+      if (socket.readyState === WebSocket.OPEN) {
+        if (targetSessionId) {
+          socket.send(
+            JSON.stringify({
+              type: MESSAGE_TYPES.SUBSCRIBE,
+              clientId,
+              sessionId: targetSessionId,
+            }),
+          );
+        } else {
+          socket.send(
+            JSON.stringify({
+              type: "GET_SESSIONS",
+              clientId,
+            }),
+          );
+        }
       }
     };
 
-    socket.onclose = (event) => {
+    const handleClose = (event: CloseEvent) => {
       console.log(
         `[Connection] Disconnected from cloud (Code: ${event.code}, Reason: ${event.reason})`,
       );
       setStatus("disconnected");
     };
 
-    socket.onerror = (error) => {
+    const handleError = (error: Event) => {
       console.log("[Connection] WebSocket error:", error);
       setStatus("disconnected");
     };
 
+    // Handle PONG messages for heartbeat
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "PONG") {
+          lastPongRef.current = Date.now();
+          hasReceivedPongRef.current = true;
+          setLastHeartbeat(Date.now());
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    };
+
+    socket.addEventListener("open", handleOpen);
+    // biome-ignore lint/suspicious/noExplicitAny: WebSocket event types can mismatch between lib and package
+    socket.addEventListener("close", handleClose as any);
+    // biome-ignore lint/suspicious/noExplicitAny: WebSocket event types can mismatch between lib and package
+    socket.addEventListener("error", handleError as any);
+    socket.addEventListener("message", handleMessage);
+
     // Heartbeat monitor
     const heartbeatInterval = setInterval(() => {
-      if (socket.readyState === WebSocket.OPEN) {
+      const readyState = socket.readyState;
+      const currentStatus = statusRef.current;
+
+      // Sync status if out of sync
+      if (readyState === WebSocket.OPEN && currentStatus !== "connected") {
+        setStatus("connected");
+      } else if (readyState === WebSocket.CONNECTING && currentStatus !== "connecting") {
+        setStatus("connecting");
+      }
+
+      if (readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: "PING" }));
       }
 
-      // Only check for stale connection AFTER we've received at least one PONG
-      // This prevents reconnection loops on initial load
+      // Check for stale connection
       if (hasReceivedPongRef.current) {
         const elapsed = Date.now() - lastPongRef.current;
-        if (elapsed > 30000 && socket.readyState === WebSocket.OPEN) {
+        if (elapsed > 30000 && readyState === WebSocket.OPEN) {
           console.log("[Connection] Heartbeat timeout, reconnecting...");
           setStatus("connecting");
-          hasReceivedPongRef.current = false; // Reset for next connection
+          hasReceivedPongRef.current = false;
           socket.reconnect();
         }
       }
@@ -136,24 +177,35 @@ export function useWebSocketConnection({
 
     // Handle visibility change (phone wake from sleep)
     const handleVisibilityChange = () => {
+      const readyState = socket.readyState;
+      const currentStatus = statusRef.current;
+
       if (document.visibilityState === "visible") {
         console.log("[Connection] Tab visible, checking connection...");
 
-        // Only check staleness if we've established connection before
-        if (hasReceivedPongRef.current) {
-          const elapsed = Date.now() - lastPongRef.current;
+        // Proactive sync for Safari
+        if (readyState === WebSocket.OPEN && currentStatus !== "connected") {
+          setStatus("connected");
+        }
 
-          if (elapsed > 15000) {
-            console.log("[Connection] Stale connection, reconnecting...");
-            setStatus("connecting");
-            hasReceivedPongRef.current = false; // Reset for next connection
-            socket.reconnect();
-            return;
-          }
+        // If explicitly disconnected or stale, hammer it back to life
+        const isStale = hasReceivedPongRef.current && Date.now() - lastPongRef.current > 30000;
+
+        if (
+          readyState === WebSocket.CLOSED ||
+          readyState === WebSocket.CLOSING ||
+          currentStatus === "disconnected" ||
+          isStale
+        ) {
+          console.log("[Connection] Connection lost or stale, forcing reconnect...");
+          setStatus("connecting");
+          hasReceivedPongRef.current = false;
+          socket.reconnect();
+          return;
         }
 
         // Re-request current state if socket is open
-        if (socket.readyState === WebSocket.OPEN) {
+        if (readyState === WebSocket.OPEN) {
           console.log("[Connection] Re-syncing state...");
           lastPongRef.current = Date.now();
           setLastHeartbeat(Date.now());
@@ -181,38 +233,25 @@ export function useWebSocketConnection({
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online", handleOnline);
     document.addEventListener("visibilitychange", handleVisibilityChange);
+    // Safari-specific: handle page restoration from cache
+    window.addEventListener("pageshow", handleVisibilityChange);
+
     return () => {
       clearInterval(heartbeatInterval);
+      socket.removeEventListener("open", handleOpen);
+      // biome-ignore lint/suspicious/noExplicitAny: mismatching websocket event types
+      socket.removeEventListener("close", handleClose as any);
+      // biome-ignore lint/suspicious/noExplicitAny: mismatching websocket event types
+      socket.removeEventListener("error", handleError as any);
+      socket.removeEventListener("message", handleMessage);
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("online", handleOnline);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pageshow", handleVisibilityChange);
       socket.close();
       socketRef.current = null;
     };
-  }, [targetSessionId]); // Removed 'status' dependency to prevent infinite loops
-
-  // Update lastPong on PONG messages (called from parent)
-  useEffect(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-
-    const originalOnMessage = socket.onmessage;
-    socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === "PONG") {
-          lastPongRef.current = Date.now();
-          hasReceivedPongRef.current = true; // Mark that we've received at least one PONG
-          setLastHeartbeat(Date.now());
-        }
-      } catch {
-        // Ignore parse errors
-      }
-
-      // Call original handler
-      originalOnMessage?.call(socket, event);
-    };
-  }, []);
+  }, [targetSessionId]);
 
   return {
     socketRef,
