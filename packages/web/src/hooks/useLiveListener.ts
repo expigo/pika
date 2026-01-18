@@ -3,55 +3,8 @@
 import { MESSAGE_TYPES, getTrackKey, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
-
-// Get WebSocket URL dynamically based on page location
-function getWebSocketUrl(): string {
-  if (process.env.NEXT_PUBLIC_CLOUD_WS_URL) {
-    return process.env.NEXT_PUBLIC_CLOUD_WS_URL;
-  }
-
-  if (typeof window !== "undefined") {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const hostname = window.location.hostname;
-    return `${protocol}//${hostname}:3001/ws`;
-  }
-
-  return "ws://localhost:3001/ws";
-}
-
-// Get API base URL for REST calls
-function getApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_CLOUD_API_URL) {
-    return process.env.NEXT_PUBLIC_CLOUD_API_URL;
-  }
-
-  if (typeof window !== "undefined") {
-    const protocol = window.location.protocol;
-    const hostname = window.location.hostname;
-    return `${protocol}//${hostname}:3001`;
-  }
-
-  return "http://localhost:3001";
-}
-
-// ============================================================================
-// Persistent Client ID - survives page reloads
-// ============================================================================
-const CLIENT_ID_KEY = "pika_client_id";
-
-function getOrCreateClientId(): string {
-  if (typeof window === "undefined") {
-    return `server_${Date.now()}`;
-  }
-
-  let clientId = localStorage.getItem(CLIENT_ID_KEY);
-  if (!clientId) {
-    // Generate a UUID-like ID
-    clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
-    localStorage.setItem(CLIENT_ID_KEY, clientId);
-  }
-  return clientId;
-}
+import { getApiBaseUrl, getWebSocketUrl } from "@/lib/api";
+import { getOrCreateClientId } from "@/lib/client";
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 

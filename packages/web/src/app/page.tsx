@@ -22,28 +22,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
-
-// API base URL helper
-function getApiBaseUrl(): string {
-  if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    const isLocalOrLan =
-      hostname === "localhost" ||
-      hostname.startsWith("192.168.") ||
-      hostname.startsWith("10.") ||
-      hostname.startsWith("172.");
-
-    if (isLocalOrLan) {
-      return `${window.location.protocol}//${hostname}:3001`;
-    }
-  }
-
-  if (process.env.NEXT_PUBLIC_CLOUD_API_URL) {
-    return process.env.NEXT_PUBLIC_CLOUD_API_URL;
-  }
-
-  return "http://localhost:3001";
-}
+import { getApiBaseUrl } from "@/lib/api";
 
 interface ActiveSession {
   sessionId: string;

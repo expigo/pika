@@ -3,11 +3,7 @@
 import { Activity, Globe, Heart, PieChart, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
-
-function getApiBaseUrl(): string {
-  if (typeof window === "undefined") return "";
-  return process.env.NEXT_PUBLIC_CLOUD_API_URL || "http://localhost:3001";
-}
+import { getApiBaseUrl } from "@/lib/api";
 
 interface AnalyticsStats {
   totalSessions: number;
