@@ -60,9 +60,14 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
     *   [x] **Data Sync**: Late-joiner sync via WebSocket SUBSCRIBE handler.
     *   [x] **Wake-Up Sync (Web)**: **DONE.** Native `visibilitychange` listener forces re-sync on mobile phone wake-up.
-    *   [x] **Offline Queue (Web)**: Likes are queued and flushed faithfully.
+    *   [x] **Safari/iOS Bulletproofing (v0.2.5)**: pageshow listener, statusRef, addEventListener pattern.
+    *   [x] **Offline Queue (Web)**: Likes persisted to IndexedDB, survives page refresh.
     *   [x] **Offline Queue (Desktop)**: **DONE.** Offline SQLite queue implemented (`OfflineQueueRepository`). Persists across restarts.
+    *   [x] **ACK/NACK Protocol (v0.2.4)**: Reliable BROADCAST_TRACK delivery with timeout/retry.
+    *   [x] **Nonce Deduplication (v0.2.4)**: Server-side replay protection.
     *   [x] **Data Integrity**: Likes are session-scoped (no phantom likes).
+    *   [x] **Track Deduplication (v0.2.5)**: Cloud skips duplicate track persistence.
+    *   [-] **Reliable Likes**: Deferred (not required, see `realtime-infrastructure.md`).
 *   [ ] **Data Hygiene**:
     *   [x] **Ghost Track Fix**: `normalizeTrack` utility implemented in `@pika/shared`.
     *   [x] **Poll State Fix**: Retry logic (`ensureSessionPersisted`) prevents race conditions during creation.
@@ -141,13 +146,15 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **Organizer Role:** For event branding.
 *   [ ] **Native App:** For push notifications.
 *   ✅ **Email Validation:** Upgraded to Zod `.email()` (v0.2.2).
-*   [ ] **ACK/NACK Integration:** Client-side message acknowledgment for reliability.
+*   ✅ **ACK/NACK Integration (v0.2.4):** Reliable message delivery for critical messages.
+*   [-] **Reliable Likes:** Deferred (see `realtime-infrastructure.md` for rationale).
 *   ✅ **Password Max Length:** 128 char limit (v0.2.2).
 
 ## 6. Audit Trail
 
 | Date | Audit | Findings | Ref |
 | :--- | :--- | :--- | :--- |
+| **2026-01-18** | Network Resilience | ✅ 11/10 - Safari bulletproofing, ACK/NACK, nonce dedup, chaos tests. | `v0.2.5` |
 | **2026-01-18** | Web App Excellence | ✅ Pass - Hook decomposition, ARIA labels, dynamic imports. | `v0.2.3` |
 | **2026-01-18** | Security Hardening | ✅ Pass - Tauri CSP, DB integrity, auth tests. | `v0.2.2` |
 | **2026-01-18** | Production Hardening | ✅ Pass - Modular layout, fortified sidecar, and playlist retrieval restored. | `v0.2.1` |

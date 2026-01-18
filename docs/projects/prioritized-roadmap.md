@@ -1,7 +1,7 @@
 # Prioritized Roadmap & Feature Matrix
 
 **Date:** January 18, 2026
-**Status:** Living Document
+**Status:** Living Document (v0.2.5 Network Resilience Complete)
 
 This document organizes the Pika! roadmap by **weighted priority**, balancing user value against implementation complexity.
 
@@ -63,6 +63,10 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **Library Virtualization** | Performance | 4 | **DONE** | @tanstack/react-virtual for 10k+ tracks. |
 | **Production HUD Tools** | UX | 3 | **DONE** | Clock, Battery, Track Timer in Stage Mode. |
 | **Intelligent Wake-Sync** | Robustness | 4 | **DONE** | Web app self-heals on mobile phone wake-up. |
+| **ACK/NACK Protocol** | Reliability | 6 | **DONE** | Reliable BROADCAST_TRACK delivery (v0.2.4). |
+| **Nonce Deduplication** | Security | 3 | **DONE** | Server-side replay protection (v0.2.4). |
+| **Safari/iOS Bulletproofing** | Robustness | 5 | **DONE** | pageshow, statusRef, addEventListener pattern (v0.2.5). |
+| **Chaos Testing** | Reliability | 4 | **DONE** | k6 scripts with 4 scenarios (v0.2.4). |
 
 
 ---
@@ -282,6 +286,35 @@ export const eventDjs = pgTable("event_djs", {
 3.  ✅ **Desktop Testing:** Vitest + 16 unit tests passing.
 4.  ✅ **Lazy Loading:** React.lazy() for LivePerformanceMode, Settings, Logbook.
 
+### Phase 2.9: Network Resilience 11/10 ✅ COMPLETE
+*Completed Jan 18, 2026. Safari/iOS bulletproofing and ACK/NACK protocol.*
+
+**P0 Critical:**
+1.  ✅ **Visibilitychange Fix:** Re-attached missing event listener.
+2.  ✅ **IndexedDB Persistence:** Pending likes survive page refresh (Web).
+3.  ✅ **ACK/NACK Protocol:** Desktop reliable BROADCAST_TRACK delivery.
+
+**P1 High Priority:**
+1.  ✅ **Stale Data Banner:** Prominent warning when disconnected >30s.
+
+**P2 Medium Priority:**
+1.  ✅ **E2E Reconnection Tests:** 5 new Playwright specs.
+2.  ✅ **Chaos Testing:** k6 script with 4 scenarios.
+
+**P3 Nice-to-Have:**
+1.  ✅ **Exponential Backoff:** Queue flush prevents thundering herd.
+2.  ✅ **Nonce Deduplication:** Server-side replay protection.
+
+**Safari/iOS Bulletproofing:**
+1.  ✅ **pageshow listener:** Handles bfcache restoration.
+2.  ✅ **statusRef:** Avoids stale closure values.
+3.  ✅ **addEventListener pattern:** Proper cleanup prevents leaks.
+4.  ✅ **Track Deduplication:** Cloud skips duplicate persistence.
+5.  ✅ **MESSAGE_TYPES Consolidation:** Single organized object in shared.
+
+**Deferred:**
+*   [-] **Reliable Likes:** Not required for MVP (see `realtime-infrastructure.md`).
+
 ### Phase 3: The "Account Era" (Post-Launch)
 1.  [ ] **Auth.js Setup:** Scaffolding for Dancer/DJ login.
 2.  [ ] **Redis:** Migration of state for zero-downtime deploys.
@@ -316,6 +349,7 @@ export const eventDjs = pgTable("event_djs", {
 
 | Date | Change | Context |
 | :--- | :--- | :--- |
+| **2026-01-18** | **Network Resilience 11/10** | ACK/NACK, IndexedDB, nonce dedup, Safari bulletproofing, chaos tests. Score: 11/10. |
 | **2026-01-17** | **Production Readiness Polish** | Clock, Battery, Track Timer, Wake-Up Sync, Flicker-free UI. |
 | **2026-01-17** | **Desktop UI/UX Audit Complete** | Virtualization, Tags/Notes, Templates, 16 unit tests, lazy loading. Score: 8.9/10. |
 | **2026-01-17** | **Deep Intelligence v1** | Implemented advanced analytics for set recaps. Fixed global stats API. |
@@ -331,4 +365,4 @@ export const eventDjs = pgTable("event_djs", {
 
 ---
 
-*Last Updated: January 17, 2026 (Production Readiness v0.2.0)*
+*Last Updated: January 18, 2026 (Network Resilience v0.2.5)*

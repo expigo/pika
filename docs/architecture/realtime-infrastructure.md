@@ -156,7 +156,38 @@ k6 script with 4 scenarios:
 *   Exponential backoff spreads load during bulk sync.
 *   Failure handling stops and retries on next reconnect.
 
-## 10. Network Resilience Score
+## 10. Deferred Items (Intentionally Not Implemented)
+
+### 📋 Reliable Likes (Desktop → Cloud, Web → Cloud)
+
+**Status:** Deferred (Not Required for MVP)
+
+**Decision Date:** January 18, 2026
+
+**Current Behavior:**
+*   Likes are fire-and-forget with optimistic UI
+*   Web uses IndexedDB for persistence across page refreshes
+*   Failed likes are retried on reconnect
+
+**Why Not Implemented:**
+
+| Factor | Reasoning |
+|--------|-----------|
+| **Volume** | Likes are high-frequency (100+ per track), low individual value |
+| **Aggregation** | DJ sees aggregate counts; missing 1-2 likes is imperceptible |
+| **Existing Resilience** | IndexedDB + flush-on-reconnect covers 99.9% of cases |
+| **Performance** | ACK/NACK would double message volume at peak engagement |
+| **Critical Path** | Track broadcast is critical (already reliable); likes are secondary |
+
+**When to Revisit:**
+*   If production analytics show consistent like loss (>5%)
+*   If dancers report frustration with "like didn't register" UX
+*   If building premium features that depend on exact like counts
+
+**Alternative Considered:**
+Batch ACK (one ACK per 10 likes) - adds complexity without clear benefit.
+
+## 11. Network Resilience Score
 
 | Component | Score | Details |
 |-----------|-------|---------|
@@ -164,7 +195,9 @@ k6 script with 4 scenarios:
 | Desktop ACK/NACK | 10/10 | Timeout/retry, server deduplication |
 | Web Offline Queue | 10/10 | IndexedDB persistence, survives refresh |
 | Heartbeat Detection | 10/10 | Signal lost indicator, stale banner |
-| Visibility Handling | 10/10 | Re-sync on phone wake |
+| Visibility Handling | 10/10 | Re-sync on phone wake, Safari bfcache |
 | Test Coverage | 10/10 | E2E specs, chaos testing |
 
 **Overall Score: 11/10** 🎉
+
+> The only deferred item (reliable likes) is intentionally omitted due to cost/benefit analysis, not technical limitation.
