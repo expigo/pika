@@ -215,30 +215,77 @@ import { offlineQueueRepository } from "../db/repositories/offlineQueueRepositor
 
 // Replaced in-memory queue with DB repository
 // const messageQueue: { timestamp: number; payload: object }[] = [];
+// Queue flush state
+let isFlushingQueue = false;
+const QUEUE_FLUSH_BASE_DELAY_MS = 100; // Base delay between messages
+const QUEUE_FLUSH_MAX_DELAY_MS = 2000; // Max delay between messages
 
 async function flushQueue() {
+  // Prevent concurrent flushes (thundering herd prevention)
+  if (isFlushingQueue) {
+    console.log("[Live] Queue flush already in progress, skipping");
+    return;
+  }
+
+  isFlushingQueue = true;
+
   try {
     const queue = await offlineQueueRepository.getAll();
-    if (queue.length === 0) return;
+    if (queue.length === 0) {
+      isFlushingQueue = false;
+      return;
+    }
 
-    console.log(`[Live] Flushing ${queue.length} queued messages...`);
+    console.log(`[Live] Flushing ${queue.length} queued messages with backoff...`);
     if (queue.length > 5) {
       toast(`Syncing ${queue.length} updates...`, { icon: "🔄" });
     }
 
     const idsToDelete: number[] = [];
+    let consecutiveFailures = 0;
 
-    // Process queue sequentially to maintain order
-    for (const item of queue) {
-      if (socketInstance?.readyState === WebSocket.OPEN) {
-        if (!item.payload) {
-          idsToDelete.push(item.id);
-          continue;
-        }
+    // Process queue sequentially with exponential backoff
+    for (let i = 0; i < queue.length; i++) {
+      const item = queue[i];
+
+      // Check socket is still open
+      if (socketInstance?.readyState !== WebSocket.OPEN) {
+        console.log("[Live] Socket closed during flush, stopping");
+        break;
+      }
+
+      if (!item.payload) {
+        idsToDelete.push(item.id);
+        continue;
+      }
+
+      try {
         socketInstance.send(JSON.stringify(item.payload));
         idsToDelete.push(item.id);
-      } else {
-        break;
+        consecutiveFailures = 0; // Reset on success
+
+        // Add delay between messages (exponential backoff based on queue position)
+        // Early messages: shorter delay; later messages: longer delay
+        // This spreads the load and prevents server overload
+        if (i < queue.length - 1) {
+          const delay = Math.min(
+            QUEUE_FLUSH_BASE_DELAY_MS * Math.pow(1.2, Math.floor(i / 5)),
+            QUEUE_FLUSH_MAX_DELAY_MS,
+          );
+          await new Promise((r) => setTimeout(r, delay));
+        }
+      } catch (e) {
+        consecutiveFailures++;
+        console.error(`[Live] Failed to send queued message (failure #${consecutiveFailures}):`, e);
+
+        // If we have 3 consecutive failures, stop and retry later
+        if (consecutiveFailures >= 3) {
+          console.warn("[Live] Too many consecutive failures, stopping flush");
+          break;
+        }
+
+        // Add longer delay after failure
+        await new Promise((r) => setTimeout(r, 500 * consecutiveFailures));
       }
     }
 
@@ -249,6 +296,8 @@ async function flushQueue() {
     }
   } catch (e) {
     console.error("[Live] Failed to flush queue:", e);
+  } finally {
+    isFlushingQueue = false;
   }
 }
 

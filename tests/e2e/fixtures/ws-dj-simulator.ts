@@ -181,6 +181,19 @@ export class DjSimulator {
     }
   }
 
+  /**
+   * Simulate a temporary disconnect and reconnect
+   * Useful for testing network resilience
+   */
+  async simulateReconnect(disconnectDurationMs = 1000): Promise<void> {
+    console.log(`[DjSimulator] Simulating disconnect for ${disconnectDurationMs}ms...`);
+    this.disconnect();
+    await new Promise((r) => setTimeout(r, disconnectDurationMs));
+    console.log("[DjSimulator] Reconnecting...");
+    await this.connect();
+    console.log("[DjSimulator] Reconnected!");
+  }
+
   private send(message: object): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));

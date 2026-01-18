@@ -119,6 +119,67 @@ interface LiveSession {
 const activeSessions = new Map<string, LiveSession>();
 
 // ============================================================================
+// Message Nonce Deduplication (Replay Protection)
+// ============================================================================
+// Tracks recently seen message nonces (either messageId or explicit nonce)
+// to prevent duplicate processing from network retries or replay attacks.
+// Uses a time-boxed window for memory efficiency.
+
+interface NonceEntry {
+  timestamp: number;
+  sessionId: string;
+}
+
+// Map: nonce -> { timestamp, sessionId }
+const seenNonces = new Map<string, NonceEntry>();
+const NONCE_TTL_MS = 5 * 60 * 1000; // Nonces expire after 5 minutes
+const MAX_NONCES = 10000; // Hard limit to prevent memory exhaustion
+
+/**
+ * Check if a message nonce has been seen before (deduplication)
+ * @returns true if this nonce is NEW (should be processed), false if duplicate
+ */
+function checkAndRecordNonce(nonce: string | undefined, sessionId: string): boolean {
+  if (!nonce) return true; // No nonce = no deduplication (legacy clients)
+
+  // Check if already seen
+  const existing = seenNonces.get(nonce);
+  if (existing) {
+    console.log(
+      `🔄 Duplicate nonce detected: ${nonce.substring(0, 16)}... (session: ${sessionId})`,
+    );
+    return false;
+  }
+
+  // Enforce max nonces (FIFO eviction)
+  if (seenNonces.size >= MAX_NONCES) {
+    const oldestKey = seenNonces.keys().next().value;
+    if (oldestKey) seenNonces.delete(oldestKey);
+  }
+
+  // Record this nonce
+  seenNonces.set(nonce, { timestamp: Date.now(), sessionId });
+  return true;
+}
+
+// Periodic cleanup of expired nonces
+setInterval(() => {
+  const now = Date.now();
+  let cleaned = 0;
+
+  for (const [nonce, entry] of seenNonces.entries()) {
+    if (now - entry.timestamp > NONCE_TTL_MS) {
+      seenNonces.delete(nonce);
+      cleaned++;
+    }
+  }
+
+  if (cleaned > 0) {
+    console.log(`🧹 Cleaned ${cleaned} expired nonces (remaining: ${seenNonces.size})`);
+  }
+}, 60000); // Every minute
+
+// ============================================================================
 // Listener Count Tracking (Per-Session) with Connection Reference Counting
 // ============================================================================
 // Track connected listeners (dancers) per session for accurate crowd size.
@@ -1917,6 +1978,14 @@ app.get(
                 console.warn(
                   `⚠️ Unauthorized broadcast attempt: connection owns ${djSessionId || "none"}, tried to broadcast to ${message.sessionId}`,
                 );
+                return;
+              }
+
+              // 🔐 Security: Nonce deduplication (prevents replay and retry duplicates)
+              if (!checkAndRecordNonce(messageId, message.sessionId)) {
+                // Duplicate message - send ACK but don't process
+                console.log(`🔄 Skipping duplicate BROADCAST_TRACK (messageId: ${messageId})`);
+                if (messageId) sendAck(ws, messageId);
                 return;
               }
 
