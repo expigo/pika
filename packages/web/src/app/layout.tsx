@@ -33,7 +33,16 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <div className="pb-20 sm:pb-0">{children}</div>
+        {/* Skip to content link for keyboard navigation */}
+        <a
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-purple-600 focus:text-white focus:rounded-lg focus:font-bold focus:text-sm"
+        >
+          Skip to content
+        </a>
+        <main id="main-content" className="pb-20 sm:pb-0">
+          {children}
+        </main>
         <BottomNav />
       </body>
     </html>
