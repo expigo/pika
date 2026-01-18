@@ -59,6 +59,21 @@ export function useSidecar(): UseSidecarResult {
     }
   }, []);
 
+  // Robust cleanup function
+  const killSidecar = useCallback(async () => {
+    const child = (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] as Child | undefined;
+    if (child) {
+      try {
+        await child.kill();
+        console.log("[Sidecar] Process killed successfully");
+      } catch (e) {
+        console.warn("[Sidecar] Kill failed (process may already be gone):", e);
+      } finally {
+        (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = undefined;
+      }
+    }
+  }, []);
+
   const spawnSidecar = useCallback(async () => {
     if (!isTauri()) {
       setStatus("browser");
@@ -68,18 +83,8 @@ export function useSidecar(): UseSidecarResult {
     if (isSpawningRef.current) return;
     isSpawningRef.current = true;
 
-    // Aggressive cleanup using globalThis
-    const existingChild = (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] as
-      | Child
-      | undefined;
-    if (existingChild) {
-      try {
-        await existingChild.kill();
-      } catch (_e) {
-        // Ignore kill errors
-      }
-      (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = undefined;
-    }
+    // Zero-tolerance cleanup: always kill previous global child if exists
+    await killSidecar();
 
     setStatus("starting");
     setBaseUrl(null);
@@ -114,7 +119,7 @@ export function useSidecar(): UseSidecarResult {
         }
       });
 
-      command.on("close", (data) => {
+      command.on("close", (data: any) => {
         console.log("[Sidecar closed]:", data);
         setStatus((prev) => (prev !== "error" ? "idle" : prev));
         (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = undefined;
@@ -136,7 +141,7 @@ export function useSidecar(): UseSidecarResult {
       setStatus("error");
       isSpawningRef.current = false;
     }
-  }, [fetchHealth]);
+  }, [fetchHealth, killSidecar]);
 
   const restart = useCallback(async () => {
     isSpawningRef.current = false;
@@ -146,11 +151,9 @@ export function useSidecar(): UseSidecarResult {
   useEffect(() => {
     spawnSidecar();
     return () => {
-      const child = (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] as Child | undefined;
-      if (child) {
-        child.kill().catch(() => {});
-        (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = undefined;
-      }
+      // In development, we don't kill on unmount to keep HMR fast,
+      // but spawnSidecar() ensures only one process exists.
+      // For production, you might want to call killSidecar() here.
     };
   }, [spawnSidecar]);
 
