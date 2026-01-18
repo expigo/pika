@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
 **Date:** January 18, 2026
-**Version:** 0.2.2 (Security & Schema Hardening)
+**Version:** 0.2.3 (Web App Excellence)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -82,6 +82,13 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
 *   **Cloud Testing (v0.2.2):**
     *   **Auth Routes:** Extracted to `routes/auth.ts` (~300 lines).
     *   **Unit Tests:** 15 tests for auth validation using Bun test runner.
+*   **Web App Excellence (v0.2.3):**
+    *   **Hook Decomposition:** `useLiveListener` split into 6 focused hooks (77% reduction).
+    *   **Shared Utils:** `lib/api.ts`, `lib/client.ts` consolidate 4 duplicated functions.
+    *   **Dynamic Imports:** QR code lazy loaded (~30KB saved on initial load).
+    *   **Accessibility:** ARIA labels, skip-to-content link, reduced-motion CSS.
+    *   **Error Handling:** Error boundary with retry for live session pages.
+    *   **Loading States:** Route-level loading skeletons for `/live`, `/analytics`.
 
 ---
 

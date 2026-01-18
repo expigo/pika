@@ -46,13 +46,16 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 ---
 
 ## 1.6. 🏗️ Code Quality (Engineering Assessment)
-*Focus: Maintainability and Developer Velocity. Composite Score: 9.0/10.*
+*Focus: Maintainability and Developer Velocity. Composite Score: 9.3/10.*
 
 | Observation | Impact | Complexity | Priority | Notes |
 | :--- | :---: | :---: | :---: | :--- |
 | **Split Cloud Backend** | Architecture | 5 | **DONE** | `lib/` modules created. Auth routes extracted to `routes/auth.ts` (v0.2.2). |
 | **Cloud Unit Tests** | Quality | 4 | **DONE** | 15 auth route unit tests using Bun test runner (v0.2.2). |
 | **Decompose useLiveSession** | Maintainability | 4 | **DONE** | Extracted `useLiveStore.ts` (130 lines). Reduced main hook from 1,090→960 lines. |
+| **Decompose useLiveListener** | Maintainability | 6 | **DONE** | Split into 6 focused hooks (v0.2.3). 1029→238 lines (77% reduction). |
+| **Web Shared Utils** | Maintainability | 2 | **DONE** | Extracted `lib/api.ts`, `lib/client.ts` (v0.2.3). |
+| **Accessibility (A11y)** | Quality | 3 | **DONE** | ARIA labels, skip-to-content, reduced-motion CSS (v0.2.3). |
 | **Add E2E Tests** | Quality | 6 | **DONE** | Web: Playwright (6 tests). Desktop: Vitest (16 tests). |
 | **Load Testing** | Reliability | 4 | **DONE** | 300 VUs verified on staging. Max ~1,000 dancers on 4GB VPS. |
 | **WebSocket Message Tests** | Reliability | 3 | **MED** | Test Zod schema parsing and edge cases. |

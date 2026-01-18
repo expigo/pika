@@ -130,22 +130,26 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 ### Code Quality Observations (Engineering Assessment Jan 2026)
 *   ✅ **Split Cloud Backend:** `lib/` modules created (listeners, tempo, cache, protocol, auth).
 *   ✅ **useLiveSession Decomposition:** `useLiveStore.ts` extracted (130 lines).
+*   ✅ **useLiveListener Decomposition:** Split from 1029→238 lines (77% reduction, v0.2.3).
 *   ✅ **Desktop Testing:** 16 Vitest unit tests passing.
 *   ✅ **Lazy Loading:** React.lazy() for LivePerformanceMode, Settings, Logbook.
+*   ✅ **Dynamic Imports:** QR code lazy loaded in web (~30KB saved).
 *   ✅ **Load Tested:** 300 concurrent users verified on 4GB VPS (Jan 2026).
 
 ## 5. Post-MVP Roadmap (Quick Look)
 *   [ ] **Redis:** For persistent session state (zero-downtime deploys).
 *   [ ] **Organizer Role:** For event branding.
 *   [ ] **Native App:** For push notifications.
-*   [ ] **Email Validation:** Upgrade to Zod `.email()` (deferred from MVP).
+*   ✅ **Email Validation:** Upgraded to Zod `.email()` (v0.2.2).
 *   [ ] **ACK/NACK Integration:** Client-side message acknowledgment for reliability.
-*   [ ] **Password Max Length:** Add 128 char limit.
+*   ✅ **Password Max Length:** 128 char limit (v0.2.2).
 
 ## 6. Audit Trail
 
 | Date | Audit | Findings | Ref |
 | :--- | :--- | :--- | :--- |
+| **2026-01-18** | Web App Excellence | ✅ Pass - Hook decomposition, ARIA labels, dynamic imports. | `v0.2.3` |
+| **2026-01-18** | Security Hardening | ✅ Pass - Tauri CSP, DB integrity, auth tests. | `v0.2.2` |
 | **2026-01-18** | Production Hardening | ✅ Pass - Modular layout, fortified sidecar, and playlist retrieval restored. | `v0.2.1` |
 | **2026-01-17** | Production Readiness | ✅ Pass - HUD tools, mobile wake-up sync, and visual stability validated. | `v0.2.0` |
 | **2026-01-17** | Desktop UI/UX Audit | ✅ Pass - Score: 8.9/10. 16 unit tests, lazy loading, virtualization. | `Desktop Audit brain` |

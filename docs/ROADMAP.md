@@ -3,7 +3,7 @@
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
 **Current Focus:** Production Hardening & Architectural Modularity
-**Status:** Release v0.2.2 (Security & Schema Hardening)
+**Status:** Release v0.2.3 (Web App Excellence)
 
 ---
 
@@ -12,14 +12,21 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 18, 2026 - Security & Schema Hardening v0.2.2):**
+    *   **Recent Completions (Jan 18, 2026 - Web App Excellence v0.2.3):**
+        *   ✅ **Hook Decomposition:** `useLiveListener` split from 1029→238 lines (77% reduction).
+        *   ✅ **Shared Utils:** Extracted `lib/api.ts`, `lib/client.ts` from 4 files.
+        *   ✅ **Dynamic Imports:** QR code lazy loaded (~30KB saved).
+        *   ✅ **Accessibility:** ARIA labels, skip-to-content, reduced-motion CSS.
+        *   ✅ **Error Handling:** Error boundary for live session pages.
+        *   ✅ **Loading States:** Route loading skeletons for `/live`, `/analytics`.
+    *   **Previous Completions (Jan 18, 2026 - Security & Schema Hardening v0.2.2):**
         *   ✅ **Tauri CSP:** Enabled Content-Security-Policy in desktop app.
         *   ✅ **Auth Validation:** Password max length (128), Zod email validation.
         *   ✅ **DB Performance:** 12 new indexes on hot query paths.
         *   ✅ **Schema Integrity:** CASCADE deletes, CHECK constraints (BPM 20-300, metrics 0-100).
         *   ✅ **Cloud Tests:** 15 unit tests for auth routes.
         *   ✅ **Code Decomposition:** Extracted auth routes module (~300 lines).
-    *   **Previous Completions (Jan 18, 2026 - Production Hardening):**
+    *   **Previous Completions (Jan 18, 2026 - Production Hardening):****
         *   ✅ **Modular Layout:** Extracted `useLayoutResizer` hook for independent workspace dragging.
         *   ✅ **Stable Engine:** Fortified `useSidecar` with idempotent kill protocol to prevent zombie processes.
         *   ✅ **Playlist Retrieval:** Restored professional `SaveLoadSets` interface into the Crate header.
@@ -56,7 +63,7 @@ This is the central index for the Pika! project, tracking active development, fu
 ## 🔐 Security & Quality
 *   **Latest Audit:** January 18, 2026
 *   **Security Score:** 9.2/10 (All critical items resolved)
-*   **Engineering Score:** 9.0/10 (Auth routes decomposed)
+*   **Engineering Score:** 9.3/10 (Hook decomposition, shared utils)
 
 | Audit | Date | Findings | Status |
 | :--- | :--- | :--- | :--- |
