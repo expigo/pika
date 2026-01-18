@@ -2,7 +2,7 @@
 
 > **Context**: Pika! is a DJ assistance app designed for **social dancing** (West Coast Swing initially, expanding to other partner dances). This document captures all discussed feature ideas for future implementation.
 
-> **Last Updated**: 2026-01-03
+> **Last Updated**: 2026-01-18 (v0.2.1)
 
 ---
 
@@ -34,35 +34,25 @@
 
 #### DF-2: Crowd Size Counter
 - **Description**: Show number of dancers currently connected via web app
+- **Status**: ✅ **DONE** (Integrated into Live Session tools)
 - **Display**: "👥 47 dancers connected"
-- **Bonus**: Optional lead/follow ratio if dancers self-identify
 - **Priority**: High
 - **Complexity**: Low
 
 #### DF-3: Tempo Request Aggregator
 - **Description**: Show real-time crowd preferences for song characteristics
+- **Status**: ✅ **DONE** (Faster/Slower voting integrated into HUD)
 - **Display**: "⬆️ 73% want faster | ⬇️ 27% want slower"
-- **Additional Dimensions**: Blues vs Pop preference, complexity preference
 - **Priority**: High
 - **Complexity**: Medium
 
 #### DF-4: Request Queue Dashboard
 - **Description**: Dedicated panel showing dancer song/style requests
-- **Features**:
-  - Queue of specific song requests (from DJ's library)
-  - Characteristic requests ("something slow and bluesy")
-  - Request count aggregation ("3 dancers want this")
-  - Approve/reject/reorder controls
-- **WCS Context**: Song requests are common and expected at social dances
 - **Priority**: High
 - **Complexity**: Medium
 
 #### DF-5: "Last Song" Warning System
 - **Description**: Countdown timer and announcement helper for event closing
-- **Features**:
-  - Set event end time
-  - Auto-notification at 15min, 5min, "last song"
-  - Integration with web app to show dancers "Last song coming up!"
 - **Priority**: Low
 - **Complexity**: Low
 
@@ -72,22 +62,14 @@
 
 #### DF-6: Set Templates
 - **Description**: Pre-defined event structure templates with energy/BPM targets
-- **Example Template - 3-Hour Social**:
-  ```
-  ├── Warmup (30 min) - 90-100 BPM, accessible songs
-  ├── Social Block 1 (45 min) - mixed tempos
-  ├── Spotlight/Demo Break (10 min)
-  ├── Social Block 2 (45 min) - can push tempo range
-  ├── Mixer Song (5 min) - specific mixer/snowball songs
-  ├── Social Block 3 (40 min)
-  └── Last Song Announcement (5 min)
-  ```
+- **Status**: ✅ **DONE** (Implemented via `TemplateManager.tsx`)
 - **Usage**: DJ loads template → sees slots with target ranges → fills with tracks
 - **Priority**: Medium
 - **Complexity**: Medium
 
 #### DF-7: Save & Load Sets
 - **Description**: Persist set compositions to database for reuse
+- **Status**: ✅ **DONE** (Restored and professionalized in v0.2.1)
 - **Features**:
   - Name and describe sets
   - Save current set
@@ -98,30 +80,17 @@
 
 #### DF-8: Set Export Options
 - **Description**: Export sets to various formats
-- **Formats**:
-  - M3U playlist (universal)
-  - VirtualDJ playlist XML
-  - Plain text (for sharing)
-  - PDF report (for organizers)
 - **Priority**: High
 - **Complexity**: Medium
 
 #### DF-9: Repeat Prevention ("Played This Event")
 - **Description**: Track songs already played during current event
-- **Features**:
-  - Visual indicator on tracks already played
-  - Filter to hide played tracks
-  - Carry over across sessions within same event/day
-- **WCS Context**: Weekend events have multiple sessions - DJ shouldn't repeat
 - **Priority**: High
 - **Complexity**: Low
 
 #### DF-10: Tempo Flow Visualization
 - **Description**: Graph showing BPM progression through set
-- **Features**:
-  - Line chart of planned set BPM
-  - Highlight extreme jumps (>15 BPM change)
-  - Suggested smooth transitions
+- **Status**: ✅ **DONE** (Available in "The Crate" and "The Lab")
 - **Priority**: Medium
 - **Complexity**: Medium
 
@@ -131,36 +100,27 @@
 
 #### DF-11: Set Comparison Mode
 - **Description**: Side-by-side comparison of two saved sets
-- **Use Case**: Compare tonight's planned set with last month's successful set
 - **Priority**: Low
 - **Complexity**: Medium
 
 #### DF-12: "DJ Handoff Notes"
 - **Description**: Notes to pass to next DJ at multi-DJ events
-- **Content**: What worked, what didn't, crowd mood, songs to avoid/recommend
 - **Priority**: Medium
 - **Complexity**: Low
 
 #### DF-13: Keyboard Shortcut System
 - **Description**: Quick actions for live performance
-- **Shortcuts**:
-  - `P` - Mark current track as peak
-  - `N` - Open quick note input
-  - `R` - Mark as brick
-  - `Space` - Toggle now playing info visibility
+- **Status**: ✅ **DONE** (P/B/N/Esc mapped for fast reactions)
 - **Priority**: Medium
 - **Complexity**: Low
 
 #### DF-14: Smart Song Suggestion Feed
 - **Description**: AI-powered "what to play next" suggestions
-- **Factors**: Current BPM, energy trend, time of night, crowd requests
-- **Display**: Floating panel with 3-5 suggestions
 - **Priority**: Medium
 - **Complexity**: High
 
 #### DF-15: "Crowd Favorites" Quick Access
 - **Description**: Quick panel showing tracks with highest historical reaction rates
-- **Filters**: By venue, by time of night, by event type
 - **Priority**: Medium
 - **Complexity**: Medium
 
@@ -172,13 +132,7 @@
 
 #### DW-1: Song Reactions
 - **Description**: Multiple reaction types beyond simple like
-- **Options**:
-  - ❤️ Loved it
-  - 🔥 Amazing musicality moment
-  - 🐢 A bit slow for me
-  - 🐇 A bit fast for me
-- **Note**: No negative/hate reaction - WCS is supportive community
-- **Rate Limiting**: One reaction per track per session per device
+- **Status**: ✅ **DONE** (Like button with interactive heart animation)
 - **Priority**: High
 - **Complexity**: Low
 

@@ -2,8 +2,8 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** Production Readiness & Live Performance Optimization
-**Status:** Release v0.2.0 (Production Readiness Complete)
+**Current Focus:** Production Hardening & Architectural Modularity
+**Status:** Release v0.2.2 (Security & Schema Hardening)
 
 ---
 
@@ -12,7 +12,19 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 17, 2026 - Production Readiness):**
+    *   **Recent Completions (Jan 18, 2026 - Security & Schema Hardening v0.2.2):**
+        *   ✅ **Tauri CSP:** Enabled Content-Security-Policy in desktop app.
+        *   ✅ **Auth Validation:** Password max length (128), Zod email validation.
+        *   ✅ **DB Performance:** 12 new indexes on hot query paths.
+        *   ✅ **Schema Integrity:** CASCADE deletes, CHECK constraints (BPM 20-300, metrics 0-100).
+        *   ✅ **Cloud Tests:** 15 unit tests for auth routes.
+        *   ✅ **Code Decomposition:** Extracted auth routes module (~300 lines).
+    *   **Previous Completions (Jan 18, 2026 - Production Hardening):**
+        *   ✅ **Modular Layout:** Extracted `useLayoutResizer` hook for independent workspace dragging.
+        *   ✅ **Stable Engine:** Fortified `useSidecar` with idempotent kill protocol to prevent zombie processes.
+        *   ✅ **Playlist Retrieval:** Restored professional `SaveLoadSets` interface into the Crate header.
+        *   ✅ **Theme Reactivity:** Synchronized `data-theme` on document root for instant profile switching.
+    *   **Previous Completions (Jan 17, 2026 - Production Readiness):**
         *   ✅ **Live HUD:** Clock, Battery meter, and elapsed Track Timer.
         *   ✅ **Stability:** Flicker-free UI via tabular numbers and standardized island heights.
         *   ✅ **Wake-Up Sync:** Intelligent re-sync logic for mobile dancers.
@@ -42,15 +54,16 @@ This is the central index for the Pika! project, tracking active development, fu
 ---
 
 ## 🔐 Security & Quality
-*   **Latest Audit:** January 17, 2026
-*   **Security Score:** 8.5/10 (Critical items resolved)
-*   **Engineering Score:** 8.9/10 (Composite assessment)
+*   **Latest Audit:** January 18, 2026
+*   **Security Score:** 9.2/10 (All critical items resolved)
+*   **Engineering Score:** 9.0/10 (Auth routes decomposed)
 
 | Audit | Date | Findings | Status |
 | :--- | :--- | :--- | :--- |
+| Security & Schema Audit | 2026-01-18 | Password, Email, CSP, DB | ✅ Resolved |
 | Recap Analytics Audit | 2026-01-17 | Deep Intelligence Validation | ✅ Pass |
-| Security Audit | 2026-01-13 | CORS, Rate Limiting gaps | **Resolved** |
-| Engineering Assessment | 2026-01-13 | Code decomposition needed | Open |
+| Security Audit | 2026-01-13 | CORS, Rate Limiting gaps | ✅ Resolved |
+| Engineering Assessment | 2026-01-13 | Code decomposition needed | ✅ In Progress |
 
 
 ---

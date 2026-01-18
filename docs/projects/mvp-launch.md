@@ -42,7 +42,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **CORS Hardening**: Restrict origins to `pika.stream` and `api.pika.stream` (v0.1.0).
     *   [x] **Rate Limiting**: Add `hono-rate-limiter` on `/api/auth/*` endpoints (5 req/15min) (v0.1.9).
     *   [x] **Secrets Management**: Move hardcoded DB passwords in `docker-compose.prod.yml` to env vars.
-    *   [ ] **Email Validation**: Upgrade to Zod `.email()` validator (currently only checks for `@`). *Deferred.*
+    *   [x] **Email Validation**: Upgraded to Zod `.email()` validator (v0.2.2).
     *   [x] **WebSocket Session Ownership**: Track connection ownership to prevent session hijacking.
     *   [x] **CSRF Protection**: X-Pika-Client header validation (v0.1.9).
     *   [x] **CSP Headers**: Content-Security-Policy via Next.js middleware (v0.1.9).
@@ -83,6 +83,11 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Custom Tags & Notes**: `TagEditor.tsx`, `NoteEditor.tsx` for DJ workflow.
     *   [x] **Set Templates**: Save/load set structures with `TemplateManager.tsx`.
     *   [x] **Production HUD**: Real-time clock, battery meter, and elapsed track timer in Stage Mode.
+    *   [x] **Production Hardening (v0.2.1)**:
+        *   [x] **Modular Layout**: Workspace orchestration extracted to `useLayoutResizer.ts`.
+        *   [x] **Stable Engine**: Idempotent kill protocol for Python sidecar (Zero zombie processes).
+        *   [x] **Playlist Retrieval**: Restored professional Save/Load UI in "The Crate" header.
+        *   [x] **Theme Reactivity**: Instant profile switching via root `data-theme` synchronization.
     *   [x] **Live Stability**: `tabular-nums` and fixed island heights prevent UI flicker.
 *   [ ] **Account Features (MVP Scope)**:
     *   [ ] **Password Protection**: DJ PIN for sessions (optional).
@@ -141,10 +146,10 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 
 | Date | Audit | Findings | Ref |
 | :--- | :--- | :--- | :--- |
-| **2026-01-17** | Production Readiness | ✅ Pass - HUD tools, mobile wake-up sync, and visual stability validated. |
+| **2026-01-18** | Production Hardening | ✅ Pass - Modular layout, fortified sidecar, and playlist retrieval restored. | `v0.2.1` |
+| **2026-01-17** | Production Readiness | ✅ Pass - HUD tools, mobile wake-up sync, and visual stability validated. | `v0.2.0` |
 | **2026-01-17** | Desktop UI/UX Audit | ✅ Pass - Score: 8.9/10. 16 unit tests, lazy loading, virtualization. | `Desktop Audit brain` |
 | **2026-01-17** | Recap Analytics Audit | ✅ Pass - Deep Intelligence metrics validated. | `audio-analysis.md` |
 | **2026-01-15** | Load Test (300 VUs) | ✅ Pass - Max ~1,000 dancers | `load-testing.md` |
 | **2026-01-13** | Security Audit | 0 Critical, 2 High, 4 Medium, 3 Low | `security-audit.md` |
 | **2026-01-13** | Engineering Assessment | Composite Score: 8.4/10 | `engineering-assessment.md` |
-

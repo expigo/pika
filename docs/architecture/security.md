@@ -2,9 +2,9 @@
 
 This document outlines the security architecture of Pika!, including implemented controls, known vulnerabilities, and remediation plans.
 
-**Last Audit:** January 15, 2026  
-**Security Score:** 9.0/10  
-**Status:** Pre-Launch Hardening Complete
+**Last Audit:** January 18, 2026  
+**Security Score:** 9.2/10  
+**Status:** Production Hardening v0.2.2
 
 ---
 
@@ -49,7 +49,7 @@ This document outlines the security architecture of Pika!, including implemented
 | Hash Algorithm | bcrypt | ✅ |
 | Cost Factor | 10 | ✅ |
 | Min Length | 8 characters | ✅ |
-| Max Length | None | 🟡 TODO |
+| Max Length | 128 characters | ✅ |
 | Complexity | None | 🔵 Optional |
 | Common Password Block | None | 🔵 Optional |
 

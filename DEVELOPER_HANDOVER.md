@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** January 17, 2026
-**Version:** 0.2.0 (Production Readiness)
+**Date:** January 18, 2026
+**Version:** 0.2.1 (Production Hardening)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -52,7 +52,7 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
 
 ### ✅ Implemented & Working
 *   **Desktop <-> Cloud Connection:** `useLiveSession` hook manages WebSocket connections, reconnects on failure (`reconnecting-websocket`), and handles the "Go Live" lifecycle.
-*   **Full Authentication:** 
+*   **Full Authentication:**
     *   DJs can Register/Login (`/api/auth`).
     *   Secure password hashing (Bcrypt) and API Tokens (SHA-256).
 *   **Web Interface (Dancers):**
@@ -61,37 +61,45 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   Tempo Voting (Faster/Slower).
     *   Polls/Questions pushed by DJ.
     *   DJ Announcements with auto-dismiss timer.
-*   **Deep Intelligence (Jan 17, 2026):**
+*   **Deep Intelligence:**
     *   **Transition Friction:** Euclidean distance on audio fingerprints (BPM, Energy, Groove, etc.).
     *   **Harmonic Flow:** Camelot-based compatibility scoring.
-    *   **"The Drift":** Detects DJ/Crowd tempo divergence.
 *   **Persistence:**
     *   Postgres DB stores Sessions, Played Tracks, Likes, and Tempo Votes.
-*   **Feedback Loop:** "Like" mechanism and Tempo Feedback are fully functional and persist to DB.
-*   **Security Hardening (v0.1.9):**
+*   **UI/UX Refinements (v0.2.1):**
+    *   **Modular Layout:** `useLayoutResizer.ts` hook for smooth multi-axis workspace resizing.
+    *   **Fortified Sidecar:** Aggressive kill protocol in `useSidecar.ts` ensuring zero zombie Python processes or port collisions.
+    *   **Restored Playlists:** Professionalized `SaveLoadSets.tsx` integrated into "The Crate" header with full Tailwind/sonner feedback.
+    *   **Dynamic Theming:** Instant synchronization of `display.profile` (High Contrast, Midnight, Stealth) via `data-theme` on `documentElement`.
+*   **Security Hardening:**
     *   **CSP Headers:** Content-Security-Policy via Next.js middleware.
-    *   **CSRF Protection:** X-Pika-Client header validation on auth endpoints.
-    *   **Rate Limiting:** Auth endpoints limited to 5 req/15 min.
-    *   **WS Rate Limiting:** 20 connections/min per IP.
-    *   **Session Telemetry:** DJ connect/disconnect events logged for operational insights.
-*   **Desktop UI/UX Audit (v0.3.1):**
-    *   **Library Virtualization:** `@tanstack/react-virtual` for 10k+ tracks.
-    *   **Custom Tags & Notes:** `TagEditor.tsx`, `NoteEditor.tsx` for DJ workflow.
-    *   **Set Templates:** `TemplateManager.tsx` for saving/loading set structures.
-    *   **Lazy Loading:** `React.lazy()` for LivePerformanceMode, Settings, Logbook.
-    *   **Unit Tests:** 16 Vitest tests passing.
-    *   **Keyboard Shortcuts:** P/B/N/Esc in Performance Mode.
-    *   **Accessibility:** `prefers-reduced-motion` support.
-*   **Production Readiness Polish (Jan 17, 2026):**
-    *   **Live HUD Tools:** Real-time clock, battery meter, and elapsed track timer integrated into Stage Mode.
-    *   **Haptic Reaction Badges:** Peak (Zap) and Brick (Snowflake) badges next to track title with subtle animations.
-    *   **Intelligent Wake-Up Sync:** Dancers' browsers automatically re-sync state (poll, track, history) upon phone wake-up.
-    *   **Flicker-Free UI:** Standardized `h-14` island heights and `tabular-nums` typography for rock-solid visual stability.
-    *   **Panic Sync Refinement:** Relocated to far-left Status Island for logical grouping.
+    *   **CSRF Protection:** X-Pika-Client header validation.
+    *   **Rate Limiting:** Auth endpoints and WebSocket connections.
 
 ---
 
-## 10. Design Language & Workspace Taxonomy
+## 4. Architectural Enhancements (v0.2.1)
+
+### A. The Layout Hook (`useLayoutResizer`)
+To keep `App.tsx` manageable, we extracted the quadrant resizing logic into a dedicated hook.
+- **Features:** Supports independent horizontal and vertical dragging with active split tracking.
+- **Implementation:** Uses global mouse listeners mapped to stateful offsets (`hOffset`, `vLeftOffset`, `vRightOffset`).
+
+### B. Stable Python Sidecar Lifecycle
+The `useSidecar` hook now implements an **idempotent kill protocol**:
+1.  **Before Spawn:** Always attempts to kill any existing process handle in `globalThis`.
+2.  **Environment Stability:** Prevents port binding errors during development HMR.
+3.  **Clean Exit:** Ensures the backend engine shuts down gracefully with the desktop app.
+
+### C. Playlist Persistence (Archive System)
+The "Save/Load" functionality was moved from a standalone modal into an integrated header component in `SetCanvas`.
+- **Sync Mode:** Existing sets can be "Synced" (updated) with a single click.
+- **Archive Display:** New high-fidelity retrieval list with track counts and relative timestamps.
+- **Feedback:** All DB operations are wired to `sonner` toast notifications for user confirmation.
+
+---
+
+## 5. Design Language & Workspace Taxonomy
 
 To maintain a consistent "Pro DJ" feel, we use a specific taxonomy for the application workspaces:
 
@@ -105,135 +113,59 @@ To maintain a consistent "Pro DJ" feel, we use a specific taxonomy for the appli
 ### The "Set Lineage" Strategy
 A core differentiator of Pika! is the ability to link **Planned Sets** to **Actual Play Data**:
 *   **Planned (The Crate):** The DJ chooses tracks and sees an "X-Ray" (Energy Wave) of the expected vibe.
-*   **Actual (The Stage):** As the DJ plays (even if they deviate from the plan), Pika! captures the real-time history and listener feedback.
-*   **Lineage (The Lab):** After the session, the DJ can overlay the "Plan" vs "Actual" energy waves to see where the vibe shifted and why. This works even for unplanned sets by using "Live Capture" to promote a history log into a new Crate template.
+*   **Actual (The Stage):** As the DJ plays, Pika! captures the real-time history and listener feedback.
+*   **Lineage (The Lab):** After the session, the DJ can overlay the "Plan" vs "Actual" energy waves to see where the vibe shifted and why.
 
 ---
 
-
-### 🚧 WIP / Missing
-*   **DJ Dashboard (Web):** While DJs can register, a full web-based dashboard for them to manage past sets or edit profile details is incomplete.
-*   **Offline Mode Polish:** Desktop app handles offline analysis well, but the UI for "Queued Updates" when reconnecting to internet needs refinement.
-*   **Session State Persistence:** Sessions are currently held in a Map in `cloud/index.ts`. Migration to Redis is required for zero-downtime deploys.
-
----
-
-## 4. Key Data Flows
-
-### A. The "Go Live" Sequence
-1.  **User Action:** DJ logs in and clicks "Go Live" in Desktop UI.
-2.  **Auth:** Desktop authenticates via JWT/Token with Cloud.
-3.  **Connection:** Connects to `ws://api.pika.stream/ws`.
-4.  **Registration:** Sends `{ type: "REGISTER_SESSION", token: "..." }`.
-5.  **Confirmation:** Server validates token, creates Session in DB, and responds `SESSION_REGISTERED`.
-
-### B. The "Now Playing" Loop
-1.  **VirtualDJ:** Writes new line to history file.
-2.  **Watcher:** `virtualDjWatcher.ts` reads file diff.
-3.  **Event:** Fires `onTrackChange` callback.
-4.  **Upload:** `useLiveSession` sends `{ type: "BROADCAST_TRACK", track: { ... } }`.
-5.  **Persistence:** Cloud saves track and audio metrics to Postgres.
-6.  **Broadcast:** Cloud server publishes to all subscribed Web Clients.
-
----
-
-## 5. Directory Structure / Where to Look
+## 6. Directory Structure / Where to Look
 
 ```
 pika/
 ├── packages/
 │   ├── desktop/
-│   │   ├── src/hooks/useLiveSession.ts   <-- Broadcasting Logic
-│   │   ├── src/services/virtualDjInfo.ts <-- File watching logic
-│   │   ├── src-tauri/                    <-- Rust backend config
-│   │   └── python-src/                   <-- Audio Analysis (Sidecar)
+│   │   ├── src/hooks/useLayoutResizer.ts <-- Layout Orchestration
+│   │   ├── src/hooks/useSidecar.ts       <-- Python Engine Lifecycle
+│   │   ├── src/components/SetCanvas.tsx  <-- "The Crate" Core Workspace
+│   │   ├── src/db/repositories/          <-- Local Cache & Playlist Logic
+│   │   └── src-tauri/                    <-- Rust backend config
 │   │
 │   ├── cloud/
 │   │   ├── src/index.ts                  <-- Unified Backend (WS + API)
-│   │   └── src/db/                       <-- Drizzle Schemas
+│   │   └── src/db/                       <-- Drizzle Schemas (Postgres)
 │   │
 │   ├── web/
-│   │   ├── src/app/live/                 <-- Dancer View
-│   │   └── src/app/dj/[slug]/recap/[id]/analytics/page.tsx <-- Deep Intelligence page
+│   │   ├── src/app/live/                 <-- Dancer View (Next.js)
+│   │   └── src/app/dj/                   <-- DJ Analytics & History
 ```
 
 ---
 
-## 6. Development Tips
+## 7. Development Tips
 
 *   **Running the Stack:** Use the monorepo scripts.
     *   Run All: `bun run dev` (from root) - Starts Cloud, Web, and Desktop.
-    *   Just Cloud: `bun run --filter @pika/cloud dev`
 *   **Mobile Testing:**
-    *   Cloud defaults to `:3001`, Web to `:3002`.
-    *   To test on phone, ensure your phone and computer are on the same Wi-Fi and use your local IP (e.g., `192.168.1.x:3002`).
+    *   To test on phone, ensure your phone and computer are on the same Wi-Fi and use your local IP.
 *   **Database:**
-    *   Cloud depends on a Postgres connection. Ensure `DATABASE_URL` is set in `packages/cloud/.env`.
+    *   **Desktop:** SQLite (`pika.db`) managed via Drizzle in `src/db/index.ts`.
+    *   **Cloud:** Postgres managed via Drizzle in `packages/cloud/src/db`.
 
 ---
 
-## 7. Security Status (Jan 2026 Audit)
-
-**Overall Score: 7.5/10** - Production-viable with listed mitigations.
-
-### What's Working ✅
-*   bcrypt password hashing (cost 10)
-*   SHA-256 hashed API tokens (never stored raw)
-*   Zod validation on all WebSocket messages
-*   SQL injection protection (Drizzle ORM)
-*   No XSS vulnerabilities (React JSX escaping)
-*   Well-scoped Tauri desktop permissions
-
----
-
-## 8. Codebase Health (Jan 2026 Assessment)
-
-**Overall Score: 8.9/10** - Strong foundations, Desktop Audit complete.
-
-### Strengths
-*   **Architecture:** Clean Split-Brain design (Desktop ↔ Cloud ↔ Web)
-*   **Type Safety:** Strict TypeScript, Zod schemas, Drizzle ORM
-*   **Documentation:** Exceptional (10/10) - comprehensive roadmaps and specs
-*   **Analytics:** Integrated **Deep Intelligence** for set review.
-*   **Testing:** 16 Desktop unit tests (Vitest), 6 Web E2E tests (Playwright)
-
-### Areas for Improvement
-| Observation | Impact | Status |
-| :--- | :---: | :--- |
-| `cloud/src/index.ts` is 2100+ lines | Maintainability | 🟡 `lib/` modules created, wiring pending |
-| `useLiveSession.ts` decomposition | Maintainability | ✅ `useLiveStore.ts` extracted (130 lines) |
-| Desktop Testing | Coverage | ✅ 16 Vitest unit tests passing |
-
-### Large File Reference
-| File | Lines | Status |
-| :--- | :---: | :--- |
-| `packages/cloud/src/index.ts` | 2,120 | 🟡 lib/ modules created |
-| `packages/desktop/src/hooks/useLiveSession.ts` | 960 | ✅ useLiveStore extracted |
-| `packages/desktop/src/hooks/useLiveStore.ts` | 130 | ✅ New (Zustand state) |
-| `packages/desktop/src/components/LivePerformanceMode.tsx` | 1,867 | 🟡 Large but functional |
-| `packages/web/src/app/dj/[slug]/recap/[id]/analytics/page.tsx` | 915 | ✅ Advanced Logic |
-
----
-
-## 9. Critical Knowledge Base (Lessons Learned)
+## 8. Critical Knowledge Base (Lessons Learned)
 
 ### A. Desktop SQLite Migrations
-The desktop app uses a local \`pika.db\` SQLite file. Unlike the cloud Postgres (which uses \`drizzle-kit\`), the desktop app **cannot** rely on Drizzle for auto-migrations.
-**Rule:** Any schema change to \`sqliteTable\` in \`schema.ts\` MUST have a corresponding \`ALTER TABLE\` statement in \`packages/desktop/src/db/index.ts\` inside \`initializeDb\`.
+The desktop app uses a local `pika.db` SQLite file. Schema changes MUST have a corresponding `ALTER TABLE` statement in `packages/desktop/src/db/index.ts` because SQLite doesn't support full Drizzle migration automations on the fly in the Tauri bundle.
 
 ### B. Versioning & Releases
-We use a unified versioning script: \`bun run bump <version>\`.
-**Targets:**
-*   All \`package.json\` files.
-*   \`cargo.toml\` and \`tauri.conf.json\`.
-*   **CRITICAL:** \`packages/shared/src/index.ts\` (export const PIKA_VERSION).
+We use a unified versioning script: `bun run bump <version>`.
+- **Targets:** All `package.json` files, Tauri config, and PIKA_VERSION in `@pika/shared`.
 
-### C. File Restoration & Code Safety
-**Incident (Jan 2026):** Several critical files were accidentally emptied (truncated to 0 bytes) during a refactor. 
-- **Lesson:** Always verify file sizes before committing or pushing. 
-- **Recovery:** Git restore is your friend. 
-- **Prevention:** Use Biome/Lint tools to catch errors before they propagate.
+### C. The "HMR Zombie" Problem
+Early in development, Tauri's HMR would spawn multiple Python sidecars, leading to port collisions.
+**Solution:** The current `useSidecar` kill-before-spawn logic is non-negotiable for system stability.
 
 ---
 
-*Last Updated: January 17, 2026 (v0.4.0 - Production Readiness)*
+*Last Updated: January 18, 2026 (v0.2.1 - Production Hardening)*
