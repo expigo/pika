@@ -133,7 +133,7 @@ export function useLiveListener(targetSessionId?: string) {
     );
 
     // Main message handler
-    socket.onmessage = (event) => {
+    const handleMessage = (event: MessageEvent) => {
       const message = parseWebSocketMessage(event.data);
       if (!message) {
         console.error("[Live] Failed to parse message:", event.data);
@@ -142,7 +142,7 @@ export function useLiveListener(targetSessionId?: string) {
 
       console.log("[Live] Received:", message.type);
 
-      // Check for PONG (heartbeat) - no logging needed
+      // Check for PONG (heartbeat) - no processing needed in this hook
       if ((message as { type: string }).type === "PONG") {
         return;
       }
@@ -171,7 +171,7 @@ export function useLiveListener(targetSessionId?: string) {
                 if (targetSession.currentTrack) {
                   setCurrentTrack(targetSession.currentTrack);
                 }
-                fetchHistory(targetSession.sessionId);
+                fetchHistory(targetSession.sessionId, true);
                 setSessionEnded(false);
               }
             } else {
@@ -194,7 +194,7 @@ export function useLiveListener(targetSessionId?: string) {
                     sessionId: session.sessionId,
                   }),
                 );
-                fetchHistory(session.sessionId);
+                fetchHistory(session.sessionId, true);
               }
             }
           }
@@ -222,7 +222,7 @@ export function useLiveListener(targetSessionId?: string) {
                 sessionId: msg.sessionId,
               }),
             );
-            fetchHistory(msg.sessionId);
+            fetchHistory(msg.sessionId, true);
           }
           break;
         }
@@ -249,6 +249,12 @@ export function useLiveListener(targetSessionId?: string) {
           break;
         }
       }
+    };
+
+    socket.addEventListener("message", handleMessage);
+
+    return () => {
+      socket.removeEventListener("message", handleMessage);
     };
   }, [
     socketRef,
