@@ -571,6 +571,7 @@ function sendNack(ws: { send: (data: string) => void }, messageId: string, error
 
 // Track which sessions have been persisted to avoid race conditions
 const persistedSessions = new Set<string>();
+const lastPersistedTrackKey = new Map<string, string>(); // sessionId -> "artist:title"
 
 /**
  * Check if session exists in DB (handling server restarts)
@@ -633,6 +634,8 @@ async function persistSession(
  * Stores BPM, key, and fingerprint for analytics visualizations
  */
 async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> {
+  const trackKey = `${track.artist}:${track.title}`;
+
   // Wait for session to be persisted (with timeout)
   let attempts = 0;
   while (!(await ensureSessionPersisted(sessionId)) && attempts < 20) {
@@ -642,6 +645,11 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
 
   if (!persistedSessions.has(sessionId)) {
     console.warn(`⚠️ Session ${sessionId} not found in DB, skipping track persistence`);
+    return;
+  }
+
+  // Deduplication: Don't persist if it's the same song as last time for this session
+  if (lastPersistedTrackKey.get(sessionId) === trackKey) {
     return;
   }
 
@@ -658,7 +666,7 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
         artist: track.artist,
         title: track.title,
         // Core metrics
-        bpm: track.bpm ?? null,
+        bpm: track.bpm ? Math.round(track.bpm) : null,
         key: track.key ?? null,
         // Fingerprint metrics
         energy: track.energy ? Math.round(track.energy) : null,
@@ -669,11 +677,13 @@ async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> 
       })
       .returning({ id: schema.playedTracks.id });
 
-    const bpmInfo = track.bpm ? ` (${track.bpm} BPM)` : "";
-    const fingerprint = track.danceability ? ` [D:${Math.round(track.danceability)}]` : "";
-    console.log(
-      `💾 Track persisted: ${track.artist} - ${track.title} (ID: ${inserted?.id})${bpmInfo}${fingerprint}`,
-    );
+    if (inserted) {
+      lastPersistedTrackKey.set(sessionId, trackKey);
+      const bpmInfo = track.bpm ? ` (${track.bpm} BPM)` : "";
+      console.log(
+        `💾 Track persisted: ${track.artist} - ${track.title} (ID: ${inserted.id})${bpmInfo}`,
+      );
+    }
   } catch (e) {
     console.error("❌ Failed to persist track:", e);
   }
@@ -1475,13 +1485,13 @@ app.post("/api/session/:sessionId/sync-fingerprints", async (c) => {
 
       // Build update object with only non-null values
       const updateData: Record<string, unknown> = {};
-      if (track.bpm != null) updateData["bpm"] = track.bpm;
+      if (track.bpm != null) updateData["bpm"] = Math.round(track.bpm);
       if (track.key != null) updateData["key"] = track.key;
-      if (track.energy != null) updateData["energy"] = track.energy;
-      if (track.danceability != null) updateData["danceability"] = track.danceability;
-      if (track.brightness != null) updateData["brightness"] = track.brightness;
-      if (track.acousticness != null) updateData["acousticness"] = track.acousticness;
-      if (track.groove != null) updateData["groove"] = track.groove;
+      if (track.energy != null) updateData["energy"] = Math.round(track.energy);
+      if (track.danceability != null) updateData["danceability"] = Math.round(track.danceability);
+      if (track.brightness != null) updateData["brightness"] = Math.round(track.brightness);
+      if (track.acousticness != null) updateData["acousticness"] = Math.round(track.acousticness);
+      if (track.groove != null) updateData["groove"] = Math.round(track.groove);
 
       if (Object.keys(updateData).length === 0) {
         continue;
@@ -1994,26 +2004,34 @@ app.get(
                 // 🎚️ Persist tempo votes for the PREVIOUS track (if any)
                 if (session.currentTrack) {
                   const prevTrack = session.currentTrack;
-                  const feedback = getTempoFeedback(message.sessionId);
-                  if (feedback.total > 0) {
-                    persistTempoVotes(message.sessionId, prevTrack, {
-                      slower: feedback.slower,
-                      perfect: feedback.perfect,
-                      faster: feedback.faster,
-                    });
+
+                  // Only reset if this is truly a DIFFERENT track
+                  const isNewTrack =
+                    prevTrack.artist !== message.track.artist ||
+                    prevTrack.title !== message.track.title;
+
+                  if (isNewTrack) {
+                    const feedback = getTempoFeedback(message.sessionId);
+                    if (feedback.total > 0) {
+                      persistTempoVotes(message.sessionId, prevTrack, {
+                        slower: feedback.slower,
+                        perfect: feedback.perfect,
+                        faster: feedback.faster,
+                      });
+                    }
+
+                    // Clear tempo votes for this session (fresh start for new track)
+                    tempoVotes.delete(message.sessionId);
+
+                    // Broadcast to all clients to reset their tempo vote UI
+                    rawWs.publish(
+                      "live-session",
+                      JSON.stringify({
+                        type: "TEMPO_RESET",
+                        sessionId: message.sessionId,
+                      }),
+                    );
                   }
-
-                  // Clear tempo votes for this session (fresh start for new track)
-                  tempoVotes.delete(message.sessionId);
-
-                  // Broadcast to all clients to reset their tempo vote UI
-                  rawWs.publish(
-                    "live-session",
-                    JSON.stringify({
-                      type: "TEMPO_RESET",
-                      sessionId: message.sessionId,
-                    }),
-                  );
                 }
 
                 session.currentTrack = message.track;
@@ -2794,6 +2812,22 @@ app.get(
               break;
             }
 
+            case "PING": {
+              ws.send(JSON.stringify({ type: "PONG" }));
+              break;
+            }
+
+            case "GET_SESSIONS": {
+              const sessions = Array.from(activeSessions.values());
+              ws.send(
+                JSON.stringify({
+                  type: "SESSIONS_LIST",
+                  sessions,
+                }),
+              );
+              break;
+            }
+
             // Server messages (should not be received from clients)
             case "SESSION_REGISTERED":
             case "SESSION_STARTED":
@@ -2803,7 +2837,10 @@ app.get(
             case "POLL_STARTED":
             case "POLL_UPDATE":
             case "POLL_ENDED":
-            case "LIKE_RECEIVED": {
+            case "LIKE_RECEIVED":
+            case "PONG":
+            case "ACK":
+            case "NACK": {
               console.log(`⚠️ Unexpected server message from client: ${message.type}`);
               break;
             }
