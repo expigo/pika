@@ -3,12 +3,15 @@
  *
  * Shows when the connection has been lost for an extended period,
  * warning dancers that the displayed track may not be current.
+ *
+ * IMPORTANT: Only shows AFTER we've had a successful connection,
+ * not on initial page load.
  */
 
 "use client";
 
 import { AlertTriangle, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface StaleDataBannerProps {
   /**
@@ -30,6 +33,11 @@ interface StaleDataBannerProps {
    * Whether the session has ended (don't show stale banner for ended sessions)
    */
   sessionEnded?: boolean;
+
+  /**
+   * Whether we have received data (track playing)
+   */
+  hasData?: boolean;
 }
 
 export function StaleDataBanner({
@@ -37,13 +45,28 @@ export function StaleDataBanner({
   isConnected,
   staleThresholdMs = 30000,
   sessionEnded = false,
+  hasData = false,
 }: StaleDataBannerProps) {
   const [isStale, setIsStale] = useState(false);
   const [staleSeconds, setStaleSeconds] = useState(0);
+  const hasEverConnectedRef = useRef(false);
+
+  // Track if we've ever been connected
+  useEffect(() => {
+    if (isConnected) {
+      hasEverConnectedRef.current = true;
+    }
+  }, [isConnected]);
 
   useEffect(() => {
     // Don't show if session explicitly ended
     if (sessionEnded) {
+      setIsStale(false);
+      return;
+    }
+
+    // Don't show on initial load - only after we've connected at least once
+    if (!hasEverConnectedRef.current && !hasData) {
       setIsStale(false);
       return;
     }
@@ -57,6 +80,11 @@ export function StaleDataBanner({
 
     // Check staleness every second
     const interval = setInterval(() => {
+      // Only show stale if we've been connected before
+      if (!hasEverConnectedRef.current && !hasData) {
+        return;
+      }
+
       const now = Date.now() - lastHeartbeat;
       const stale = now > staleThresholdMs;
 
@@ -65,7 +93,7 @@ export function StaleDataBanner({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [lastHeartbeat, staleThresholdMs, sessionEnded]);
+  }, [lastHeartbeat, staleThresholdMs, sessionEnded, hasData]);
 
   // Don't render if not stale
   if (!isStale) {

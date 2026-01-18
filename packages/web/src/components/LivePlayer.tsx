@@ -220,6 +220,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
         isConnected={isConnected}
         sessionEnded={sessionEnded}
         staleThresholdMs={30000}
+        hasData={hasTrack}
       />
 
       {/* Announcement Banner */}
@@ -287,7 +288,8 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
             </div>
 
             <div className="flex items-center gap-4">
-              {isConnected && (
+              {/* Show dancer count when we have data, even if temporarily reconnecting */}
+              {(isConnected || hasTrack) && listenerCount > 0 && (
                 <div
                   className={`flex items-center gap-2 px-3 py-1.5 border rounded-xl transition-colors duration-500 ${
                     listenerCount >= 50
@@ -307,7 +309,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                     }`}
                   />
                   <span
-                    key={listenerCount} // Triggers animation on change
+                    key={listenerCount}
                     className={`text-[11px] font-black tabular-nums animate-in fade-in zoom-in duration-300 ${
                       listenerCount >= 50
                         ? "text-red-500"

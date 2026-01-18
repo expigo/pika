@@ -39,6 +39,7 @@ export function useWebSocketConnection({
 
   const socketRef = useRef<ReconnectingWebSocket | null>(null);
   const lastPongRef = useRef<number>(Date.now());
+  const hasReceivedPongRef = useRef<boolean>(false); // Track if we've received at least one PONG
 
   // Send a message if connected
   const send = useCallback((message: object): boolean => {
@@ -109,13 +110,16 @@ export function useWebSocketConnection({
         socket.send(JSON.stringify({ type: "PING" }));
       }
 
-      // Check for stale connection (no pong in 30s)
-      const elapsed = Date.now() - lastPongRef.current;
-      // Use socket state directly instead of react state
-      if (elapsed > 30000 && socket.readyState === WebSocket.OPEN) {
-        console.log("[Connection] Heartbeat timeout, reconnecting...");
-        setStatus("disconnected");
-        socket.reconnect();
+      // Only check for stale connection AFTER we've received at least one PONG
+      // This prevents reconnection loops on initial load
+      if (hasReceivedPongRef.current) {
+        const elapsed = Date.now() - lastPongRef.current;
+        if (elapsed > 30000 && socket.readyState === WebSocket.OPEN) {
+          console.log("[Connection] Heartbeat timeout, reconnecting...");
+          setStatus("connecting");
+          hasReceivedPongRef.current = false; // Reset for next connection
+          socket.reconnect();
+        }
       }
     }, 10000);
 
@@ -134,16 +138,24 @@ export function useWebSocketConnection({
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         console.log("[Connection] Tab visible, checking connection...");
-        const elapsed = Date.now() - lastPongRef.current;
 
-        if (elapsed > 15000) {
-          console.log("[Connection] Stale connection, reconnecting...");
-          setStatus("connecting"); // Show reconnecting state
-          socket.reconnect();
-        } else if (socket.readyState === WebSocket.OPEN) {
-          // Connection is fresh, just re-request current state
-          console.log("[Connection] Connection fresh, re-syncing state...");
-          lastPongRef.current = Date.now(); // Treat visibility return as "fresh"
+        // Only check staleness if we've established connection before
+        if (hasReceivedPongRef.current) {
+          const elapsed = Date.now() - lastPongRef.current;
+
+          if (elapsed > 15000) {
+            console.log("[Connection] Stale connection, reconnecting...");
+            setStatus("connecting");
+            hasReceivedPongRef.current = false; // Reset for next connection
+            socket.reconnect();
+            return;
+          }
+        }
+
+        // Re-request current state if socket is open
+        if (socket.readyState === WebSocket.OPEN) {
+          console.log("[Connection] Re-syncing state...");
+          lastPongRef.current = Date.now();
           setLastHeartbeat(Date.now());
 
           if (targetSessionId) {
@@ -190,6 +202,7 @@ export function useWebSocketConnection({
         const data = JSON.parse(event.data);
         if (data.type === "PONG") {
           lastPongRef.current = Date.now();
+          hasReceivedPongRef.current = true; // Mark that we've received at least one PONG
           setLastHeartbeat(Date.now());
         }
       } catch {
