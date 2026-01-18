@@ -56,6 +56,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Chunked imports** | 100 tracks per batch | ✅ Done |
 | **track_key index** | `CREATE UNIQUE INDEX idx_track_key` | ✅ Done |
 | **Remove getAllTracks from hot path** | Use `findByTrackKey` instead | ✅ Done |
+| **Cloud DB indexes** | 12 indexes on hot query paths (v0.2.2) | ✅ Done |
 
 ---
 

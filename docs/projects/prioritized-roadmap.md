@@ -1,6 +1,6 @@
 # Prioritized Roadmap & Feature Matrix
 
-**Date:** January 17, 2026
+**Date:** January 18, 2026
 **Status:** Living Document
 
 This document organizes the Pika! roadmap by **weighted priority**, balancing user value against implementation complexity.
@@ -34,7 +34,9 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **CORS Hardening** | **10** | 2 | **DONE** | **🚨 CRITICAL** Restrict origins to `pika.stream` only. Implemented in v0.1.0+. |
 | **Auth Rate Limiting** | **10** | 3 | **DONE** | **🚨 CRITICAL** Added `hono-rate-limiter` (5 req/15min) on `/api/auth/*`. |
 | **Secrets to Env Vars** | **8** | 2 | **DONE** | **HIGH** Moved `POSTGRES_PASSWORD` from hardcoded in `docker-compose.prod.yml` to env. |
-| **Email Validation** | **5** | 1 | **DEFERRED** | **MED** Low risk for MVP demo. Will upgrade to Zod `.email()` post-launch. |
+| **Email Validation** | **5** | 1 | **DONE** | **MED** Upgraded to Zod `.email()` validator (v0.2.2). |
+| **Password Max Length** | **5** | 1 | **DONE** | **LOW** 128 char limit to prevent DoS (v0.2.2). |
+| **Tauri CSP** | **5** | 2 | **DONE** | **LOW** Content-Security-Policy enabled in desktop app (v0.2.2). |
 | **WebSocket Session Ownership** | **7** | 4 | **DONE** | **MED** Track connection ownership to prevent session ID spoofing. |
 | **CSRF on Login** | **5** | 2 | **DONE** | **MED** X-Pika-Client header check for REST auth endpoints. |
 | **CSP Headers** | **4** | 2 | **DONE** | **LOW** Content-Security-Policy via Next.js middleware (v0.1.9). |
@@ -44,11 +46,12 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 ---
 
 ## 1.6. 🏗️ Code Quality (Engineering Assessment)
-*Focus: Maintainability and Developer Velocity. Composite Score: 8.9/10.*
+*Focus: Maintainability and Developer Velocity. Composite Score: 9.0/10.*
 
 | Observation | Impact | Complexity | Priority | Notes |
 | :--- | :---: | :---: | :---: | :--- |
-| **Split Cloud Backend** | Architecture | 5 | **DONE** | `lib/` modules created (listeners, tempo, cache, protocol, auth). Wiring deferred. |
+| **Split Cloud Backend** | Architecture | 5 | **DONE** | `lib/` modules created. Auth routes extracted to `routes/auth.ts` (v0.2.2). |
+| **Cloud Unit Tests** | Quality | 4 | **DONE** | 15 auth route unit tests using Bun test runner (v0.2.2). |
 | **Decompose useLiveSession** | Maintainability | 4 | **DONE** | Extracted `useLiveStore.ts` (130 lines). Reduced main hook from 1,090→960 lines. |
 | **Add E2E Tests** | Quality | 6 | **DONE** | Web: Playwright (6 tests). Desktop: Vitest (16 tests). |
 | **Load Testing** | Reliability | 4 | **DONE** | 300 VUs verified on staging. Max ~1,000 dancers on 4GB VPS. |

@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
 **Date:** January 18, 2026
-**Version:** 0.2.1 (Production Hardening)
+**Version:** 0.2.2 (Security & Schema Hardening)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -71,10 +71,17 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Fortified Sidecar:** Aggressive kill protocol in `useSidecar.ts` ensuring zero zombie Python processes or port collisions.
     *   **Restored Playlists:** Professionalized `SaveLoadSets.tsx` integrated into "The Crate" header with full Tailwind/sonner feedback.
     *   **Dynamic Theming:** Instant synchronization of `display.profile` (High Contrast, Midnight, Stealth) via `data-theme` on `documentElement`.
-*   **Security Hardening:**
+*   **Security Hardening (v0.2.2):**
     *   **CSP Headers:** Content-Security-Policy via Next.js middleware.
+    *   **Desktop CSP:** Tauri app CSP enabled for defense-in-depth.
     *   **CSRF Protection:** X-Pika-Client header validation.
     *   **Rate Limiting:** Auth endpoints and WebSocket connections.
+    *   **Email Validation:** Zod `.email()` validator.
+    *   **Password Max Length:** 128 character limit.
+    *   **DB Integrity:** CASCADE deletes, CHECK constraints on all metrics.
+*   **Cloud Testing (v0.2.2):**
+    *   **Auth Routes:** Extracted to `routes/auth.ts` (~300 lines).
+    *   **Unit Tests:** 15 tests for auth validation using Bun test runner.
 
 ---
 
