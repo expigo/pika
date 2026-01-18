@@ -1,12 +1,18 @@
 "use client";
 
 import { Activity, Check, Clock, Heart, Music2, Radio, Share2, Users, X } from "lucide-react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { QRCodeSVG } from "qrcode.react";
 import { useEffect, useState } from "react";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
 import { ProCard } from "./ui/ProCard";
+
+// Dynamic import for QR code (only loaded when sharing)
+const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), {
+  ssr: false,
+  loading: () => <div className="w-[220px] h-[220px] bg-slate-800 rounded-xl animate-pulse" />,
+});
 
 // Format relative time (e.g., "2m ago")
 function formatRelativeTime(dateString?: string): string {
