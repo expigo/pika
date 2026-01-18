@@ -4,7 +4,7 @@
  * Overhauled for "Pro" look with Tailwind and glassmorphism.
  */
 
-import { Check, Plus, Tag, X } from "lucide-react";
+import { Plus, Tag, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { type Track, trackRepository } from "../db/repositories/trackRepository";
 import { TagPill } from "./TagPill";

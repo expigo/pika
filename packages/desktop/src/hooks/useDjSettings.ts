@@ -152,8 +152,7 @@ export function useDjSettings() {
         djName: "",
       };
       saveSettings(newSettings);
-      // Reload to ensure all socket connections reconnect to new URL
-      window.location.reload();
+      saveSettings(newSettings);
       return newSettings;
     });
   }, []);

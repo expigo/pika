@@ -4,7 +4,7 @@
  * Overhauled for "Pro" look with Tailwind and glassmorphism.
  */
 
-import { Check, FileText, X } from "lucide-react";
+import { FileText, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { type Track, trackRepository } from "../db/repositories/trackRepository";
 
