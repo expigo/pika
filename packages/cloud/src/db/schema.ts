@@ -56,7 +56,7 @@ export const playedTracks = pgTable("played_tracks", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id")
     .notNull()
-    .references(() => sessions.id),
+    .references(() => sessions.id, { onDelete: "cascade" }),
   artist: text("artist").notNull(),
   title: text("title").notNull(),
   // Core metrics
@@ -82,7 +82,9 @@ export const playedTracks = pgTable("played_tracks", {
  */
 export const likes = pgTable("likes", {
   id: serial("id").primaryKey(),
-  sessionId: text("session_id").references(() => sessions.id),
+  sessionId: text("session_id")
+    .notNull()
+    .references(() => sessions.id, { onDelete: "cascade" }),
   clientId: text("client_id"), // Browser-based identity for "my likes"
 
   playedTrackId: integer("played_track_id")
@@ -104,7 +106,7 @@ export const tempoVotes = pgTable("tempo_votes", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id")
     .notNull()
-    .references(() => sessions.id),
+    .references(() => sessions.id, { onDelete: "cascade" }),
   trackArtist: text("track_artist").notNull(),
   trackTitle: text("track_title").notNull(),
   slowerCount: integer("slower_count").notNull().default(0),
@@ -125,7 +127,7 @@ export const polls = pgTable("polls", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id")
     .notNull()
-    .references(() => sessions.id),
+    .references(() => sessions.id, { onDelete: "cascade" }),
   question: text("question").notNull(),
   options: json("options").$type<string[]>().notNull(), // JSON array: ["Pop", "Blues", "Electro"]
   status: text("status").notNull().default("active"), // active, closed
@@ -150,7 +152,7 @@ export const pollVotes = pgTable(
     id: serial("id").primaryKey(),
     pollId: integer("poll_id")
       .notNull()
-      .references(() => polls.id),
+      .references(() => polls.id, { onDelete: "cascade" }),
     clientId: text("client_id").notNull(), // Browser identity
     optionIndex: integer("option_index").notNull(), // Which option they voted for (0-indexed)
     votedAt: timestamp("voted_at").defaultNow().notNull(),
@@ -173,7 +175,7 @@ export const sessionEvents = pgTable("session_events", {
   id: serial("id").primaryKey(),
   sessionId: text("session_id")
     .notNull()
-    .references(() => sessions.id),
+    .references(() => sessions.id, { onDelete: "cascade" }),
   eventType: text("event_type").notNull(), // 'connect', 'disconnect', 'reconnect', 'end'
   timestamp: timestamp("timestamp").defaultNow().notNull(),
   // Optional metadata (JSON): reconnect duration, disconnect reason, client version
