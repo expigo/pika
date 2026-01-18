@@ -138,9 +138,14 @@ export function useWebSocketConnection({
 
         if (elapsed > 15000) {
           console.log("[Connection] Stale connection, reconnecting...");
+          setStatus("connecting"); // Show reconnecting state
           socket.reconnect();
         } else if (socket.readyState === WebSocket.OPEN) {
-          // Re-request current state
+          // Connection is fresh, just re-request current state
+          console.log("[Connection] Connection fresh, re-syncing state...");
+          lastPongRef.current = Date.now(); // Treat visibility return as "fresh"
+          setLastHeartbeat(Date.now());
+
           if (targetSessionId) {
             socket.send(
               JSON.stringify({

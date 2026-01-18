@@ -144,15 +144,20 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
   const [thanksText, setThanksText] = useState("SEND THANKS 🦄");
   const [signalLost, setSignalLost] = useState(false);
 
-  // Monitor heartbeat for signal loss
+  // Monitor heartbeat for signal loss - reset immediately when heartbeat updates
   useEffect(() => {
     if (!lastHeartbeat) return;
 
-    // Check every 5 seconds
+    // Immediately check on heartbeat change (resets signal lost)
+    const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
+    if (timeSinceLastHeartbeat < 30000) {
+      setSignalLost(false);
+    }
+
+    // Also check periodically
     const interval = setInterval(() => {
-      const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
-      // Consider signal lost if > 30 seconds since last PONG
-      setSignalLost(timeSinceLastHeartbeat > 30000);
+      const elapsed = Date.now() - lastHeartbeat;
+      setSignalLost(elapsed > 30000);
     }, 5000);
 
     return () => clearInterval(interval);
@@ -303,7 +308,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                   />
                   <span
                     key={listenerCount} // Triggers animation on change
-                    className={`text-[10px] font-black animate-in fade-in zoom-in duration-300 ${
+                    className={`text-[11px] font-black tabular-nums animate-in fade-in zoom-in duration-300 ${
                       listenerCount >= 50
                         ? "text-red-500"
                         : listenerCount >= 10
@@ -311,7 +316,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                           : "text-emerald-500"
                     }`}
                   >
-                    {listenerCount} {listenerCount === 1 ? "DANCER" : "DANCERS"}
+                    {listenerCount}
                   </span>
                 </div>
               )}

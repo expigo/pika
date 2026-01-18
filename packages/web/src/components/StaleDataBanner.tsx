@@ -48,13 +48,20 @@ export function StaleDataBanner({
       return;
     }
 
+    // Immediately clear stale if heartbeat is fresh
+    const elapsed = Date.now() - lastHeartbeat;
+    if (elapsed < staleThresholdMs) {
+      setIsStale(false);
+      setStaleSeconds(Math.floor(elapsed / 1000));
+    }
+
     // Check staleness every second
     const interval = setInterval(() => {
-      const elapsed = Date.now() - lastHeartbeat;
-      const stale = elapsed > staleThresholdMs;
+      const now = Date.now() - lastHeartbeat;
+      const stale = now > staleThresholdMs;
 
       setIsStale(stale);
-      setStaleSeconds(Math.floor(elapsed / 1000));
+      setStaleSeconds(Math.floor(now / 1000));
     }, 1000);
 
     return () => clearInterval(interval);
