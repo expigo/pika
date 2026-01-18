@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@pika/shared": "workspace:*",
+    "idb-keyval": "^6.2.2",
     "lucide-react": "^0.468.0",
     "next": "16.1.1",
     "qrcode.react": "^4.2.0",

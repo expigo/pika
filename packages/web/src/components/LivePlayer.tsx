@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
+import { SocialSignalsLayer } from "./SocialSignalsLayer";
+import { StaleDataBanner } from "./StaleDataBanner";
 import { ProCard } from "./ui/ProCard";
 
 // Dynamic import for QR code (only loaded when sharing)
@@ -132,13 +134,32 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     sendReaction,
     announcement,
     dismissAnnouncement,
+    onLikeReceived,
+    sessionEnded,
+    lastHeartbeat,
   } = useLiveListener(targetSessionId);
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [votingOption, setVotingOption] = useState<number | null>(null);
   const [thanksText, setThanksText] = useState("SEND THANKS 🦄");
+  const [signalLost, setSignalLost] = useState(false);
+
+  // Monitor heartbeat for signal loss
+  useEffect(() => {
+    if (!lastHeartbeat) return;
+
+    // Check every 5 seconds
+    const interval = setInterval(() => {
+      const timeSinceLastHeartbeat = Date.now() - lastHeartbeat;
+      // Consider signal lost if > 30 seconds since last PONG
+      setSignalLost(timeSinceLastHeartbeat > 30000);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [lastHeartbeat]);
 
   const isConnected = status === "connected";
+  // The DJ is "Live" if connected AND (we have a track OR a DJ name) AND signal is not lost
   const hasTrack = currentTrack !== null;
   const isLive = isConnected && (hasTrack || djName);
   const isTargetedSession = !!targetSessionId;
@@ -185,6 +206,17 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
 
       <ConnectionStatusIndicator status={status} />
 
+      {/* Social Signals Overlay (Canvas) */}
+      <SocialSignalsLayer onLikeReceived={onLikeReceived} />
+
+      {/* Stale Data Warning Banner (shows when disconnected for extended period) */}
+      <StaleDataBanner
+        lastHeartbeat={lastHeartbeat}
+        isConnected={isConnected}
+        sessionEnded={sessionEnded}
+        staleThresholdMs={30000}
+      />
+
       {/* Announcement Banner */}
       {announcement && (
         <div className="fixed top-0 left-0 right-0 z-50 animate-in slide-in-from-top duration-500">
@@ -223,26 +255,64 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
           <div className="px-8 py-6 border-b border-slate-800/50 flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="relative">
-                <Radio className={`w-6 h-6 ${isLive ? "text-red-500" : "text-slate-700"}`} />
-                {isLive && (
+                <Radio
+                  className={`w-6 h-6 ${signalLost ? "text-amber-500" : isLive ? "text-red-500" : "text-slate-700"}`}
+                />
+                {isLive && !signalLost && (
                   <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50" />
+                )}
+                {signalLost && (
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-amber-500 rounded-full animate-pulse shadow-lg shadow-amber-500/50" />
                 )}
               </div>
               <div>
                 <h1 className="text-xl font-black text-white italic tracking-tighter uppercase leading-none">
-                  Pika! <span className="text-red-500">Live</span>
+                  Pika! <span className={signalLost ? "text-amber-500" : "text-red-500"}>Live</span>
                 </h1>
-                <p className="text-[9px] font-black text-slate-600 uppercase tracking-widest mt-1">
-                  {isConnected ? "CONNECTED FLOOR" : "SEARCHING FOR VIBE"}
+                <p
+                  className={`text-[9px] font-black uppercase tracking-widest mt-1 ${signalLost ? "text-amber-500 animate-pulse" : "text-slate-600"}`}
+                >
+                  {isConnected
+                    ? signalLost
+                      ? "SIGNAL WEAK - WAITING FOR DJ"
+                      : "CONNECTED FLOOR"
+                    : "SEARCHING FOR VIBE"}
                 </p>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
-              {isConnected && listenerCount > 0 && (
-                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
-                  <Users className="w-3.5 h-3.5 text-emerald-500" />
-                  <span className="text-[10px] text-emerald-500 font-black">{listenerCount}</span>
+              {isConnected && (
+                <div
+                  className={`flex items-center gap-2 px-3 py-1.5 border rounded-xl transition-colors duration-500 ${
+                    listenerCount >= 50
+                      ? "bg-red-500/10 border-red-500/20"
+                      : listenerCount >= 10
+                        ? "bg-purple-500/10 border-purple-500/20"
+                        : "bg-emerald-500/10 border-emerald-500/20"
+                  }`}
+                >
+                  <Users
+                    className={`w-3.5 h-3.5 ${
+                      listenerCount >= 50
+                        ? "text-red-500"
+                        : listenerCount >= 10
+                          ? "text-purple-500"
+                          : "text-emerald-500"
+                    }`}
+                  />
+                  <span
+                    key={listenerCount} // Triggers animation on change
+                    className={`text-[10px] font-black animate-in fade-in zoom-in duration-300 ${
+                      listenerCount >= 50
+                        ? "text-red-500"
+                        : listenerCount >= 10
+                          ? "text-purple-500"
+                          : "text-emerald-500"
+                    }`}
+                  >
+                    {listenerCount} {listenerCount === 1 ? "DANCER" : "DANCERS"}
+                  </span>
                 </div>
               )}
               {isLive && (
@@ -344,6 +414,28 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 >
                   {thanksText}
                 </button>
+              </div>
+            ) : sessionEnded ? (
+              <div className="text-center animate-in fade-in duration-500">
+                <div className="w-20 h-20 bg-slate-900 border-2 border-slate-800 rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl">
+                  <Heart className="w-10 h-10 text-slate-700" />
+                </div>
+                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-2">
+                  Session Ended
+                </h2>
+                <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mb-8">
+                  Thanks for dancing!
+                </p>
+                {isTargetedSession && (
+                  <div>
+                    <Link
+                      href={`/recap/${targetSessionId}`}
+                      className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 hover:scale-105 active:scale-95"
+                    >
+                      View Full Recap
+                    </Link>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center">

@@ -25,16 +25,17 @@ interface UseWebSocketConnectionReturn {
   setSessionId: (id: string | null) => void;
   setDjName: (name: string | null) => void;
   setListenerCount: (count: number) => void;
+  lastHeartbeat: number;
 }
 
 export function useWebSocketConnection({
   targetSessionId,
-  onReconnect,
 }: UseWebSocketConnectionProps): UseWebSocketConnectionReturn {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [sessionId, setSessionId] = useState<string | null>(targetSessionId ?? null);
   const [djName, setDjName] = useState<string | null>(null);
   const [listenerCount, setListenerCount] = useState(0);
+  const [lastHeartbeat, setLastHeartbeat] = useState<number>(Date.now());
 
   const socketRef = useRef<ReconnectingWebSocket | null>(null);
   const lastPongRef = useRef<number>(Date.now());
@@ -88,18 +89,17 @@ export function useWebSocketConnection({
           }),
         );
       }
-
-      // Flush pending likes on reconnect
-      onReconnect?.();
     };
 
-    socket.onclose = () => {
-      console.log("[Connection] Disconnected from cloud");
+    socket.onclose = (event) => {
+      console.log(
+        `[Connection] Disconnected from cloud (Code: ${event.code}, Reason: ${event.reason})`,
+      );
       setStatus("disconnected");
     };
 
-    socket.onerror = () => {
-      console.log("[Connection] WebSocket error");
+    socket.onerror = (error) => {
+      console.log("[Connection] WebSocket error:", error);
       setStatus("disconnected");
     };
 
@@ -111,7 +111,8 @@ export function useWebSocketConnection({
 
       // Check for stale connection (no pong in 30s)
       const elapsed = Date.now() - lastPongRef.current;
-      if (elapsed > 30000 && status === "connected") {
+      // Use socket state directly instead of react state
+      if (elapsed > 30000 && socket.readyState === WebSocket.OPEN) {
         console.log("[Connection] Heartbeat timeout, reconnecting...");
         setStatus("disconnected");
         socket.reconnect();
@@ -163,7 +164,6 @@ export function useWebSocketConnection({
     window.addEventListener("offline", handleOffline);
     window.addEventListener("online", handleOnline);
     document.addEventListener("visibilitychange", handleVisibilityChange);
-
     return () => {
       clearInterval(heartbeatInterval);
       window.removeEventListener("offline", handleOffline);
@@ -172,7 +172,7 @@ export function useWebSocketConnection({
       socket.close();
       socketRef.current = null;
     };
-  }, [targetSessionId, onReconnect, status]);
+  }, [targetSessionId]); // Removed 'status' dependency to prevent infinite loops
 
   // Update lastPong on PONG messages (called from parent)
   useEffect(() => {
@@ -185,6 +185,7 @@ export function useWebSocketConnection({
         const data = JSON.parse(event.data);
         if (data.type === "PONG") {
           lastPongRef.current = Date.now();
+          setLastHeartbeat(Date.now());
         }
       } catch {
         // Ignore parse errors
@@ -205,5 +206,6 @@ export function useWebSocketConnection({
     setSessionId,
     setDjName,
     setListenerCount,
+    lastHeartbeat,
   };
 }

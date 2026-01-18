@@ -26,6 +26,136 @@ const processedTrackKeys = new Set<string>(); // Track which tracks we've alread
 let lastBroadcastedTrackKey: string | null = null; // Prevent duplicate cloud broadcasts
 let skipInitialTrackBroadcast = false; // Explicit flag to skip initial track broadcast
 
+// ============================================================================
+// ACK/NACK Protocol for Reliable Message Delivery
+// ============================================================================
+
+interface PendingMessage {
+  messageId: string;
+  payload: object;
+  resolve: (ack: boolean) => void;
+  retryCount: number;
+  timeout: ReturnType<typeof setTimeout>;
+}
+
+// Track messages awaiting ACK from server
+const pendingMessages = new Map<string, PendingMessage>();
+
+// Retry configuration
+const ACK_TIMEOUT_MS = 5000; // Wait 5s for ACK
+const MAX_RETRIES = 3;
+const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
+
+/**
+ * Generate a unique message ID for ACK tracking
+ */
+function generateMessageId(): string {
+  return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+/**
+ * Handle incoming ACK from server
+ */
+function handleAck(messageId: string): void {
+  const pending = pendingMessages.get(messageId);
+  if (pending) {
+    clearTimeout(pending.timeout);
+    pendingMessages.delete(messageId);
+    pending.resolve(true);
+    console.log(`[ACK] ✅ Received ACK for ${messageId}`);
+  }
+}
+
+/**
+ * Handle incoming NACK from server
+ */
+function handleNack(messageId: string, error: string): void {
+  const pending = pendingMessages.get(messageId);
+  if (pending) {
+    clearTimeout(pending.timeout);
+    console.error(`[ACK] ❌ Received NACK for ${messageId}: ${error}`);
+
+    // Retry if under limit
+    if (pending.retryCount < MAX_RETRIES) {
+      const delay = RETRY_DELAYS[pending.retryCount] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
+      console.log(
+        `[ACK] Retrying ${messageId} in ${delay}ms (attempt ${pending.retryCount + 1}/${MAX_RETRIES})`,
+      );
+
+      setTimeout(() => {
+        if (socketInstance?.readyState === WebSocket.OPEN) {
+          retrySend(pending);
+        } else {
+          // Socket not open, move to offline queue
+          pendingMessages.delete(messageId);
+          offlineQueueRepository.enqueue(pending.payload).catch(console.error);
+          pending.resolve(false);
+        }
+      }, delay);
+    } else {
+      // Max retries exceeded
+      pendingMessages.delete(messageId);
+      pending.resolve(false);
+      toast(`Failed to sync: ${error}`, { icon: "⚠️" });
+    }
+  }
+}
+
+/**
+ * Retry sending a message
+ */
+function retrySend(pending: PendingMessage): void {
+  pending.retryCount++;
+
+  // Set new timeout
+  pending.timeout = setTimeout(() => {
+    handleTimeout(pending.messageId);
+  }, ACK_TIMEOUT_MS);
+
+  socketInstance?.send(JSON.stringify(pending.payload));
+  console.log(
+    `[ACK] 🔄 Retrying ${pending.messageId} (attempt ${pending.retryCount}/${MAX_RETRIES})`,
+  );
+}
+
+/**
+ * Handle ACK timeout
+ */
+function handleTimeout(messageId: string): void {
+  const pending = pendingMessages.get(messageId);
+  if (!pending) return;
+
+  console.warn(`[ACK] ⏱️ Timeout for ${messageId}`);
+
+  if (pending.retryCount < MAX_RETRIES) {
+    // Retry
+    if (socketInstance?.readyState === WebSocket.OPEN) {
+      retrySend(pending);
+    } else {
+      // Socket closed, move to offline queue
+      pendingMessages.delete(messageId);
+      offlineQueueRepository.enqueue(pending.payload).catch(console.error);
+      pending.resolve(false);
+    }
+  } else {
+    // Max retries, give up
+    pendingMessages.delete(messageId);
+    pending.resolve(false);
+    console.error(`[ACK] ❌ Message ${messageId} failed after ${MAX_RETRIES} retries`);
+  }
+}
+
+/**
+ * Clear all pending messages (on session end)
+ */
+function clearPendingMessages(): void {
+  for (const [, pending] of pendingMessages) {
+    clearTimeout(pending.timeout);
+    pending.resolve(false);
+  }
+  pendingMessages.clear();
+}
+
 // Like batching: collect likes and show batched toast
 const LIKE_BATCH_THRESHOLD = 5; // Show toast after this many likes
 const LIKE_BATCH_TIMEOUT_MS = 3000; // Or after this many ms (for small events)
@@ -122,17 +252,48 @@ async function flushQueue() {
   }
 }
 
-function sendMessage(message: { type: string; [key: string]: unknown }) {
+/**
+ * Send a message to the cloud server
+ * @param message - The message payload
+ * @param reliable - If true, track for ACK and retry on failure (default: false for backwards compatibility)
+ * @returns Promise that resolves when ACK received (if reliable) or immediately (if not)
+ */
+function sendMessage(
+  message: { type: string; [key: string]: unknown },
+  reliable = false,
+): Promise<boolean> {
+  // For critical messages, add messageId for ACK tracking
+  const messageId = reliable ? generateMessageId() : undefined;
+  const payload = messageId ? { ...message, messageId } : message;
+
   if (socketInstance?.readyState === WebSocket.OPEN) {
-    socketInstance.send(JSON.stringify(message));
-    console.log("[Live] Sent:", message);
+    if (reliable && messageId) {
+      // Track for ACK
+      return new Promise((resolve) => {
+        const pending: PendingMessage = {
+          messageId,
+          payload,
+          resolve,
+          retryCount: 0,
+          timeout: setTimeout(() => handleTimeout(messageId), ACK_TIMEOUT_MS),
+        };
+        pendingMessages.set(messageId, pending);
+        socketInstance?.send(JSON.stringify(payload));
+        console.log(`[Live] Sent (reliable): ${message.type} [${messageId}]`);
+      });
+    } else {
+      // Fire and forget
+      socketInstance.send(JSON.stringify(payload));
+      console.log("[Live] Sent:", message.type);
+      return Promise.resolve(true);
+    }
   } else {
     // Queue the message if we are "supposed" to be live
     if (isLiveFlag) {
       console.log("[Live] Socket offline - Queuing persistent message:", message.type);
 
       // Fire and forget enqueue to avoid blocking UI
-      offlineQueueRepository.enqueue(message).catch((e) => {
+      offlineQueueRepository.enqueue(payload).catch((e) => {
         console.error("[Live] Failed to persist offline message:", e);
       });
 
@@ -141,6 +302,7 @@ function sendMessage(message: { type: string; [key: string]: unknown }) {
         toast("Offline: Track queued for sync", { icon: "📡" });
       }
     }
+    return Promise.resolve(false);
   }
 }
 
@@ -164,11 +326,15 @@ function broadcastTrack(sessionId: string, track: TrackInfo): boolean {
   // Track this song as "played" for repeat prevention in LibraryBrowser
   useLiveStore.getState().addPlayedTrack(trackKey);
 
-  sendMessage({
-    type: MESSAGE_TYPES.BROADCAST_TRACK,
-    sessionId,
-    track,
-  });
+  // Use reliable mode for critical track broadcasts
+  sendMessage(
+    {
+      type: MESSAGE_TYPES.BROADCAST_TRACK,
+      sessionId,
+      track,
+    },
+    true, // reliable: wait for ACK, retry on failure
+  );
   return true;
 }
 
@@ -513,6 +679,19 @@ export function useLiveSession() {
             console.log("[Live] Session registered:", message.sessionId);
           }
 
+          // Handle ACK/NACK for reliable message delivery
+          if (message.type === MESSAGE_TYPES.ACK) {
+            const ackMsg = message as { messageId: string };
+            handleAck(ackMsg.messageId);
+            return;
+          }
+
+          if (message.type === MESSAGE_TYPES.NACK) {
+            const nackMsg = message as { messageId: string; error: string };
+            handleNack(nackMsg.messageId, nackMsg.error);
+            return;
+          }
+
           // Handle likes from listeners (batched notifications)
           if (message.type === MESSAGE_TYPES.LIKE_RECEIVED) {
             const track = message.payload?.track;
@@ -726,6 +905,7 @@ export function useLiveSession() {
     currentPlayIdRef = null;
     processedTrackKeys.clear();
     lastBroadcastedTrackKey = null;
+    clearPendingMessages(); // Clear any pending ACK messages
   }, [reset]);
 
   // Clear now playing

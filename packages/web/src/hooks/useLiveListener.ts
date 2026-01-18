@@ -10,15 +10,16 @@
 "use client";
 
 import { MESSAGE_TYPES, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getOrCreateClientId } from "@/lib/client";
 import {
-  combineHandlers,
   type ConnectionStatus,
+  combineHandlers,
   type HistoryTrack,
   useAnnouncement,
   useLikeQueue,
   usePollState,
+  useSocialSignals,
   useTempoVote,
   useTrackHistory,
   useWebSocketConnection,
@@ -40,19 +41,27 @@ export function useLiveListener(targetSessionId?: string) {
     setSessionId,
     setDjName,
     setListenerCount,
+    lastHeartbeat,
   } = useWebSocketConnection({
     targetSessionId,
-    onReconnect: () => {
-      // Flush pending likes on reconnection
-      flushPendingLikes();
-    },
   });
 
-  // Like queue
-  const { likedTracks, sendLike, hasLiked, flushPendingLikes, resetLikes } = useLikeQueue({
-    sessionId,
-    socketRef,
-  });
+  // Like queue (with IndexedDB persistence for offline likes)
+  const { likedTracks, sendLike, hasLiked, flushPendingLikes, resetLikes, pendingCount } =
+    useLikeQueue({
+      sessionId,
+      socketRef,
+    });
+
+  // Handle reconnect (flush pending likes from IndexedDB)
+  useEffect(() => {
+    if (status === "connected") {
+      // flushPendingLikes is now async but we fire-and-forget
+      flushPendingLikes().catch((e) => {
+        console.error("[Live] Error flushing pending likes:", e);
+      });
+    }
+  }, [status, flushPendingLikes]);
 
   // Poll state
   const { activePoll, hasVotedOnPoll, voteOnPoll, resetPoll, pollHandlers } = usePollState({
@@ -75,6 +84,11 @@ export function useLiveListener(targetSessionId?: string) {
     useTrackHistory({
       sessionId,
     });
+
+  // Social Signals (Hearts)
+  const { onLikeReceived, socialSignalHandlers } = useSocialSignals({
+    sessionId,
+  });
 
   // Send reaction (thank_you)
   const sendReaction = useCallback(
@@ -99,6 +113,9 @@ export function useLiveListener(targetSessionId?: string) {
     [sessionId, socketRef],
   );
 
+  // Explicitly track if the session was ended by the DJ
+  const [sessionEnded, setSessionEnded] = useState(false);
+
   // Session and message routing
   useEffect(() => {
     const socket = socketRef.current;
@@ -112,6 +129,7 @@ export function useLiveListener(targetSessionId?: string) {
       tempoHandlers,
       announcementHandlers,
       trackHandlers,
+      socialSignalHandlers,
     );
 
     // Main message handler
@@ -154,6 +172,7 @@ export function useLiveListener(targetSessionId?: string) {
                   setCurrentTrack(targetSession.currentTrack);
                 }
                 fetchHistory(targetSession.sessionId);
+                setSessionEnded(false);
               }
             } else {
               // Auto-join first session
@@ -163,6 +182,7 @@ export function useLiveListener(targetSessionId?: string) {
               if (session.currentTrack) {
                 setCurrentTrack(session.currentTrack);
               }
+              setSessionEnded(false);
 
               // Subscribe once per discovered session
               if (discoveredSessionRef.current !== session.sessionId) {
@@ -191,6 +211,7 @@ export function useLiveListener(targetSessionId?: string) {
           setCurrentTrack(null);
           clearHistory();
           resetPoll();
+          setSessionEnded(false);
 
           if (!targetSessionId && msg.sessionId) {
             discoveredSessionRef.current = msg.sessionId;
@@ -218,6 +239,7 @@ export function useLiveListener(targetSessionId?: string) {
           resetLikes();
           setListenerCount(0);
           resetTempoVote();
+          setSessionEnded(true);
           break;
         }
 
@@ -236,6 +258,7 @@ export function useLiveListener(targetSessionId?: string) {
     tempoHandlers,
     announcementHandlers,
     trackHandlers,
+    socialSignalHandlers,
     setSessionId,
     setDjName,
     setCurrentTrack,
@@ -247,7 +270,7 @@ export function useLiveListener(targetSessionId?: string) {
     resetTempoVote,
   ]);
 
-  // Return unified API (unchanged from original)
+  // Return unified API
   return {
     status,
     currentTrack,
@@ -266,5 +289,9 @@ export function useLiveListener(targetSessionId?: string) {
     voteOnPoll,
     sendReaction,
     dismissAnnouncement,
+    onLikeReceived,
+    sessionEnded,
+    lastHeartbeat,
+    pendingCount, // Number of likes queued for offline sync
   };
 }

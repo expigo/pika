@@ -1,9 +1,11 @@
 /**
  * Hook for managing like state and offline queue
- * Handles sending likes, offline queuing, and localStorage persistence
+ * Uses IndexedDB (via idb-keyval) for persistent offline queue that survives page refresh
+ * Uses localStorage for liked tracks state (already works well)
  */
 
-import { MESSAGE_TYPES, getTrackKey, type TrackInfo } from "@pika/shared";
+import { getTrackKey, MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
+import { get, set, del } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
@@ -18,25 +20,75 @@ interface UseLikeQueueReturn {
   likedTracks: Set<string>;
   sendLike: (track: TrackInfo) => boolean;
   hasLiked: (track: TrackInfo) => boolean;
-  flushPendingLikes: () => void;
+  flushPendingLikes: () => Promise<void>;
   resetLikes: () => void;
+  pendingCount: number;
 }
 
 interface PendingLike {
   track: TrackInfo;
   sessionId: string;
+  timestamp: number;
+}
+
+// IndexedDB key for pending likes
+const getPendingKey = (sessionId: string) => `pika_pending_likes_${sessionId}`;
+
+/**
+ * Load pending likes from IndexedDB
+ */
+async function loadPendingFromIDB(sessionId: string): Promise<PendingLike[]> {
+  try {
+    const stored = await get<PendingLike[]>(getPendingKey(sessionId));
+    return stored || [];
+  } catch (e) {
+    console.error("[Likes] Failed to load pending from IDB:", e);
+    return [];
+  }
+}
+
+/**
+ * Save pending likes to IndexedDB
+ */
+async function savePendingToIDB(sessionId: string, pending: PendingLike[]): Promise<void> {
+  try {
+    if (pending.length === 0) {
+      await del(getPendingKey(sessionId));
+    } else {
+      await set(getPendingKey(sessionId), pending);
+    }
+  } catch (e) {
+    console.error("[Likes] Failed to save pending to IDB:", e);
+  }
 }
 
 export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLikeQueueReturn {
   const [likedTracks, setLikedTracks] = useState<Set<string>>(() => getStoredLikes(sessionId));
-  const pendingLikesRef = useRef<Set<string>>(new Set());
+  const [pendingCount, setPendingCount] = useState(0);
+  const pendingLikesRef = useRef<PendingLike[]>([]);
+  const idbLoadedRef = useRef(false);
 
-  // Load likes when session changes
+  // Load likes and pending from storage when session changes
   useEffect(() => {
-    if (sessionId) {
-      const stored = getStoredLikes(sessionId);
-      setLikedTracks(stored);
-    }
+    if (!sessionId) return;
+
+    // Load liked tracks from localStorage
+    const stored = getStoredLikes(sessionId);
+    setLikedTracks(stored);
+
+    // Load pending likes from IndexedDB
+    const loadPending = async () => {
+      const pending = await loadPendingFromIDB(sessionId);
+      pendingLikesRef.current = pending;
+      setPendingCount(pending.length);
+      idbLoadedRef.current = true;
+
+      if (pending.length > 0) {
+        console.log(`[Likes] Loaded ${pending.length} pending likes from IndexedDB`);
+      }
+    };
+
+    loadPending();
   }, [sessionId]);
 
   // Persist likes when they change
@@ -49,7 +101,16 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   // Reset likes (on session end)
   const resetLikes = useCallback(() => {
     setLikedTracks(new Set());
-  }, []);
+    pendingLikesRef.current = [];
+    setPendingCount(0);
+
+    // Clear IndexedDB for this session
+    if (sessionId) {
+      del(getPendingKey(sessionId)).catch((e) => {
+        console.error("[Likes] Failed to clear pending from IDB:", e);
+      });
+    }
+  }, [sessionId]);
 
   // Check if a track has been liked
   const hasLiked = useCallback(
@@ -60,32 +121,48 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   );
 
   // Flush pending likes when reconnecting
-  const flushPendingLikes = useCallback(() => {
+  const flushPendingLikes = useCallback(async () => {
     const socket = socketRef.current;
-    if (!socket || socket.readyState !== WebSocket.OPEN) {
+    if (!socket || socket.readyState !== WebSocket.OPEN || !sessionId) {
       return;
     }
 
-    pendingLikesRef.current.forEach((pendingJson) => {
-      try {
-        const pending: PendingLike = JSON.parse(pendingJson);
-        console.log("[Likes] Flushing pending like:", pending.track.title);
+    const pending = [...pendingLikesRef.current];
+    if (pending.length === 0) return;
 
+    console.log(`[Likes] Flushing ${pending.length} pending likes...`);
+
+    const successfullyFlushed: number[] = [];
+
+    for (let i = 0; i < pending.length; i++) {
+      const like = pending[i];
+      try {
         socket.send(
           JSON.stringify({
             type: MESSAGE_TYPES.SEND_LIKE,
             clientId: getOrCreateClientId(),
-            sessionId: pending.sessionId,
-            payload: { track: pending.track },
+            sessionId: like.sessionId,
+            payload: { track: like.track },
           }),
         );
+        successfullyFlushed.push(i);
+        console.log("[Likes] Flushed pending like:", like.track.title);
       } catch (e) {
         console.error("[Likes] Failed to flush pending like:", e);
+        // Stop flushing on error - will retry on next reconnect
+        break;
       }
-    });
+    }
 
-    pendingLikesRef.current.clear();
-  }, [socketRef]);
+    // Remove flushed items from pending
+    if (successfullyFlushed.length > 0) {
+      pendingLikesRef.current = pending.filter((_, i) => !successfullyFlushed.includes(i));
+      setPendingCount(pendingLikesRef.current.length);
+
+      // Persist updated pending list
+      await savePendingToIDB(sessionId, pendingLikesRef.current);
+    }
+  }, [socketRef, sessionId]);
 
   // Send like for a track
   const sendLike = useCallback(
@@ -107,6 +184,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
 
       const socket = socketRef.current;
       if (socket?.readyState === WebSocket.OPEN && sessionId) {
+        // Online - send immediately
         socket.send(
           JSON.stringify({
             type: MESSAGE_TYPES.SEND_LIKE,
@@ -117,9 +195,20 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
         );
         console.log("[Likes] Sent like for:", track.title);
       } else if (sessionId) {
-        // Offline? Queue it!
+        // Offline - queue it with persistence!
         console.log("[Likes] Offline, queuing like for:", track.title);
-        pendingLikesRef.current.add(JSON.stringify({ track, sessionId }));
+
+        const newPending: PendingLike = {
+          track,
+          sessionId,
+          timestamp: Date.now(),
+        };
+
+        pendingLikesRef.current = [...pendingLikesRef.current, newPending];
+        setPendingCount(pendingLikesRef.current.length);
+
+        // Persist to IndexedDB (fire and forget, but log errors)
+        savePendingToIDB(sessionId, pendingLikesRef.current);
       }
 
       return true;
@@ -133,5 +222,6 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
     hasLiked,
     flushPendingLikes,
     resetLikes,
+    pendingCount,
   };
 }
