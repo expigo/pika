@@ -2,7 +2,7 @@
 
 This document describes the technical implementation of the synchronization layer between the **Desktop** app (the source of truth) and the **Cloud** server (the distribution layer).
 
-**Last Updated:** January 18, 2026 (v0.2.4)
+**Last Updated:** January 18, 2026 (v0.2.5)
 
 ## 1. Design Philosophy: "Local First, Cloud Second"
 
@@ -118,7 +118,14 @@ The Web app (`packages/web`) now also implements persistent offline queuing for 
 
 ### Visibility Change Handler (`useWebSocketConnection.ts`)
 *   Re-syncs state when tab becomes visible (phone wake from sleep).
-*   Triggers reconnect if last heartbeat was >15s ago.
+*   Triggers reconnect if connection is closed, stale, or disconnected.
+*   Uses `hasReceivedPongRef` to prevent false positives on initial load.
+
+### Safari/iOS Bulletproofing (v0.2.5)
+*   **pageshow listener:** Handles Safari bfcache page restoration.
+*   **statusRef:** Uses ref to avoid stale closure values in callbacks.
+*   **addEventListener pattern:** Proper cleanup prevents memory leaks.
+*   **Periodic status sync:** Heartbeat interval syncs React state with actual readyState.
 
 ## 8. Testing Infrastructure (v0.2.4)
 

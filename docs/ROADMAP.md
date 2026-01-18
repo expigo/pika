@@ -2,8 +2,8 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** Network Resilience & Production Launch
-**Status:** Release v0.2.4 (Network Resilience 11/10)
+**Current Focus:** Production Launch Ready
+**Status:** Release v0.2.5 (Safari/iOS Bulletproofing)
 
 ---
 
@@ -12,16 +12,17 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 18, 2026 - Network Resilience 11/10 v0.2.4):**
-        *   ✅ **IndexedDB Persistence:** Pending likes survive page refresh (Web).
-        *   ✅ **ACK/NACK Protocol:** Reliable message delivery with retry (Desktop).
-        *   ✅ **Visibilitychange Fix:** Phone wake-up re-sync restored.
-        *   ✅ **Stale Data Banner:** Prominent warning when disconnected >30s.
-        *   ✅ **E2E Reconnection Tests:** 5 new specs for network resilience.
-        *   ✅ **Chaos Testing:** k6 script with 4 scenarios (normal, latency, flapping, high-volume).
-        *   ✅ **Exponential Backoff:** Queue flush spreads load, prevents thundering herd.
-        *   ✅ **Nonce Deduplication:** Server-side replay protection for messages.
-    *   **Previous Completions (Jan 18, 2026 - Web App Excellence v0.2.3):**
+    *   **Recent Completions (Jan 18, 2026 - Safari/iOS Bulletproofing v0.2.5):**
+        *   ✅ **Safari bfcache:** pageshow listener for cache restoration.
+        *   ✅ **Status Sync:** Periodic sync between socket readyState and React state.
+        *   ✅ **addEventListener Pattern:** Proper cleanup to prevent memory leaks.
+        *   ✅ **Track Deduplication (Cloud):** Skip duplicate BROADCAST_TRACK persistence.
+        *   ✅ **PING/GET_SESSIONS Handlers:** Explicit handlers in switch statement.
+        *   ✅ **MESSAGE_TYPES Consolidation:** Single organized object in shared.
+        *   ✅ **Tailwind Dynamic Classes Fix:** Explicit class strings for tempo buttons.
+        *   ✅ **Poll Presets (Desktop):** Common DJ poll templates.
+        *   ✅ **SocialSignalsLayer (Web):** Visual crowd feedback animations.
+    *   **Previous Completions (Jan 18, 2026 - Network Resilience 11/10 v0.2.4):**
         *   ✅ **Hook Decomposition:** `useLiveListener` split from 1029→238 lines (77% reduction).
         *   ✅ **Shared Utils:** Extracted `lib/api.ts`, `lib/client.ts` from 4 files.
         *   ✅ **Dynamic Imports:** QR code lazy loaded (~30KB saved).
