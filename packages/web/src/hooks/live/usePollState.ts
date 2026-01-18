@@ -4,7 +4,7 @@
  */
 
 import { MESSAGE_TYPES } from "@pika/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
 import type { MessageHandlers, PollState, WebSocketMessage } from "./types";
@@ -24,9 +24,14 @@ interface UsePollStateReturn {
 export function usePollState({ socketRef }: UsePollStateProps): UsePollStateReturn {
   const [activePoll, setActivePoll] = useState<PollState | null>(null);
   const [hasVotedOnPoll, setHasVotedOnPoll] = useState(false);
+  const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset poll state
   const resetPoll = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearTimeout(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
     setActivePoll(null);
     setHasVotedOnPoll(false);
   }, []);
@@ -74,6 +79,12 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
   // Message handlers
   const pollHandlers: MessageHandlers = {
     [MESSAGE_TYPES.POLL_STARTED]: (message: WebSocketMessage) => {
+      // Clear any pending dismissal timer when a NEW poll starts
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+
       const msg = message as unknown as {
         pollId: number;
         question: string;
@@ -126,8 +137,17 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
     },
 
     [MESSAGE_TYPES.POLL_ENDED]: () => {
-      console.log("[Poll] Ended");
-      resetPoll();
+      console.log("[Poll] Ended - showing results for 10s");
+      // Clear existing timer if any
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+
+      pollTimerRef.current = setTimeout(() => {
+        resetPoll();
+        pollTimerRef.current = null;
+      }, 10000);
+
+      // We should ideally track these timers to clear them if a NEW poll starts
+      // For now, resetPoll is enough if called by POLL_STARTED
     },
 
     [MESSAGE_TYPES.CANCEL_POLL]: () => {

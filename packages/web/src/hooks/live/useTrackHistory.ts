@@ -19,7 +19,7 @@ interface UseTrackHistoryReturn {
   history: HistoryTrack[];
   setCurrentTrack: (track: TrackInfo | null) => void;
   clearHistory: () => void;
-  fetchHistory: (sessionId: string) => Promise<void>;
+  fetchHistory: (sessionId: string, force?: boolean) => Promise<void>;
   trackHandlers: MessageHandlers;
 }
 
@@ -29,8 +29,8 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
   const historyFetchedRef = useRef<string | null>(null);
 
   // Fetch history from REST API (with deduplication)
-  const fetchHistory = useCallback(async (targetSessionId: string) => {
-    if (historyFetchedRef.current === targetSessionId) {
+  const fetchHistory = useCallback(async (targetSessionId: string, force = false) => {
+    if (!force && historyFetchedRef.current === targetSessionId) {
       return; // Already fetched
     }
 
@@ -40,9 +40,23 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
       if (response.ok) {
         const tracks: HistoryTrack[] = await response.json();
         historyFetchedRef.current = targetSessionId;
-        // Skip the first track (it's the current one)
-        setHistory(tracks.slice(1));
-        console.log("[History] Fetched:", tracks.length, "tracks");
+
+        // Smarter filtering: history should only contain tracks that are NOT the current one
+        // Also deduplicate in case server has duplicate records
+        const uniqueTracks: HistoryTrack[] = [];
+        const seen = new Set<string>();
+
+        // Skip index 0 (current track) and deduplicate the rest
+        for (const t of tracks.slice(1)) {
+          const key = `${t.artist}:${t.title}`;
+          if (!seen.has(key)) {
+            seen.add(key);
+            uniqueTracks.push(t);
+          }
+        }
+
+        setHistory(uniqueTracks.slice(0, MAX_HISTORY));
+        console.log("[History] Fetched and deduplicated:", uniqueTracks.length, "tracks");
       }
     } catch (e) {
       console.error("[History] Failed to fetch:", e);
@@ -58,9 +72,19 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
 
   // Move current track to history
   const pushToHistory = useCallback((track: TrackInfo) => {
-    setHistory((prev) =>
-      [{ ...track, playedAt: new Date().toISOString() }, ...prev].slice(0, MAX_HISTORY),
-    );
+    setHistory((prev) => {
+      // 1. Avoid exact same track being pushed twice (e.g. from rapid stop/start)
+      if (prev.length > 0) {
+        const last = prev[0];
+        if (last.artist === track.artist && last.title === track.title) {
+          return prev;
+        }
+      }
+
+      // 2. Limit history size
+      const newHistory = [{ ...track, playedAt: new Date().toISOString() }, ...prev];
+      return newHistory.slice(0, MAX_HISTORY);
+    });
   }, []);
 
   // Message handlers
