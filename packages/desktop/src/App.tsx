@@ -18,6 +18,7 @@ import { useDjSettings } from "./hooks/useDjSettings";
 import { useLiveSession } from "./hooks/useLiveSession";
 import { useSidecar } from "./hooks/useSidecar";
 import { useSettings } from "./hooks/useSettings";
+import { useLayoutResizer } from "./hooks/useLayoutResizer";
 import { setSidecarUrl } from "./services/progressiveAnalysisService";
 import { getLocalIp } from "./config";
 import "./App.css";
@@ -72,14 +73,17 @@ function App() {
   const [viewMode, setViewMode] = useState<"crate" | "stage" | "insights" | "archive">("crate");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Resizer state
-  const [splitOffset, setSplitOffset] = useState(65); // Percentage for horizontal split (Library vs Selected)
-  const [topHeight, setTopHeight] = useState(300); // Initial height for top row in pixels
-  const [topSplitOffset, setTopSplitOffset] = useState(75); // Percentage for top row split (X-Ray vs Stats)
+  // Resizer state (Delegated to Hook)
+  const {
+    splitOffset,
+    topHeight,
+    topSplitOffset,
+    isAnyResizing,
+    startResizingH,
+    startResizingV,
+    startResizingTopH,
+  } = useLayoutResizer();
 
-  const [isResizingH, setIsResizingH] = useState(false);
-  const [isResizingV, setIsResizingV] = useState(false);
-  const [isResizingTopH, setIsResizingTopH] = useState(false);
   const [localIp, setLocalIp] = useState<string | null>(null);
 
   useEffect(() => {
@@ -106,26 +110,9 @@ function App() {
     const root = window.document.documentElement;
     const currentProfile = settings["display.profile"] || "high-contrast";
 
-    // Set data-theme for CSS targetting
+    // Set data-theme for CSS targetting (This is the primary way themes are applied)
     root.setAttribute("data-theme", currentProfile);
-
-    // Apply classes for compatibility
-    root.classList.remove("theme-midnight", "theme-stealth", "theme-high-contrast");
-    if (currentProfile !== "high-contrast") {
-      root.classList.add(`theme-${currentProfile}`);
-    }
   }, [settings["display.profile"]]);
-
-  // Handle stage view click (performance mode)
-  const handleStageClick = () => {
-    if (isLive) {
-      setIsPerformanceMode(true);
-    } else {
-      setViewMode("stage");
-    }
-  };
-
-  const isAnyResizing = isResizingH || isResizingV || isResizingTopH;
 
   return (
     <div className={`app-shell ${isAnyResizing ? "select-none cursor-resizing" : ""}`}>
@@ -148,7 +135,10 @@ function App() {
           <button
             type="button"
             className={`pro-nav-item ${viewMode === "stage" ? "active" : ""}`}
-            onClick={handleStageClick}
+            onClick={() => {
+              if (isLive) setIsPerformanceMode(true);
+              else setViewMode("stage");
+            }}
             title="The Stage & Performance"
           >
             <Maximize2 size={24} />
@@ -256,24 +246,8 @@ function App() {
 
               {/* Top Horizontal Resizer */}
               <div
-                className={`pro-resizer-h ${isResizingTopH ? "active" : ""}`}
-                onMouseDown={(e) => {
-                  setIsResizingTopH(true);
-                  const startX = e.clientX;
-                  const startWidth = topSplitOffset;
-                  const handleMouseMove = (mmE: MouseEvent) => {
-                    const deltaX = mmE.clientX - startX;
-                    const deltaPercent = (deltaX / window.innerWidth) * 100;
-                    setTopSplitOffset(Math.min(90, Math.max(50, startWidth + deltaPercent)));
-                  };
-                  const handleMouseUp = () => {
-                    setIsResizingTopH(false);
-                    window.removeEventListener("mousemove", handleMouseMove);
-                    window.removeEventListener("mouseup", handleMouseUp);
-                  };
-                  window.addEventListener("mousemove", handleMouseMove);
-                  window.addEventListener("mouseup", handleMouseUp);
-                }}
+                className={`pro-resizer-h ${isAnyResizing ? "active" : ""}`}
+                onMouseDown={startResizingTopH}
               >
                 <div className="pro-resizer-grabber" />
               </div>
@@ -288,23 +262,8 @@ function App() {
 
             {/* Vertical Resizer */}
             <div
-              className={`pro-resizer-v ${isResizingV ? "active" : ""}`}
-              onMouseDown={(e) => {
-                setIsResizingV(true);
-                const startY = e.clientY;
-                const startHeight = topHeight;
-                const handleMouseMove = (mmE: MouseEvent) => {
-                  const deltaY = mmE.clientY - startY;
-                  setTopHeight(Math.min(600, Math.max(120, startHeight + deltaY)));
-                };
-                const handleMouseUp = () => {
-                  setIsResizingV(false);
-                  window.removeEventListener("mousemove", handleMouseMove);
-                  window.removeEventListener("mouseup", handleMouseUp);
-                };
-                window.addEventListener("mousemove", handleMouseMove);
-                window.addEventListener("mouseup", handleMouseUp);
-              }}
+              className={`pro-resizer-v ${isAnyResizing ? "active" : ""}`}
+              onMouseDown={startResizingV}
             >
               <div className="pro-resizer-grabber" />
             </div>
@@ -317,24 +276,8 @@ function App() {
 
               {/* Main Horizontal Resizer */}
               <div
-                className={`pro-resizer-h ${isResizingH ? "active" : ""}`}
-                onMouseDown={(e) => {
-                  setIsResizingH(true);
-                  const startX = e.clientX;
-                  const startWidth = splitOffset;
-                  const handleMouseMove = (mmE: MouseEvent) => {
-                    const deltaX = mmE.clientX - startX;
-                    const deltaPercent = (deltaX / window.innerWidth) * 100;
-                    setSplitOffset(Math.min(85, Math.max(15, startWidth + deltaPercent)));
-                  };
-                  const handleMouseUp = () => {
-                    setIsResizingH(false);
-                    window.removeEventListener("mousemove", handleMouseMove);
-                    window.removeEventListener("mouseup", handleMouseUp);
-                  };
-                  window.addEventListener("mousemove", handleMouseMove);
-                  window.addEventListener("mouseup", handleMouseUp);
-                }}
+                className={`pro-resizer-h ${isAnyResizing ? "active" : ""}`}
+                onMouseDown={startResizingH}
               >
                 <div className="pro-resizer-grabber" />
               </div>
