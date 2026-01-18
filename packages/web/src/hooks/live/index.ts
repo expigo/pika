@@ -2,17 +2,18 @@
  * Barrel export for live hooks
  */
 
-// Types
-export * from "./types";
+export * from "./messageRouter";
 
 // Utilities
 export * from "./storage";
-export * from "./messageRouter";
+// Types
+export * from "./types";
 
 // Hooks
 export { useAnnouncement } from "./useAnnouncement";
 export { useLikeQueue } from "./useLikeQueue";
 export { usePollState } from "./usePollState";
+export { useSocialSignals } from "./useSocialSignals";
 export { useTempoVote } from "./useTempoVote";
 export { useTrackHistory } from "./useTrackHistory";
 export { useWebSocketConnection } from "./useWebSocketConnection";
