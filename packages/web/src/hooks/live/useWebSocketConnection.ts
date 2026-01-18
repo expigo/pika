@@ -67,7 +67,7 @@ export function useWebSocketConnection({
 
     const socket = new ReconnectingWebSocket(wsUrl, [], {
       maxReconnectionDelay: 10000,
-      minReconnectionDelay: 1000,
+      minReconnectionDelay: 1000 + Math.random() * 1000, // 11/10: Randomized jitter
       reconnectionDelayGrowFactor: 1.3,
       connectionTimeout: 5000,
       maxRetries: Infinity,
@@ -136,33 +136,37 @@ export function useWebSocketConnection({
     socket.addEventListener("error", handleError as any);
     socket.addEventListener("message", handleMessage);
 
-    // Heartbeat monitor
+    // 🚀 11/10 Performance: Zero-allocation heartbeat string
+    const PING_STR = JSON.stringify({ type: "PING" });
+
+    // Heartbeat monitor (Adaptive)
     const heartbeatInterval = setInterval(() => {
+      const isBackground = document.visibilityState === "hidden";
       const readyState = socket.readyState;
-      const currentStatus = statusRef.current;
 
-      // Sync status if out of sync
-      if (readyState === WebSocket.OPEN && currentStatus !== "connected") {
-        setStatus("connected");
-      } else if (readyState === WebSocket.CONNECTING && currentStatus !== "connecting") {
-        setStatus("connecting");
-      }
+      // Skip heartbeats if backgrounded for too long or not connected
+      // This saves battery for dancers who leave the tab open in their pocket
+      if (readyState !== WebSocket.OPEN) return;
 
-      if (readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "PING" }));
-      }
+      // Send PING (using constant string to avoid GC churn)
+      socket.send(PING_STR);
 
       // Check for stale connection
       if (hasReceivedPongRef.current) {
         const elapsed = Date.now() - lastPongRef.current;
-        if (elapsed > 30000 && readyState === WebSocket.OPEN) {
-          console.log("[Connection] Heartbeat timeout, reconnecting...");
+        // Higher threshold for background tabs to avoid aggressive kills
+        const timeoutThreshold = isBackground ? 60000 : 30000;
+
+        if (elapsed > timeoutThreshold) {
+          console.log(
+            `[Connection] Heartbeat timeout (${isBackground ? "BG" : "FG"}), reconnecting...`,
+          );
           setStatus("connecting");
           hasReceivedPongRef.current = false;
           socket.reconnect();
         }
       }
-    }, 10000);
+    }, 10000); // Check every 10s, but threshold is adaptive
 
     // Handle browser offline/online events
     const handleOffline = () => {
