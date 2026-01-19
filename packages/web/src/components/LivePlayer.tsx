@@ -512,9 +512,22 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                       return (
                         <div key={idx} className="relative">
                           <div className="flex justify-between text-[11px] font-black uppercase tracking-widest mb-3">
-                            <span className={isWinner ? "text-emerald-400" : "text-slate-500"}>
+                            <span
+                              className={
+                                isWinner
+                                  ? "text-emerald-400"
+                                  : activePoll.userChoice === idx
+                                    ? "text-white"
+                                    : "text-slate-500"
+                              }
+                            >
                               {isWinner && "🏆 "}
                               {option}
+                              {activePoll.userChoice === idx && (
+                                <span className="ml-2 bg-purple-500/10 text-purple-400 text-[8px] border border-purple-500/20 rounded px-1.5 py-0.5 align-middle">
+                                  YOUR VOTE
+                                </span>
+                              )}
                             </span>
                             <span className="text-slate-500">{percent}%</span>
                           </div>
