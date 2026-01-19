@@ -297,6 +297,10 @@ export const PollStartedSchema = z.object({
   question: z.string(),
   options: z.array(z.string()),
   endsAt: z.string().optional(), // ISO timestamp when poll auto-closes
+  votes: z.array(z.number()).optional(), // Current vote distribution
+  totalVotes: z.number().optional(),
+  hasVoted: z.boolean().optional(),
+  votedOptionIndex: z.number().optional(),
 });
 
 // Server -> DJ: Live poll results update

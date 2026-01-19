@@ -398,7 +398,7 @@ interface ActivePoll {
   question: string;
   options: string[];
   votes: number[]; // Vote count per option
-  votedClients: Set<string>; // Clients who have voted
+  votedClients: Map<string, number>; // clientId -> optionIndex (for restoration)
   endsAt?: Date; // Optional auto-close time
 }
 
@@ -2450,7 +2450,8 @@ app.get(
                   if (poll) {
                     const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
                     // Check if THIS client has already voted
-                    const hasVoted = clientId ? poll.votedClients.has(clientId) : false;
+                    const votedOptionIndex = clientId ? poll.votedClients.get(clientId) : undefined;
+                    const hasVoted = votedOptionIndex !== undefined;
 
                     ws.send(
                       JSON.stringify({
@@ -2464,6 +2465,7 @@ app.get(
                         totalVotes,
                         // Tell client if they've already voted
                         hasVoted,
+                        votedOptionIndex,
                       }),
                     );
                     console.log(
@@ -2566,7 +2568,7 @@ app.get(
                   question,
                   options,
                   votes: new Array(options.length).fill(0) as number[],
-                  votedClients: new Set(),
+                  votedClients: new Map<string, number>(),
                 };
                 if (endsAt) activePoll.endsAt = endsAt;
 
@@ -2788,7 +2790,7 @@ app.get(
                 if (currentValue !== undefined) {
                   poll.votes[optionIndex] = currentValue + 1;
                 }
-                poll.votedClients.add(voterId);
+                poll.votedClients.set(voterId, optionIndex);
 
                 // Persist vote to database (fire-and-forget)
                 recordPollVote(pollId, voterId, optionIndex);
