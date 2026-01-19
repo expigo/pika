@@ -11,14 +11,13 @@ import {
   Heart,
   History,
   Mail,
-  MessageCircle,
   Radio,
   Smartphone,
   Sparkles,
-  Users,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
@@ -123,18 +122,16 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-5xl sm:text-7xl md:text-9xl font-black text-white tracking-tighter leading-[0.9] mb-10 italic uppercase drop-shadow-[0_0_30px_rgba(255,255,255,0.1)]">
-            THE DIGITAL PULSE <br className="hidden sm:block" />
-            <span className="inline-block bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 text-transparent bg-clip-text drop-shadow-[0_0_15px_rgba(168,85,247,0.3)] pr-4">
-              OF YOUR FLOOR
+            ONE ROOM <br className="hidden sm:block" />
+            <span className="inline-block bg-gradient-to-r from-purple-400 via-pink-400 to-indigo-400 text-transparent bg-clip-text drop-shadow-[0_0_15px_rgba(168,85,247,0.3)] pr-12">
+              ONE HEARTBEAT
             </span>
           </h1>
 
           <p className="text-xl sm:text-2xl text-slate-400 max-w-3xl mx-auto mb-20 font-medium leading-relaxed tracking-tight px-4 sm:px-0">
-            Bridge the gap between the DJ booth and the dance floor.
-            <span className="text-white"> Real-time feedback</span>,{" "}
-            <span className="text-white">intelligent insight</span>, and
-            <span className="text-white"> seamless synchronization</span> for the modern WCS
-            community.
+            The real-time interaction bridge between the booth and the floor.{" "}
+            <br className="hidden sm:block" />
+            <span className="text-slate-200">See what they love. Play what they feel.</span>
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-8">
@@ -156,6 +153,81 @@ export default function LandingPage() {
               Go Live (DJ)
             </Link>
           </div>
+
+          {/* 📱 THE PRODUCT HANDSHAKE (HERO MOCKUP) */}
+          <div className="mt-24 sm:mt-32 relative group">
+            <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-950 to-transparent z-20 pointer-events-none" />
+
+            <div className="relative z-10 w-full max-w-5xl mx-auto">
+              {/* Main Booth Frame */}
+              <div className="relative aspect-[16/10] sm:aspect-[21/9] rounded-[2rem] sm:rounded-[3.5rem] border border-white/10 bg-black shadow-[0_0_100px_rgba(0,0,0,0.8)] overflow-hidden">
+                <div className="absolute inset-0 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-1000">
+                  <Image
+                    src="/screenshots/dj/vdj-sync.png"
+                    alt="DJ Booth Integration"
+                    fill
+                    priority
+                    className="object-cover object-top"
+                  />
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 via-transparent to-transparent pointer-events-none" />
+
+                {/* Integration Badge */}
+                <div className="absolute top-6 left-6 px-4 py-2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-xl z-30">
+                  <p className="text-[8px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1">
+                    Integration Proof
+                  </p>
+                  <p className="text-[10px] font-black text-white uppercase tracking-widest">
+                    VirtualDJ Native Bridge
+                  </p>
+                </div>
+              </div>
+
+              {/* Floating Mobile Accessory */}
+              <div className="absolute -bottom-10 -right-4 sm:-bottom-12 sm:right-0 w-[160px] sm:w-[260px] aspect-[9/19.5] rounded-[2.5rem] sm:rounded-[3.5rem] border-[6px] sm:border-[12px] border-slate-950 bg-slate-950 shadow-[0_50px_100px_rgba(0,0,0,0.9)] overflow-hidden z-30 transform -rotate-2 group-hover:rotate-0 group-hover:-translate-y-6 transition-all duration-1000">
+                <Image
+                  src="/screenshots/dancer/live-id.png"
+                  alt="Dancer Mobile View"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+
+              {/* Technical Callout */}
+              <div className="absolute top-1/2 -left-8 sm:-left-20 -translate-y-1/2 px-8 py-6 bg-slate-900/90 backdrop-blur-2xl border border-white/5 rounded-3xl shadow-2xl z-40 hidden lg:block transform group-hover:translate-x-4 transition-transform duration-1000">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">
+                    Live Handshake
+                  </span>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex justify-between items-center text-[7px] font-black text-slate-500 tracking-[0.2em] uppercase mb-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                      <span>Booth Sync</span>
+                      <span className="text-purple-400">Locked</span>
+                    </div>
+                    <div className="h-1 w-32 bg-white/5 rounded-full overflow-hidden text-left relative">
+                      <div className="h-full w-0 group-hover:w-full bg-purple-500 relative transition-all duration-1000 ease-out delay-100">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_2s_infinite]" />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between items-center text-[7px] font-black text-slate-500 tracking-[0.2em] uppercase mb-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-300">
+                      <span>Crowd Feed</span>
+                      <span className="text-pink-400">Active</span>
+                    </div>
+                    <div className="h-1 w-24 bg-white/5 rounded-full overflow-hidden text-left relative">
+                      <div className="h-full w-0 group-hover:w-full bg-pink-500 relative transition-all duration-1000 ease-out delay-500">
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-[shimmer_2s_infinite]" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -175,156 +247,370 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 md:gap-12 items-stretch">
-            {/* DJs Card */}
-            <div className="flex flex-col h-full">
-              <ProCard className="flex-1 p-10 flex flex-col items-start" glow>
-                <div className="w-16 h-16 bg-purple-500/10 border border-purple-500/20 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-purple-500/5 group-hover:scale-110 transition-transform">
-                  <Headphones className="w-8 h-8 text-purple-400" />
-                </div>
-                <h3 className="text-3xl font-black text-white mb-4 italic uppercase tracking-tight">
-                  DJs
-                </h3>
-                <VibeBadge
-                  variant="purple"
-                  icon={Activity}
-                  className="mb-8 font-black uppercase tracking-widest text-[9px]"
-                >
-                  AUDIO X-RAY
-                </VibeBadge>
+            <ProCard
+              className="p-10 flex flex-col items-start h-full group/card transition-all duration-1000"
+              glow
+              bgImage="/textures/dj.png"
+            >
+              <div className="w-20 h-20 bg-purple-500/10 border border-purple-500/20 rounded-3xl flex items-center justify-center mb-12 shadow-xl shadow-purple-500/10 group-hover:scale-110 group-hover:rotate-3 transition-all duration-700">
+                <Headphones className="w-10 h-10 text-purple-400 drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]" />
+              </div>
+              <h3 className="text-4xl font-black text-white mb-4 italic uppercase tracking-tighter">
+                DJs
+              </h3>
+              <VibeBadge
+                variant="purple"
+                icon={Activity}
+                className="mb-10 font-black uppercase tracking-[0.3em] text-[10px]"
+              >
+                AUDIO X-RAY
+              </VibeBadge>
 
-                <ul className="space-y-6 text-slate-400 font-medium text-sm flex-1">
-                  <li className="flex items-start gap-4">
-                    <Zap className="w-4 h-4 text-purple-500 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Library Sync:</strong> Intelligent ID of
-                      BPM, Key, and Energy metrics.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-4">
-                    <Activity className="w-4 h-4 text-purple-500 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Floor Flow:</strong> Real-time crowd signal
-                      decoding.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-4">
-                    <History className="w-4 h-4 text-purple-500 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Deep Analytics:</strong> Set recaps that
-                      find what truly popped.
-                    </span>
-                  </li>
-                </ul>
+              <ul className="space-y-8 text-slate-400 font-medium text-[15px] flex-1">
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Library Sync:</strong> Intelligent ID of BPM,
+                    Key, and Energy.
+                  </span>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Floor Flow:</strong> Real-time crowd signal
+                    decoding.
+                  </span>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Post-Gig Recaps:</strong> Find what truly
+                    popped on your floor.
+                  </span>
+                </li>
+              </ul>
 
-                <Link
-                  href="/for/djs"
-                  className="mt-12 group flex items-center gap-3 text-[10px] font-black text-purple-400/80 hover:text-purple-400 uppercase tracking-widest active:scale-95 transition-all text-left"
-                >
-                  Sidecar Specs{" "}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
-                </Link>
-              </ProCard>
-            </div>
+              <Link
+                href="/for/djs"
+                className="mt-14 w-full group flex items-center justify-between px-8 py-5 bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/20 rounded-2xl text-[11px] font-black text-purple-400 uppercase tracking-[0.3em] transition-all hover:translate-y-[-4px] active:scale-[0.98]"
+              >
+                Sidecar Specs
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+              </Link>
+            </ProCard>
 
             {/* Dancers Card */}
-            <div className="flex flex-col h-full">
-              <ProCard className="flex-1 p-10 flex flex-col items-start" glow>
-                <div className="w-16 h-16 bg-pink-500/10 border border-pink-500/20 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-pink-500/5 group-hover:scale-110 transition-transform">
-                  <Heart className="w-8 h-8 text-pink-400" />
+            <ProCard
+              className="p-10 flex flex-col items-start h-full group/card transition-all duration-1000"
+              glow
+              bgImage="/textures/dancer.png"
+            >
+              <div className="w-20 h-20 bg-pink-500/10 border border-pink-500/20 rounded-3xl flex items-center justify-center mb-12 shadow-xl shadow-pink-500/10 group-hover:scale-110 group-hover:-rotate-3 transition-all duration-700">
+                <Heart className="w-10 h-10 text-pink-400 drop-shadow-[0_0_15px_rgba(244,114,182,0.5)]" />
+              </div>
+              <h3 className="text-4xl font-black text-white mb-4 italic uppercase tracking-tighter">
+                Dancers
+              </h3>
+              <VibeBadge
+                variant="red"
+                icon={Sparkles}
+                className="mb-10 font-black uppercase tracking-[0.3em] text-[10px]"
+              >
+                CURATE THE NIGHT
+              </VibeBadge>
+
+              <ul className="space-y-8 text-slate-400 font-medium text-[15px] flex-1">
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(244,114,182,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Instant Sync:</strong> Scan QR and connect.
+                    Zero friction.
+                  </span>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(244,114,182,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Safety:</strong> Anonymous signals. All the
+                    vibe, zero social pressure.
+                  </span>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(244,114,182,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Journal:</strong> Instant track saving for
+                    later discovery.
+                  </span>
+                </li>
+              </ul>
+
+              <Link
+                href="/guide/web-app"
+                className="mt-14 w-full group flex items-center justify-between px-8 py-5 bg-pink-500/5 hover:bg-pink-500/10 border border-pink-500/20 rounded-2xl text-[11px] font-black text-pink-400 uppercase tracking-[0.3em] transition-all hover:translate-y-[-4px] active:scale-[0.98]"
+              >
+                Floor Guide
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+              </Link>
+            </ProCard>
+
+            {/* Organizers Card */}
+            <ProCard
+              className="p-10 flex flex-col items-start h-full group/card transition-all duration-1000"
+              glow
+              bgImage="/textures/organizer.png"
+            >
+              <div className="w-20 h-20 bg-emerald-500/10 border border-emerald-500/20 rounded-3xl flex items-center justify-center mb-12 shadow-xl shadow-emerald-500/10 group-hover:scale-110 group-hover:rotate-3 transition-all duration-700">
+                <Calendar className="w-10 h-10 text-emerald-400 drop-shadow-[0_0_15px_rgba(52,211,153,0.5)]" />
+              </div>
+              <h3 className="text-4xl font-black text-white mb-4 italic uppercase tracking-tighter">
+                Organizers
+              </h3>
+              <VibeBadge
+                variant="green"
+                icon={Zap}
+                className="mb-10 font-black uppercase tracking-[0.3em] text-[10px]"
+              >
+                EVENT UPGRADING
+              </VibeBadge>
+
+              <ul className="space-y-8 text-slate-400 font-medium text-[15px] flex-1">
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Command Center:</strong> Monitor multiple
+                    rooms in one link.
+                  </span>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Booth Broadcast:</strong> Direct
+                    booth-to-phone announcements.
+                  </span>
+                </li>
+                <li className="flex items-start gap-4">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-2.5 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
+                  <span className="leading-relaxed">
+                    <strong className="text-slate-200">Auto-Healing Sync:</strong> High-resilience
+                    stability for any venue.
+                  </span>
+                </li>
+              </ul>
+
+              <a
+                href="mailto:hello@pika.stream"
+                className="mt-14 w-full group flex items-center justify-between px-8 py-5 bg-emerald-500/5 hover:bg-emerald-500/10 border border-emerald-500/20 rounded-2xl text-[11px] font-black text-emerald-400 uppercase tracking-[0.3em] transition-all hover:translate-y-[-4px] active:scale-[0.98]"
+              >
+                Contact Beta
+                <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+              </a>
+            </ProCard>
+          </div>
+        </div>
+      </section>
+
+      {/* 📸 THE TECHNICAL REGISTRY (NEW PROMINENT GALLERY) */}
+      <section className="py-40 bg-black overflow-hidden relative">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-purple-600/10 blur-[120px] pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="grid lg:grid-cols-2 gap-24 items-center">
+            <div>
+              <span className="inline-block px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20 text-[10px] font-black text-purple-400 uppercase tracking-widest mb-8">
+                The Product Registry
+              </span>
+              <h2 className="text-4xl sm:text-6xl font-black text-white italic uppercase tracking-tighter leading-none mb-10">
+                The DJ&apos;s <br />
+                <span className="text-purple-500 font-[inherit]">Sixth Sense</span>
+              </h2>
+              <p className="text-xl text-slate-400 font-medium leading-relaxed mb-12 tracking-tight">
+                Don&apos;t just play tracks. Play the room. Pika! surfaces crowd reactions from
+                previous sets and integrates your personal library notes, giving you a predictive
+                &quot;X-Ray&quot; of how the floor will react before you ever hit play.
+              </p>
+
+              <div className="grid sm:grid-cols-2 gap-8">
+                <div className="p-6 bg-slate-900/40 rounded-2xl border border-white/5">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">
+                    Performance Memory
+                  </p>
+                  <p className="text-slate-200 text-sm font-semibold">
+                    Surface crowd feedback and crate notes from every set you&apos;ve played.
+                  </p>
                 </div>
-                <h3 className="text-3xl font-black text-white mb-4 italic uppercase tracking-tight">
-                  Dancers
-                </h3>
-                <VibeBadge
-                  variant="red"
-                  icon={Sparkles}
-                  className="mb-8 font-black uppercase tracking-widest text-[9px]"
-                >
-                  CURATE THE NIGHT
-                </VibeBadge>
+                <div className="p-6 bg-slate-900/40 rounded-2xl border border-white/5">
+                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">
+                    Technical Audit
+                  </p>
+                  <p className="text-slate-200 text-sm font-semibold">
+                    Automatic ID of Key, BPM, and Energy metrics via direct bridge.
+                  </p>
+                </div>
+              </div>
+            </div>
 
-                <ul className="space-y-6 text-slate-400 font-medium text-sm flex-1">
-                  <li className="flex items-start gap-4">
-                    <Smartphone className="w-4 h-4 text-pink-500 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Zero Friction:</strong> Scan QR and
-                      connect. No accounts. No apps.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-4">
-                    <Users className="w-4 h-4 text-pink-500 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Safety:</strong> Anonymous signals. All the
-                      vibe, zero social pressure.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-4">
-                    <Radio className="w-4 h-4 text-pink-400 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Journal:</strong> Instant track saving for
-                      later discovery.
-                    </span>
-                  </li>
-                </ul>
+            <div className="relative group">
+              <div className="absolute -inset-4 bg-purple-500/20 rounded-[3rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+              <div className="relative aspect-[16/10] rounded-[2.5rem] border border-white/10 bg-slate-900 overflow-hidden shadow-2xl">
+                <Image
+                  src="/screenshots/dj/crate-intelligence.png"
+                  alt="High Resolution Crate Intelligence"
+                  fill
+                  className="object-cover transition-transform duration-[2s] group-hover:scale-110"
+                />
+              </div>
 
-                <Link
-                  href="/guide/web-app"
-                  className="mt-12 group flex items-center gap-3 text-[10px] font-black text-pink-400/80 hover:text-pink-400 uppercase tracking-widest active:scale-95 transition-all text-left"
-                >
-                  Floor Guide{" "}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
-                </Link>
+              {/* Floating Overlay Modal */}
+              <div className="absolute -bottom-10 -left-10 w-64 p-6 bg-slate-900/95 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-2xl z-20 hidden md:block animate-bounce-slow">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/20">
+                    <History className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <p className="text-xs font-black text-white italic uppercase tracking-tight">
+                    Library Decoded
+                  </p>
+                </div>
+                <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                  High-resolution technical attributes mapped into high-fidelity signals.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ⚡ HOW IT WORKS */}
+      <section className="py-40 px-6 bg-slate-900 border-y border-slate-800 relative overflow-hidden">
+        {/* Schematic Neural Connection */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent hidden lg:block" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-px h-[80%] bg-gradient-to-b from-transparent via-purple-500/20 to-transparent lg:hidden" />
+
+        <div className="max-w-6xl mx-auto relative z-10">
+          <div className="text-center mb-32 px-4">
+            <div className="absolute top-1/2 left-0 w-full h-px bg-slate-800/20 -z-10" />
+            <span className="inline-block px-8 bg-slate-900 text-[10px] font-black text-slate-500 italic uppercase tracking-[0.6em] relative z-10 mb-6">
+              The Handshake
+            </span>
+            <h2 className="text-5xl sm:text-6xl font-black text-white italic uppercase tracking-tighter">
+              Start in Seconds
+            </h2>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-12 md:gap-24 relative items-stretch">
+            {/* DJ FLOW CARD */}
+            <div className="flex flex-col group/onboarding scale-[1.02] origin-right">
+              <ProCard
+                className="flex-1 p-10 sm:p-14 flex flex-col items-start bg-slate-950/90 border-purple-500/40"
+                glow
+                bgImage="/textures/dj.png"
+              >
+                <div className="inline-flex items-center gap-3 px-4 py-2 bg-purple-500/20 rounded-full text-purple-400 text-[11px] font-black uppercase tracking-[0.3em] border border-purple-500/40 mb-12 shadow-[0_0_30px_rgba(168,85,247,0.3)]">
+                  <Headphones className="w-4 h-4" />
+                  DJ COMMAND
+                </div>
+
+                <div className="space-y-10 sm:space-y-16 flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-10 group/step">
+                    <div className="flex-shrink-0 w-16 h-16 bg-slate-900 rounded-[1.25rem] flex items-center justify-center border-2 border-purple-500/30 text-purple-400 font-black italic text-3xl leading-none pr-0.5 shadow-2xl group-hover/step:border-purple-500/80 transition-all group-hover/step:scale-110 group-hover/step:shadow-[0_10px_40px_rgba(168,85,247,0.4)]">
+                      01
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-2xl sm:text-3xl font-black text-white mb-3 italic uppercase tracking-tighter">
+                        The Sidecar
+                      </h4>
+                      <p className="text-slate-400 text-[15px] font-medium leading-relaxed">
+                        Download the lightweight macOS binary. It runs silently alongside VirtualDJ.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-10 group/step">
+                    <div className="flex-shrink-0 w-16 h-16 bg-slate-900 rounded-[1.25rem] flex items-center justify-center border-2 border-purple-500/30 text-purple-400 font-black italic text-3xl leading-none pr-0.5 shadow-2xl group-hover/step:border-purple-500/80 transition-all group-hover/step:scale-110 group-hover/step:shadow-[0_10px_40px_rgba(168,85,247,0.4)]">
+                      02
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-2xl sm:text-3xl font-black text-white mb-3 italic uppercase tracking-tighter">
+                        Auto-Analysis
+                      </h4>
+                      <p className="text-slate-400 text-[15px] font-medium leading-relaxed">
+                        Pika! detects your history and syncs analysis to the cloud in real-time.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-16 pt-10 border-t border-purple-500/20 w-full">
+                  <Link
+                    href="/download"
+                    className="group bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/40 rounded-2xl flex items-center justify-between px-8 py-5 text-[11px] font-black text-purple-400 uppercase tracking-[0.4em] transition-all hover:translate-y-[-4px] active:scale-95"
+                  >
+                    <div className="flex items-center gap-4">
+                      <Download className="w-5 h-5 animate-bounce-slow" />
+                      Get Sidecar for Mac
+                    </div>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+                  </Link>
+                </div>
               </ProCard>
             </div>
 
-            {/* Organizers Card */}
-            <div className="flex flex-col h-full">
-              <ProCard className="flex-1 p-10 flex flex-col items-start" glow>
-                <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-center mb-10 shadow-lg shadow-emerald-500/5 group-hover:scale-110 transition-transform">
-                  <Calendar className="w-8 h-8 text-emerald-400" />
+            {/* DANCER FLOW CARD */}
+            <div className="flex flex-col scale-[1.02] origin-left">
+              <ProCard
+                className="flex-1 p-10 sm:p-14 flex flex-col items-start bg-slate-950/90 border-pink-500/40"
+                glow
+                bgImage="/textures/dancer.png"
+              >
+                <div className="inline-flex items-center gap-3 px-4 py-2 bg-pink-500/20 rounded-full text-pink-400 text-[11px] font-black uppercase tracking-[0.3em] border border-pink-500/40 mb-12 shadow-[0_0_30px_rgba(244,114,182,0.3)]">
+                  <Smartphone className="w-4 h-4" />
+                  DANCER ACCESS
                 </div>
-                <h3 className="text-3xl font-black text-white mb-4 italic uppercase tracking-tight">
-                  Hubs
-                </h3>
-                <VibeBadge
-                  variant="green"
-                  icon={Zap}
-                  className="mb-8 font-black uppercase tracking-widest text-[9px]"
-                >
-                  EVENT UPGRADING
-                </VibeBadge>
 
-                <ul className="space-y-6 text-slate-400 font-medium text-sm flex-1">
-                  <li className="flex items-start gap-4">
-                    <Globe2 className="w-4 h-4 text-emerald-500 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Command Center:</strong> Monitor multiple
-                      rooms in one unified link.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-4">
-                    <MessageCircle className="w-4 h-4 text-emerald-500 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Push Comms:</strong> Direct booth-to-phone
-                      announcements.
-                    </span>
-                  </li>
-                  <li className="flex items-start gap-4">
-                    <Radio className="w-4 h-4 text-emerald-500 shrink-0 mt-1" />
-                    <span className="leading-relaxed">
-                      <strong className="text-slate-200">Resilience:</strong> Works with or without
-                      high-speed guest WiFi.
-                    </span>
-                  </li>
-                </ul>
+                <div className="space-y-10 sm:space-y-16 flex-1">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-10 group/step">
+                    <div className="flex-shrink-0 w-16 h-16 bg-slate-900 rounded-[1.25rem] flex items-center justify-center border-2 border-pink-500/30 text-pink-400 font-black italic text-3xl leading-none pr-0.5 shadow-2xl group-hover/step:border-pink-500/80 transition-all group-hover/step:scale-110 group-hover/step:shadow-[0_10px_40px_rgba(244,114,182,0.4)]">
+                      01
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-2xl sm:text-3xl font-black text-white mb-3 italic uppercase tracking-tighter">
+                        Scan & Go
+                      </h4>
+                      <p className="text-slate-400 text-[15px] font-medium leading-relaxed">
+                        Scan the booth QR or visit{" "}
+                        <code className="px-2 py-1 bg-pink-500/10 text-pink-400 rounded-lg border border-pink-500/20">
+                          pika.stream
+                        </code>
+                        .
+                      </p>
+                    </div>
+                  </div>
 
-                <a
-                  href="mailto:hello@pika.stream"
-                  className="mt-12 group flex items-center gap-3 text-[10px] font-black text-emerald-400/80 hover:text-emerald-400 uppercase tracking-widest active:scale-95 transition-all text-left"
-                >
-                  Contact Beta{" "}
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-2 transition-transform" />
-                </a>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-10 group/step">
+                    <div className="flex-shrink-0 w-16 h-16 bg-slate-900 rounded-[1.25rem] flex items-center justify-center border-2 border-pink-500/30 text-pink-400 font-black italic text-3xl leading-none pr-0.5 shadow-2xl group-hover/step:border-pink-500/80 transition-all group-hover/step:scale-110 group-hover/step:shadow-[0_10px_40px_rgba(244,114,182,0.4)]">
+                      02
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-2xl sm:text-3xl font-black text-white mb-3 italic uppercase tracking-tighter">
+                        Engage
+                      </h4>
+                      <p className="text-slate-400 text-[15px] font-medium leading-relaxed">
+                        See what&apos;s playing, vote on tempo, and build your favorites log.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-16 pt-10 border-t border-pink-500/20 w-full">
+                  <Link
+                    href="/live"
+                    className="group bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/40 rounded-2xl flex items-center justify-between px-8 py-5 text-[11px] font-black text-pink-400 uppercase tracking-[0.4em] transition-all hover:translate-y-[-4px] active:scale-95"
+                  >
+                    <div className="flex items-center gap-4">
+                      <Radio className="w-5 h-5" />
+                      See Active Floors
+                    </div>
+                    <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+                  </Link>
+                </div>
               </ProCard>
             </div>
           </div>
@@ -347,182 +633,88 @@ export default function LandingPage() {
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <ProCard className="p-10 flex flex-col items-start h-full" glow>
-              <div className="w-14 h-14 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-10 border border-purple-500/20 shadow-lg shadow-purple-500/5 group-hover:scale-110 transition-transform">
-                <BarChart3 className="w-6 h-6 text-purple-400" />
+            {/* Charts */}
+            <ProCard
+              className="p-8 flex flex-col items-center text-center h-full group/roadmap bg-slate-900/50"
+              glow
+            >
+              <div className="relative mb-8">
+                <div className="absolute inset-0 rounded-full bg-purple-500/20 blur-xl opacity-0 group-hover/roadmap:opacity-100 transition-opacity duration-700" />
+                <div className="w-16 h-16 bg-slate-950 border border-purple-500/20 rounded-full flex items-center justify-center relative z-10 group-hover/roadmap:border-purple-500/50 transition-colors">
+                  <BarChart3 className="w-6 h-6 text-purple-400" />
+                  {/* Subtle Spinner Ring */}
+                  <div className="absolute inset-[-4px] border border-dashed border-purple-500/20 rounded-full animate-[spin_10s_linear_infinite]" />
+                </div>
               </div>
-              <h4 className="text-xl font-black text-white mb-4 italic uppercase tracking-tight">
+              <h4 className="text-sm font-black text-white mb-3 italic uppercase tracking-[0.2em]">
                 Pika! Charts
               </h4>
-              <p className="text-slate-500 text-sm font-medium leading-relaxed">
-                The global "Billboard Chart" for WCS. Real-time community trends.
+              <p className="text-slate-500 text-[12px] font-medium leading-relaxed">
+                The global{" "}
+                <span className="text-slate-400 italic">&quot;Billboard Chart&quot;</span> for WCS.
+                Real-time community trends.
               </p>
             </ProCard>
 
-            <ProCard className="p-10 flex flex-col items-start h-full" glow>
-              <div className="w-14 h-14 bg-pink-500/10 rounded-2xl flex items-center justify-center mb-10 border border-pink-500/20 shadow-lg shadow-pink-500/5 group-hover:scale-110 transition-transform">
-                <Smartphone className="w-6 h-6 text-pink-400" />
+            {/* Profiles */}
+            <ProCard
+              className="p-8 flex flex-col items-center text-center h-full group/roadmap bg-slate-900/50"
+              glow
+            >
+              <div className="relative mb-8">
+                <div className="absolute inset-0 rounded-full bg-pink-500/20 blur-xl opacity-0 group-hover/roadmap:opacity-100 transition-opacity duration-700" />
+                <div className="w-16 h-16 bg-slate-950 border border-pink-500/20 rounded-full flex items-center justify-center relative z-10 group-hover/roadmap:border-pink-500/50 transition-colors">
+                  <Smartphone className="w-6 h-6 text-pink-400" />
+                  <div className="absolute inset-[-4px] border border-dashed border-pink-500/20 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
+                </div>
               </div>
-              <h4 className="text-xl font-black text-white mb-4 italic uppercase tracking-tight">
-                Profiles
+              <h4 className="text-sm font-black text-white mb-3 italic uppercase tracking-[0.2em]">
+                Dance DNA
               </h4>
-              <p className="text-slate-500 text-sm font-medium leading-relaxed">
-                Claim your favorite tracks and build your permanent dance log.
+              <p className="text-slate-500 text-[12px] font-medium leading-relaxed">
+                Claim your favorite tracks and build your permanent personal dance log.
               </p>
             </ProCard>
 
-            <ProCard className="p-10 flex flex-col items-start h-full" glow>
-              <div className="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-10 border border-blue-500/20 shadow-lg shadow-blue-500/5 group-hover:scale-110 transition-transform">
-                <Radio className="w-6 h-6 text-blue-400" />
+            {/* Showcases */}
+            <ProCard
+              className="p-8 flex flex-col items-center text-center h-full group/roadmap bg-slate-900/50"
+              glow
+            >
+              <div className="relative mb-8">
+                <div className="absolute inset-0 rounded-full bg-blue-500/20 blur-xl opacity-0 group-hover/roadmap:opacity-100 transition-opacity duration-700" />
+                <div className="w-16 h-16 bg-slate-950 border border-blue-500/20 rounded-full flex items-center justify-center relative z-10 group-hover/roadmap:border-blue-500/50 transition-colors">
+                  <Radio className="w-6 h-6 text-blue-400" />
+                  <div className="absolute inset-[-4px] border border-dashed border-blue-500/20 rounded-full animate-[spin_12s_linear_infinite]" />
+                </div>
               </div>
-              <h4 className="text-xl font-black text-white mb-4 italic uppercase tracking-tight">
-                Showcases
+              <h4 className="text-sm font-black text-white mb-3 italic uppercase tracking-[0.2em]">
+                Portfolios
               </h4>
-              <p className="text-slate-500 text-sm font-medium leading-relaxed">
-                Live-updated gig schedules and shareable EPK statistics.
+              <p className="text-slate-500 text-[12px] font-medium leading-relaxed">
+                Live-updated gig schedules and shareable, pro-grade EPK statistics.
               </p>
             </ProCard>
 
-            <ProCard className="p-10 flex flex-col items-start h-full" glow>
-              <div className="w-14 h-14 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-10 border border-emerald-500/20 shadow-lg shadow-emerald-500/5 group-hover:scale-110 transition-transform">
-                <Globe2 className="w-6 h-6 text-emerald-400" />
+            {/* Venues */}
+            <ProCard
+              className="p-8 flex flex-col items-center text-center h-full group/roadmap bg-slate-900/50"
+              glow
+            >
+              <div className="relative mb-8">
+                <div className="absolute inset-0 rounded-full bg-emerald-500/20 blur-xl opacity-0 group-hover/roadmap:opacity-100 transition-opacity duration-700" />
+                <div className="w-16 h-16 bg-slate-950 border border-emerald-500/20 rounded-full flex items-center justify-center relative z-10 group-hover/roadmap:border-emerald-500/50 transition-colors">
+                  <Globe2 className="w-6 h-6 text-emerald-400" />
+                  <div className="absolute inset-[-4px] border border-dashed border-emerald-500/20 rounded-full animate-[spin_20s_linear_infinite_reverse]" />
+                </div>
               </div>
-              <h4 className="text-xl font-black text-white mb-4 italic uppercase tracking-tight">
-                Hubs
+              <h4 className="text-sm font-black text-white mb-3 italic uppercase tracking-[0.2em]">
+                Global Venues
               </h4>
-              <p className="text-slate-500 text-sm font-medium leading-relaxed">
-                Centralized command for conventions. Unified tracking for every hall.
+              <p className="text-slate-500 text-[12px] font-medium leading-relaxed">
+                Unified tracking and centralized command for major dance conventions.
               </p>
             </ProCard>
-          </div>
-        </div>
-      </section>
-
-      {/* ⚡ HOW IT WORKS */}
-      <section className="py-40 px-6 bg-slate-900 border-y border-slate-800 relative overflow-hidden">
-        {/* Subtle Background Mesh for this section */}
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-        <div className="max-w-6xl mx-auto relative z-10">
-          <div className="text-center mb-32 px-4">
-            <div className="absolute top-1/2 left-0 w-full h-px bg-slate-800/20 -z-10" />
-            <span className="inline-block px-8 bg-slate-900 text-[10px] font-black text-slate-500 italic uppercase tracking-[0.6em] relative z-10 mb-6">
-              The Handshake
-            </span>
-            <h2 className="text-5xl sm:text-6xl font-black text-white italic uppercase tracking-tighter">
-              Start in Seconds
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-12 md:gap-16 relative items-stretch">
-            {/* DJ FLOW CARD */}
-            <div className="flex flex-col">
-              <ProCard
-                className="flex-1 p-10 sm:p-14 flex flex-col items-start bg-slate-950/50"
-                glow
-              >
-                <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-purple-500/10 rounded-full text-purple-400 text-[10px] font-black uppercase tracking-widest border border-purple-500/20 mb-12">
-                  <Headphones className="w-3.5 h-3.5" />
-                  DJ COMMAND
-                </div>
-
-                <div className="space-y-10 sm:space-y-12 flex-1">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 group/step">
-                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 text-purple-400 font-black italic text-xl leading-none pr-0.5 shadow-2xl group-hover/step:border-purple-500/50 transition-colors">
-                      01
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 italic uppercase tracking-tight">
-                        The Sidecar
-                      </h4>
-                      <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                        Download the lightweight macOS binary. It runs quietly alongside VirtualDJ.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 group/step">
-                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 text-purple-400 font-black italic text-xl leading-none pr-0.5 shadow-2xl group-hover/step:border-purple-500/50 transition-colors">
-                      02
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 italic uppercase tracking-tight">
-                        Auto-Analysis
-                      </h4>
-                      <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                        Pika! detects your history and syncs analysis to the cloud in real-time.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-16 pt-10 border-t border-slate-800/50 w-full">
-                  <Link
-                    href="/download"
-                    className="inline-flex items-center gap-3 text-[10px] font-black text-purple-400 uppercase tracking-widest active:scale-95 transition-all"
-                  >
-                    <Download className="w-4 h-4" />
-                    GET SIDECAR FOR MAC
-                  </Link>
-                </div>
-              </ProCard>
-            </div>
-
-            {/* DANCER FLOW CARD */}
-            <div className="flex flex-col">
-              <ProCard
-                className="flex-1 p-10 sm:p-14 flex flex-col items-start bg-slate-950/50"
-                glow
-              >
-                <div className="inline-flex items-center gap-3 px-4 py-1.5 bg-pink-500/10 rounded-full text-pink-400 text-[10px] font-black uppercase tracking-widest border border-pink-500/20 mb-12">
-                  <Smartphone className="w-3.5 h-3.5" />
-                  DANCER ACCESS
-                </div>
-
-                <div className="space-y-10 sm:space-y-12 flex-1">
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 group/step">
-                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 text-pink-400 font-black italic text-xl leading-none pr-0.5 shadow-2xl group-hover/step:border-pink-500/50 transition-colors">
-                      01
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 italic uppercase tracking-tight">
-                        Scan & Go
-                      </h4>
-                      <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                        Scan the booth QR or visit{" "}
-                        <span className="font-mono text-pink-400 bg-pink-500/5 px-1.5 py-0.5 rounded border border-pink-500/10">
-                          pika.stream
-                        </span>
-                        . No accounts.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-8 group/step">
-                    <div className="flex-shrink-0 w-12 h-12 bg-slate-900 rounded-2xl flex items-center justify-center border border-slate-800 text-pink-400 font-black italic text-xl leading-none pr-0.5 shadow-2xl group-hover/step:border-pink-500/50 transition-colors">
-                      02
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-lg sm:text-xl font-black text-white mb-2 italic uppercase tracking-tight">
-                        Engage
-                      </h4>
-                      <p className="text-slate-400 text-sm font-medium leading-relaxed">
-                        See what's playing, vote on tempo, and build your anonymous favorites log.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-16 pt-10 border-t border-slate-800/50 w-full">
-                  <Link
-                    href="/live"
-                    className="inline-flex items-center gap-3 text-[10px] font-black text-pink-400 uppercase tracking-widest active:scale-95 transition-all"
-                  >
-                    <Radio className="w-4 h-4" />
-                    SEE ACTIVE FLOORS
-                  </Link>
-                </div>
-              </ProCard>
-            </div>
           </div>
         </div>
       </section>
@@ -549,37 +741,88 @@ export default function LandingPage() {
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 relative">
-            <div className="absolute inset-0 bg-purple-600/5 blur-[100px] -z-10" />
-            <ProCard className="p-6 sm:p-10 bg-slate-900/40 border-white/5" glow>
-              <div className="text-3xl sm:text-4xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
-                0ms
-              </div>
-              <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-tight">
-                LATENCY GOAL
-              </div>
-            </ProCard>
-            <ProCard className="p-6 sm:p-10 bg-slate-900/40 border-white/5" glow>
-              <div className="text-3xl sm:text-4xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
-                100%
-              </div>
-              <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-tight">
-                PRIVACY
-              </div>
-            </ProCard>
-            <ProCard className="p-6 sm:p-10 bg-slate-900/40 border-white/5" glow>
-              <div className="text-2xl sm:text-3xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter uppercase">
-                SIDE<span className="text-purple-500">CAR</span>
-              </div>
-              <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-tight">
-                OFFLINE CORE
+            <div className="absolute inset-x-0 -bottom-24 h-64 bg-emerald-500/10 blur-[100px] pointer-events-none" />
+
+            <ProCard
+              className="p-6 sm:p-10 bg-slate-900/60 border-white/5 relative overflow-hidden group/stat"
+              glow
+              bgImage="/textures/schematic.png"
+            >
+              <div className="relative z-10">
+                <div className="text-[10px] font-black text-emerald-500/50 uppercase tracking-[0.2em] mb-4 font-mono">
+                  MOD_01 &mdash; SIGNAL
+                </div>
+                <div className="text-4xl sm:text-5xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
+                  0ms
+                </div>
+                <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] leading-tight">
+                  LATENCY GOAL
+                </div>
               </div>
             </ProCard>
-            <ProCard className="p-6 sm:p-10 bg-slate-900/40 border-white/5" glow>
-              <div className="text-3xl sm:text-4xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
-                v0.4
+
+            <ProCard
+              className="p-6 sm:p-10 bg-slate-900/60 border-white/5 relative overflow-hidden group/stat"
+              glow
+              bgImage="/textures/schematic.png"
+            >
+              <div className="relative z-10">
+                <div className="text-[10px] font-black text-purple-500/50 uppercase tracking-[0.2em] mb-4 font-mono">
+                  MOD_02 &mdash; SECURE
+                </div>
+                <div className="text-4xl sm:text-5xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
+                  100%
+                </div>
+                <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] leading-tight">
+                  PRIVACY
+                </div>
               </div>
-              <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-tight">
-                BETA REACH
+            </ProCard>
+
+            <ProCard
+              className="p-6 sm:p-10 bg-slate-900/60 border-purple-500/20 relative overflow-hidden group/stat"
+              glow
+              bgImage="/textures/schematic.png"
+            >
+              <div className="relative z-10">
+                <div className="text-[10px] font-black text-purple-400/50 uppercase tracking-[0.2em] mb-4 font-mono">
+                  MOD_03 &mdash; IMPACT
+                </div>
+                <div className="text-3xl sm:text-4xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter uppercase">
+                  SIDE
+                  <span className="text-purple-500 underline decoration-purple-500/30 underline-offset-4">
+                    CAR
+                  </span>
+                </div>
+                <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] leading-tight">
+                  LOWEST IMPACT
+                </div>
+              </div>
+              <div className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10 group-hover/stat:opacity-40 transition-all duration-1000 group-hover/stat:scale-110 pointer-events-none grayscale group-hover/stat:grayscale-0">
+                <Image
+                  src="/screenshots/dj/cpu-audit.png"
+                  alt=""
+                  fill
+                  className="object-cover rounded-full"
+                />
+              </div>
+            </ProCard>
+
+            <ProCard
+              className="p-6 sm:p-10 bg-slate-900/60 border-white/5 relative overflow-hidden group/stat"
+              glow
+              bgImage="/textures/schematic.png"
+            >
+              <div className="relative z-10">
+                <div className="text-[10px] font-black text-pink-500/50 uppercase tracking-[0.2em] mb-4 font-mono">
+                  MOD_04 &mdash; PULSE
+                </div>
+                <div className="text-4xl sm:text-5xl font-black text-white mb-2 sm:mb-3 italic tracking-tighter">
+                  LIVE
+                </div>
+                <div className="text-[9px] sm:text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] leading-tight">
+                  FLOOR INSIGHTS
+                </div>
               </div>
             </ProCard>
           </div>
@@ -641,25 +884,90 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-x-12 gap-y-6">
-            <Link
-              href="/dj/login"
-              className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px]"
-            >
-              DJ Portal
-            </Link>
-            <Link
-              href="/live"
-              className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px]"
-            >
-              Tune In
-            </Link>
-            <Link
-              href="/privacy"
-              className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-y-[-2px]"
-            >
-              Privacy
-            </Link>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-x-12 gap-y-12">
+            <div className="flex flex-col gap-4">
+              <span className="text-[10px] font-black text-white uppercase tracking-[0.3em] mb-2">
+                Platform
+              </span>
+              <Link
+                href="/download"
+                className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-x-1"
+              >
+                Downloads
+              </Link>
+              <Link
+                href="/live"
+                className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-x-1"
+              >
+                Tune In
+              </Link>
+              <Link
+                href="/dj/login"
+                className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-x-1"
+              >
+                DJ Portal
+              </Link>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <span className="text-[10px] font-black text-white uppercase tracking-[0.3em] mb-2">
+                Community
+              </span>
+              <a
+                href="https://instagram.com"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-x-1"
+              >
+                Instagram
+              </a>
+              <a
+                href="https://discord.com"
+                target="_blank"
+                rel="noreferrer"
+                className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-x-1"
+              >
+                Discord
+              </a>
+              <Link
+                href="/support"
+                className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-x-1"
+              >
+                Help Center
+              </Link>
+            </div>
+
+            <div className="flex flex-col gap-4">
+              <span className="text-[10px] font-black text-white uppercase tracking-[0.3em] mb-2">
+                Legal
+              </span>
+              <Link
+                href="/privacy"
+                className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-x-1"
+              >
+                Privacy
+              </Link>
+              <Link
+                href="/terms"
+                className="text-[10px] font-black text-slate-500 hover:text-white uppercase tracking-[0.4em] transition-all hover:translate-x-1"
+              >
+                Terms
+              </Link>
+              <a
+                href="https://status.pika.stream"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-2 mt-2 group/status hover:opacity-80 transition-opacity"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[8px] font-black text-emerald-500/80 uppercase tracking-[0.2em] group-hover/status:underline decoration-emerald-500/30 underline-offset-2">
+                  System Live via Kuma
+                </span>
+              </a>
+            </div>
           </div>
         </div>
       </footer>

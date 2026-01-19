@@ -1,21 +1,39 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+import Image from "next/image";
 
 interface ProCardProps {
   children: ReactNode;
   className?: string;
   glow?: boolean;
+  bgImage?: string;
 }
 
-export function ProCard({ children, className = "", glow = false }: ProCardProps) {
+export function ProCard({ children, className = "", glow = false, bgImage }: ProCardProps) {
   return (
     <div
-      className={`relative group/card bg-slate-900 border border-slate-800 rounded-[2rem] overflow-hidden shadow-2xl transition-all duration-500 hover:border-purple-500/30 ${className}`}
+      className={`relative group/card bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl transition-all duration-700 hover:border-white/10 flex flex-col ${className}`}
     >
-      {glow && (
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      {/* Ambient Texture Layer */}
+      {bgImage && (
+        <div className="absolute inset-0 z-0 opacity-[0.4] group-hover/card:opacity-[0.6] transition-opacity duration-1000 grayscale group-hover/card:grayscale-0 pointer-events-none">
+          <Image
+            src={bgImage}
+            alt=""
+            fill
+            className="object-cover scale-110 group-hover/card:scale-100 transition-transform duration-[3s]"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+        </div>
       )}
-      <div className="relative z-10">{children}</div>
+
+      {/* Atmospheric Glow */}
+      {glow && (
+        <div className="absolute inset-0 z-10 bg-gradient-to-br from-purple-500/15 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-700 pointer-events-none" />
+      )}
+
+      {/* Main Content */}
+      <div className="relative z-20 flex flex-col h-full flex-1">{children}</div>
     </div>
   );
 }
