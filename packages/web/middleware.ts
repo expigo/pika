@@ -19,7 +19,7 @@ export function middleware(_request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
-    "connect-src 'self' wss://api.pika.stream https://api.pika.stream wss://staging-api.pika.stream https://staging-api.pika.stream ws://localhost:* http://localhost:*",
+    "connect-src 'self' https://api.github.com https://*.github.com https://*.githubusercontent.com wss://api.pika.stream https://api.pika.stream wss://staging-api.pika.stream https://staging-api.pika.stream ws://localhost:* http://localhost:*",
     "frame-ancestors 'none'",
     "form-action 'self'",
     "base-uri 'self'",

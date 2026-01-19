@@ -60,3 +60,12 @@ export {
   type HarmonicLevel,
   type HarmonicRelation,
 } from "./utils";
+
+export {
+  getBaseApiUrl,
+  getBaseWsUrl,
+  DEFAULT_WEB_PORT,
+  DEFAULT_CLOUD_PORT,
+  type PikaEnvironment,
+  type UrlOptions,
+} from "./protocol";
