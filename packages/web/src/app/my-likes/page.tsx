@@ -1,16 +1,11 @@
 "use client";
 
-import { ArrowLeft, ArrowRight, Calendar, Heart, History, Music2, Radio, User } from "lucide-react";
+import { ArrowRight, Heart, Radio, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
-import { VibeBadge } from "@/components/ui/VibeBadge";
 
-// API base URL
-function getApiBaseUrl(): string {
-  if (typeof window === "undefined") return "";
-  return process.env.NEXT_PUBLIC_CLOUD_API_URL || "http://localhost:3001";
-}
+import { getApiBaseUrl } from "@/lib/api";
 
 // Get or create a stable client ID
 function getClientId(): string | null {

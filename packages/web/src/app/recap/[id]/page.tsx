@@ -18,11 +18,7 @@ import { useEffect, useState } from "react";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 
-// API base URL
-function getApiBaseUrl(): string {
-  if (typeof window === "undefined") return "";
-  return process.env.NEXT_PUBLIC_CLOUD_API_URL || "http://localhost:3001";
-}
+import { getApiBaseUrl } from "@/lib/api";
 
 interface RecapTrack {
   position: number;

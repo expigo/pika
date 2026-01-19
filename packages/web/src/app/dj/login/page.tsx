@@ -5,13 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 
-// API base URL
-function getApiBaseUrl(): string {
-  if (process.env.NEXT_PUBLIC_CLOUD_API_URL) {
-    return process.env.NEXT_PUBLIC_CLOUD_API_URL;
-  }
-  return "http://localhost:3001";
-}
+import { getApiBaseUrl } from "@/lib/api";
 
 interface LoginResponse {
   success: boolean;
