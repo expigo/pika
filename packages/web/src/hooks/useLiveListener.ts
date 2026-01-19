@@ -9,8 +9,8 @@
  */
 "use client";
 
-import { MESSAGE_TYPES, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { MESSAGE_TYPES, getTrackKey, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getOrCreateClientId } from "@/lib/client";
 import {
   type ConnectionStatus,
@@ -63,14 +63,23 @@ export function useLiveListener(targetSessionId?: string) {
     }
   }, [status, flushPendingLikes]);
 
+  // Track history
+  const { currentTrack, history, setCurrentTrack, clearHistory, fetchHistory, trackHandlers } =
+    useTrackHistory({
+      sessionId,
+    });
+
   // Poll state
   const { activePoll, hasVotedOnPoll, voteOnPoll, resetPoll, pollHandlers } = usePollState({
     socketRef,
   });
 
   // Tempo vote
+  const trackKey = useMemo(() => (currentTrack ? getTrackKey(currentTrack) : null), [currentTrack]);
+
   const { tempoVote, sendTempoRequest, resetTempoVote, tempoHandlers } = useTempoVote({
     sessionId,
+    trackKey,
     socketRef,
   });
 
@@ -78,12 +87,6 @@ export function useLiveListener(targetSessionId?: string) {
   const { announcement, dismissAnnouncement, announcementHandlers } = useAnnouncement({
     sessionId,
   });
-
-  // Track history
-  const { currentTrack, history, setCurrentTrack, clearHistory, fetchHistory, trackHandlers } =
-    useTrackHistory({
-      sessionId,
-    });
 
   // Social Signals (Hearts)
   const { onLikeReceived, socialSignalHandlers } = useSocialSignals({

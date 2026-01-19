@@ -66,6 +66,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
           ...prev,
           votes: newVotes,
           totalVotes: prev.totalVotes + 1,
+          userChoice: optionIndex,
         };
       });
       setHasVotedOnPoll(true);
@@ -93,6 +94,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
         votes?: number[];
         totalVotes?: number;
         hasVoted?: boolean;
+        votedOptionIndex?: number;
       };
 
       console.log(
@@ -115,6 +117,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
         votes,
         totalVotes,
         endsAt: msg.endsAt,
+        userChoice: msg.votedOptionIndex,
       });
       setHasVotedOnPoll(hasVoted);
     },

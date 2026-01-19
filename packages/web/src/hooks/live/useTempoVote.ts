@@ -1,16 +1,12 @@
-/**
- * Hook for managing tempo vote state
- * Handles voting with toggle behavior and TEMPO_RESET messages
- */
-
 import { MESSAGE_TYPES } from "@pika/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
 import type { MessageHandlers, TempoPreference, WebSocketMessage } from "./types";
 
 interface UseTempoVoteProps {
   sessionId: string | null;
+  trackKey: string | null;
   socketRef: React.RefObject<ReconnectingWebSocket | null>;
 }
 
@@ -21,10 +17,30 @@ interface UseTempoVoteReturn {
   tempoHandlers: MessageHandlers;
 }
 
-export function useTempoVote({ sessionId, socketRef }: UseTempoVoteProps): UseTempoVoteReturn {
+export function useTempoVote({
+  sessionId,
+  trackKey,
+  socketRef,
+}: UseTempoVoteProps): UseTempoVoteReturn {
   const [tempoVote, setTempoVote] = useState<TempoPreference | null>(null);
 
-  // Reset tempo vote (called on track change or session end)
+  // Restore from localStorage on mount or track change
+  useEffect(() => {
+    if (!sessionId || !trackKey) {
+      setTempoVote(null);
+      return;
+    }
+
+    const storageKey = `pika_tempo_${sessionId}_${trackKey}`;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      setTempoVote(saved as TempoPreference);
+    } else {
+      setTempoVote(null);
+    }
+  }, [sessionId, trackKey]);
+
+  // Reset tempo vote (called on session end)
   const resetTempoVote = useCallback(() => {
     setTempoVote(null);
   }, []);
@@ -45,34 +61,31 @@ export function useTempoVote({ sessionId, socketRef }: UseTempoVoteProps): UseTe
 
       // Toggle off: if tapping the same preference, clear it
       const isToggleOff = tempoVote === preference;
+      const effectivePref = isToggleOff ? "clear" : preference;
+      const storageKey = trackKey ? `pika_tempo_${sessionId}_${trackKey}` : null;
+
+      socket.send(
+        JSON.stringify({
+          type: "SEND_TEMPO_REQUEST",
+          clientId: getOrCreateClientId(),
+          sessionId,
+          preference: effectivePref,
+        }),
+      );
 
       if (isToggleOff) {
-        socket.send(
-          JSON.stringify({
-            type: "SEND_TEMPO_REQUEST",
-            clientId: getOrCreateClientId(),
-            sessionId,
-            preference: "clear",
-          }),
-        );
         setTempoVote(null);
+        if (storageKey) localStorage.removeItem(storageKey);
         console.log("[Tempo] Cleared vote");
       } else {
-        socket.send(
-          JSON.stringify({
-            type: "SEND_TEMPO_REQUEST",
-            clientId: getOrCreateClientId(),
-            sessionId,
-            preference,
-          }),
-        );
         setTempoVote(preference);
+        if (storageKey) localStorage.setItem(storageKey, preference);
         console.log("[Tempo] Sent request:", preference);
       }
 
       return true;
     },
-    [sessionId, socketRef, tempoVote],
+    [sessionId, socketRef, tempoVote, trackKey],
   );
 
   // Message handlers
@@ -87,6 +100,8 @@ export function useTempoVote({ sessionId, socketRef }: UseTempoVoteProps): UseTe
 
       console.log("[Tempo] Reset received");
       setTempoVote(null);
+      // Note: We don't clear localStorage here because TEMPO_RESET usually
+      // happens AFTER a track change, and our useEffect already handles track changes.
     },
   };
 

@@ -31,6 +31,7 @@ export interface PollState {
   votes: number[];
   totalVotes: number;
   endsAt?: string;
+  userChoice?: number;
 }
 
 // ============================================================================
