@@ -6,10 +6,27 @@ interface ProCardProps {
   children: ReactNode;
   className?: string;
   glow?: boolean;
+  glowColor?: string; // Example: 'purple-500' or 'pink-500'
   bgImage?: string;
 }
 
-export function ProCard({ children, className = "", glow = false, bgImage }: ProCardProps) {
+export function ProCard({
+  children,
+  className = "",
+  glow = false,
+  glowColor = "purple-500",
+  bgImage,
+}: ProCardProps) {
+  // Map common colors to gradient classes to ensure Tailwind pick them up
+  const glowClasses: Record<string, string> = {
+    "purple-500": "from-purple-500/20",
+    "pink-500": "from-pink-500/20",
+    "emerald-500": "from-emerald-500/20",
+    "blue-500": "from-blue-500/20",
+  };
+
+  const gradientClass = glowClasses[glowColor] || "from-purple-500/20";
+
   return (
     <div
       className={`relative group/card bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl transition-all duration-700 hover:border-white/10 flex flex-col ${className}`}
@@ -29,7 +46,9 @@ export function ProCard({ children, className = "", glow = false, bgImage }: Pro
 
       {/* Atmospheric Glow */}
       {glow && (
-        <div className="absolute inset-0 z-10 bg-gradient-to-br from-purple-500/15 via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-700 pointer-events-none" />
+        <div
+          className={`absolute inset-0 z-10 bg-gradient-to-br ${gradientClass} via-transparent to-transparent opacity-0 group-hover/card:opacity-100 transition-opacity duration-700 pointer-events-none`}
+        />
       )}
 
       {/* Main Content */}

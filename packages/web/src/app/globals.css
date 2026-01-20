@@ -49,3 +49,92 @@ body {
     animation: none !important;
   }
 }
+
+@keyframes scan {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(1000%);
+  }
+}
+
+@keyframes flicker {
+  0%,
+  19.999%,
+  22%,
+  62.999%,
+  64%,
+  64.999%,
+  70%,
+  100% {
+    opacity: 1;
+  }
+  20%,
+  21.999%,
+  63%,
+  63.999%,
+  65%,
+  69.999% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%) rotate(25deg);
+  }
+  100% {
+    transform: translateX(200%) rotate(25deg);
+  }
+}
+
+@keyframes dash {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes heartbeat-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 20px rgba(244, 63, 94, 0.1));
+  }
+  50% {
+    filter: drop-shadow(0 0 60px rgba(244, 63, 94, 0.5));
+  }
+}
+
+@keyframes path-pulse {
+  0%,
+  100% {
+    stroke-width: 2;
+    opacity: 0.3;
+    filter: blur(0px);
+  }
+  50% {
+    stroke-width: 2.5;
+    opacity: 0.8;
+    filter: blur(0.5px);
+  }
+}
+
+@keyframes pulse-fast {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
