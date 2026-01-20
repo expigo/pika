@@ -204,10 +204,15 @@ export default function LandingPage() {
         <div className="hidden sm:block mt-24 sm:mt-48 relative z-[60] w-screen left-1/2 -translate-x-1/2">
           <div className="relative z-10 w-full max-w-[1000px] mx-auto px-6 group/handshake">
             {/* Main Booth Frame: The "Engine" (Integrated Hardware) */}
-            <div className="relative aspect-[16/10] group/booth [perspective:2000px] transform scale-[0.85] opacity-40 grayscale blur-[2px] transition-all duration-[1.5s] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover/handshake:scale-95 group-hover/handshake:opacity-60 group-hover/handshake:grayscale-0 group-hover/handshake:blur-0 group-hover/handshake:shadow-purple-500/20">
+            <div className="relative aspect-[16/10] group/booth [perspective:2000px] transform scale-[0.85] transition-all duration-[1.5s] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover/handshake:scale-95 group-hover/handshake:shadow-purple-500/20">
               {/* Hardware Shell */}
               <div className="absolute inset-0 bg-slate-900 rounded-3xl p-2 sm:p-4 border border-white/10 shadow-[0_40px_100px_-20px_rgba(0,0,0,1)] overflow-hidden">
-                <div className="w-full h-full rounded-2xl overflow-hidden bg-slate-950 relative">
+                <div className="w-full h-full rounded-2xl overflow-hidden bg-slate-950 relative transition-all duration-[1.5s] opacity-40 grayscale blur-[2px] group-hover/handshake:opacity-100 group-hover/handshake:grayscale-0 group-hover/handshake:blur-0">
+                  {/* ⚡ INTERNAL CORE SPINE - Positioned behind image */}
+                  <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-px pointer-events-none">
+                    <div className="absolute inset-y-0 w-px bg-gradient-to-b from-white/5 via-purple-500/40 to-white/5" />
+                  </div>
+
                   <Image
                     src="/screenshots/dj/vdj-sync.png"
                     alt="DJ Booth Integration"
@@ -217,11 +222,6 @@ export default function LandingPage() {
                   />
                   {/* Glass Sweep Animation */}
                   <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent -translate-x-full group-hover/booth:translate-x-full transition-transform duration-3000 ease-in-out" />
-
-                  {/* ⚡ INTERNAL CORE SPINE */}
-                  <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-px z-30 pointer-events-none">
-                    <div className="absolute inset-y-0 w-px bg-gradient-to-b from-white/5 via-purple-500/40 to-white/5" />
-                  </div>
                 </div>
               </div>
 
