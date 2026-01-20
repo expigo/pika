@@ -189,20 +189,20 @@ export default function LandingPage() {
                 <div className="w-1 h-1 rounded-full bg-purple-500/60 animate-pulse" />
               </div>
 
-              {/* The Beam: 1600px Continuous Line (Passes behind Mockup) */}
-              <div className="relative h-[1600px] w-px">
-                {/* Layer 3: Atmos Glow - Subtle */}
-                <div className="absolute inset-0 w-24 -left-12 bg-purple-500/5 blur-3xl" />
-                {/* Layer 2: Energy Bleed - Consistent */}
-                <div className="absolute inset-0 w-px bg-purple-500/15" />
-                {/* Layer 1: The Core - Solid through middle, fades at very end */}
-                <div className="absolute inset-0 w-px bg-gradient-to-b from-purple-500/60 via-purple-500/30 via-purple-500/30 to-purple-500/10" />
+              {/* The Beam: Booth Interior Spine (Flows through mockup) */}
+              <div className="relative h-[1200px] w-px">
+                {/* Layer 3: Atmos Glow */}
+                <div className="absolute inset-0 w-32 -left-16 bg-purple-500/10 blur-3xl" />
+                {/* Layer 2: Energy Bleed */}
+                <div className="absolute inset-0 w-[2px] -left-[0.5px] bg-purple-500/20 blur-sm" />
+                {/* Layer 1: The Core - Fades out naturally before handover */}
+                <div className="absolute inset-0 w-px bg-gradient-to-b from-purple-500 via-purple-500/40 to-transparent" />
               </div>
             </div>
           </div>
 
           {/* 📱 THE PRODUCT HANDSHAKE (HERO MOCKUP) - Desktop Only */}
-          <div className="hidden sm:block mt-16 sm:mt-32 relative z-20 w-screen left-1/2 -translate-x-1/2">
+          <div className="hidden sm:block mt-16 sm:mt-32 relative z-[60] w-screen left-1/2 -translate-x-1/2">
             <div className="relative z-10 w-full max-w-[1200px] mx-auto px-6">
               {/* Main Booth Frame */}
               <div className="relative aspect-[16/10] rounded-xl sm:rounded-2xl border border-white/5 bg-black overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.6)]">
@@ -252,7 +252,7 @@ export default function LandingPage() {
               </div>
 
               {/* Technical Callout */}
-              <div className="absolute top-1/2 -left-8 sm:-left-20 -translate-y-1/2 px-10 py-8 bg-black/60 backdrop-blur-2xl border border-white/5 rounded-[2.5rem] shadow-2xl z-40 hidden lg:block transform group-hover:translate-x-6 transition-transform duration-1000">
+              <div className="absolute top-1/2 -left-8 sm:-left-20 -translate-y-1/2 px-10 py-8 bg-black/60 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] shadow-2xl z-[80] hidden lg:block transform group-hover:translate-x-6 transition-transform duration-1000">
                 <div className="flex items-center gap-4 mb-6">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />
                   <span className="text-[9px] font-semibold text-emerald-500/80 uppercase tracking-[0.4em]">
@@ -284,15 +284,13 @@ export default function LandingPage() {
           </div>
 
           {/* Global Atmospheric Mask */}
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-950 to-transparent z-50 pointer-events-none" />
+          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-950 to-transparent z-40 pointer-events-none" />
 
-          {/* ⚡ THE LIVE WIRE: Hero Exit Handover - Desktop Only */}
-          <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center z-[60] pointer-events-none">
-            <div className="relative h-[500px] w-px">
-              {/* Layer 2: Soft Glow */}
-              <div className="absolute inset-0 w-12 -left-6 bg-purple-500/8 blur-2xl" />
-              {/* Layer 1: Core - Consistent then brightens toward bottom */}
-              <div className="absolute inset-0 w-px bg-gradient-to-b from-purple-500/30 via-purple-500/40 to-purple-500" />
+          {/* ⚡ THE LIVE WIRE: Hero Exit Handover (Section Boundary Marker) */}
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center z-10 pointer-events-none">
+            <div className="relative h-32 w-px">
+              <div className="absolute inset-0 w-32 -left-16 bg-purple-500/5 blur-3xl" />
+              <div className="absolute inset-0 w-px bg-gradient-to-t from-purple-500 to-transparent" />
             </div>
           </div>
         </div>
@@ -300,15 +298,13 @@ export default function LandingPage() {
 
       {/* 🎯 AUDIENCE TRIFECTA */}
       <section className="pt-48 pb-64 px-4 bg-slate-950 relative overflow-hidden">
-        {/* ⚡ THE LIVE WIRE: Ecosystem Entry Continuity (Precision Needle) */}
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center pointer-events-none z-[60]">
-          <div className="relative h-[600px] w-px">
-            {/* Layer 3: Atmos Glow (Long Narrative Tail) */}
-            <div className="absolute top-0 w-32 -left-16 h-full bg-purple-500/10 blur-3xl" />
-            {/* Layer 2: Energy Bleed */}
-            <div className="absolute top-0 w-[2px] -left-[0.5px] h-[500px] bg-purple-500/30 blur-sm" />
-            {/* Layer 1: The Core (Crisp - 32px before Pill) */}
-            <div className="absolute top-0 w-px h-[208px] bg-gradient-to-b from-purple-500 via-purple-500/80 to-transparent" />
+        {/* ⚡ THE LIVE WIRE: Ecosystem Entry Pulse (Marker - Ends before Pill) */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center pointer-events-none z-10">
+          <div className="relative h-32 w-px">
+            {/* Layer 3: Atmos Glow */}
+            <div className="absolute inset-0 w-32 -left-16 bg-purple-500/10 blur-3xl" />
+            {/* Layer 1: The Core - Fades out before content */}
+            <div className="absolute inset-0 w-px bg-gradient-to-b from-purple-500 via-purple-500/40 to-transparent" />
           </div>
         </div>
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-purple-600/5 blur-[120px] pointer-events-none" />
@@ -482,16 +478,16 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* ⚡ EXIT PULSE: Ecosystem ➔ DJ */}
-        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-t from-purple-500/60 to-transparent z-10" />
+        {/* ⚡ EXIT PULSE: Ecosystem ➔ DJ (Transition Marker) */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-t from-purple-500/60 to-transparent z-10 pointer-events-none" />
 
         {/* 🌫️ ATMOSPHERIC BLEED: Soften the horizon to Black */}
         <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black to-transparent pointer-events-none" />
       </section>
 
       <section className="pt-48 pb-64 bg-black overflow-hidden relative">
-        {/* ⚡ ENTRY PULSE: DJ Energy */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-b from-purple-500/60 to-transparent z-10" />
+        {/* ⚡ ENTRY PULSE: DJ Energy (Transition Marker) */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24 bg-gradient-to-b from-purple-500/60 to-transparent z-10 pointer-events-none" />
 
         {/* ✨ SPILL GLOW: Leak energy into the section above */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-purple-500/20 blur-[140px] -translate-y-1/2 pointer-events-none opacity-50" />
