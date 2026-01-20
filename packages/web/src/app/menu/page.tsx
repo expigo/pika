@@ -17,7 +17,7 @@ export default function MenuPage() {
         },
         {
           label: "Install Web App",
-          href: "/guide/web-app",
+          href: "/for/dancers",
           icon: Smartphone,
           description: "Add to Home Screen",
         },

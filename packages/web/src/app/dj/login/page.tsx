@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, ArrowRight, CheckCircle, Lock, LogIn, Mail } from "lucide-react";
+import { AlertCircle, ArrowRight, CheckCircle, Eye, EyeOff, Lock, LogIn, Mail } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<LoginResponse | null>(null);
   const [tokenCopied, setTokenCopied] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,164 +69,199 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-purple-500/30 flex items-center justify-center p-4">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-gradient-to-b from-purple-600/20 to-transparent blur-[120px]" />
+    <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-purple-500/30 flex items-center justify-center p-6 relative overflow-hidden">
+      {/* 🌌 ATMOSPHERIC MESH: High-fidelity depth system */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff03_1px,transparent_1px),linear-gradient(to_bottom,#ffffff03_1px,transparent_1px)] bg-[size:40px_40px] opacity-20" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-gradient-to-b from-purple-600/10 via-transparent to-transparent blur-[120px]" />
+        <div className="absolute -top-1/4 -right-1/4 w-1/2 h-1/2 bg-purple-500/5 blur-[150px] rounded-full" />
+        <div className="absolute -bottom-1/4 -left-1/4 w-1/2 h-1/2 bg-pink-500/5 blur-[150px] rounded-full" />
       </div>
 
-      {/* Back Button */}
+      {/* 🔙 NAVIGATION: Minimalist return path */}
       <Link
         href="/"
-        className="absolute top-4 left-4 sm:top-8 sm:left-8 inline-flex items-center gap-3 px-5 py-2.5 bg-slate-900/50 hover:bg-slate-900 rounded-xl text-slate-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest border border-slate-800/50 z-20"
+        className="absolute top-6 left-6 sm:top-10 sm:left-10 inline-flex items-center gap-3 px-5 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl text-slate-500 hover:text-white transition-all text-[9px] font-black uppercase tracking-[0.3em] border border-white/5 backdrop-blur-3xl z-30 group"
       >
-        <ArrowRight className="w-4 h-4 rotate-180" />
+        <ArrowRight className="w-3.5 h-3.5 rotate-180 transition-transform group-hover:-translate-x-1" />
         Back to Home
       </Link>
 
-      <div className="w-full max-w-md relative z-10">
+      <div className="w-full max-w-xl relative z-10 py-20">
         {success ? (
-          <ProCard glow className="overflow-hidden">
-            <div className="px-8 py-10 text-center border-b border-slate-800/50">
-              <div className="w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-emerald-500/20">
-                <CheckCircle className="w-10 h-10 text-white" />
+          <ProCard
+            glow
+            className="overflow-hidden bg-slate-950/40 border-white/10 rounded-[2.5rem]"
+          >
+            <div className="px-10 py-12 text-center border-b border-white/5 bg-white/5 backdrop-blur-2xl">
+              <div className="w-24 h-24 bg-gradient-to-br from-emerald-500 to-teal-400 rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-emerald-500/20 transform hover:scale-110 transition-transform duration-700">
+                <CheckCircle className="w-10 h-10 text-slate-950" />
               </div>
-              <h1 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-2">
-                Welcome back, <span className="text-emerald-400">{success.user?.displayName}</span>
+              <h1 className="text-4xl font-black text-white italic uppercase tracking-tighter mb-4">
+                Identity Decrypted
               </h1>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                AUTHENTICATION SUCCESSFUL
-              </p>
+              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 rounded-full text-[9px] font-bold text-emerald-500/80 uppercase tracking-[0.3em]">
+                <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                Welcome Back, {success.user?.displayName}
+              </div>
             </div>
 
-            <div className="p-8">
-              <div className="mb-6">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">
-                  Your DJ Access Token
+            <div className="p-10 space-y-10">
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                  Private Access Token
                 </label>
-                <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 font-mono text-sm text-purple-400 break-all leading-relaxed shadow-inner">
+                <div
+                  className="bg-slate-950 border border-white/10 rounded-2xl p-6 font-mono text-sm text-purple-400 break-all leading-relaxed shadow-inner group/token relative cursor-pointer active:scale-[0.99] transition-transform"
+                  onClick={copyToken}
+                >
                   {success.token}
+                  <div className="absolute inset-0 bg-purple-500/0 group-hover/token:bg-purple-500/5 transition-colors rounded-2xl flex items-center justify-end pr-4">
+                    <span className="text-[9px] font-bold text-purple-400/0 group-hover/token:text-purple-400/80 uppercase tracking-widest">
+                      Click to Copy
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={copyToken}
-                className="w-full py-4 px-6 bg-white text-slate-950 font-black uppercase text-[10px] tracking-widest rounded-2xl transition-all shadow-2xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
-              >
-                {tokenCopied ? (
-                  <>
-                    <CheckCircle className="w-4 h-4" />
-                    COPIED TO CLIPBOARD
-                  </>
-                ) : (
-                  <>COPY TOKEN</>
-                )}
-              </button>
-
-              <div className="mt-8 p-5 bg-purple-500/5 border border-purple-500/10 rounded-2xl">
-                <p className="text-[11px] text-slate-400 leading-relaxed font-medium">
-                  Paste this token into the <strong>Pika! Desktop Sidecar</strong> settings to start
-                  broadcasting.
+              <div className="p-6 bg-purple-500/5 border border-purple-500/10 rounded-3xl">
+                <p className="text-[12px] text-slate-400 leading-relaxed font-medium">
+                  Paste this token into the <strong>Pika! Desktop Sidecar</strong> settings to
+                  resume your broadcast governance.
                 </p>
               </div>
 
-              <div className="mt-8 text-center pt-8 border-t border-slate-800/50">
+              <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                <button
+                  type="button"
+                  onClick={copyToken}
+                  className="flex-1 py-5 bg-white text-slate-950 font-black uppercase text-[11px] tracking-[0.2em] rounded-2xl transition-all shadow-xl hover:bg-slate-50 active:scale-[0.98] flex items-center justify-center gap-3"
+                >
+                  {tokenCopied ? (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      COPIED
+                    </>
+                  ) : (
+                    <>COPY TOKEN</>
+                  )}
+                </button>
                 <Link
                   href={`/dj/${success.user?.slug}`}
-                  className="text-[10px] font-black text-purple-400 hover:text-white transition-colors uppercase tracking-[0.2em]"
+                  className="flex-1 py-5 bg-slate-900 border border-white/5 text-white rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-slate-800 transition-all shadow-xl active:scale-[0.98]"
                 >
-                  View Public Profile →
+                  Go to Profile
+                  <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
             </div>
           </ProCard>
         ) : (
-          <ProCard glow className="overflow-hidden">
-            <div className="px-8 py-10 text-center border-b border-slate-800/50 bg-slate-900/20">
-              <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-500 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-purple-500/20">
-                <LogIn className="w-10 h-10 text-white ml-1" />
-              </div>
-              <h1 className="text-3xl font-black text-white italic uppercase tracking-tighter mb-2">
-                DJ Login
+          <div className="space-y-12">
+            <div className="text-center relative py-10">
+              <div className="absolute inset-0 bg-purple-500/10 blur-[60px] rounded-full scale-150 opacity-50" />
+              <h1 className="text-7xl sm:text-9xl font-black text-white italic tracking-tighter uppercase leading-[0.7] mb-8 relative">
+                Log In<span className="text-purple-500">.</span>
               </h1>
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
-                ACCESS THE PIKA! CONTROL PANEL
-              </p>
+              <div className="inline-flex items-center gap-4 relative">
+                <div className="w-10 h-px bg-gradient-to-r from-transparent to-slate-800" />
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-[0.5em] whitespace-nowrap">
+                  RESUME THE CONVERSATION
+                </p>
+                <div className="w-10 h-px bg-gradient-to-l from-transparent to-slate-800" />
+              </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-8 space-y-6">
-              {error && (
-                <div className="flex items-center gap-3 p-4 bg-red-500/5 border border-red-500/20 rounded-2xl text-red-400 text-xs font-black uppercase tracking-widest">
-                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                  {error}
-                </div>
-              )}
-
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                  Email Identity
-                </label>
-                <div className="relative group">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="dj@example.com"
-                    required
-                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-base"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">
-                  Access Key
-                </label>
-                <div className="relative group">
-                  <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    className="w-full bg-slate-950/50 border border-slate-800 rounded-2xl py-4 pl-12 pr-4 text-white placeholder-slate-700 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all font-medium text-base"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-5 px-6 bg-white text-slate-950 font-black uppercase text-[11px] tracking-[0.2em] rounded-2xl transition-all shadow-xl shadow-white/5 flex items-center justify-center gap-3 transform active:scale-[0.98] disabled:opacity-50"
-              >
-                {loading ? (
-                  <span className="animate-pulse">DECRYPTING...</span>
-                ) : (
-                  <>
-                    Sign In
-                    <ArrowRight className="w-4 h-4" />
-                  </>
+            <ProCard
+              glow
+              className="overflow-hidden bg-slate-950/40 border-white/5 rounded-[2.5rem] shadow-2xl backdrop-blur-3xl"
+            >
+              <form onSubmit={handleSubmit} className="p-10 sm:p-14 space-y-10">
+                {error && (
+                  <div className="flex items-center gap-4 p-5 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-[10px] font-bold uppercase tracking-[0.1em] backdrop-blur-xl">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    {error}
+                  </div>
                 )}
-              </button>
 
-              <p className="text-center text-[10px] font-black text-slate-500 uppercase tracking-widest pt-4">
-                No credentials?{" "}
-                <Link
-                  href="/dj/register"
-                  className="text-purple-400 hover:text-white transition-colors"
+                <div className="space-y-4">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                    Email Identity
+                  </label>
+                  <div className="relative group">
+                    <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="DJ@EXAMPLE.COM"
+                      required
+                      className="w-full bg-slate-950/80 border border-white/5 rounded-2xl py-5 pl-14 pr-6 text-white placeholder-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/20 transition-all font-bold text-lg uppercase tracking-tight"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                    Access Key
+                  </label>
+                  <div className="relative group">
+                    <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      className="w-full bg-slate-950/80 border border-white/5 rounded-2xl py-5 pl-14 pr-12 text-white placeholder-slate-800 focus:outline-none focus:ring-1 focus:ring-purple-500/50 focus:border-purple-500/20 transition-all font-bold text-lg tracking-widest"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-600 hover:text-white transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-6 px-8 bg-white text-slate-950 font-black uppercase text-[12px] tracking-[0.3em] rounded-2xl transition-all shadow-2xl hover:bg-slate-50 hover:scale-[1.01] transform active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-4 group/btn"
                 >
-                  Create Identity →
-                </Link>
-              </p>
-            </form>
-          </ProCard>
+                  {loading ? (
+                    <span className="animate-pulse flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-slate-950 animate-ping" />
+                      SYNCING...
+                    </span>
+                  ) : (
+                    <>
+                      Resume Session
+                      <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-1" />
+                    </>
+                  )}
+                </button>
+
+                <p className="text-center text-[11px] font-bold text-slate-500 uppercase tracking-[0.2em] pt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+                  <span>No credentials?</span>
+                  <Link
+                    href="/dj/register"
+                    className="text-purple-400 hover:text-white transition-colors border-b border-purple-400/20 hover:border-white pb-1"
+                  >
+                    CREATE IDENTITY →
+                  </Link>
+                </p>
+              </form>
+            </ProCard>
+          </div>
         )}
 
-        <div className="text-center mt-12 opacity-30 pb-12">
-          <p className="text-[9px] font-black uppercase tracking-[0.5em] text-slate-500">
+        <div className="text-center mt-20 pb-10">
+          <p className="text-[10px] font-black uppercase tracking-[0.6em] text-slate-700/60 inline-flex items-center gap-4">
+            <span className="w-2 h-2 rounded-full bg-slate-800" />
             Powered by Pika! Security Mesh
+            <span className="w-2 h-2 rounded-full bg-slate-800" />
           </p>
         </div>
       </div>
