@@ -2,6 +2,15 @@
 
 This document codifies the visual and psychological principles of the Pika! brand to ensure consistency across all surfaces.
 
+## 0. The Ideology: The Bidirectional Conversation
+
+Pika! is built on the profound magic of the **West Coast Swing Connection.** In our world, roles are not hierarchical; they are conversational.
+
+- **The Booth (The Lead)**: Initiates the energy, sets the frame, and offers the rhythm.
+- **The Floor (The Follower)**: Receives the energy, transforms it through personal identity, and sends the response back through the connection.
+
+Pika! is the **Neural Fiber** that makes this interaction possible in the digital age. We don't "broadcast" music; we **facilitate a handshake.** Every pulse, like, and signal is a "weight change" in the connection. If the conversation is one-sided, the dance dies. Pika! ensures the room breathes together.
+
 ## 1. Color System (The Audience Channels)
 
 Pika! uses semantic color-coding to define the three distinct user groups in our ecosystem. This mapping must be adhered to in all components, iconography, and ambient effects.

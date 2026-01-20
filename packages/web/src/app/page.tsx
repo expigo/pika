@@ -125,18 +125,17 @@ export default function LandingPage() {
             </span>
           </h1>
 
-          <p className="text-xl sm:text-2xl text-slate-400 max-w-2xl mx-auto mb-20 font-normal leading-relaxed tracking-tight px-4 sm:px-0">
-            A{" "}
-            <span className="text-slate-200 font-semibold tracking-tight">
-              real-time interaction
-            </span>{" "}
-            bridge from the <span className="text-slate-100 font-bold">Booth</span> to the{" "}
-            <span className="text-slate-100 font-bold">Floor</span>.
-            <br className="hidden sm:block" />
-            <span className="text-slate-300 font-medium opacity-80">
-              See what they love. Play what they feel.
-            </span>
-          </p>
+          <div className="max-w-3xl mx-auto mb-20 px-4 sm:px-0 space-y-4">
+            <p className="text-lg sm:text-2xl text-slate-100 font-semibold tracking-tight leading-relaxed">
+              The live connection between the{" "}
+              <span className="text-purple-400 font-bold">Booth</span> and the{" "}
+              <span className="text-pink-400 font-bold">Floor</span>
+            </p>
+            <p className="text-base sm:text-lg text-slate-100 font-medium tracking-tight">
+              Let's find the <span className="font-black italic text-xl sm:text-2xl px-0.5">1</span>{" "}
+              together
+            </p>
+          </div>
 
           <div className="relative flex flex-col items-center w-full">
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 relative z-10 w-full mb-12">
@@ -212,9 +211,9 @@ export default function LandingPage() {
               </div>
 
               {/* 🌫️ ATMOSPHERE GLOW: The "Bleed" of the screen into the room */}
-              <div className="absolute -inset-10 bg-purple-500/20 blur-[60px] rounded-full animate-[breathing-glow_5s_ease-in-out_infinite] z-0 pointer-events-none" />
+              <div className="absolute -inset-10 bg-purple-500/15 blur-[60px] rounded-full z-0 pointer-events-none" />
 
-              <div className="absolute inset-0 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-[2s] animate-[screen-flicker_12s_linear_infinite] z-10">
+              <div className="absolute inset-0 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-[2s] z-10">
                 <Image
                   src="/screenshots/dj/vdj-sync.png"
                   alt="DJ Booth Integration"
@@ -255,7 +254,7 @@ export default function LandingPage() {
                 </div>
 
                 {/* Screenshot Core */}
-                <div className="relative w-full h-full pointer-events-none animate-[screen-flicker_12s_linear_infinite]">
+                <div className="relative w-full h-full pointer-events-none">
                   <Image
                     src="/screenshots/dancer/live-id.png"
                     alt="Dancer Mobile View"
@@ -308,7 +307,7 @@ export default function LandingPage() {
 
             {/* 🖥️ PIKA! DESKTOP SIDECAR: The Intelligence Focal Point (Premium Glass HUD) */}
             <div className="absolute -top-24 left-4 sm:-top-32 sm:left-0 w-[360px] aspect-[16/11] rounded-[2.5rem] border-[2px] border-white/10 bg-slate-900/40 backdrop-blur-3xl overflow-hidden shadow-[0_80px_160px_rgba(0,0,0,0.8),0_0_100px_rgba(168,85,247,0.15)] z-[85] hidden lg:block transform group-hover/handshake:-translate-y-12 -rotate-1 opacity-0 group-hover/handshake:opacity-100 transition-all duration-[1.5s] delay-300 pointer-events-none">
-              <div className="absolute -inset-10 bg-purple-500/20 blur-[60px] rounded-full animate-[breathing-glow_6s_ease-in-out_infinite] z-0" />
+              <div className="absolute -inset-10 bg-purple-500/15 blur-[60px] rounded-full z-0" />
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/40 via-transparent to-transparent pointer-events-none z-10" />
               <div className="absolute inset-x-0 h-[100%] top-0 bg-gradient-to-b from-purple-500/0 via-purple-500/5 to-purple-500/0 translate-y-[-100%] group-hover/handshake:animate-[scan_8s_linear_infinite] z-20" />
 
@@ -316,7 +315,7 @@ export default function LandingPage() {
                 src="/screenshots/dj/track-inspector.png"
                 alt="Pika! Track Inspector"
                 fill
-                className="object-cover scale-110 group-hover/handshake:scale-100 transition-transform duration-[3s] ease-out opacity-90 group-hover/handshake:opacity-100 animate-[screen-flicker_8s_linear_infinite]"
+                className="object-cover scale-110 group-hover/handshake:scale-100 transition-transform duration-[3s] ease-out opacity-90 group-hover/handshake:opacity-100"
               />
 
               <div className="absolute top-6 left-8 flex items-center gap-3 z-30 bg-black/60 backdrop-blur-2xl px-4 py-2 rounded-2xl border border-white/10 shadow-xl">
@@ -684,104 +683,116 @@ export default function LandingPage() {
               <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-slate-800 border border-slate-700" />
             </div>
 
-            <div className="grid md:grid-cols-2 gap-20 lg:gap-40 items-start relative">
+            <div className="grid md:grid-cols-2 gap-20 lg:gap-40 items-stretch relative">
               {/* DJ FLOW: The Source */}
-              <div className="relative p-12 rounded-[2.5rem] border border-white/5 bg-slate-900/20 backdrop-blur-sm group/orbit overflow-hidden">
+              <div className="relative p-12 rounded-[2.5rem] border border-white/5 bg-slate-900/20 backdrop-blur-sm group/orbit overflow-hidden flex flex-col h-full">
                 <div className="absolute -inset-10 bg-purple-500/5 blur-[80px] opacity-0 group-hover/orbit:opacity-100 transition-opacity duration-1000" />
 
-                <div className="relative flex flex-col space-y-16">
-                  <div className="flex items-center justify-between pb-6 mb-8 border-b border-white/5">
+                <div className="relative flex flex-col flex-1 h-full">
+                  <div className="flex items-center justify-between pb-6 mb-12 border-b border-white/5">
                     <span className="text-[10px] font-mono font-bold text-purple-500/50 uppercase tracking-[0.3em]">
                       Role: The Booth
                     </span>
                     <div className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse shadow-[0_0_10px_rgba(168,85,247,0.5)]" />
                   </div>
-                  <div className="flex gap-8 group/step">
-                    <div className="text-[40px] font-black text-white/[0.08] group-hover/step:text-purple-500/30 transition-all duration-700 italic leading-none font-mono">
-                      01
+
+                  <div className="space-y-12 mb-16">
+                    <div className="flex gap-8 group/step">
+                      <div className="text-[40px] font-black text-white/[0.08] group-hover/step:text-purple-500/30 transition-all duration-700 italic leading-none font-mono">
+                        01
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
+                          Ask for the Dance
+                        </h3>
+                        <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
+                          Bridge your session. Pika! becomes the invisible conduit for your library
+                          intelligence.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
-                        Ask for the Dance
-                      </h3>
-                      <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
-                        Bridge your session. Pika! becomes the invisible conduit for your library
-                        intelligence.
-                      </p>
+                    <div className="flex gap-8 group/step">
+                      <div className="text-[40px] font-black text-white/[0.08] group-hover/step:text-purple-500/30 transition-all duration-700 italic leading-none font-mono">
+                        02
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
+                          Stay Present
+                        </h3>
+                        <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
+                          Listen for subtle signals, accents, and propositions from the floor. Move
+                          together, responding to the energy of the dance in real-time.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-8 group/step">
-                    <div className="text-[40px] font-black text-white/[0.08] group-hover/step:text-purple-500/30 transition-all duration-700 italic leading-none font-mono">
-                      02
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
-                        Establish Elasticity
-                      </h3>
-                      <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
-                        Real-time telemetry creates a constant, humming tone of engagement across
-                        the room.
-                      </p>
-                    </div>
+
+                  <div className="mt-auto">
+                    <Link
+                      href="/dj/register"
+                      className="group relative w-full flex items-center justify-center px-10 py-5 bg-white text-slate-950 font-bold rounded-2xl hover:shadow-[0_20px_40px_rgba(168,85,247,0.2)] hover:-translate-y-0.5 active:scale-[0.98] transition-all overflow-hidden text-[13px] tracking-tight shadow-2xl"
+                    >
+                      <Headphones className="w-5 h-5 mr-3 group-hover:text-purple-600 transition-colors" />
+                      Register Booth
+                      <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/0 via-purple-500/0 to-purple-500/[0.05] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
                   </div>
-                  <Link
-                    href="/dj/register"
-                    className="group relative w-full flex items-center justify-center px-10 py-5 bg-white text-slate-950 font-bold rounded-2xl hover:shadow-[0_20px_40px_rgba(168,85,247,0.2)] hover:-translate-y-0.5 active:scale-[0.98] transition-all overflow-hidden text-[13px] tracking-tight shadow-2xl"
-                  >
-                    <Headphones className="w-5 h-5 mr-3 group-hover:text-purple-600 transition-colors" />
-                    Register Booth
-                    <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/0 via-purple-500/0 to-purple-500/[0.05] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </Link>
                 </div>
               </div>
 
               {/* DANCER FLOW: The Sync */}
-              <div className="relative p-12 rounded-[2.5rem] border border-white/5 bg-slate-900/20 backdrop-blur-sm group/orbit overflow-hidden">
+              <div className="relative p-12 rounded-[2.5rem] border border-white/5 bg-slate-900/20 backdrop-blur-sm group/orbit overflow-hidden flex flex-col h-full">
                 <div className="absolute -inset-10 bg-pink-500/5 blur-[80px] opacity-0 group-hover/orbit:opacity-100 transition-opacity duration-1000" />
 
-                <div className="relative flex flex-col space-y-16">
-                  <div className="flex items-center justify-between pb-6 mb-8 border-b border-white/5">
+                <div className="relative flex flex-col flex-1 h-full">
+                  <div className="flex items-center justify-between pb-6 mb-12 border-b border-white/5">
                     <span className="text-[10px] font-mono font-bold text-pink-500/50 uppercase tracking-[0.3em]">
                       Role: The Floor
                     </span>
                     <div className="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse shadow-[0_0_10px_rgba(236,72,153,0.5)]" />
                   </div>
-                  <div className="flex gap-8 group/step">
-                    <div className="text-[40px] font-black text-white/[0.08] group-hover/step:text-pink-500/30 transition-all duration-700 italic leading-none font-mono">
-                      01
+
+                  <div className="space-y-12 mb-16">
+                    <div className="flex gap-8 group/step">
+                      <div className="text-[40px] font-black text-white/[0.08] group-hover/step:text-pink-500/30 transition-all duration-700 italic leading-none font-mono">
+                        01
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
+                          Join the Conversation
+                        </h3>
+                        <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
+                          Scan the code. No friction, no passwords—just immediate alignment with the
+                          vibe.
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
-                        Join the Conversation
-                      </h3>
-                      <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
-                        Scan the code. No friction, no passwords—just immediate alignment with the
-                        source.
-                      </p>
+                    <div className="flex gap-8 group/step">
+                      <div className="text-[40px] font-black text-white/[0.08] group-hover/step:text-pink-500/30 transition-all duration-700 italic leading-none font-mono">
+                        02
+                      </div>
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
+                          Complete the Loop
+                        </h3>
+                        <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
+                          Your individual flourishes and feedback become part of the collective
+                          rhythm.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-8 group/step">
-                    <div className="text-[40px] font-black text-white/[0.08] group-hover/step:text-pink-500/30 transition-all duration-700 italic leading-none font-mono">
-                      02
-                    </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-white mb-3 tracking-tight">
-                        Complete the Loop
-                      </h3>
-                      <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-xs">
-                        Your individual flourishes and feedback become part of the collective
-                        rhythm.
-                      </p>
-                    </div>
+
+                  <div className="mt-auto">
+                    <Link
+                      href="/live"
+                      className="group relative w-full flex items-center justify-center px-10 py-5 bg-slate-900/40 backdrop-blur-xl text-white font-bold rounded-2xl border border-white/10 hover:border-rose-500/40 hover:bg-slate-900/60 hover:shadow-[0_20px_40px_rgba(236,72,153,0.15)] hover:-translate-y-0.5 active:scale-[0.98] transition-all overflow-hidden text-[13px] tracking-tight shadow-2xl"
+                    >
+                      <Smartphone className="w-5 h-5 mr-3 group-hover:text-rose-400 transition-colors" />
+                      Join Floor
+                      <div className="absolute inset-0 bg-gradient-to-tr from-rose-500/0 via-rose-500/0 to-rose-500/[0.08] opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
                   </div>
-                  <Link
-                    href="/live"
-                    className="group relative w-full flex items-center justify-center px-10 py-5 bg-slate-900/40 backdrop-blur-xl text-white font-bold rounded-2xl border border-white/10 hover:border-rose-500/40 hover:bg-slate-900/60 hover:shadow-[0_20px_40px_rgba(236,72,153,0.15)] hover:-translate-y-0.5 active:scale-[0.98] transition-all overflow-hidden text-[13px] tracking-tight shadow-2xl"
-                  >
-                    <Smartphone className="w-5 h-5 mr-3 group-hover:text-rose-400 transition-colors" />
-                    Join Floor
-                    <div className="absolute inset-0 bg-gradient-to-tr from-rose-500/0 via-rose-500/0 to-rose-500/[0.08] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </Link>
                 </div>
               </div>
             </div>
