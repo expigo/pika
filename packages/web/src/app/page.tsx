@@ -96,21 +96,21 @@ export default function LandingPage() {
       )}
 
       {/* ✨ HERO SECTION */}
-      <header className="relative min-h-screen pt-32 sm:pt-48 pb-48 px-4 sm:px-6 text-center z-10 overflow-hidden flex flex-col justify-center">
+      <header className="group relative min-h-screen pt-32 sm:pt-48 pb-48 px-4 sm:px-6 text-center z-10 overflow-hidden flex flex-col justify-center">
         {/* Animated Background Gradients - Softened */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[1200px] bg-gradient-to-b from-purple-600/15 via-transparent to-transparent blur-[160px]" />
-          <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[140px]" />
-          <div className="absolute top-[10%] -right-[10%] w-[40%] h-[40%] bg-pink-600/10 rounded-full blur-[120px]" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[1200px] bg-gradient-to-b from-purple-600/15 via-transparent to-transparent blur-[160px] animate-[atmos-pulse_8s_ease-in-out_infinite]" />
+          <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[140px] animate-[flicker_10s_linear_infinite]" />
+          <div className="absolute top-[10%] -right-[10%] w-[40%] h-[40%] bg-pink-600/10 rounded-full blur-[120px] animate-[flicker_12s_linear_infinite]" />
 
           {/* Minimalist Grid Overlay */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808015_1px,transparent_1px),linear-gradient(to_bottom,#80808015_1px,transparent_1px)] bg-[size:80px_80px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
         </div>
 
-        <div className="relative max-w-6xl mx-auto group">
+        <div className="relative max-w-6xl mx-auto">
           <div className="inline-flex items-center gap-3 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-full px-6 py-2.5 mb-16 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-1000 font-mono">
             <Radio className="w-3.5 h-3.5 text-purple-400/80" />
-            <span className="text-[10px] font-semibold text-slate-400 tracking-[0.4em] uppercase">
+            <span className="text-[10px] font-semibold text-slate-400 tracking-[0.6em] uppercase">
               Connected • Interactive • Live
             </span>
           </div>
@@ -146,10 +146,15 @@ export default function LandingPage() {
                         : `/live/${firstSession?.sessionId}`
                       : "/live"
                   }
-                  className="w-full px-12 py-5 bg-white text-slate-950 font-semibold rounded-2xl hover:bg-slate-50 active:scale-[0.98] transition-all shadow-2xl shadow-white/5 uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 group"
+                  className="group relative w-full px-12 py-5 bg-white text-slate-950 font-semibold rounded-2xl hover:bg-slate-50 active:scale-[0.98] transition-all overflow-hidden uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3"
                 >
-                  <Smartphone className="w-5 h-5" />
-                  Tune In <span className="opacity-50 text-[9px] font-mono">(Dancer)</span>
+                  <Smartphone className="w-5 h-5 group-hover:text-pink-600 transition-colors" />
+                  <span className="relative z-10">
+                    Tune In <span className="opacity-50 text-[9px] font-mono">(Dancer)</span>
+                  </span>
+                  {/* ✨ DANCER BORDER GLOW */}
+                  <div className="absolute inset-x-0 bottom-0 h-[2px] bg-pink-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <div className="absolute inset-0 bg-pink-500/0 group-hover:bg-pink-500/[0.03] transition-colors" />
                 </Link>
 
                 {/* 💓 SIGNAL PATH: Kinetic Energy Conduit (Dancer) - Arcing to Phone */}
@@ -175,10 +180,14 @@ export default function LandingPage() {
 
               <Link
                 href="/dj/register"
-                className="w-full sm:w-80 px-12 py-5 bg-slate-900/40 backdrop-blur-xl text-white font-semibold rounded-2xl border border-white/10 hover:bg-slate-900 active:scale-[0.98] transition-all uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 group"
+                className="group relative w-full sm:w-80 px-12 py-5 bg-white/5 backdrop-blur-xl text-white font-semibold rounded-2xl border border-white/10 hover:border-purple-500/50 hover:bg-white/[0.08] hover:shadow-[0_0_40px_rgba(168,85,247,0.15)] active:scale-[0.98] transition-all overflow-hidden uppercase text-[11px] tracking-[0.3em] flex items-center justify-center gap-3"
               >
-                <Headphones className="w-5 h-5" />
-                Go Live <span className="opacity-50 text-[9px] font-mono">(DJ)</span>
+                <Headphones className="w-5 h-5 group-hover:text-purple-400 transition-colors" />
+                <span className="relative z-10">
+                  Go Live <span className="opacity-50 text-[9px] font-mono">(DJ)</span>
+                </span>
+                {/* ⚡ DJ BORDER GLOW */}
+                <div className="absolute inset-x-0 bottom-0 h-[2px] bg-purple-500 opacity-0 group-hover:opacity-100 transition-opacity" />
               </Link>
             </div>
 
@@ -200,98 +209,135 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+        </div>
 
-          {/* 📱 THE PRODUCT HANDSHAKE (HERO MOCKUP) - Desktop Only */}
-          <div className="hidden sm:block mt-16 sm:mt-32 relative z-[60] w-screen left-1/2 -translate-x-1/2">
-            <div className="relative z-10 w-full max-w-[1200px] mx-auto px-6">
-              {/* Main Booth Frame */}
-              <div className="relative aspect-[16/10] rounded-xl sm:rounded-2xl border border-white/5 bg-black overflow-hidden shadow-[0_0_80px_rgba(0,0,0,0.6)]">
-                <div className="absolute inset-0 opacity-50 grayscale-[0.6] blur-[0.5px] group-hover:grayscale-0 group-hover:blur-0 group-hover:opacity-100 transition-all duration-1000">
+        {/* 📱 THE PRODUCT HANDSHAKE (HERO MOCKUP) - Desktop Only */}
+        <div className="hidden sm:block mt-24 sm:mt-48 relative z-[60] w-screen left-1/2 -translate-x-1/2">
+          <div className="relative z-10 w-full max-w-[1000px] mx-auto px-6 group/handshake">
+            {/* Main Booth Frame: The "Engine" (Demoted Visual Weight) */}
+            <div className="relative aspect-[16/10] rounded-xl sm:rounded-2xl border border-white/5 bg-black overflow-hidden shadow-2xl group/booth [perspective:2000px] transform scale-[0.85] opacity-40 grayscale blur-[2px] transition-all duration-[1.5s] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover/handshake:scale-95 group-hover/handshake:opacity-60 group-hover/handshake:grayscale-0 group-hover/handshake:blur-0 group-hover/handshake:shadow-purple-500/10">
+              {/* ⚡ SYNCHRONIZATION SCANNER (Locked to Container) */}
+              <div className="absolute inset-0 z-40 pointer-events-none opacity-0 group-hover/booth:opacity-100 transition-opacity">
+                <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-purple-400 to-transparent shadow-[0_0_8px_rgba(168,85,247,0.4)] animate-[scan_6s_linear_infinite]" />
+              </div>
+
+              <div className="absolute inset-0 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-[2s]">
+                <Image
+                  src="/screenshots/dj/vdj-sync.png"
+                  alt="DJ Booth Integration"
+                  fill
+                  priority
+                  className="object-cover object-center scale-105 group-hover:scale-110 transition-transform duration-[4s] ease-out"
+                />
+              </div>
+              {/* 🌌 Internal Depth Glow */}
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+
+              {/* Integration Badge */}
+              <div className="absolute top-8 left-8 px-5 py-2.5 bg-black/60 backdrop-blur-2xl border border-white/5 rounded-2xl z-30 transform group-hover:translate-x-2 transition-transform duration-700">
+                <p className="text-[10px] font-semibold text-white/90 tracking-widest uppercase flex items-center gap-2">
+                  <History className="w-3 h-3 text-purple-400 animate-pulse" />
+                  VirtualDJ Native Bridge
+                </p>
+              </div>
+            </div>
+
+            {/* 📱 Floating Mobile Accessory: The Experience focal point */}
+            <div className="absolute -bottom-10 -right-4 sm:-bottom-20 sm:-right-10 w-[130px] sm:w-[240px] aspect-[9/19.5] z-[80] sm:[perspective:2000px] group/phone">
+              <div className="relative w-full h-full rounded-[2rem] sm:rounded-[3rem] border-[6px] sm:border-[12px] border-slate-900 bg-slate-950 shadow-[0_40px_120px_rgba(0,0,0,1),0_0_100px_rgba(236,72,153,0.15)] overflow-hidden ring-1 ring-white/20 -rotate-2 transition-all duration-1000 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover/handshake:rotate-0 group-hover/handshake:-translate-y-16 group-hover/handshake:scale-110 group-hover/handshake:shadow-pink-500/50">
+                {/* Dynamic Island Hardware Detail */}
+                <div className="absolute top-2 sm:top-6 left-1/2 -translate-x-1/2 w-10 sm:w-20 h-3 sm:h-6 bg-black rounded-full z-50 flex items-center justify-center border border-white/10">
+                  <div className="w-1 h-1 rounded-full bg-slate-800 ml-auto mr-2 sm:mr-5 ring-1 ring-white/5" />
+                </div>
+
+                {/* Screenshot Core */}
+                <div className="relative w-full h-full pointer-events-none">
                   <Image
-                    src="/screenshots/dj/vdj-sync.png"
-                    alt="DJ Booth Integration"
+                    src="/screenshots/dancer/live-id.png"
+                    alt="Dancer Mobile View"
                     fill
-                    priority
-                    className="object-cover object-center scale-100 group-hover:scale-[1.02] transition-transform duration-[3s]"
+                    className="object-cover opacity-90 group-hover/handshake:opacity-100 transition-opacity duration-700"
                   />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-600/10 via-transparent to-transparent pointer-events-none" />
 
-                {/* Integration Badge */}
-                <div className="absolute top-8 left-8 px-5 py-2.5 bg-black/60 backdrop-blur-2xl border border-white/5 rounded-2xl z-30">
-                  <p className="text-[10px] font-semibold text-white/90 tracking-widest uppercase">
-                    VirtualDJ Native Bridge
-                  </p>
-                </div>
+                {/* Glass Reflection Overlay */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-white/10 pointer-events-none z-40" />
+
+                {/* Kinetic Light Sweep */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover/handshake:animate-[sweep_2.5s_ease-in-out_infinite] z-50" />
               </div>
+            </div>
 
-              {/* 📱 Floating Mobile Accessory: Pro Hardware Calibration */}
-              <div className="absolute bottom-0 -right-4 sm:bottom-0 sm:right-0 w-[100px] sm:w-[180px] aspect-[9/19.5] z-[70] sm:[perspective:2000px]">
-                <div className="relative w-full h-full rounded-[1.2rem] sm:rounded-[2.5rem] border-[4px] sm:border-[8px] border-slate-950 bg-slate-950 shadow-[0_40px_100px_rgba(0,0,0,0.8),0_0_80px_rgba(168,85,247,0.15)] overflow-hidden ring-1 ring-white/10 -rotate-6 sm:transition-all sm:duration-700 sm:ease-[cubic-bezier(0.23,1,0.32,1)] sm:group-hover:rotate-0 sm:group-hover:-translate-y-16 sm:group-hover:scale-110 sm:group-hover:rotate-x-4 sm:group-hover:rotate-y-[-8deg]">
-                  {/* Dynamic Island Hardware Detail */}
-                  <div className="absolute top-2 sm:top-5 left-1/2 -translate-x-1/2 w-8 sm:w-14 h-2 sm:h-4 bg-black rounded-full z-50 flex items-center justify-center border border-white/5">
-                    <div className="w-0.5 h-0.5 rounded-full bg-slate-800 ml-auto mr-1 sm:mr-3" />
-                  </div>
-
-                  {/* Screenshot Core */}
-                  <div className="relative w-full h-full pointer-events-none">
-                    <Image
-                      src="/screenshots/dancer/live-id.png"
-                      alt="Dancer Mobile View"
-                      fill
-                      className="object-cover"
-                    />
-                  </div>
-
-                  {/* Kinetic Light Sweep */}
-                  <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[sweep_2s_ease-in-out_infinite] pointer-events-none z-40" />
-
-                  {/* Glass Depth Layer */}
-                  <div className="absolute inset-0 ring-1 ring-inset ring-white/10 rounded-[inherit] pointer-events-none z-50" />
-                </div>
+            {/* Technical Callout */}
+            <div className="absolute top-1/2 -left-8 sm:-left-20 -translate-y-1/2 px-10 py-8 bg-black/60 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] shadow-2xl z-[80] hidden lg:block transform group-hover:-translate-x-10 group-hover:-translate-y-1/2 transition-all duration-1000 delay-150">
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80 animate-pulse" />
+                <span className="text-[9px] font-semibold text-emerald-500/80 uppercase tracking-[0.4em]">
+                  Sync Engine
+                </span>
               </div>
-
-              {/* Technical Callout */}
-              <div className="absolute top-1/2 -left-8 sm:-left-20 -translate-y-1/2 px-10 py-8 bg-black/60 backdrop-blur-3xl border border-white/5 rounded-[2.5rem] shadow-2xl z-[80] hidden lg:block transform group-hover:translate-x-6 transition-transform duration-1000">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/80" />
-                  <span className="text-[9px] font-semibold text-emerald-500/80 uppercase tracking-[0.4em]">
-                    Live Handshake
-                  </span>
-                </div>
-                <div className="space-y-6">
-                  <div>
-                    <div className="flex justify-between items-center text-[8px] font-semibold text-slate-500 tracking-[0.2em] uppercase mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
-                      <span>Booth Sync</span>
-                      <span className="text-purple-400/80">Locked</span>
-                    </div>
-                    <div className="h-0.5 w-32 bg-white/5 rounded-full overflow-hidden text-left relative">
-                      <div className="h-full w-8 group-hover:w-full bg-purple-500/60 relative transition-all duration-1000 ease-out delay-200" />
-                    </div>
+              <div className="space-y-6">
+                <div>
+                  <div className="flex justify-between items-center text-[8px] font-semibold text-slate-500 tracking-[0.2em] uppercase mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-700">
+                    <span>Native Bridge</span>
+                    <span className="text-purple-400/80">Active</span>
                   </div>
-                  <div>
-                    <div className="flex justify-between items-center text-[8px] font-semibold text-slate-500 tracking-[0.2em] uppercase mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-700 delay-300">
-                      <span>Crowd Feed</span>
-                      <span className="text-pink-400/80">Active</span>
-                    </div>
-                    <div className="h-0.5 w-24 bg-white/5 rounded-full overflow-hidden text-left relative">
-                      <div className="h-full w-12 group-hover:w-full bg-pink-500/60 relative transition-all duration-1000 ease-out delay-500" />
-                    </div>
+                  <div className="h-0.5 w-32 bg-white/5 rounded-full overflow-hidden text-left relative">
+                    <div className="h-full w-0 group-hover:w-full bg-purple-500/60 relative transition-all duration-1000 ease-out delay-200" />
+                    {/* ⚡ ENERGY PACKET (Full Width Transit) */}
+                    <div className="absolute top-0 left-0 h-full w-24 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:animate-[sweep_2s_linear_infinite] delay-1000" />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between items-center text-[8px] font-semibold text-slate-500 tracking-[0.2em] uppercase mb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-700 delay-300">
+                    <span>Cloud Feed</span>
+                    <span className="text-pink-400/80">Streaming</span>
+                  </div>
+                  <div className="h-0.5 w-24 bg-white/5 rounded-full overflow-hidden text-left relative">
+                    <div className="h-full w-0 group-hover:w-full bg-pink-500/60 relative transition-all duration-1000 ease-out delay-500" />
+                    {/* ⚡ ENERGY PACKET (Full Width Transit) */}
+                    <div className="absolute top-0 left-0 h-full w-20 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:animate-[sweep_2.5s_linear_infinite] delay-1500" />
                   </div>
                 </div>
               </div>
+            </div>
+
+            {/* 🖥️ PIKA! DESKTOP SIDECAR: The Intelligence Focal Point (Premium Glass HUD) */}
+            <div className="absolute -top-24 right-4 sm:-top-32 sm:right-0 w-[360px] aspect-[16/11] rounded-[2.5rem] border-[2px] border-white/10 bg-slate-900/40 backdrop-blur-3xl overflow-hidden shadow-[0_80px_160px_rgba(0,0,0,0.8),0_0_100px_rgba(168,85,247,0.15)] z-[85] hidden lg:block transform group-hover/handshake:-translate-y-12 rotate-1 opacity-0 group-hover/handshake:opacity-100 transition-all duration-[1.5s] delay-300 pointer-events-none">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/40 via-transparent to-transparent pointer-events-none z-10" />
+              <div className="absolute inset-x-0 h-[100%] top-0 bg-gradient-to-b from-purple-500/0 via-purple-500/5 to-purple-500/0 translate-y-[-100%] group-hover/handshake:animate-[scan_8s_linear_infinite] z-20" />
+
+              <Image
+                src="/screenshots/dj/track-inspector.png"
+                alt="Pika! Track Inspector"
+                fill
+                className="object-cover scale-110 group-hover/handshake:scale-100 transition-transform duration-[3s] ease-out opacity-90 group-hover/handshake:opacity-100"
+              />
+
+              <div className="absolute top-6 left-8 flex items-center gap-3 z-30 bg-black/60 backdrop-blur-2xl px-4 py-2 rounded-2xl border border-white/10 shadow-xl">
+                <div className="w-2 h-2 rounded-full bg-purple-400 animate-pulse shadow-[0_0_10px_rgba(168,85,247,0.8)]" />
+                <span className="text-[10px] font-black text-white tracking-[0.4em] uppercase">
+                  Pika! Intelligence
+                </span>
+              </div>
+
+              {/* Glass Polish Overlay */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent z-40" />
+
+              {/* Hardware Light Sweep */}
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover/handshake:animate-[sweep_4s_ease-in-out_infinite] z-50" />
             </div>
           </div>
+        </div>
 
-          {/* Global Atmospheric Mask */}
-          <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-950 to-transparent z-40 pointer-events-none" />
+        {/* Global Atmospheric Mask */}
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-slate-950 to-transparent z-40 pointer-events-none" />
 
-          {/* ⚡ THE LIVE WIRE: Hero Exit Handover (Section Boundary Marker) */}
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center z-10 pointer-events-none">
-            <div className="relative h-32 w-px">
-              <div className="absolute inset-0 w-32 -left-16 bg-purple-500/5 blur-3xl" />
-              <div className="absolute inset-0 w-px bg-gradient-to-t from-purple-500 to-transparent" />
-            </div>
+        {/* ⚡ THE LIVE WIRE: Hero Exit Handover (Section Boundary Marker) */}
+        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center z-10 pointer-events-none">
+          <div className="relative h-32 w-px">
+            <div className="absolute inset-0 w-32 -left-16 bg-purple-500/5 blur-3xl" />
+            <div className="absolute inset-0 w-px bg-gradient-to-t from-purple-500 to-transparent" />
           </div>
         </div>
       </header>
@@ -545,22 +591,24 @@ export default function LandingPage() {
               <div className="absolute -inset-20 bg-purple-500/10 rounded-[4rem] blur-[120px] opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
               <div className="relative aspect-[16/10] rounded-[3rem] border border-white-[0.5px] border-white/5 bg-slate-900 overflow-hidden shadow-2xl transform transition-all duration-1000 ease-out group-hover:rotate-y-6 group-hover:-rotate-x-3 group-hover:translate-x-2 group-hover:scale-[1.02]">
                 <Image
-                  src="/screenshots/dj/crate-intelligence.png"
-                  alt="High Resolution Crate Intelligence"
+                  src="/screenshots/dj/governance-view.png"
+                  alt="High Resolution Performance Mode"
                   fill
                   className="object-cover opacity-80 group-hover:opacity-100 transition-all duration-[2s]"
                 />
                 <div className="absolute inset-0 bg-gradient-to-tr from-purple-500/10 via-transparent to-transparent pointer-events-none" />
               </div>
 
-              {/* Minimalist Overlay - Floating HUD Style */}
-              <div className="absolute -bottom-10 -left-12 px-8 py-6 bg-slate-900/60 backdrop-blur-3xl border border-purple-500/20 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-20 hidden md:block transform transition-all duration-1000 delay-100 group-hover:-translate-y-6 group-hover:translate-x-6">
-                <div className="flex items-center gap-4">
-                  <History className="w-5 h-5 text-purple-400 animate-pulse" />
-                  <span className="text-[10px] font-bold text-white/90 uppercase tracking-[0.4em]">
-                    Library Decoded
-                  </span>
-                </div>
+              {/* Mobile HUD Overlay - Showing the "Other Side" of the bridge */}
+              <div className="absolute -bottom-12 -left-16 w-36 aspect-[9/19.5] rounded-[1.5rem] border-4 border-slate-950 bg-slate-950 shadow-[0_30px_60px_rgba(0,0,0,0.8)] z-20 hidden md:block transform transition-all duration-1000 delay-100 group-hover:-translate-y-8 group-hover:translate-x-8 -rotate-6 group-hover:rotate-0 overflow-hidden">
+                <Image
+                  src="/screenshots/dancer/live-id.png"
+                  alt="Floor Signal"
+                  fill
+                  className="object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute top-2 left-1/2 -translate-x-1/2 w-8 h-1 bg-white/10 rounded-full" />
               </div>
             </div>
           </div>
@@ -877,9 +925,9 @@ export default function LandingPage() {
             <ProCard
               className="p-10 bg-slate-900/40 border-white/5 group/stat relative overflow-hidden"
               glow
-              bgImage="/textures/schematic.png"
+              bgImage="/screenshots/dj/governance-view.png"
             >
-              <div className="absolute inset-0 bg-slate-950/40 pointer-events-none" />
+              <div className="absolute inset-0 bg-slate-950/90 pointer-events-none group-hover/stat:bg-slate-950/80 transition-colors" />
               <div className="absolute inset-0 bg-gradient-to-b from-pink-500/0 via-pink-500/[0.03] to-pink-500/0 -translate-y-full group-hover/stat:animate-[scan_3s_linear_infinite] pointer-events-none" />
               <div className="relative z-10 flex flex-col h-full">
                 <div className="flex items-center justify-between mb-8">
@@ -909,9 +957,9 @@ export default function LandingPage() {
             <ProCard
               className="p-10 bg-slate-900/40 border-white/5 group/stat relative overflow-hidden"
               glow
-              bgImage="/textures/schematic.png"
+              bgImage="/screenshots/dj/cpu-audit.png"
             >
-              <div className="absolute inset-0 bg-slate-950/40 pointer-events-none" />
+              <div className="absolute inset-0 bg-slate-950/90 pointer-events-none group-hover/stat:bg-slate-950/80 transition-colors" />
               <div className="absolute inset-0 bg-gradient-to-b from-purple-500/0 via-purple-500/[0.03] to-purple-500/0 -translate-y-full group-hover/stat:animate-[scan_3s_linear_infinite] pointer-events-none" />
               <div className="relative z-10 flex flex-col h-full">
                 <div className="flex items-center justify-between mb-8">
