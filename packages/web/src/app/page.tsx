@@ -108,14 +108,14 @@ export default function LandingPage() {
         </div>
 
         <div className="relative max-w-6xl mx-auto">
-          <div className="inline-flex items-center gap-3 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-full px-6 py-2.5 mb-16 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-1000 font-mono">
+          <div className="inline-flex items-center gap-3 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-full px-6 py-2.5 mb-16 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-1000">
             <Radio className="w-3.5 h-3.5 text-purple-400/80" />
             <span className="text-[10px] font-semibold text-slate-400 tracking-[0.6em] uppercase">
               Connected • Interactive • Live
             </span>
           </div>
 
-          <h1 className="text-5xl sm:text-7xl md:text-8xl font-bold tracking-tight leading-[1.1] mb-12 drop-shadow-[0_0_40px_rgba(244,63_94,0.15)]">
+          <h1 className="text-5xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[1.1] mb-12 drop-shadow-[0_0_40px_rgba(244,63_94,0.15)]">
             <span className="text-white">One Floor.</span>
             <br className="hidden sm:block" />
             <span className="relative inline-block group/heartbeat">
@@ -208,10 +208,13 @@ export default function LandingPage() {
             <div className="relative aspect-[16/10] rounded-xl sm:rounded-2xl border border-white/5 bg-black overflow-hidden shadow-2xl group/booth [perspective:2000px] transform scale-[0.85] opacity-40 grayscale blur-[2px] transition-all duration-[1.5s] ease-[cubic-bezier(0.23,1,0.32,1)] group-hover/handshake:scale-95 group-hover/handshake:opacity-60 group-hover/handshake:grayscale-0 group-hover/handshake:blur-0 group-hover/handshake:shadow-purple-500/10">
               {/* ⚡ SYNCHRONIZATION SCANNER (Locked to Container) */}
               <div className="absolute inset-0 z-40 pointer-events-none opacity-0 group-hover/booth:opacity-100 transition-opacity">
-                <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-purple-400 to-transparent shadow-[0_0_8px_rgba(168,85,247,0.4)] animate-[scan_6s_linear_infinite]" />
+                <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-purple-400 to-transparent shadow-[0_0_15px_rgba(168,85,247,0.6)] animate-[scan_6s_linear_infinite]" />
               </div>
 
-              <div className="absolute inset-0 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-[2s]">
+              {/* 🌫️ ATMOSPHERE GLOW: The "Bleed" of the screen into the room */}
+              <div className="absolute -inset-10 bg-purple-500/20 blur-[60px] rounded-full animate-[breathing-glow_5s_ease-in-out_infinite] z-0 pointer-events-none" />
+
+              <div className="absolute inset-0 opacity-40 grayscale group-hover:grayscale-0 group-hover:opacity-100 transition-all duration-[2s] animate-[screen-flicker_12s_linear_infinite] z-10">
                 <Image
                   src="/screenshots/dj/vdj-sync.png"
                   alt="DJ Booth Integration"
@@ -232,7 +235,7 @@ export default function LandingPage() {
                 <div className="absolute inset-x-[-1px] h-32 bg-gradient-to-b from-transparent via-purple-400/30 to-transparent animate-[pulse-down_4s_linear_infinite_1.5s]" />
               </div>
               {/* 🌌 Internal Depth Glow */}
-              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000" />
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-600/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-1000 animate-[breathing-glow_4s_ease-in-out_infinite] z-20" />
 
               {/* Integration Badge */}
               <div className="absolute top-8 left-8 px-5 py-2.5 bg-black/60 backdrop-blur-2xl border border-white/5 rounded-2xl z-30 transform group-hover:translate-x-2 transition-transform duration-700">
@@ -252,7 +255,7 @@ export default function LandingPage() {
                 </div>
 
                 {/* Screenshot Core */}
-                <div className="relative w-full h-full pointer-events-none">
+                <div className="relative w-full h-full pointer-events-none animate-[screen-flicker_12s_linear_infinite]">
                   <Image
                     src="/screenshots/dancer/live-id.png"
                     alt="Dancer Mobile View"
@@ -262,10 +265,10 @@ export default function LandingPage() {
                 </div>
 
                 {/* Glass Reflection Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-white/10 pointer-events-none z-40" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-transparent to-white/20 pointer-events-none z-40" />
 
                 {/* Kinetic Light Sweep */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover/handshake:animate-[sweep_2.5s_ease-in-out_infinite] z-50" />
+                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/20 to-transparent -translate-x-full group-hover/handshake:animate-[sweep_8s_ease-in-out_infinite] z-50" />
               </div>
             </div>
 
@@ -286,7 +289,7 @@ export default function LandingPage() {
                   <div className="h-0.5 w-32 bg-white/5 rounded-full overflow-hidden text-left relative">
                     <div className="h-full w-0 group-hover:w-full bg-purple-500/60 relative transition-all duration-1000 ease-out delay-200" />
                     {/* ⚡ ENERGY PACKET (Full Width Transit) */}
-                    <div className="absolute top-0 left-0 h-full w-24 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:animate-[sweep_2s_linear_infinite] delay-1000" />
+                    <div className="absolute top-0 left-0 h-full w-24 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:animate-[sweep_10s_linear_infinite] delay-1000" />
                   </div>
                 </div>
                 <div>
@@ -297,14 +300,15 @@ export default function LandingPage() {
                   <div className="h-0.5 w-24 bg-white/5 rounded-full overflow-hidden text-left relative">
                     <div className="h-full w-0 group-hover:w-full bg-pink-500/60 relative transition-all duration-1000 ease-out delay-500" />
                     {/* ⚡ ENERGY PACKET (Full Width Transit) */}
-                    <div className="absolute top-0 left-0 h-full w-20 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:animate-[sweep_2.5s_linear_infinite] delay-1500" />
+                    <div className="absolute top-0 left-0 h-full w-20 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:animate-[sweep_12s_linear_infinite] delay-1500" />
                   </div>
                 </div>
               </div>
             </div>
 
             {/* 🖥️ PIKA! DESKTOP SIDECAR: The Intelligence Focal Point (Premium Glass HUD) */}
-            <div className="absolute -top-24 right-4 sm:-top-32 sm:right-0 w-[360px] aspect-[16/11] rounded-[2.5rem] border-[2px] border-white/10 bg-slate-900/40 backdrop-blur-3xl overflow-hidden shadow-[0_80px_160px_rgba(0,0,0,0.8),0_0_100px_rgba(168,85,247,0.15)] z-[85] hidden lg:block transform group-hover/handshake:-translate-y-12 rotate-1 opacity-0 group-hover/handshake:opacity-100 transition-all duration-[1.5s] delay-300 pointer-events-none">
+            <div className="absolute -top-24 left-4 sm:-top-32 sm:left-0 w-[360px] aspect-[16/11] rounded-[2.5rem] border-[2px] border-white/10 bg-slate-900/40 backdrop-blur-3xl overflow-hidden shadow-[0_80px_160px_rgba(0,0,0,0.8),0_0_100px_rgba(168,85,247,0.15)] z-[85] hidden lg:block transform group-hover/handshake:-translate-y-12 -rotate-1 opacity-0 group-hover/handshake:opacity-100 transition-all duration-[1.5s] delay-300 pointer-events-none">
+              <div className="absolute -inset-10 bg-purple-500/20 blur-[60px] rounded-full animate-[breathing-glow_6s_ease-in-out_infinite] z-0" />
               <div className="absolute inset-0 bg-gradient-to-br from-purple-500/40 via-transparent to-transparent pointer-events-none z-10" />
               <div className="absolute inset-x-0 h-[100%] top-0 bg-gradient-to-b from-purple-500/0 via-purple-500/5 to-purple-500/0 translate-y-[-100%] group-hover/handshake:animate-[scan_8s_linear_infinite] z-20" />
 
@@ -312,7 +316,7 @@ export default function LandingPage() {
                 src="/screenshots/dj/track-inspector.png"
                 alt="Pika! Track Inspector"
                 fill
-                className="object-cover scale-110 group-hover/handshake:scale-100 transition-transform duration-[3s] ease-out opacity-90 group-hover/handshake:opacity-100"
+                className="object-cover scale-110 group-hover/handshake:scale-100 transition-transform duration-[3s] ease-out opacity-90 group-hover/handshake:opacity-100 animate-[screen-flicker_8s_linear_infinite]"
               />
 
               <div className="absolute top-6 left-8 flex items-center gap-3 z-30 bg-black/60 backdrop-blur-2xl px-4 py-2 rounded-2xl border border-white/10 shadow-xl">
@@ -326,7 +330,7 @@ export default function LandingPage() {
               <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent z-40" />
 
               {/* Hardware Light Sweep */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover/handshake:animate-[sweep_4s_ease-in-out_infinite] z-50" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-transparent -translate-x-full group-hover/handshake:animate-[sweep_15s_ease-in-out_infinite] z-50" />
             </div>
           </div>
         </div>
@@ -344,7 +348,7 @@ export default function LandingPage() {
       </header>
 
       {/* 🎯 AUDIENCE TRIFECTA */}
-      <section className="pt-48 pb-64 px-4 bg-slate-950 relative overflow-hidden">
+      <section className="pt-32 sm:pt-48 pb-48 sm:pb-64 px-4 bg-slate-950 relative overflow-hidden">
         {/* ⚡ THE LIVE WIRE: Ecosystem Entry Pulse (Marker - Ends before Pill) */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 hidden sm:flex flex-col items-center pointer-events-none z-10">
           <div className="relative h-32 w-px">
@@ -361,7 +365,7 @@ export default function LandingPage() {
             <span className="relative z-[70] inline-block px-6 py-2 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-full text-[10px] font-semibold text-slate-400 uppercase tracking-[0.4em] mb-8">
               The Ecosystem
             </span>
-            <h2 className="text-4xl sm:text-5xl font-bold text-white tracking-tight italic uppercase">
+            <h2 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.1] italic uppercase">
               The Connective Tissue.
             </h2>
           </div>
@@ -381,9 +385,7 @@ export default function LandingPage() {
                 <span className="text-[10px] font-bold text-purple-500/50 uppercase tracking-[0.3em] mb-1">
                   Persona: DJ
                 </span>
-                <h3 className="text-3xl font-bold text-white italic uppercase tracking-tight">
-                  The Booth
-                </h3>
+                <h3 className="text-3xl font-extrabold text-white tracking-tight">The Booth</h3>
               </div>
               <p className="text-slate-400 text-sm font-medium mb-12 leading-relaxed">
                 Connect the source to the crowd. Real-time data, library insights, and digital floor
@@ -433,9 +435,7 @@ export default function LandingPage() {
                 <span className="text-[10px] font-bold text-pink-500/50 uppercase tracking-[0.3em] mb-1">
                   Persona: Dancer
                 </span>
-                <h3 className="text-3xl font-bold text-white italic uppercase tracking-tight">
-                  The Floor
-                </h3>
+                <h3 className="text-3xl font-extrabold text-white tracking-tight">The Floor</h3>
               </div>
               <p className="text-slate-400 text-sm font-medium mb-12 leading-relaxed">
                 Stay in sync with the source. Identify tracks, build your history, and vote on the
@@ -485,9 +485,7 @@ export default function LandingPage() {
                 <span className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-[0.3em] mb-1">
                   Persona: Event
                 </span>
-                <h3 className="text-3xl font-bold text-white italic uppercase tracking-tight">
-                  The Grid
-                </h3>
+                <h3 className="text-3xl font-extrabold text-white tracking-tight">The Grid</h3>
               </div>
               <p className="text-slate-400 text-sm font-medium mb-12 leading-relaxed">
                 Monitor the infrastructure. Multi-room surveillance and direct command-to-phone
@@ -532,7 +530,7 @@ export default function LandingPage() {
         <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-t from-black to-transparent pointer-events-none" />
       </section>
 
-      <section className="pt-32 pb-64 bg-black overflow-hidden relative">
+      <section className="pt-24 sm:pt-32 pb-48 sm:pb-64 bg-black overflow-hidden relative">
         {/* 📐 BLUEPRINT GROUNDING: Transitioning for Architecture to Intuition */}
         <div className="absolute inset-x-0 top-0 h-96 bg-[url('/textures/schematic.png')] bg-repeat opacity-[0.05] grayscale pointer-events-none" />
         <div className="absolute inset-x-0 top-0 h-96 bg-gradient-to-b from-slate-950 via-transparent to-transparent pointer-events-none" />
@@ -630,7 +628,7 @@ export default function LandingPage() {
       </section>
 
       {/* ⚡ THE HANDSHAKE */}
-      <section className="pt-48 pb-80 px-6 bg-slate-950 relative overflow-hidden">
+      <section className="pt-32 sm:pt-48 pb-48 sm:pb-80 px-6 bg-slate-950 relative overflow-hidden">
         {/* 📐 BLUEPRINT GROUNDING */}
         <div className="absolute inset-0 bg-[url('/textures/schematic.png')] bg-repeat opacity-[0.03] grayscale pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,#020617_100%)] pointer-events-none" />
@@ -645,7 +643,7 @@ export default function LandingPage() {
             <span className="inline-block px-6 py-2 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-full text-[10px] font-semibold text-slate-400 uppercase tracking-[0.4em] mb-10">
               The Digital Nervous System
             </span>
-            <h2 className="text-4xl sm:text-5xl font-bold text-white italic uppercase tracking-tight">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight leading-[1.1] italic uppercase">
               The Connection.
             </h2>
           </div>
@@ -659,16 +657,25 @@ export default function LandingPage() {
 
               <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-800 to-transparent" />
 
-              {/* 🧩 THE SYNC HUB: Central Intersection */}
+              {/* 🧩 THE SYNC HUB: Central Intersection (Elastic WCS Connection) */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-                <div className="w-2 h-2 rounded-full bg-slate-950 border border-white/40 z-20 shadow-[0_0_10px_rgba(255,255,255,0.2)]" />
+                {/* ⚡ THE HEARTBEAT: Radiant central core */}
+                <div className="absolute w-12 h-12 rounded-full bg-white/10 animate-pulse blur-xl" />
+                <div className="w-2 h-2 rounded-full bg-white z-20 shadow-[0_0_15px_white]" />
 
-                {/* ⚡ THE RELATIONSHIP PULSE: One Heartbeat Visibility Upgrade */}
-                <div className="absolute w-[160px] h-[2px] flex items-center justify-center">
-                  {/* The 'Bloom' (Soft Energy) */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500/40 via-white/40 to-pink-500/40 blur-[4px] animate-pulse" />
-                  {/* The 'Wire' (Sharp Data) */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-purple-500/60 via-white/80 to-pink-500/60" />
+                {/* ⚡ THE ELASTIC BRIDGE: Stretches and breathes like a WCS connection */}
+                <div className="absolute w-[320px] h-px flex items-center justify-center z-10 animate-[bridge-stretch_4s_ease-in-out_infinite]">
+                  {/* The 'Outer Atmosphere' (The energy of the bond) */}
+                  <div className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-purple-500 via-white to-pink-500 blur-[3px]" />
+
+                  {/* ⚡ BIDIRECTIONAL FLOW: The "Conversation" between DJ and Floor */}
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    {/* Flow: DJ -> Dancer (Booth to Floor) */}
+                    <div className="absolute top-0 w-32 h-full bg-gradient-to-r from-transparent via-white/80 to-transparent animate-[connection-flow-right_3s_ease-in-out_infinite]" />
+
+                    {/* Flow: Dancer -> DJ (Floor to Booth) */}
+                    <div className="absolute top-0 w-32 h-full bg-gradient-to-r from-transparent via-white/80 to-transparent animate-[connection-flow-left_3s_ease-in-out_infinite_1.5s]" />
+                  </div>
                 </div>
               </div>
 
@@ -893,7 +900,7 @@ export default function LandingPage() {
             <span className="inline-block px-6 py-2 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-full text-[10px] font-semibold text-slate-400 uppercase tracking-[0.4em] mb-10">
               System Integrity Audit
             </span>
-            <h2 className="text-4xl sm:text-5xl font-bold text-white italic uppercase tracking-tight">
+            <h2 className="text-4xl sm:text-5xl font-extrabold text-white tracking-tight leading-[1.1] italic uppercase">
               Engineered for the Moment.
             </h2>
           </div>
@@ -1031,7 +1038,7 @@ export default function LandingPage() {
         </div>
 
         <div className="relative max-w-4xl mx-auto text-center">
-          <h2 className="text-5xl sm:text-7xl font-bold text-white mb-16 italic uppercase tracking-tight">
+          <h2 className="text-4xl sm:text-6xl font-extrabold text-white tracking-tight leading-[1.1] mb-16">
             Elevate the Vibe.
           </h2>
 
@@ -1047,8 +1054,8 @@ export default function LandingPage() {
           </div>
 
           <div className="pt-24 border-t border-white/5">
-            <span className="inline-block px-6 py-2 bg-white/5 border border-white/5 rounded-full text-[9px] font-semibold text-slate-500 uppercase tracking-[0.4em] mb-8">
-              Phase: Integration
+            <span className="inline-block px-6 py-2 bg-white/5 backdrop-blur-3xl border border-white/5 rounded-full text-[10px] font-semibold text-slate-400 uppercase tracking-[0.4em] mb-10">
+              System Integration
             </span>
             <p className="text-slate-400 text-[15px] font-medium mb-10 max-w-md mx-auto leading-relaxed">
               Want to bring Pika! to your local event or WCS convention?
