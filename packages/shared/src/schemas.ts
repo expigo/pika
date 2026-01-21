@@ -135,6 +135,7 @@ export const RegisterSessionSchema = z.object({
   type: z.literal(MESSAGE_TYPES.REGISTER_SESSION),
   sessionId: z.string().optional(),
   djName: z.string().optional(),
+  token: z.string().optional(), // JWT for DJ authentication
 });
 
 export const BroadcastTrackSchema = z.object({
@@ -187,6 +188,8 @@ export const PongSchema = z.object({
 export const SessionRegisteredSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_REGISTERED),
   sessionId: z.string(),
+  djName: z.string().optional(), // Confirmed display name (may differ from requested)
+  authenticated: z.boolean().optional(), // True if token was valid
 });
 
 export const SessionStartedSchema = z.object({
@@ -213,7 +216,15 @@ export const SessionsListSchema = z.object({
     z.object({
       sessionId: z.string(),
       djName: z.string(),
+      startedAt: z.string().optional(), // ISO timestamp
       currentTrack: TrackInfoSchema.optional(),
+      activeAnnouncement: z
+        .object({
+          message: z.string(),
+          timestamp: z.string(),
+          endsAt: z.string().optional(),
+        })
+        .optional(),
     }),
   ),
 });
@@ -245,6 +256,7 @@ export const SendTempoRequestSchema = z.object({
 // Server -> DJ: Aggregated tempo feedback
 export const TempoFeedbackSchema = z.object({
   type: z.literal(MESSAGE_TYPES.TEMPO_FEEDBACK),
+  sessionId: z.string(), // Required for multi-session routing
   faster: z.number(), // count of "faster" votes
   slower: z.number(), // count of "slower" votes
   perfect: z.number(), // count of "perfect" votes
@@ -276,10 +288,11 @@ export const EndPollSchema = z.object({
   pollId: z.number(),
 });
 
-// DJ -> Server: Cancel poll (by session, used when poll ID not yet assigned)
+// DJ -> Server: Cancel poll (by poll ID)
 export const CancelPollSchema = z.object({
   type: z.literal(MESSAGE_TYPES.CANCEL_POLL),
-  sessionId: z.string(),
+  pollId: z.number(),
+  sessionId: z.string().optional(), // Legacy/optional for backwards compat
 });
 
 // Dancer -> Server: Vote on a poll
@@ -294,19 +307,21 @@ export const VoteOnPollSchema = z.object({
 export const PollStartedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.POLL_STARTED),
   pollId: z.number(),
+  sessionId: z.string().optional(), // Included in broadcast for routing
   question: z.string(),
   options: z.array(z.string()),
   endsAt: z.string().optional(), // ISO timestamp when poll auto-closes
-  votes: z.array(z.number()).optional(), // Current vote distribution
+  votes: z.array(z.number()).optional(), // Current vote distribution (late-joiner)
   totalVotes: z.number().optional(),
-  hasVoted: z.boolean().optional(),
-  votedOptionIndex: z.number().optional(),
+  hasVoted: z.boolean().optional(), // True if this client already voted
+  votedOptionIndex: z.number().optional(), // Which option client voted for
 });
 
 // Server -> DJ: Live poll results update
 export const PollUpdateSchema = z.object({
   type: z.literal(MESSAGE_TYPES.POLL_UPDATE),
   pollId: z.number(),
+  sessionId: z.string().optional(), // Enables session-scoped updates
   votes: z.array(z.number()), // Vote count per option [12, 8, 5]
   totalVotes: z.number(),
 });

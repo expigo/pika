@@ -38,6 +38,35 @@ export {
   TrackStoppedSchema,
   type WebSocketMessage,
   WebSocketMessageSchema,
+  // Poll schemas
+  StartPollSchema,
+  EndPollSchema,
+  CancelPollSchema,
+  VoteOnPollSchema,
+  PollStartedSchema,
+  PollUpdateSchema,
+  PollEndedSchema,
+  // Tempo schemas
+  SendTempoRequestSchema,
+  TempoFeedbackSchema,
+  TempoResetSchema,
+  type TempoPreference,
+  // Reaction schemas
+  SendReactionSchema,
+  ReactionReceivedSchema,
+  // Announcement schemas
+  SendAnnouncementSchema,
+  CancelAnnouncementSchema,
+  AnnouncementReceivedSchema,
+  AnnouncementCancelledSchema,
+  // Listener count
+  ListenerCountSchema,
+  // ACK/NACK
+  AckSchema,
+  NackSchema,
+  GetSessionsSchema,
+  PingSchema,
+  PongSchema,
 } from "./schemas";
 
 // Re-export slug utilities
