@@ -145,5 +145,117 @@ describe("useLiveStore", () => {
       useLiveStore.getState().clearEndedPoll();
       expect(useLiveStore.getState().endedPoll).toBeNull();
     });
+
+    it("should handle poll with endsAt timer", () => {
+      const poll = {
+        id: 2,
+        question: "Continue set?",
+        options: ["Yes", "No"],
+        votes: [0, 0],
+        totalVotes: 0,
+        endsAt: new Date(Date.now() + 60000).toISOString(),
+      };
+
+      useLiveStore.getState().setActivePoll(poll);
+      expect(useLiveStore.getState().activePoll?.endsAt).toBeDefined();
+    });
+  });
+
+  describe("session management", () => {
+    it("should set and get sessionId", () => {
+      useLiveStore.getState().setSessionId("abc-123");
+      expect(useLiveStore.getState().sessionId).toBe("abc-123");
+    });
+
+    it("should set and get dbSessionId", () => {
+      useLiveStore.getState().setDbSessionId(42);
+      expect(useLiveStore.getState().dbSessionId).toBe(42);
+    });
+
+    it("should set and get currentPlayId", () => {
+      useLiveStore.getState().setCurrentPlayId(100);
+      expect(useLiveStore.getState().currentPlayId).toBe(100);
+    });
+
+    it("should clear session IDs on reset", () => {
+      useLiveStore.getState().setSessionId("test");
+      useLiveStore.getState().setDbSessionId(1);
+      useLiveStore.getState().setCurrentPlayId(10);
+      useLiveStore.getState().reset();
+
+      expect(useLiveStore.getState().sessionId).toBeNull();
+      expect(useLiveStore.getState().dbSessionId).toBeNull();
+      expect(useLiveStore.getState().currentPlayId).toBeNull();
+    });
+  });
+
+  describe("nowPlaying", () => {
+    it("should set nowPlaying track", () => {
+      const track = {
+        artist: "Test Artist",
+        title: "Test Song",
+        bpm: 120,
+        key: "Am",
+        elapsed: 30,
+        remaining: 180,
+      };
+
+      useLiveStore.getState().setNowPlaying(track as any);
+      expect(useLiveStore.getState().nowPlaying?.artist).toBe("Test Artist");
+    });
+
+    it("should clear nowPlaying with null", () => {
+      useLiveStore.getState().setNowPlaying({ artist: "Test", title: "Test" } as any);
+      useLiveStore.getState().setNowPlaying(null);
+      expect(useLiveStore.getState().nowPlaying).toBeNull();
+    });
+  });
+
+  describe("error handling", () => {
+    it("should set error message", () => {
+      useLiveStore.getState().setError("Connection failed");
+      expect(useLiveStore.getState().error).toBe("Connection failed");
+    });
+
+    it("should clear error with null", () => {
+      useLiveStore.getState().setError("Some error");
+      useLiveStore.getState().setError(null);
+      expect(useLiveStore.getState().error).toBeNull();
+    });
+
+    it("should set status to error on failure", () => {
+      useLiveStore.getState().setStatus("error");
+      useLiveStore.getState().setError("Network timeout");
+      expect(useLiveStore.getState().status).toBe("error");
+      expect(useLiveStore.getState().error).toBe("Network timeout");
+    });
+  });
+
+  describe("tempoFeedback", () => {
+    it("should set tempo feedback", () => {
+      const feedback = { faster: 5, slower: 3, perfect: 10, total: 18 };
+      useLiveStore.getState().setTempoFeedback(feedback);
+      expect(useLiveStore.getState().tempoFeedback).toEqual(feedback);
+    });
+
+    it("should clear tempo feedback with null", () => {
+      useLiveStore.getState().setTempoFeedback({ faster: 1, slower: 0, perfect: 0, total: 1 });
+      useLiveStore.getState().setTempoFeedback(null);
+      expect(useLiveStore.getState().tempoFeedback).toBeNull();
+    });
+  });
+
+  describe("announcements", () => {
+    it("should set active announcement", () => {
+      const announcement = { message: "Break in 5 minutes!", endsAt: new Date().toISOString() };
+      useLiveStore.getState().setActiveAnnouncement(announcement);
+      expect(useLiveStore.getState().activeAnnouncement?.message).toBe("Break in 5 minutes!");
+    });
+
+    it("should clear announcement with null", () => {
+      useLiveStore.getState().setActiveAnnouncement({ message: "Test" });
+      useLiveStore.getState().setActiveAnnouncement(null);
+      expect(useLiveStore.getState().activeAnnouncement).toBeNull();
+    });
   });
 });
