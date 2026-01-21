@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** January 18, 2026
-**Version:** 0.2.3 (Web App Excellence)
+**Date:** January 22, 2026
+**Version:** 0.2.4 (Cloud Robustness)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -89,6 +89,15 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Accessibility:** ARIA labels, skip-to-content link, reduced-motion CSS.
     *   **Error Handling:** Error boundary with retry for live session pages.
     *   **Loading States:** Route-level loading skeletons for `/live`, `/analytics`.
+*   **Cloud Robustness (v0.2.4):**
+    *   **Modular Handlers:** 16 WebSocket handlers extracted to `handlers/` (dj, dancer, poll, subscriber, utility, lifecycle).
+    *   **REST Route Extraction:** 4 route modules in `routes/` (sessions, stats, dj, client).
+    *   **Type-Safe Validation:** `parseMessage<T>()` helper with Zod schemas replaces all `as any` casts.
+    *   **Error Isolation:** `safeHandler()` wrapper prevents single message from crashing WS connection.
+    *   **Graceful Shutdown:** SIGTERM/SIGINT handlers broadcast to clients and end sessions in DB.
+    *   **Poll Timer Cleanup:** Tracked timers cancelled on manual end/cancel.
+    *   **Event-Based Coordination:** `waitForSession()` replaces busy-wait loops.
+    *   **Test Coverage:** 179 tests (up from 58).
 
 ---
 
@@ -140,12 +149,33 @@ pika/
 │   ├── desktop/
 │   │   ├── src/hooks/useLayoutResizer.ts <-- Layout Orchestration
 │   │   ├── src/hooks/useSidecar.ts       <-- Python Engine Lifecycle
+│   │   ├── src/lib/                      <-- Reliability, reactions, batching
 │   │   ├── src/components/SetCanvas.tsx  <-- "The Crate" Core Workspace
 │   │   ├── src/db/repositories/          <-- Local Cache & Playlist Logic
 │   │   └── src-tauri/                    <-- Rust backend config
 │   │
 │   ├── cloud/
-│   │   ├── src/index.ts                  <-- Unified Backend (WS + API)
+│   │   ├── src/index.ts                  <-- Unified Backend Entry (~360 lines)
+│   │   ├── src/handlers/                 <-- 16 WebSocket handlers (NEW)
+│   │   │   ├── dj.ts                     <-- REGISTER, TRACK, ANNOUNCE
+│   │   │   ├── dancer.ts                 <-- LIKE, REACTION, TEMPO
+│   │   │   ├── poll.ts                   <-- START/END/VOTE_ON_POLL
+│   │   │   ├── subscriber.ts             <-- SUBSCRIBE handler
+│   │   │   ├── utility.ts                <-- PING, GET_SESSIONS
+│   │   │   ├── lifecycle.ts              <-- onOpen, onClose
+│   │   │   └── index.ts                  <-- safeHandler wrapper + exports
+│   │   ├── src/routes/                   <-- REST route modules (NEW)
+│   │   │   ├── auth.ts                   <-- DJ auth (~300 lines)
+│   │   │   ├── sessions.ts               <-- Session list, history, recap
+│   │   │   ├── stats.ts                  <-- Global statistics
+│   │   │   ├── dj.ts                     <-- DJ profile routes
+│   │   │   └── client.ts                 <-- Client likes routes
+│   │   ├── src/lib/                      <-- State & utility modules (NEW)
+│   │   │   ├── sessions.ts               <-- Active session state
+│   │   │   ├── listeners.ts              <-- Listener count tracking
+│   │   │   ├── polls.ts                  <-- Poll state + timer cleanup
+│   │   │   ├── protocol.ts               <-- ACK/NACK + parseMessage
+│   │   │   └── persistence/              <-- DB operations
 │   │   └── src/db/                       <-- Drizzle Schemas (Postgres)
 │   │
 │   ├── web/
@@ -182,4 +212,4 @@ Early in development, Tauri's HMR would spawn multiple Python sidecars, leading 
 
 ---
 
-*Last Updated: January 18, 2026 (v0.2.1 - Production Hardening)*
+*Last Updated: January 22, 2026 (v0.2.4 - Cloud Robustness)*

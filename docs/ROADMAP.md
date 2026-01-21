@@ -3,7 +3,7 @@
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
 **Current Focus:** Production Launch Ready
-**Status:** Release v0.2.5 (Safari/iOS Bulletproofing)
+**Status:** Release v0.2.6 (Cloud Robustness)
 
 ---
 
@@ -12,7 +12,17 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 18, 2026 - Safari/iOS Bulletproofing v0.2.5):**
+    *   **Recent Completions (Jan 22, 2026 - Cloud Robustness v0.2.6):**
+        *   ✅ **Modular Handlers:** 16 WebSocket handlers extracted to `handlers/` directory.
+        *   ✅ **REST Route Modules:** 4 route files (sessions, stats, dj, client) extracted.
+        *   ✅ **Type-Safe Validation:** `parseMessage<T>()` replaces all `as any` casts.
+        *   ✅ **Error Isolation:** `safeHandler()` wrapper prevents WS connection crashes.
+        *   ✅ **Graceful Shutdown:** SIGTERM/SIGINT handlers broadcast and end sessions.
+        *   ✅ **Poll Timer Cleanup:** Timers cancelled on manual end/cancel.
+        *   ✅ **Event-Based Coordination:** `waitForSession()` replaces busy-wait loops.
+        *   ✅ **Lib Modules Tracked:** Fixed .gitignore, 16 source files now tracked.
+        *   ✅ **Test Coverage:** 179 tests (up from 58).
+    *   **Previous Completions (Jan 18, 2026 - Safari/iOS Bulletproofing v0.2.5):**
         *   ✅ **Safari bfcache:** pageshow listener for cache restoration.
         *   ✅ **Status Sync:** Periodic sync between socket readyState and React state.
         *   ✅ **addEventListener Pattern:** Proper cleanup to prevent memory leaks.
@@ -59,10 +69,12 @@ This is the central index for the Pika! project, tracking active development, fu
 ---
 
 ## 🏛️ Architecture Documentation
+*   [**Cloud Modules**](architecture/cloud-modules.md) - Handler, route, and lib module structure (NEW).
 *   [**Authentication**](architecture/auth-system.md) - DJ accounts, token management, security.
 *   [**Security**](architecture/security.md) - Threat model, vulnerabilities, remediation plans.
 *   [**Deployment**](architecture/deployment.md) - VPS, Cloudflare Tunnel, CI/CD, Docker.
 *   [**Audio Analysis**](architecture/audio-analysis.md) - Local Python sidecar, librosa integration, Deep Intelligence heuristics.
+*   [**Realtime Infrastructure**](architecture/realtime-infrastructure.md) - WebSocket, offline queues, ACK/NACK.
 *   [**Schema Versioning**](architecture/schema-versioning.md) - Track analysis versioning for re-analysis.
 *   [**Performance Guide**](architecture/performance-guide.md) - Optimization strategies and bottlenecks.
 *   [**Social Signals**](architecture/social-signals.md) - Likes, Votes, Listener Counts.
