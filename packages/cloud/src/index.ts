@@ -17,10 +17,17 @@ import { z } from "zod";
 import { db, schema } from "./db";
 import { auth as authRoutes } from "./routes/auth";
 
-// NOTE: lib/ modules are created but not yet wired in to reduce risk.
-// Future refactoring can import from ./lib to use extracted utilities.
-// Available modules: listeners, tempo, cache, protocol, auth
-// Auth routes are now wired from ./routes/auth
+// ============================================================================
+// Wired lib/ modules (extracted from inline implementations)
+// ============================================================================
+import {
+  addListener,
+  cleanupStaleListeners,
+  getListenerCount,
+  removeListener,
+  sessionListeners,
+} from "./lib/listeners";
+import { clearTempoVotes, getTempoFeedback, tempoVotes } from "./lib/tempo";
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
@@ -182,89 +189,11 @@ setInterval(() => {
 // ============================================================================
 // Listener Count Tracking (Per-Session) with Connection Reference Counting
 // ============================================================================
-// Track connected listeners (dancers) per session for accurate crowd size.
-// Uses reference counting: multiple tabs from same client count as ONE listener.
-// Map: sessionId -> Map<clientId, { count: number, lastSeen: number }>
-const sessionListeners = new Map<string, Map<string, { count: number; lastSeen: number }>>();
-
-// Participants stay "active" in the count for 5 minutes after disconnect
-const PARTICIPANT_TTL = 5 * 60 * 1000;
-
-function getListenerCount(sessionId: string): number {
-  const clients = sessionListeners.get(sessionId);
-  if (!clients) return 0;
-
-  const now = Date.now();
-  let participantCount = 0;
-
-  for (const client of clients.values()) {
-    // A participant is counted if they are:
-    // 1. Currently connected (count > 0)
-    // 2. OR were seen in the last 5 minutes (sticky window)
-    if (client.count > 0 || now - client.lastSeen < PARTICIPANT_TTL) {
-      participantCount++;
-    }
-  }
-
-  return participantCount;
-}
-
-// Add listener connection to a session (increments reference count)
-// Returns true if this is a NEW discovery (not seen in sticky window)
-function addListener(sessionId: string, clientId: string): boolean {
-  if (!sessionListeners.has(sessionId)) {
-    sessionListeners.set(sessionId, new Map());
-  }
-  const clients = sessionListeners.get(sessionId);
-  if (!clients) return false;
-  const client = clients.get(clientId) || { count: 0, lastSeen: 0 };
-
-  const isNewDiscovery = client.count === 0 && Date.now() - client.lastSeen > PARTICIPANT_TTL;
-
-  client.count++;
-  client.lastSeen = Date.now();
-  clients.set(clientId, client);
-
-  console.log(
-    `👥 Listener added: ${clientId.substring(0, 8)}... (Active: ${client.count}, isNew: ${isNewDiscovery})`,
-  );
-  return isNewDiscovery;
-}
-
-// Remove listener connection from a session (decrements reference count)
-// Returns false (we don't broadcast drops immediately due to sticky logic)
-function removeListener(sessionId: string, clientId: string): boolean {
-  const clients = sessionListeners.get(sessionId);
-  if (!clients) return false;
-
-  const client = clients.get(clientId);
-  if (!client) return false;
-
-  client.count = Math.max(0, client.count - 1);
-  client.lastSeen = Date.now();
-
-  console.log(
-    `👥 Listener connection closed: ${clientId.substring(0, 8)}... (Remaining: ${client.count})`,
-  );
-  return false;
-}
-
-// Periodic cleanup of truly stale participants (disconnected > 1 hour)
-setInterval(
-  () => {
-    const now = Date.now();
-    const CLEANUP_THRESHOLD = 60 * 60 * 1000;
-
-    for (const [_sessionId, clients] of sessionListeners.entries()) {
-      for (const [clientId, data] of clients.entries()) {
-        if (data.count === 0 && now - data.lastSeen > CLEANUP_THRESHOLD) {
-          clients.delete(clientId);
-        }
-      }
-    }
-  },
-  30 * 60 * 1000,
-); // Every 30 mins
+// ============================================================================
+// Listener tracking is now provided by lib/listeners.ts
+// Periodic cleanup uses cleanupStaleListeners from lib/listeners.ts
+// ============================================================================
+setInterval(cleanupStaleListeners, 30 * 60 * 1000); // Every 30 mins
 
 // ============================================================================
 // Performance Utilities: In-memory Cache & Debouncing
@@ -311,56 +240,8 @@ let activeBroadcaster: ServerWebSocket<unknown> | null = null;
 const likesSent = new Map<string, Set<string>>();
 
 // ============================================================================
-// Tempo Feedback Tracking
+// Tempo feedback tracking is now provided by lib/tempo.ts
 // ============================================================================
-// Track tempo preferences from dancers (faster/slower/perfect)
-// Each vote has a timestamp for decay (votes fade after 5 minutes)
-
-interface TempoVote {
-  preference: "faster" | "slower" | "perfect";
-  timestamp: number;
-}
-
-// Map: sessionId -> Map<clientId, TempoVote>
-const tempoVotes = new Map<string, Map<string, TempoVote>>();
-
-// Vote expires after 5 minutes (300,000ms)
-const TEMPO_VOTE_TTL = 5 * 60 * 1000;
-
-function getTempoFeedback(sessionId: string) {
-  const votes = tempoVotes.get(sessionId);
-  if (!votes) {
-    return { faster: 0, slower: 0, perfect: 0, total: 0 };
-  }
-
-  const now = Date.now();
-  let faster = 0;
-  let slower = 0;
-  let perfect = 0;
-
-  // Count non-expired votes
-  for (const [clientId, vote] of votes.entries()) {
-    if (now - vote.timestamp > TEMPO_VOTE_TTL) {
-      // Remove expired vote
-      votes.delete(clientId);
-      continue;
-    }
-
-    switch (vote.preference) {
-      case "faster":
-        faster++;
-        break;
-      case "slower":
-        slower++;
-        break;
-      case "perfect":
-        perfect++;
-        break;
-    }
-  }
-
-  return { faster, slower, perfect, total: faster + slower + perfect };
-}
 
 function hasLikedTrack(sessionId: string, clientId: string, track: TrackInfo): boolean {
   const key = `${sessionId}:${clientId}`;
@@ -2142,10 +2023,17 @@ app.get(
 
             case "SEND_LIKE": {
               const track = message.payload.track;
-              // Get sessionId from message (new) or fall back to first active session (legacy)
-              const likeSessionId =
-                (message as { sessionId?: string }).sessionId ||
-                Array.from(activeSessions.keys())[0];
+              // Get sessionId from message (required for new clients)
+              let likeSessionId = (message as { sessionId?: string }).sessionId;
+
+              // DEPRECATED: Legacy fallback for clients without sessionId (remove after v0.3.0)
+              // PERF: O(n) iteration - acceptable for <100 concurrent sessions
+              if (!likeSessionId) {
+                console.warn(
+                  `⚠️ DEPRECATED: Like received without sessionId from client ${clientId} - update required`,
+                );
+                likeSessionId = Array.from(activeSessions.keys())[0];
+              }
 
               if (!likeSessionId) {
                 console.log("⚠️ Like rejected: no active session found");
