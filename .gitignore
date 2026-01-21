@@ -19,8 +19,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# lib/ and lib64/ removed - conflicts with TypeScript src/lib/ directories
 parts/
 sdist/
 var/
