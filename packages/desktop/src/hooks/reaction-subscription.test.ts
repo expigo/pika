@@ -12,7 +12,7 @@
  * - subscribeToReactions: useLiveSession.ts line 205-210
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { describe, test, expect, beforeEach } from "vitest";
 
 // ============================================================================
 // MOCK: Reaction Subscription System
