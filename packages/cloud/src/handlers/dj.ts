@@ -1,0 +1,374 @@
+/**
+ * DJ Message Handlers
+ *
+ * Handles WebSocket messages from DJ clients:
+ * - REGISTER_SESSION
+ * - BROADCAST_TRACK
+ * - TRACK_STOPPED
+ * - END_SESSION
+ * - SEND_ANNOUNCEMENT
+ * - CANCEL_ANNOUNCEMENT
+ *
+ * @file packages/cloud/src/handlers/dj.ts
+ * @package @pika/cloud
+ * @created 2026-01-21
+ */
+
+import {
+  PIKA_VERSION,
+  RegisterSessionSchema,
+  BroadcastTrackSchema,
+  TrackStoppedSchema,
+  EndSessionSchema,
+  SendAnnouncementSchema,
+  CancelAnnouncementSchema,
+} from "@pika/shared";
+import { activeSessions, type LiveSession } from "../lib/sessions";
+import { persistSession, endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
+import { persistTrack, persistTempoVotes } from "../lib/persistence/tracks";
+import { tempoVotes, getTempoFeedback } from "../lib/tempo";
+import { logSessionEvent, sendAck, sendNack, parseMessage } from "../lib/protocol";
+import { validateToken } from "../lib/auth";
+import { checkAndRecordNonce } from "../lib/nonces";
+import { clearLikesForSession } from "../lib/likes";
+import { sessionListeners } from "../lib/listeners";
+import type { WSContext } from "./ws-context";
+
+/**
+ * REGISTER_SESSION: DJ starts a new live session
+ */
+export async function handleRegisterSession(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const msg = parseMessage(RegisterSessionSchema, message, ws, messageId);
+  if (!msg) return;
+
+  const sessionId = msg.sessionId || `session_${Date.now()}`;
+  const requestedDjName = msg.djName || "DJ";
+
+  // 🔐 Token validation for DJ authentication
+  const djToken = msg.token;
+  let djUserId: number | null = null;
+  let djName = requestedDjName;
+
+  if (process.env.NODE_ENV === "test") {
+    console.log("🧪 TEST MODE: Bypassing auth validation");
+    djUserId = 999;
+    djName = requestedDjName || "Test DJ";
+  } else if (djToken) {
+    const djUser = await validateToken(djToken);
+    if (djUser) {
+      djUserId = djUser.id;
+      djName = djUser.displayName; // Use registered name
+      console.log(`🔐 Authenticated DJ: ${djName} (ID: ${djUserId})`);
+    } else {
+      console.log(`⚠️ Invalid token provided, using anonymous mode`);
+    }
+  }
+
+  const session: LiveSession = {
+    sessionId,
+    djName,
+    startedAt: new Date().toISOString(),
+  };
+  activeSessions.set(sessionId, session);
+  console.log(
+    `🎧 DJ going live: ${djName} (${sessionId})${djUserId ? ` [Verified]` : ` [Anonymous]`}`,
+  );
+
+  // 💾 Persist to database
+  await persistSession(sessionId, djName, djUserId);
+  console.log(`✅ Session ready for polls: ${sessionId}`);
+
+  // Track this connection as owning this session
+  state.djSessionId = sessionId;
+
+  // Confirm registration to the client
+  ws.send(
+    JSON.stringify({
+      type: "SESSION_REGISTERED",
+      sessionId,
+      authenticated: !!djUserId,
+      djName,
+    }),
+  );
+
+  if (messageId) sendAck(ws, messageId);
+
+  // Broadcast to all subscribers
+  rawWs.publish(
+    "live-session",
+    JSON.stringify({
+      type: "SESSION_STARTED",
+      sessionId,
+      djName,
+    }),
+  );
+
+  // 📊 Telemetry: Log DJ connect event
+  logSessionEvent(sessionId, "connect", { clientVersion: PIKA_VERSION });
+}
+
+/**
+ * BROADCAST_TRACK: DJ updates the currently playing track
+ */
+export async function handleBroadcastTrack(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const msg = parseMessage(BroadcastTrackSchema, message, ws, messageId);
+  if (!msg) return;
+
+  // 🔐 Security: Verify this connection owns the session
+  if (state.djSessionId !== msg.sessionId) {
+    console.warn(
+      `⚠️ Unauthorized broadcast attempt: connection owns ${state.djSessionId || "none"}, tried to broadcast to ${msg.sessionId}`,
+    );
+    return;
+  }
+
+  // 🔐 Security: Nonce deduplication
+  if (!checkAndRecordNonce(messageId, msg.sessionId)) {
+    console.log(`🔄 Skipping duplicate BROADCAST_TRACK (messageId: ${messageId})`);
+    if (messageId) sendAck(ws, messageId);
+    return;
+  }
+
+  const session = activeSessions.get(msg.sessionId);
+  if (session) {
+    // 🎚️ Persist tempo votes for the PREVIOUS track (if any)
+    if (session.currentTrack) {
+      const prevTrack = session.currentTrack;
+      const isNewTrack =
+        prevTrack.artist !== msg.track.artist || prevTrack.title !== msg.track.title;
+
+      if (isNewTrack) {
+        const feedback = getTempoFeedback(msg.sessionId);
+        if (feedback.total > 0) {
+          persistTempoVotes(msg.sessionId, prevTrack, {
+            slower: feedback.slower,
+            perfect: feedback.perfect,
+            faster: feedback.faster,
+          });
+        }
+
+        // Clear tempo votes for this session
+        tempoVotes.delete(msg.sessionId);
+
+        // Broadcast to all clients to reset their tempo vote UI
+        rawWs.publish(
+          "live-session",
+          JSON.stringify({
+            type: "TEMPO_RESET",
+            sessionId: msg.sessionId,
+          }),
+        );
+      }
+    }
+
+    session.currentTrack = msg.track;
+    console.log(`🎵 Now playing: ${msg.track.artist} - ${msg.track.title}`);
+
+    // 💾 Persist to database
+    persistTrack(msg.sessionId, msg.track);
+
+    // Broadcast to all subscribers
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "NOW_PLAYING",
+        sessionId: msg.sessionId,
+        djName: session.djName || "DJ",
+        track: msg.track,
+      }),
+    );
+    if (messageId) sendAck(ws, messageId);
+  } else {
+    if (messageId) sendNack(ws, messageId, "Session not found");
+  }
+}
+
+/**
+ * TRACK_STOPPED: DJ manually stops a track
+ */
+export function handleTrackStopped(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const msg = parseMessage(TrackStoppedSchema, message, ws, messageId);
+  if (!msg) return;
+
+  // 🔐 Security: Verify this connection owns the session
+  if (state.djSessionId !== msg.sessionId) {
+    console.warn(
+      `⚠️ Unauthorized track stop attempt: connection owns ${state.djSessionId || "none"}, tried to stop track for ${msg.sessionId}`,
+    );
+    if (messageId) sendNack(ws, messageId, "Unauthorized track stop");
+    return;
+  }
+
+  const session = activeSessions.get(msg.sessionId);
+  if (session) {
+    delete session.currentTrack;
+    console.log(`⏸️ Track stopped for session: ${msg.sessionId}`);
+
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "TRACK_STOPPED",
+        sessionId: msg.sessionId,
+      }),
+    );
+    if (messageId) sendAck(ws, messageId);
+  } else {
+    if (messageId) sendNack(ws, messageId, "Session not found");
+  }
+}
+
+/**
+ * END_SESSION: DJ ends the live session
+ */
+export function handleEndSession(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const msg = parseMessage(EndSessionSchema, message, ws, messageId);
+  if (!msg) return;
+
+  // 🔐 Security: Verify this connection owns the session
+  if (state.djSessionId !== msg.sessionId) {
+    console.warn(
+      `⚠️ Unauthorized end session attempt: connection owns ${state.djSessionId || "none"}, tried to end ${msg.sessionId}`,
+    );
+    if (messageId) sendNack(ws, messageId, "Unauthorized end session");
+    return;
+  }
+
+  const session = activeSessions.get(msg.sessionId);
+  if (session) {
+    console.log(`👋 Session ended: ${session.djName}`);
+
+    // 🎚️ Persist tempo votes for the LAST track (if any)
+    if (session.currentTrack) {
+      const feedback = getTempoFeedback(msg.sessionId);
+      if (feedback.total > 0) {
+        console.log(`🎚️ Persisting final tempo votes: ${JSON.stringify(feedback)}`);
+        persistTempoVotes(msg.sessionId, session.currentTrack, {
+          slower: feedback.slower,
+          perfect: feedback.perfect,
+          faster: feedback.faster,
+        });
+      }
+      tempoVotes.delete(msg.sessionId);
+    }
+
+    activeSessions.delete(msg.sessionId);
+
+    // 💾 Update in database
+    endSessionInDb(msg.sessionId);
+
+    // 🧹 Clean up all in-memory state
+    clearLikesForSession(msg.sessionId);
+    sessionListeners.delete(msg.sessionId);
+    persistedSessions.delete(msg.sessionId);
+
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "SESSION_ENDED",
+        sessionId: msg.sessionId,
+      }),
+    );
+    if (messageId) sendAck(ws, messageId);
+  } else {
+    if (messageId) sendNack(ws, messageId, "Session not found");
+  }
+}
+
+/**
+ * SEND_ANNOUNCEMENT: DJ sends a transient announcement
+ */
+export function handleSendAnnouncement(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const msg = parseMessage(SendAnnouncementSchema, message, ws, messageId);
+  if (!msg) return;
+
+  const { sessionId: announcementSessionId, message: announcementMessage, durationSeconds } = msg;
+
+  const djSession = activeSessions.get(announcementSessionId);
+  if (!djSession) {
+    console.log(`⚠️ Announcement rejected: session ${announcementSessionId} not found`);
+    if (messageId) sendNack(ws, messageId, "Session not found");
+    return;
+  }
+
+  // 🔐 Security: Verify this connection owns the session
+  if (state.djSessionId !== announcementSessionId) {
+    console.warn(
+      `⚠️ Unauthorized announcement attempt: connection owns ${state.djSessionId || "none"}, tried to announce to ${announcementSessionId}`,
+    );
+    if (messageId) sendNack(ws, messageId, "Unauthorized announcement");
+    return;
+  }
+
+  const timestamp = new Date().toISOString();
+  const endsAt = durationSeconds
+    ? new Date(Date.now() + durationSeconds * 1000).toISOString()
+    : undefined;
+
+  djSession.activeAnnouncement = {
+    message: announcementMessage,
+    timestamp,
+    ...(endsAt && { endsAt }),
+  };
+
+  rawWs.publish(
+    "live-session",
+    JSON.stringify({
+      type: "ANNOUNCEMENT_RECEIVED",
+      sessionId: announcementSessionId,
+      message: announcementMessage,
+      djName: djSession.djName,
+      timestamp,
+      endsAt,
+    }),
+  );
+
+  console.log(
+    `📢 Announcement from ${djSession.djName}: "${announcementMessage}"${durationSeconds ? ` (${durationSeconds}s timer)` : ""}`,
+  );
+  if (messageId) sendAck(ws, messageId);
+}
+
+/**
+ * CANCEL_ANNOUNCEMENT: DJ cancels a transient announcement
+ */
+export function handleCancelAnnouncement(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const msg = parseMessage(CancelAnnouncementSchema, message, ws, messageId);
+  if (!msg) return;
+
+  const { sessionId: cancelSessionId } = msg;
+
+  const session = activeSessions.get(cancelSessionId);
+  if (!session) {
+    console.log(`⚠️ Cancel announcement rejected: session ${cancelSessionId} not found`);
+    if (messageId) sendNack(ws, messageId, "Session not found");
+    return;
+  }
+
+  // 🔐 Security: Verify this connection owns the session
+  if (state.djSessionId !== cancelSessionId) {
+    console.warn(
+      `⚠️ Unauthorized cancel announcement attempt: connection owns ${state.djSessionId || "none"}, tried to cancel for ${cancelSessionId}`,
+    );
+    if (messageId) sendNack(ws, messageId, "Unauthorized cancel announcement");
+    return;
+  }
+
+  session.activeAnnouncement = null;
+
+  rawWs.publish(
+    "live-session",
+    JSON.stringify({
+      type: "ANNOUNCEMENT_CANCELLED",
+      sessionId: cancelSessionId,
+    }),
+  );
+
+  console.log(`📢❌ Announcement cancelled for session ${cancelSessionId}`);
+  if (messageId) sendAck(ws, messageId);
+}
