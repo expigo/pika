@@ -108,3 +108,13 @@ export const MIN_ANNOUNCEMENT_DURATION_SECONDS = 5;
 
 /** Maximum announcement duration in seconds (5 minutes) */
 export const MAX_ANNOUNCEMENT_DURATION_SECONDS = 300;
+
+// =============================================================================
+// Auth Token Configuration
+// =============================================================================
+
+/** Interval for periodic token revalidation (1 hour) */
+export const TOKEN_REVALIDATION_INTERVAL_MS = 60 * 60 * 1000;
+
+/** Minimum time since last validation before revalidating on focus (5 minutes) */
+export const TOKEN_FOCUS_REVALIDATION_MIN_MS = 5 * 60 * 1000;

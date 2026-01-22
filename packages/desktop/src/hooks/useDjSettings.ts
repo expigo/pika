@@ -8,10 +8,16 @@
  * 3. If valid → auto-set djName from registered displayName
  * 4. Token + DJ info persisted to localStorage
  * 5. Next app launch → token is still there, name is synced
+ * 6. Periodic revalidation ensures token is still valid (U1 fix)
  */
 
 import { fetch } from "@tauri-apps/plugin-http"; // Use Tauri HTTP to bypass CORS
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import {
+  TOKEN_FOCUS_REVALIDATION_MIN_MS,
+  TOKEN_REVALIDATION_INTERVAL_MS,
+} from "./live/constants";
 
 const STORAGE_KEY = "pika_dj_settings";
 
@@ -30,6 +36,7 @@ interface DjSettings {
   serverEnv: ServerEnv;
   authToken: string; // DJ authentication token (pk_dj_...)
   djInfo: DjInfo | null; // Validated DJ info from token
+  tokenValidatedAt: number | null; // Timestamp of last successful validation (U1 fix)
 }
 
 const DEFAULT_SETTINGS: DjSettings = {
@@ -37,6 +44,7 @@ const DEFAULT_SETTINGS: DjSettings = {
   serverEnv: "prod", // Default to PROD for release builds!
   authToken: "",
   djInfo: null,
+  tokenValidatedAt: null,
 };
 
 function loadSettings(): DjSettings {
@@ -132,6 +140,90 @@ export function useDjSettings() {
     return () => window.removeEventListener(SETTINGS_UPDATED_EVENT, handleUpdate);
   }, []);
 
+  // Track if revalidation is in progress to avoid concurrent revalidations
+  const isRevalidatingRef = useRef(false);
+
+  /**
+   * Revalidate the current token silently
+   * U1 fix: Ensures revoked tokens are detected
+   */
+  const revalidateToken = useCallback(async (): Promise<boolean> => {
+    const currentSettings = loadSettings();
+    if (!currentSettings.authToken || isRevalidatingRef.current) {
+      return true; // No token to revalidate or already revalidating
+    }
+
+    isRevalidatingRef.current = true;
+
+    try {
+      const djInfo = await validateTokenWithServer(currentSettings.authToken);
+
+      if (djInfo) {
+        // Token still valid - update validation timestamp
+        setSettingsState((prev) => {
+          const newSettings = { ...prev, tokenValidatedAt: Date.now() };
+          saveSettings(newSettings);
+          return newSettings;
+        });
+        return true;
+      } else {
+        // Token revoked or expired - clear auth state
+        console.warn("[DJ Settings] Token revalidation failed - token may be revoked");
+        toast.error("Session expired. Please re-authenticate.", { icon: "🔑" });
+        setSettingsState((prev) => {
+          const newSettings = {
+            ...prev,
+            authToken: "",
+            djInfo: null,
+            tokenValidatedAt: null,
+            djName: "",
+          };
+          saveSettings(newSettings);
+          return newSettings;
+        });
+        return false;
+      }
+    } catch (e) {
+      // Network error - don't clear token, just log
+      console.warn("[DJ Settings] Token revalidation network error:", e);
+      return true; // Assume valid on network error
+    } finally {
+      isRevalidatingRef.current = false;
+    }
+  }, []);
+
+  // Periodic token revalidation (U1 fix)
+  useEffect(() => {
+    if (!settings.authToken) return;
+
+    const intervalId = setInterval(() => {
+      void revalidateToken();
+    }, TOKEN_REVALIDATION_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [settings.authToken, revalidateToken]);
+
+  // Revalidate on app focus/visibility change (U1 fix)
+  useEffect(() => {
+    if (!settings.authToken) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const currentSettings = loadSettings();
+        const lastValidated = currentSettings.tokenValidatedAt || 0;
+        const timeSinceValidation = Date.now() - lastValidated;
+
+        // Only revalidate if enough time has passed since last validation
+        if (timeSinceValidation >= TOKEN_FOCUS_REVALIDATION_MIN_MS) {
+          void revalidateToken();
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [settings.authToken, revalidateToken]);
+
   const setDjName = useCallback((djName: string) => {
     setSettingsState((prev) => {
       const newSettings = { ...prev, djName };
@@ -150,8 +242,8 @@ export function useDjSettings() {
         authToken: "",
         djInfo: null,
         djName: "",
+        tokenValidatedAt: null,
       };
-      saveSettings(newSettings);
       saveSettings(newSettings);
       return newSettings;
     });
@@ -167,7 +259,7 @@ export function useDjSettings() {
     if (!authToken) {
       // Clear token and DJ info
       setSettingsState((prev) => {
-        const newSettings = { ...prev, authToken: "", djInfo: null };
+        const newSettings = { ...prev, authToken: "", djInfo: null, tokenValidatedAt: null };
         saveSettings(newSettings);
         return newSettings;
       });
@@ -180,13 +272,14 @@ export function useDjSettings() {
       const djInfo = await validateTokenWithServer(authToken);
 
       if (djInfo) {
-        // Token valid! Auto-sync DJ name
+        // Token valid! Auto-sync DJ name and record validation time
         setSettingsState((prev) => {
           const newSettings = {
             ...prev,
             authToken,
             djInfo,
             djName: djInfo.displayName, // Auto-sync!
+            tokenValidatedAt: Date.now(), // U1 fix: track validation time
           };
           saveSettings(newSettings);
           return newSettings;
@@ -197,7 +290,7 @@ export function useDjSettings() {
         // Token invalid
         setValidationError("Invalid token. Please check and try again.");
         setSettingsState((prev) => {
-          const newSettings = { ...prev, authToken: "", djInfo: null };
+          const newSettings = { ...prev, authToken: "", djInfo: null, tokenValidatedAt: null };
           saveSettings(newSettings);
           return newSettings;
         });
@@ -213,7 +306,7 @@ export function useDjSettings() {
    */
   const clearToken = useCallback(() => {
     setSettingsState((prev) => {
-      const newSettings = { ...prev, authToken: "", djInfo: null, djName: "" };
+      const newSettings = { ...prev, authToken: "", djInfo: null, djName: "", tokenValidatedAt: null };
       saveSettings(newSettings);
       return newSettings;
     });

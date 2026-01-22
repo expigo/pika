@@ -3,7 +3,7 @@
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
 **Current Focus:** Production Launch Ready
-**Status:** Release v0.2.6 (Cloud Robustness)
+**Status:** Release v0.2.7 (Audit Fixes & Code Quality)
 
 ---
 
@@ -12,7 +12,16 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 22, 2026 - Cloud Robustness v0.2.6):**
+    *   **Recent Completions (Jan 22, 2026 - Audit Fixes v0.2.7):**
+        *   ✅ **Like Attribution Fix (A2):** Per-track like counting with `Map<playId, count>` prevents misattribution during track changes.
+        *   ✅ **Batch DB Writes (A3):** `incrementDancerLikesBy()` method - single DB write per track instead of N writes.
+        *   ✅ **Token Revalidation (U1):** Hourly periodic validation + focus-based revalidation with 5min minimum.
+        *   ✅ **goLive Decomposition (U3):** 44% reduction (219→122 lines) with extracted callback functions.
+        *   ✅ **Test API Fix (A1):** Replaced `vi.setSystemTime` with portable `Date.now` mock - all 210 tests pass.
+        *   ✅ **Duplicate saveSettings Fix (A5):** Removed redundant localStorage write.
+        *   ✅ **Drizzle ORM Migration:** `incrementDancerLikes` converted from raw SQL to Drizzle.
+        *   ✅ **Test Coverage:** 442 tests passing (210 desktop, 53 web, 179 cloud).
+    *   **Previous Completions (Jan 22, 2026 - Cloud Robustness v0.2.6):**
         *   ✅ **Modular Handlers:** 16 WebSocket handlers extracted to `handlers/` directory.
         *   ✅ **REST Route Modules:** 4 route files (sessions, stats, dj, client) extracted.
         *   ✅ **Type-Safe Validation:** `parseMessage<T>()` replaces all `as any` casts.
@@ -83,16 +92,18 @@ This is the central index for the Pika! project, tracking active development, fu
 ---
 
 ## 🔐 Security & Quality
-*   **Latest Audit:** January 18, 2026
-*   **Security Score:** 9.2/10 (All critical items resolved)
-*   **Engineering Score:** 9.3/10 (Hook decomposition, shared utils)
+*   **Latest Audit:** January 22, 2026
+*   **Security Score:** 9.4/10 (Token revalidation added)
+*   **Engineering Score:** 9.5/10 (All P1/P2 issues resolved)
+*   **Test Coverage:** 442 tests passing (210 desktop, 53 web, 179 cloud)
 
 | Audit | Date | Findings | Status |
 | :--- | :--- | :--- | :--- |
+| Code Quality Audit | 2026-01-22 | Like attribution, token expiry, goLive size | ✅ Resolved |
 | Security & Schema Audit | 2026-01-18 | Password, Email, CSP, DB | ✅ Resolved |
 | Recap Analytics Audit | 2026-01-17 | Deep Intelligence Validation | ✅ Pass |
 | Security Audit | 2026-01-13 | CORS, Rate Limiting gaps | ✅ Resolved |
-| Engineering Assessment | 2026-01-13 | Code decomposition needed | ✅ In Progress |
+| Engineering Assessment | 2026-01-13 | Code decomposition needed | ✅ Resolved |
 
 
 ---

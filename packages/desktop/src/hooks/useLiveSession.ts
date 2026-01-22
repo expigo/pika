@@ -76,29 +76,156 @@ export { subscribeToReactions } from "./live";
 let socketInstance: ReconnectingWebSocket | null = null;
 
 // Like storage batching (H4 fix - prevents DB spam)
-let pendingLikeCount = 0;
+// A2 fix: Track likes PER playId to prevent attribution to wrong track
+const pendingLikesByPlayId = new Map<number, number>();
 let likeStorageTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
- * Flush pending likes to database (batched write)
- * Calls incrementDancerLikes once per pending like
+ * Flush all pending likes to database (batched write per playId)
+ * Uses incrementDancerLikesBy for efficient single DB write per track
+ * A2 fix: Each playId gets its own count, preventing misattribution
  */
-async function flushPendingLikes(playId: number): Promise<void> {
-  const count = pendingLikeCount;
-  pendingLikeCount = 0;
+async function flushAllPendingLikes(): Promise<void> {
+  if (pendingLikesByPlayId.size === 0) return;
+
+  // Copy and clear before async work to prevent race conditions
+  const likesToFlush = new Map(pendingLikesByPlayId);
+  pendingLikesByPlayId.clear();
   likeStorageTimer = null;
 
-  if (count > 0) {
-    try {
-      // Write all pending likes in sequence
-      for (let i = 0; i < count; i++) {
-        await sessionRepository.incrementDancerLikes(playId);
+  for (const [playId, count] of likesToFlush) {
+    if (count > 0) {
+      try {
+        await sessionRepository.incrementDancerLikesBy(playId, count);
+        logger.debug("Live", "Batched likes stored", { playId, count });
+      } catch (error) {
+        logger.error("Live", "Failed to store batched likes", { playId, count, error });
       }
-      logger.debug("Live", "Batched likes stored", { playId, count });
-    } catch (error) {
-      logger.error("Live", "Failed to store batched likes", error);
     }
   }
+}
+
+// =============================================================================
+// Router Context Factory (U3 refactor - extracted from goLive)
+// =============================================================================
+
+/**
+ * Handle incoming like - debounced DB storage with per-track attribution
+ * Uses module-level pendingLikesByPlayId Map for correct track attribution (A2 fix)
+ */
+function handleLikeReceivedCallback(trackTitle: string): void {
+  logger.debug("Live", "Like received", { title: trackTitle });
+  addToPendingLikes(trackTitle);
+  useLiveStore.getState().incrementLiveLikes();
+
+  // Debounced DB storage (H4 fix - prevents spam writes)
+  // A2 fix: Track likes per playId to prevent misattribution on track change
+  const currentPlayId = getStoreCurrentPlayId();
+  if (currentPlayId) {
+    // Increment count for THIS specific playId
+    const currentCount = pendingLikesByPlayId.get(currentPlayId) || 0;
+    pendingLikesByPlayId.set(currentPlayId, currentCount + 1);
+
+    // Reset debounce timer (flushes ALL pending likes when it fires)
+    if (likeStorageTimer) {
+      clearTimeout(likeStorageTimer);
+    }
+    likeStorageTimer = setTimeout(() => {
+      void flushAllPendingLikes();
+    }, LIKE_STORAGE_DEBOUNCE_MS);
+  } else {
+    logger.warn("Live", "No current play ID to store like");
+  }
+}
+
+/**
+ * Handle poll started confirmation from server
+ */
+function handlePollStartedCallback(pollId: number, question: string, endsAt?: string): void {
+  logger.info("Live", "Poll started confirmed", { pollId });
+  const currentPoll = useLiveStore.getState().activePoll;
+  if (currentPoll && currentPoll.id === OPTIMISTIC_POLL_ID && currentPoll.question === question) {
+    useLiveStore.getState().setActivePoll({
+      ...currentPoll,
+      id: pollId,
+      endsAt,
+    });
+  }
+}
+
+/**
+ * Handle poll vote update from server
+ */
+function handlePollUpdateCallback(pollId: number, votes: number[], totalVotes: number): void {
+  logger.debug("Live", "Poll update", { pollId, totalVotes });
+  const currentPoll = useLiveStore.getState().activePoll;
+  if (currentPoll && (currentPoll.id === pollId || currentPoll.id === OPTIMISTIC_POLL_ID)) {
+    useLiveStore.getState().setActivePoll({
+      ...currentPoll,
+      id: pollId,
+      votes,
+      totalVotes,
+    });
+  }
+}
+
+/**
+ * Handle poll ended notification from server
+ */
+function handlePollEndedCallback(pollId: number): void {
+  logger.info("Live", "Poll ended", { pollId });
+  const currentPoll = useLiveStore.getState().activePoll;
+
+  if (currentPoll) {
+    const maxVotes = Math.max(...currentPoll.votes);
+    const winnerIndex = currentPoll.votes.indexOf(maxVotes);
+    const winner = currentPoll.options[winnerIndex] || "No votes";
+    const winnerPercent =
+      currentPoll.totalVotes > 0 ? Math.round((maxVotes / currentPoll.totalVotes) * 100) : 0;
+
+    useLiveStore.getState().setEndedPoll({
+      id: currentPoll.id,
+      question: currentPoll.question,
+      options: currentPoll.options,
+      votes: currentPoll.votes,
+      totalVotes: currentPoll.totalVotes,
+      winner,
+      winnerPercent,
+    });
+  }
+
+  useLiveStore.getState().setActivePoll(null);
+}
+
+/**
+ * Create the MessageRouterContext with all callbacks
+ * Extracted from goLive to improve readability (U3 refactor)
+ */
+function createRouterContext(sessionId: string): MessageRouterContext {
+  return {
+    sessionId,
+    onAck: handleAck,
+    onNack: handleNack,
+    onLikeReceived: handleLikeReceivedCallback,
+    onListenerCount: (count: number) => {
+      logger.debug("Live", "Listener count", { count });
+      useLiveStore.getState().setListenerCount(count);
+    },
+    onTempoFeedback: (feedback) => {
+      logger.debug("Live", "Tempo feedback", feedback);
+      useLiveStore.getState().setTempoFeedback(feedback);
+    },
+    onPollStarted: handlePollStartedCallback,
+    onPollUpdate: handlePollUpdateCallback,
+    onPollEnded: handlePollEndedCallback,
+    onReactionReceived: (reaction) => {
+      logger.debug("Live", "Reaction received", { reaction });
+      notifyReactionListeners(reaction);
+    },
+    onSessionRegistered: (sessionIdFromServer: string) => {
+      logger.info("Live", "Session registered", { sessionId: sessionIdFromServer });
+    },
+  };
 }
 
 /**
@@ -410,104 +537,8 @@ export function useLiveSession() {
           }
         };
 
-        // Initialize message router with callbacks for this session
-        const routerContext: MessageRouterContext = {
-          sessionId: newSessionId,
-          onAck: handleAck,
-          onNack: handleNack,
-          onLikeReceived: (trackTitle: string) => {
-            logger.debug("Live", "Like received", { title: trackTitle });
-            addToPendingLikes(trackTitle);
-            useLiveStore.getState().incrementLiveLikes();
-
-            // Debounced DB storage (H4 fix - prevents spam writes)
-            const currentPlayId = getStoreCurrentPlayId();
-            if (currentPlayId) {
-              pendingLikeCount++;
-              // Clear existing timer and set new one
-              if (likeStorageTimer) {
-                clearTimeout(likeStorageTimer);
-              }
-              likeStorageTimer = setTimeout(() => {
-                void flushPendingLikes(currentPlayId);
-              }, LIKE_STORAGE_DEBOUNCE_MS);
-            } else {
-              logger.warn("Live", "No current play ID to store like");
-            }
-          },
-          onListenerCount: (count: number) => {
-            logger.debug("Live", "Listener count", { count });
-            useLiveStore.getState().setListenerCount(count);
-          },
-          onTempoFeedback: (feedback) => {
-            logger.debug("Live", "Tempo feedback", feedback);
-            useLiveStore.getState().setTempoFeedback(feedback);
-          },
-          onPollStarted: (pollId: number, question: string, endsAt?: string) => {
-            logger.info("Live", "Poll started confirmed", { pollId });
-            const currentPoll = useLiveStore.getState().activePoll;
-            if (
-              currentPoll &&
-              currentPoll.id === OPTIMISTIC_POLL_ID &&
-              currentPoll.question === question
-            ) {
-              useLiveStore.getState().setActivePoll({
-                ...currentPoll,
-                id: pollId,
-                endsAt,
-              });
-            }
-          },
-          onPollUpdate: (pollId: number, votes: number[], totalVotes: number) => {
-            logger.debug("Live", "Poll update", { pollId, totalVotes });
-            const currentPoll = useLiveStore.getState().activePoll;
-            if (
-              currentPoll &&
-              (currentPoll.id === pollId || currentPoll.id === OPTIMISTIC_POLL_ID)
-            ) {
-              useLiveStore.getState().setActivePoll({
-                ...currentPoll,
-                id: pollId,
-                votes,
-                totalVotes,
-              });
-            }
-          },
-          onPollEnded: (pollId: number) => {
-            logger.info("Live", "Poll ended", { pollId });
-            const currentPoll = useLiveStore.getState().activePoll;
-
-            if (currentPoll) {
-              const maxVotes = Math.max(...currentPoll.votes);
-              const winnerIndex = currentPoll.votes.indexOf(maxVotes);
-              const winner = currentPoll.options[winnerIndex] || "No votes";
-              const winnerPercent =
-                currentPoll.totalVotes > 0
-                  ? Math.round((maxVotes / currentPoll.totalVotes) * 100)
-                  : 0;
-
-              useLiveStore.getState().setEndedPoll({
-                id: currentPoll.id,
-                question: currentPoll.question,
-                options: currentPoll.options,
-                votes: currentPoll.votes,
-                totalVotes: currentPoll.totalVotes,
-                winner,
-                winnerPercent,
-              });
-            }
-
-            useLiveStore.getState().setActivePoll(null);
-          },
-          onReactionReceived: (reaction) => {
-            logger.debug("Live", "Reaction received", { reaction });
-            notifyReactionListeners(reaction);
-          },
-          onSessionRegistered: (sessionId: string) => {
-            logger.info("Live", "Session registered", { sessionId });
-          },
-        };
-        messageRouter.setContext(routerContext);
+        // Initialize message router with callbacks for this session (U3 refactor)
+        messageRouter.setContext(createRouterContext(newSessionId));
 
         // Message handler using O(1) router dispatch
         socket.onmessage = (event) => {

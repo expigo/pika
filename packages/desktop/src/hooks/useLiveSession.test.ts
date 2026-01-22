@@ -76,8 +76,9 @@ describe("ACK/NACK Protocol", () => {
      * FAILURE IMPACT: Debugging becomes difficult
      */
     it("should produce IDs with parseable timestamp", () => {
-      const now = Date.now();
-      vi.setSystemTime(now);
+      const now = 1700000000000;
+      const originalDateNow = Date.now;
+      Date.now = vi.fn(() => now);
 
       const generateMessageId = (): string => {
         return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -89,6 +90,8 @@ describe("ACK/NACK Protocol", () => {
       expect(parts[0]).toBe("msg");
       expect(Number(parts[1])).toBe(now);
       expect(parts[2]).toHaveLength(7);
+
+      Date.now = originalDateNow;
     });
   });
 
@@ -1277,9 +1280,9 @@ describe("generateSessionId", () => {
    * FAILURE IMPACT: Harder to debug session issues
    */
   it("should include parseable timestamp", () => {
-    vi.useFakeTimers();
-    const now = Date.now();
-    vi.setSystemTime(now);
+    const now = 1700000000000;
+    const originalDateNow = Date.now;
+    Date.now = vi.fn(() => now);
 
     const generateSessionId = (): string => {
       return `pika_${Date.now()}_${Math.random().toString(36).substring(7)}`;
@@ -1291,7 +1294,7 @@ describe("generateSessionId", () => {
     expect(parts[0]).toBe("pika");
     expect(Number(parts[1])).toBe(now);
 
-    vi.useRealTimers();
+    Date.now = originalDateNow;
   });
 });
 
@@ -1457,15 +1460,16 @@ describe("Poll Management", () => {
      * FAILURE IMPACT: No timer shown on dancer UI
      */
     it("should calculate endsAt for timed polls", () => {
-      vi.useFakeTimers();
-      const now = Date.now();
-      vi.setSystemTime(now);
+      const now = 1700000000000;
+      const originalDateNow = Date.now;
+      Date.now = vi.fn(() => now);
 
       const durationSeconds = 60;
       const endsAt = new Date(now + durationSeconds * 1000).toISOString();
 
       expect(new Date(endsAt).getTime()).toBe(now + 60000);
-      vi.useRealTimers();
+
+      Date.now = originalDateNow;
     });
 
     /**
@@ -1668,15 +1672,16 @@ describe("Announcement Management", () => {
      * FAILURE IMPACT: Announcement never dismisses
      */
     it("should calculate endsAt for timed announcements", () => {
-      vi.useFakeTimers();
-      const now = Date.now();
-      vi.setSystemTime(now);
+      const now = 1700000000000;
+      const originalDateNow = Date.now;
+      Date.now = vi.fn(() => now);
 
       const durationSeconds = 30;
       const endsAt = new Date(now + durationSeconds * 1000).toISOString();
 
       expect(new Date(endsAt).getTime()).toBe(now + 30000);
-      vi.useRealTimers();
+
+      Date.now = originalDateNow;
     });
 
     /**

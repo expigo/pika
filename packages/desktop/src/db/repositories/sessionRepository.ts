@@ -3,7 +3,7 @@
  * Manages DJ sessions (Logbook) and track plays within them.
  */
 
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db, getSqlite } from "../index";
 import { type PlayReaction, plays, sessions } from "../schema";
 
@@ -249,18 +249,21 @@ export const sessionRepository = {
    * Increment dancer likes for a play
    */
   async incrementDancerLikes(playId: number): Promise<void> {
-    console.log(`[Repo] incrementDancerLikes called for ${playId}`);
-    try {
-      const sqlite = await getSqlite();
-      console.log(`[Repo] Got sqlite instance, executing update for ${playId}`);
-      await sqlite.execute(`UPDATE plays SET dancer_likes = dancer_likes + 1 WHERE id = ?`, [
-        playId,
-      ]);
-      console.log(`[Repo] Update executed for ${playId}`);
-    } catch (e) {
-      console.error(`[Repo] Error in incrementDancerLikes:`, e);
-      throw e;
-    }
+    await db
+      .update(plays)
+      .set({ dancerLikes: sql`${plays.dancerLikes} + 1` })
+      .where(eq(plays.id, playId));
+  },
+
+  /**
+   * Increment dancer likes for a play by a specific count (batch operation)
+   */
+  async incrementDancerLikesBy(playId: number, count: number): Promise<void> {
+    if (count <= 0) return;
+    await db
+      .update(plays)
+      .set({ dancerLikes: sql`${plays.dancerLikes} + ${count}` })
+      .where(eq(plays.id, playId));
   },
 
   /**
