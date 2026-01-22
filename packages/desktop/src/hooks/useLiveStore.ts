@@ -57,6 +57,25 @@ export interface LiveSessionStore {
   // Played tracks in current session (for repeat prevention)
   playedTrackKeys: Set<string>;
 
+  // ===========================================================================
+  // Internal State (consolidated from module-level variables)
+  // ===========================================================================
+
+  // Track broadcast deduplication
+  lastBroadcastedTrackKey: string | null;
+
+  // Tracks already processed in this session (for DB dedup)
+  processedTrackKeys: Set<string>;
+
+  // Skip initial track broadcast flag
+  skipInitialTrackBroadcast: boolean;
+
+  // Offline queue flush state
+  isFlushingQueue: boolean;
+
+  // Like batching info (for UI visibility if needed)
+  pendingLikeInfo: { count: number; trackTitle: string | null };
+
   // Actions
   setStatus: (status: LiveStatus) => void;
   setNowPlaying: (track: NowPlayingTrack | null) => void;
@@ -101,6 +120,14 @@ export interface LiveSessionStore {
   addPlayedTrack: (trackKey: string) => void;
   clearPlayedTracks: () => void;
   reset: () => void;
+
+  // Internal state actions
+  setLastBroadcastedTrackKey: (key: string | null) => void;
+  addProcessedTrackKey: (key: string) => void;
+  clearProcessedTrackKeys: () => void;
+  setSkipInitialTrackBroadcast: (skip: boolean) => void;
+  setIsFlushingQueue: (flushing: boolean) => void;
+  setPendingLikeInfo: (info: { count: number; trackTitle: string | null }) => void;
 }
 
 // ============================================================================
@@ -122,6 +149,13 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   liveLikes: 0,
   playedTrackKeys: new Set<string>(),
 
+  // Internal state defaults
+  lastBroadcastedTrackKey: null,
+  processedTrackKeys: new Set<string>(),
+  skipInitialTrackBroadcast: false,
+  isFlushingQueue: false,
+  pendingLikeInfo: { count: 0, trackTitle: null },
+
   setStatus: (status) => set({ status }),
   setNowPlaying: (nowPlaying) => set({ nowPlaying }),
   setError: (error) => set({ error }),
@@ -141,6 +175,18 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
       playedTrackKeys: new Set([...state.playedTrackKeys, trackKey]),
     })),
   clearPlayedTracks: () => set({ playedTrackKeys: new Set() }),
+
+  // Internal state actions
+  setLastBroadcastedTrackKey: (lastBroadcastedTrackKey) => set({ lastBroadcastedTrackKey }),
+  addProcessedTrackKey: (key: string) =>
+    set((state) => ({
+      processedTrackKeys: new Set([...state.processedTrackKeys, key]),
+    })),
+  clearProcessedTrackKeys: () => set({ processedTrackKeys: new Set() }),
+  setSkipInitialTrackBroadcast: (skipInitialTrackBroadcast) => set({ skipInitialTrackBroadcast }),
+  setIsFlushingQueue: (isFlushingQueue) => set({ isFlushingQueue }),
+  setPendingLikeInfo: (pendingLikeInfo) => set({ pendingLikeInfo }),
+
   reset: () =>
     set({
       status: "offline",
@@ -156,5 +202,11 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
       endedPoll: null,
       liveLikes: 0,
       playedTrackKeys: new Set(),
+      // Reset internal state too
+      lastBroadcastedTrackKey: null,
+      processedTrackKeys: new Set(),
+      skipInitialTrackBroadcast: false,
+      isFlushingQueue: false,
+      pendingLikeInfo: { count: 0, trackTitle: null },
     }),
 }));
