@@ -91,8 +91,8 @@ describe("Security Audit Tests (Sprint 0.1)", () => {
 
   describe("S0.1.5: Client ID Validation", () => {
     it("should reject invalid client IDs", async () => {
-      // This ID starts with "client_" but has invalid characters (non-hex)
-      const invalidId = "client_ZZZZZZZZ-XXXX-YYYY-UUUU-WWWWWWWWWWWW";
+      // This ID contains invalid character '$' (Regex allows a-z, 0-9, -, _)
+      const invalidId = "client_Invalid$ID";
       const req = new Request(`http://localhost/${invalidId}/likes`);
       const res = await client.fetch(req);
       // Should return 400 Bad Request if validation is strict
@@ -103,14 +103,16 @@ describe("Security Audit Tests (Sprint 0.1)", () => {
   describe("S0.1.4: Recap Conditional Auth", () => {
     it("should return public data (no polls) for unauthenticated request", async () => {
       // Force DB to return a session so we don't get 404
-      const spy = spyOn(mockDb, "limit").mockResolvedValue([
-        {
-          id: "session_123",
-          djName: "Test DJ",
-          startedAt: new Date(),
-          endedAt: null,
-        },
-      ]);
+      const spy = spyOn(mockDb, "limit")
+        .mockResolvedValueOnce([
+          {
+            id: "session_123",
+            djName: "Test DJ",
+            startedAt: new Date(),
+            endedAt: null,
+          },
+        ])
+        .mockResolvedValue([]); // For tracks
 
       const req = new Request("http://localhost/session_123/recap");
       const res = await sessions.fetch(req);
@@ -128,15 +130,17 @@ describe("Security Audit Tests (Sprint 0.1)", () => {
     });
 
     it("should return polls if authenticated as owner", async () => {
-      const spy = spyOn(mockDb, "limit").mockResolvedValue([
-        {
-          id: "session_123",
-          djName: "Test DJ",
-          startedAt: new Date(),
-          endedAt: null,
-          djUserId: 100, // Owner ID
-        },
-      ]);
+      const spy = spyOn(mockDb, "limit")
+        .mockResolvedValueOnce([
+          {
+            id: "session_123",
+            djName: "Test DJ",
+            startedAt: new Date(),
+            endedAt: null,
+            djUserId: 100, // Owner ID
+          },
+        ])
+        .mockResolvedValue([]); // For tracks
 
       const authSpy = spyOn(authLib, "validateToken").mockResolvedValue({ id: 100 } as any);
 
@@ -153,15 +157,17 @@ describe("Security Audit Tests (Sprint 0.1)", () => {
     });
 
     it("should NOT return polls if authenticated as WRONG user", async () => {
-      const spy = spyOn(mockDb, "limit").mockResolvedValue([
-        {
-          id: "session_123",
-          djName: "Test DJ",
-          startedAt: new Date(),
-          endedAt: null,
-          djUserId: 100, // Owner ID
-        },
-      ]);
+      const spy = spyOn(mockDb, "limit")
+        .mockResolvedValueOnce([
+          {
+            id: "session_123",
+            djName: "Test DJ",
+            startedAt: new Date(),
+            endedAt: null,
+            djUserId: 100, // Owner ID
+          },
+        ])
+        .mockResolvedValue([]);
 
       const authSpy = spyOn(authLib, "validateToken").mockResolvedValue({ id: 200 } as any); // Wrong ID
 
@@ -178,15 +184,17 @@ describe("Security Audit Tests (Sprint 0.1)", () => {
     });
 
     it("should treat malformed auth header as unauthenticated", async () => {
-      const spy = spyOn(mockDb, "limit").mockResolvedValue([
-        {
-          id: "session_123",
-          djName: "Test DJ",
-          startedAt: new Date(),
-          endedAt: null,
-          djUserId: 100,
-        },
-      ]);
+      const spy = spyOn(mockDb, "limit")
+        .mockResolvedValueOnce([
+          {
+            id: "session_123",
+            djName: "Test DJ",
+            startedAt: new Date(),
+            endedAt: null,
+            djUserId: 100,
+          },
+        ])
+        .mockResolvedValue([]);
 
       const req = new Request("http://localhost/session_123/recap", {
         headers: { Authorization: "InvalidHeaderFormat" },
@@ -199,15 +207,17 @@ describe("Security Audit Tests (Sprint 0.1)", () => {
     });
 
     it("should treat empty token as unauthenticated", async () => {
-      const spy = spyOn(mockDb, "limit").mockResolvedValue([
-        {
-          id: "session_123",
-          djName: "Test DJ",
-          startedAt: new Date(),
-          endedAt: null,
-          djUserId: 100,
-        },
-      ]);
+      const spy = spyOn(mockDb, "limit")
+        .mockResolvedValueOnce([
+          {
+            id: "session_123",
+            djName: "Test DJ",
+            startedAt: new Date(),
+            endedAt: null,
+            djUserId: 100,
+          },
+        ])
+        .mockResolvedValue([]);
 
       const req = new Request("http://localhost/session_123/recap", {
         headers: { Authorization: "Bearer " },

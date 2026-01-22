@@ -11,7 +11,7 @@
  */
 
 import { PingSchema, GetSessionsSchema } from "@pika/shared";
-import { activeSessions } from "../lib/sessions";
+import { getAllSessions } from "../lib/sessions";
 import { sendAck, parseMessage } from "../lib/protocol";
 import type { WSContext } from "./ws-context";
 
@@ -36,7 +36,7 @@ export function handleGetSessions(ctx: WSContext) {
   const msg = parseMessage(GetSessionsSchema, message, ws, messageId);
   if (!msg) return;
 
-  const sessions = Array.from(activeSessions.values());
+  const sessions = getAllSessions();
 
   // Backpressure awareness
   if (rawWs.getBufferedAmount() < 1024 * 64) {

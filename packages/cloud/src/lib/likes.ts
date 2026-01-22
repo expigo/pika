@@ -71,6 +71,3 @@ export function getLikeEntryCount(): number {
 export function clearAllLikes(): void {
   likesSent.clear();
 }
-
-// Export the Map for direct access during migration
-export { likesSent };

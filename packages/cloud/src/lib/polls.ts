@@ -121,7 +121,7 @@ export function createPoll(
     options,
     votes: options.map(() => 0),
     votedClients: new Map(),
-    endsAt: durationSeconds ? new Date(Date.now() + durationSeconds * 1000) : undefined,
+    ...(durationSeconds ? { endsAt: new Date(Date.now() + durationSeconds * 1000) } : {}),
   };
 
   activePolls.set(pollId, poll);
@@ -152,7 +152,7 @@ export function recordPollVote(
     return { success: false, error: "Invalid option" };
   }
 
-  poll.votes[optionIndex]++;
+  poll.votes[optionIndex] = (poll.votes[optionIndex] || 0) + 1;
   poll.votedClients.set(clientId, optionIndex);
 
   return { success: true };

@@ -12,12 +12,37 @@
  */
 
 import { SendLikeSchema, SendReactionSchema, SendTempoRequestSchema } from "@pika/shared";
-import { activeSessions } from "../lib/sessions";
+import { getSessionIds, hasSession } from "../lib/sessions";
 import { hasLikedTrack, recordLike } from "../lib/likes";
 import { persistLike } from "../lib/persistence/tracks";
 import { recordTempoVote, getTempoFeedback } from "../lib/tempo";
 import { sendAck, sendNack, parseMessage } from "../lib/protocol";
 import type { WSContext } from "./ws-context";
+
+// 🛡️ Rate Limiting: ClientID -> Array of timestamps
+const clientLikeHistory = new Map<string, number[]>();
+const LIKE_RATE_LIMIT = 10; // Max likes per window
+const LIKE_WINDOW_MS = 60 * 1000; // 1 minute window
+
+// 🧹 Periodic cleanup for dormant clients (Every 5m)
+setInterval(
+  () => {
+    const now = Date.now();
+    let cleared = 0;
+    for (const [clientId, history] of clientLikeHistory.entries()) {
+      // If the newest like is older than the window, the whole history is stale
+      const newest = history[history.length - 1];
+      if (!newest || now - newest > LIKE_WINDOW_MS) {
+        clientLikeHistory.delete(clientId);
+        cleared++;
+      }
+    }
+    if (cleared > 0) {
+      console.log(`🧹 Rate Limit Cleanup: Removed ${cleared} dormant clients`);
+    }
+  },
+  5 * 60 * 1000,
+);
 
 /**
  * SEND_LIKE: Dancer likes the currently playing track
@@ -36,7 +61,7 @@ export async function handleSendLike(ctx: WSContext) {
     console.warn(
       `⚠️ DEPRECATED: Like received without sessionId from client ${state.clientId} - update required`,
     );
-    likeSessionId = Array.from(activeSessions.keys())[0];
+    likeSessionId = getSessionIds()[0];
   }
 
   if (!likeSessionId) {
@@ -51,6 +76,29 @@ export async function handleSendLike(ctx: WSContext) {
     if (messageId) sendNack(ws, messageId, "Client ID required for likes");
     return;
   }
+
+  // 🛡️ Rate Limiting
+  const now = Date.now();
+  let history = clientLikeHistory.get(state.clientId) || [];
+  // Prune history
+  history = history.filter((t) => now - t < LIKE_WINDOW_MS);
+
+  if (history.length >= LIKE_RATE_LIMIT) {
+    if (messageId) sendNack(ws, messageId, "Rate limit exceeded (max 10/min)");
+    return;
+  }
+
+  history.push(now);
+  clientLikeHistory.set(state.clientId, history);
+
+  // Cleanup map periodically or lazily? Lazy is fine for now, but a global cleanup would be better for memory.
+  // For Sprint 0.2 we fixed memory leaks. Let's not introduce one.
+  // Ideally we clean empty entries or old entries.
+  // We can add a setInterval cleanup similar to cache if needed, but for now this lazy prune helps.
+  // Actually, we should probably delete the key if history becomes empty... but here we just pushed.
+  // To avoid unbounded map growth, we should remove listeners logic. Wait, this is likes.
+  // Use a cleanup interval for `clientLikeHistory` later?
+  // I'll stick to lazy prune on access + S0.2.1-style cleanup if I was touching cache, but I'll leave it simple for Sprint 1 unless requested.
 
   // 🔐 Security: Check for duplicate likes
   if (hasLikedTrack(likeSessionId, state.clientId, track)) {
@@ -124,7 +172,7 @@ export function handleSendTempoRequest(ctx: WSContext) {
   }
 
   // Verify session exists
-  if (!activeSessions.has(targetSessionId)) {
+  if (!hasSession(targetSessionId)) {
     console.log(`⚠️ Tempo request rejected: session ${targetSessionId} not found`);
     if (messageId) sendNack(ws, messageId, "Session not found");
     return;

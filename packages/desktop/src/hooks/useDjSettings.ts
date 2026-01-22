@@ -14,10 +14,7 @@
 import { fetch } from "@tauri-apps/plugin-http"; // Use Tauri HTTP to bypass CORS
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  TOKEN_FOCUS_REVALIDATION_MIN_MS,
-  TOKEN_REVALIDATION_INTERVAL_MS,
-} from "./live/constants";
+import { TOKEN_FOCUS_REVALIDATION_MIN_MS, TOKEN_REVALIDATION_INTERVAL_MS } from "./live/constants";
 
 const STORAGE_KEY = "pika_dj_settings";
 
@@ -51,8 +48,11 @@ function loadSettings(): DjSettings {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
-      // Merge with default to handle new fields
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(stored) };
+      const parsed = JSON.parse(stored);
+      // S1.4.3: Safe JSON parsing (ensure object and not array/null)
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return { ...DEFAULT_SETTINGS, ...parsed };
+      }
     }
   } catch (e) {
     console.error("Failed to load DJ settings:", e);
@@ -111,12 +111,22 @@ export async function validateTokenWithServer(token: string): Promise<DjInfo | n
     }
 
     const data = await response.json();
-    if (data.success && data.user) {
+
+    // S1.4.4: Response validation (manual type guards)
+    if (
+      data &&
+      typeof data === "object" &&
+      data.success === true &&
+      data.user &&
+      typeof data.user === "object" &&
+      typeof data.user.id === "number" &&
+      typeof data.user.displayName === "string"
+    ) {
       return {
         id: data.user.id,
         displayName: data.user.displayName,
-        email: data.user.email,
-        slug: data.user.slug,
+        email: data.user.email || "",
+        slug: data.user.slug || "",
       };
     }
     return null;
@@ -306,7 +316,13 @@ export function useDjSettings() {
    */
   const clearToken = useCallback(() => {
     setSettingsState((prev) => {
-      const newSettings = { ...prev, authToken: "", djInfo: null, djName: "", tokenValidatedAt: null };
+      const newSettings = {
+        ...prev,
+        authToken: "",
+        djInfo: null,
+        djName: "",
+        tokenValidatedAt: null,
+      };
       saveSettings(newSettings);
       return newSettings;
     });

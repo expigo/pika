@@ -60,7 +60,7 @@ export const savedSetRepository = {
                 created_at as createdAt,
                 updated_at as updatedAt
             FROM saved_sets
-            WHERE id = $1
+            WHERE id = ?
         `,
       [setId],
     );
@@ -90,7 +90,7 @@ export const savedSetRepository = {
                 t.analyzed
             FROM tracks t
             INNER JOIN saved_set_tracks st ON t.id = st.track_id
-            WHERE st.set_id = $1
+            WHERE st.set_id = ?
             ORDER BY st.position ASC
         `,
       [setId],
@@ -108,18 +108,30 @@ export const savedSetRepository = {
 
     // Insert the set
     const result = await sqlite.execute(
-      `INSERT INTO saved_sets (name, description, created_at, updated_at) VALUES ($1, $2, $3, $4)`,
+      `INSERT INTO saved_sets (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)`,
       [name, description ?? null, now, now],
     );
 
     const setId = result.lastInsertId as number;
 
     // Insert the track positions
-    for (let i = 0; i < trackIds.length; i++) {
-      await sqlite.execute(
-        `INSERT INTO saved_set_tracks (set_id, track_id, position) VALUES ($1, $2, $3)`,
-        [setId, trackIds[i], i],
-      );
+    // Batch Insert the track positions (Chunked to avoid SQLite param limits)
+    if (trackIds.length > 0) {
+      const CHUNK_SIZE = 100; // 3 parameters per row = 300 params per chunk (safe < 999)
+      for (let i = 0; i < trackIds.length; i += CHUNK_SIZE) {
+        const chunk = trackIds.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => "(?, ?, ?)").join(", ");
+        const values: (string | number)[] = [];
+
+        chunk.forEach((trackId, indexInChunk) => {
+          values.push(setId, trackId, i + indexInChunk);
+        });
+
+        await sqlite.execute(
+          `INSERT INTO saved_set_tracks (set_id, track_id, position) VALUES ${placeholders}`,
+          values,
+        );
+      }
     }
 
     return setId;
@@ -133,18 +145,30 @@ export const savedSetRepository = {
     const now = Math.floor(Date.now() / 1000);
 
     // Delete existing track associations
-    await sqlite.execute(`DELETE FROM saved_set_tracks WHERE set_id = $1`, [setId]);
+    await sqlite.execute(`DELETE FROM saved_set_tracks WHERE set_id = ?`, [setId]);
 
     // Insert new track positions
-    for (let i = 0; i < trackIds.length; i++) {
-      await sqlite.execute(
-        `INSERT INTO saved_set_tracks (set_id, track_id, position) VALUES ($1, $2, $3)`,
-        [setId, trackIds[i], i],
-      );
+    // Batch Insert new track positions (Chunked)
+    if (trackIds.length > 0) {
+      const CHUNK_SIZE = 100;
+      for (let i = 0; i < trackIds.length; i += CHUNK_SIZE) {
+        const chunk = trackIds.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => "(?, ?, ?)").join(", ");
+        const values: (string | number)[] = [];
+
+        chunk.forEach((trackId, indexInChunk) => {
+          values.push(setId, trackId, i + indexInChunk);
+        });
+
+        await sqlite.execute(
+          `INSERT INTO saved_set_tracks (set_id, track_id, position) VALUES ${placeholders}`,
+          values,
+        );
+      }
     }
 
     // Update the set's updated_at timestamp
-    await sqlite.execute(`UPDATE saved_sets SET updated_at = $1 WHERE id = $2`, [now, setId]);
+    await sqlite.execute(`UPDATE saved_sets SET updated_at = ? WHERE id = ?`, [now, setId]);
   },
 
   /**
@@ -154,7 +178,7 @@ export const savedSetRepository = {
     const sqlite = await getSqlite();
     const now = Math.floor(Date.now() / 1000);
 
-    await sqlite.execute(`UPDATE saved_sets SET name = $1, updated_at = $2 WHERE id = $3`, [
+    await sqlite.execute(`UPDATE saved_sets SET name = ?, updated_at = ? WHERE id = ?`, [
       name,
       now,
       setId,
@@ -168,9 +192,9 @@ export const savedSetRepository = {
     const sqlite = await getSqlite();
 
     // Delete track associations first (cascade should handle this, but be explicit)
-    await sqlite.execute(`DELETE FROM saved_set_tracks WHERE set_id = $1`, [setId]);
+    await sqlite.execute(`DELETE FROM saved_set_tracks WHERE set_id = ?`, [setId]);
 
     // Delete the set
-    await sqlite.execute(`DELETE FROM saved_sets WHERE id = $1`, [setId]);
+    await sqlite.execute(`DELETE FROM saved_sets WHERE id = ?`, [setId]);
   },
 };

@@ -23,16 +23,19 @@ import {
   SendAnnouncementSchema,
   CancelAnnouncementSchema,
 } from "@pika/shared";
-import { activeSessions, type LiveSession } from "../lib/sessions";
+import { setSession, getSession, deleteSession, type LiveSession } from "../lib/sessions";
 import { persistSession, endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
 import { persistTrack, persistTempoVotes } from "../lib/persistence/tracks";
-import { tempoVotes, getTempoFeedback } from "../lib/tempo";
+import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
 import { logSessionEvent, sendAck, sendNack, parseMessage } from "../lib/protocol";
 import { validateToken } from "../lib/auth";
 import { checkAndRecordNonce } from "../lib/nonces";
 import { clearLikesForSession } from "../lib/likes";
-import { sessionListeners } from "../lib/listeners";
+import { clearListeners } from "../lib/listeners";
 import type { WSContext } from "./ws-context";
+
+// 🛡️ Rate Limiting State
+const lastBroadcastTime = new Map<string, number>();
 
 /**
  * REGISTER_SESSION: DJ starts a new live session
@@ -66,7 +69,7 @@ export async function handleRegisterSession(ctx: WSContext) {
     djName,
     startedAt: new Date().toISOString(),
   };
-  activeSessions.set(sessionId, session);
+  setSession(sessionId, session);
   console.log(
     `🎧 DJ going live: ${djName} (${sessionId})${djUserId ? ` [Verified]` : ` [Anonymous]`}`,
   );
@@ -120,6 +123,16 @@ export async function handleBroadcastTrack(ctx: WSContext) {
     return;
   }
 
+  // 🛡️ Rate Limiting: 1 track per 5 seconds
+  const lastTime = lastBroadcastTime.get(msg.sessionId) || 0;
+  const now = Date.now();
+  if (now - lastTime < 5000) {
+    console.warn(`⏳ Rate limit: Dropping broadcast for ${msg.sessionId} (too fast)`);
+    if (messageId) sendNack(ws, messageId, "Rate limit exceeded (wait 5s)");
+    return;
+  }
+  lastBroadcastTime.set(msg.sessionId, now);
+
   // 🔐 Security: Nonce deduplication
   if (!checkAndRecordNonce(messageId, msg.sessionId)) {
     console.log(`🔄 Skipping duplicate BROADCAST_TRACK (messageId: ${messageId})`);
@@ -127,7 +140,7 @@ export async function handleBroadcastTrack(ctx: WSContext) {
     return;
   }
 
-  const session = activeSessions.get(msg.sessionId);
+  const session = getSession(msg.sessionId);
   if (session) {
     // 🎚️ Persist tempo votes for the PREVIOUS track (if any)
     if (session.currentTrack) {
@@ -146,7 +159,7 @@ export async function handleBroadcastTrack(ctx: WSContext) {
         }
 
         // Clear tempo votes for this session
-        tempoVotes.delete(msg.sessionId);
+        clearTempoVotes(msg.sessionId);
 
         // Broadcast to all clients to reset their tempo vote UI
         rawWs.publish(
@@ -163,7 +176,11 @@ export async function handleBroadcastTrack(ctx: WSContext) {
     console.log(`🎵 Now playing: ${msg.track.artist} - ${msg.track.title}`);
 
     // 💾 Persist to database
-    persistTrack(msg.sessionId, msg.track);
+    try {
+      await persistTrack(msg.sessionId, msg.track);
+    } catch (err) {
+      console.error(`❌ DB Error: Failed to persist track for ${msg.sessionId}`, err);
+    }
 
     // Broadcast to all subscribers
     rawWs.publish(
@@ -198,7 +215,7 @@ export function handleTrackStopped(ctx: WSContext) {
     return;
   }
 
-  const session = activeSessions.get(msg.sessionId);
+  const session = getSession(msg.sessionId);
   if (session) {
     delete session.currentTrack;
     console.log(`⏸️ Track stopped for session: ${msg.sessionId}`);
@@ -233,7 +250,7 @@ export function handleEndSession(ctx: WSContext) {
     return;
   }
 
-  const session = activeSessions.get(msg.sessionId);
+  const session = getSession(msg.sessionId);
   if (session) {
     console.log(`👋 Session ended: ${session.djName}`);
 
@@ -248,18 +265,19 @@ export function handleEndSession(ctx: WSContext) {
           faster: feedback.faster,
         });
       }
-      tempoVotes.delete(msg.sessionId);
+      clearTempoVotes(msg.sessionId);
     }
 
-    activeSessions.delete(msg.sessionId);
+    deleteSession(msg.sessionId);
 
     // 💾 Update in database
     endSessionInDb(msg.sessionId);
 
     // 🧹 Clean up all in-memory state
     clearLikesForSession(msg.sessionId);
-    sessionListeners.delete(msg.sessionId);
+    clearListeners(msg.sessionId);
     persistedSessions.delete(msg.sessionId);
+    lastBroadcastTime.delete(msg.sessionId);
 
     rawWs.publish(
       "live-session",
@@ -284,7 +302,7 @@ export function handleSendAnnouncement(ctx: WSContext) {
 
   const { sessionId: announcementSessionId, message: announcementMessage, durationSeconds } = msg;
 
-  const djSession = activeSessions.get(announcementSessionId);
+  const djSession = getSession(announcementSessionId);
   if (!djSession) {
     console.log(`⚠️ Announcement rejected: session ${announcementSessionId} not found`);
     if (messageId) sendNack(ws, messageId, "Session not found");
@@ -339,7 +357,7 @@ export function handleCancelAnnouncement(ctx: WSContext) {
 
   const { sessionId: cancelSessionId } = msg;
 
-  const session = activeSessions.get(cancelSessionId);
+  const session = getSession(cancelSessionId);
   if (!session) {
     console.log(`⚠️ Cancel announcement rejected: session ${cancelSessionId} not found`);
     if (messageId) sendNack(ws, messageId, "Session not found");

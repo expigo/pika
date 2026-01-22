@@ -57,7 +57,12 @@ export function TrackFingerprint({ metrics, showLabels = true, size = "100%" }: 
   }
 
   return (
-    <div className="relative group overflow-hidden" style={{ width: size, height: size }}>
+    <div
+      className="relative group overflow-hidden"
+      style={{ width: size, height: size }}
+      role="img"
+      aria-label="Track analysis radar chart showing Energy, Danceability, Brightness, Acousticness, and Groove"
+    >
       <ResponsiveContainer width="100%" height="100%">
         <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
           <defs>

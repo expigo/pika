@@ -108,6 +108,3 @@ export function cleanupStaleListeners(): void {
     }
   }
 }
-
-// Export the map for direct access if needed
-export { sessionListeners };

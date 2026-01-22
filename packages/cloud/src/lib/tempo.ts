@@ -85,6 +85,3 @@ export function recordTempoVote(
 export function clearTempoVotes(sessionId: string): void {
   tempoVotes.delete(sessionId);
 }
-
-// Export the map for direct access if needed
-export { tempoVotes };

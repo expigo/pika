@@ -349,10 +349,18 @@ export const sessionRepository = {
    */
   async deleteSession(sessionId: number): Promise<void> {
     const sqlite = await getSqlite();
-    // Delete plays first (foreign key constraint)
-    await sqlite.execute(`DELETE FROM plays WHERE session_id = ?`, [sessionId]);
-    // Delete the session
-    await sqlite.execute(`DELETE FROM sessions WHERE id = ?`, [sessionId]);
+    try {
+      await sqlite.execute("BEGIN TRANSACTION");
+      // Delete plays first (foreign key constraint)
+      await sqlite.execute(`DELETE FROM plays WHERE session_id = ?`, [sessionId]);
+      // Delete the session
+      await sqlite.execute(`DELETE FROM sessions WHERE id = ?`, [sessionId]);
+      await sqlite.execute("COMMIT");
+    } catch (e) {
+      console.error(`Failed to delete session ${sessionId}, rolling back:`, e);
+      await sqlite.execute("ROLLBACK");
+      throw e;
+    }
   },
 
   /**

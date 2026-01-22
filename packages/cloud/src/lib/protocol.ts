@@ -28,30 +28,42 @@ export interface SessionEventMetadata {
 export function sendAck(ws: { send: (data: string) => void }, messageId: string): void {
   if (!messageId) return; // Only ACK if messageId was provided
 
-  ws.send(
-    JSON.stringify({
-      type: "ACK",
-      messageId,
-      status: "ok",
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  try {
+    ws.send(
+      JSON.stringify({
+        type: "ACK",
+        messageId,
+        status: "ok",
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  } catch (e) {
+    // Socket write failed, client likely disconnected
+  }
 }
 
 /**
  * Send a negative acknowledgment with an error message.
  */
-export function sendNack(ws: { send: (data: string) => void }, messageId: string, error: string): void {
+export function sendNack(
+  ws: { send: (data: string) => void },
+  messageId: string,
+  error: string,
+): void {
   if (!messageId) return; // Only NACK if messageId was provided
 
-  ws.send(
-    JSON.stringify({
-      type: "NACK",
-      messageId,
-      error,
-      timestamp: new Date().toISOString(),
-    }),
-  );
+  try {
+    ws.send(
+      JSON.stringify({
+        type: "NACK",
+        messageId,
+        error,
+        timestamp: new Date().toISOString(),
+      }),
+    );
+  } catch (e) {
+    // Socket write failed
+  }
 }
 
 // ============================================================================
@@ -109,7 +121,8 @@ export function parseMessage<T extends z.ZodType>(
   if (!result.success) {
     const issue = result.error.issues[0];
     console.warn(`⚠️ Invalid message: ${issue?.path?.join(".")} - ${issue?.message}`);
-    if (messageId) sendNack(ws, messageId, `Invalid message: ${issue?.message || "validation failed"}`);
+    if (messageId)
+      sendNack(ws, messageId, `Invalid message: ${issue?.message || "validation failed"}`);
     return null;
   }
   return result.data;

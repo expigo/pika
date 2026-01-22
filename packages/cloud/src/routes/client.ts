@@ -20,10 +20,9 @@ const client = new Hono();
 client.get("/:clientId/likes", async (c) => {
   const clientId = c.req.param("clientId");
 
-  // Validation: client IDs must match client_{uuid} format
-  // Format: client_ + 36 chars (UUID) with strict hex structure
-  const clientIdRegex =
-    /^client_[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  // Validation: client IDs must match client_{uuid} or client_{timestamp}_{random} format
+  // We accept both strict UUIDs and the browser-generated generic IDs
+  const clientIdRegex = /^client_[a-zA-Z0-9_\-]+$/i;
 
   if (!clientId || !clientIdRegex.test(clientId)) {
     return c.json({ error: "Invalid client ID format" }, 400);

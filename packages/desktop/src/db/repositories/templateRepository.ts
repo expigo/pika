@@ -80,7 +80,7 @@ export const templateRepository = {
    */
   async createTemplate(name: string, slots: TemplateSlot[], description?: string): Promise<number> {
     const sqlite = await getSqlite();
-    const now = Date.now();
+    const now = Math.floor(Date.now() / 1000);
     await sqlite.execute(
       `INSERT INTO set_templates (name, description, slots, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?)`,
@@ -108,7 +108,7 @@ export const templateRepository = {
     const description =
       updates.description !== undefined ? updates.description : existing.description;
     const slots = updates.slots ?? existing.slots;
-    const now = Date.now();
+    const now = Math.floor(Date.now() / 1000);
 
     await sqlite.execute(
       `UPDATE set_templates 

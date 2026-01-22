@@ -9,11 +9,11 @@
  */
 
 import type { ServerWebSocket } from "bun";
-import { activeSessions } from "../lib/sessions";
-import { removeListener, getListenerCount, sessionListeners } from "../lib/listeners";
+import { getSession, deleteSession } from "../lib/sessions";
+import { removeListener, getListenerCount, clearListeners } from "../lib/listeners";
 import { endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
 import { persistTempoVotes } from "../lib/persistence/tracks";
-import { tempoVotes, getTempoFeedback } from "../lib/tempo";
+import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
 import { clearLikesForSession } from "../lib/likes";
 import { logSessionEvent } from "../lib/protocol";
 import type { WSConnectionState } from "./ws-context";
@@ -37,7 +37,7 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
 
   // End DJ session if this was a DJ connection
   if (djSessionId) {
-    const session = activeSessions.get(djSessionId);
+    const session = getSession(djSessionId);
     if (session) {
       console.log(`⚠️ DJ disconnected unexpectedly: ${session.djName} (${djSessionId})`);
 
@@ -52,13 +52,13 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
             faster: feedback.faster,
           });
         }
-        tempoVotes.delete(djSessionId);
+        clearTempoVotes(djSessionId);
       }
 
-      activeSessions.delete(djSessionId);
+      deleteSession(djSessionId);
       endSessionInDb(djSessionId);
       clearLikesForSession(djSessionId);
-      sessionListeners.delete(djSessionId);
+      clearListeners(djSessionId);
       persistedSessions.delete(djSessionId);
 
       // Broadcast session ended to all listeners

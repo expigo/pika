@@ -14,7 +14,7 @@ import { client as clientRoutes } from "./routes/client";
 
 import { cleanupStaleListeners, getListenerCount } from "./lib/listeners";
 import { cachedListenerCounts } from "./lib/cache";
-import { activeSessions } from "./lib/sessions";
+import { getSessionCount, getSessionIds } from "./lib/sessions";
 import * as handlers from "./handlers";
 
 // Type alias for Bun WebSocket
@@ -206,7 +206,7 @@ app.get(
       },
 
       onClose(_event, ws) {
-        handlers.handleClose(ws as WS, state);
+        handlers.handleClose({ raw: (ws as any).raw }, state);
       },
 
       onError(_event, _ws) {
@@ -238,7 +238,7 @@ app.get("/health", async (c) => {
       status: "ok",
       version: PIKA_VERSION,
       timestamp: new Date().toISOString(),
-      activeSessions: activeSessions.size,
+      activeSessions: getSessionCount(),
       database: "connected",
     });
   } catch (e) {
@@ -284,7 +284,7 @@ setInterval(() => {
   const broadcaster = activeBroadcaster;
   if (!broadcaster) return;
 
-  for (const sessionId of activeSessions.keys()) {
+  for (const sessionId of getSessionIds()) {
     const currentCount = getListenerCount(sessionId);
     const lastBroadcasted = cachedListenerCounts.get(sessionId);
 
@@ -333,7 +333,7 @@ async function gracefulShutdown(signal: string) {
   }
 
   // End all active sessions in database
-  const sessionIds = Array.from(activeSessions.keys());
+  const sessionIds = getSessionIds();
   if (sessionIds.length > 0) {
     console.log(`💾 Ending ${sessionIds.length} active session(s)...`);
     await Promise.all(

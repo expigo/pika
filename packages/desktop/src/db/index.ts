@@ -42,30 +42,42 @@ async function initializeDb(): Promise<void> {
     try {
       await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN duration INTEGER;`);
       console.log("Migration: Added duration column to tracks table");
-    } catch {
-      // Column already exists, ignore error
+    } catch (e) {
+      if (!String(e).toLowerCase().includes("duplicate column")) {
+        console.error("❌ Migration Failed (duration):", e);
+        throw e;
+      }
     }
 
     // Migration: Add raw_artist and raw_title columns (Ghost Data fix)
     try {
       await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN raw_artist TEXT;`);
       console.log("Migration: Added raw_artist column to tracks table");
-    } catch {
-      // Column already exists, ignore error
+    } catch (e) {
+      if (!String(e).toLowerCase().includes("duplicate column")) {
+        console.error("❌ Migration Failed (raw_artist):", e);
+        throw e;
+      }
     }
     try {
       await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN raw_title TEXT;`);
       console.log("Migration: Added raw_title column to tracks table");
-    } catch {
-      // Column already exists, ignore error
+    } catch (e) {
+      if (!String(e).toLowerCase().includes("duplicate column")) {
+        console.error("❌ Migration Failed (raw_title):", e);
+        throw e;
+      }
     }
 
     // Migration: Add track_key column for Two-Tier Track Key System
     try {
       await sqliteInstance.execute(`ALTER TABLE tracks ADD COLUMN track_key TEXT;`);
       console.log("Migration: Added track_key column to tracks table");
-    } catch {
-      // Column already exists, ignore error
+    } catch (e) {
+      if (!String(e).toLowerCase().includes("duplicate column")) {
+        console.error("❌ Migration Failed (track_key):", e);
+        throw e;
+      }
     }
 
     // Migration: Add analysis_version column for re-analysis support
@@ -74,8 +86,11 @@ async function initializeDb(): Promise<void> {
         `ALTER TABLE tracks ADD COLUMN analysis_version INTEGER DEFAULT 0;`,
       );
       console.log("Migration: Added analysis_version column to tracks table");
-    } catch {
-      // Column already exists, ignore error
+    } catch (e) {
+      if (!String(e).toLowerCase().includes("duplicate column")) {
+        console.error("❌ Migration Failed (analysis_version):", e);
+        throw e;
+      }
     }
 
     // Backfill track_key for existing tracks
@@ -214,6 +229,35 @@ async function initializeDb(): Promise<void> {
                 updated_at INTEGER NOT NULL
             );
         `);
+
+    // Sprint 2: Performance Indexes
+    try {
+      const indexQueries = [
+        // Plays optimization
+        "CREATE INDEX IF NOT EXISTS idx_plays_session_id ON plays(session_id);",
+        "CREATE INDEX IF NOT EXISTS idx_plays_track_id ON plays(track_id);",
+        "CREATE INDEX IF NOT EXISTS idx_plays_reaction ON plays(reaction);",
+        "CREATE INDEX IF NOT EXISTS idx_plays_played_at ON plays(played_at);",
+
+        // Session sorting/filtering
+        "CREATE INDEX IF NOT EXISTS idx_sessions_ended_at ON sessions(ended_at);",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at);",
+
+        // Track analysis queue
+        "CREATE INDEX IF NOT EXISTS idx_tracks_analyzed ON tracks(analyzed);",
+
+        // Saved sets joins
+        "CREATE INDEX IF NOT EXISTS idx_saved_set_tracks_set_id ON saved_set_tracks(set_id);",
+        "CREATE INDEX IF NOT EXISTS idx_saved_set_tracks_track_id ON saved_set_tracks(track_id);",
+      ];
+
+      for (const query of indexQueries) {
+        await sqliteInstance.execute(query);
+      }
+      console.log("Performance indexes verified");
+    } catch (e) {
+      console.warn("Index creation warning (non-fatal):", e);
+    }
 
     console.log("Database initialized successfully");
   } catch (e) {

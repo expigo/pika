@@ -11,7 +11,7 @@
  */
 
 import { SubscribeSchema } from "@pika/shared";
-import { activeSessions } from "../lib/sessions";
+import { getSession, getAllSessions } from "../lib/sessions";
 import { addListener, getListenerCount } from "../lib/listeners";
 import { getActivePoll, sessionActivePoll } from "../lib/polls";
 import { sendAck, parseMessage } from "../lib/protocol";
@@ -55,7 +55,7 @@ export function handleSubscribe(ctx: WSContext) {
   }
 
   // 🚀 Performance: Lean session listing & backpressure awareness
-  const leanSessions = Array.from(activeSessions.values()).map((s) => ({
+  const leanSessions = getAllSessions().map((s) => ({
     sessionId: s.sessionId,
     djName: s.djName,
     currentTrack: s.currentTrack,
@@ -84,7 +84,7 @@ export function handleSubscribe(ctx: WSContext) {
     );
 
     // Send current track to new subscriber if there is one playing
-    const session = activeSessions.get(targetSession);
+    const session = getSession(targetSession);
     if (session?.currentTrack) {
       ws.send(
         JSON.stringify({

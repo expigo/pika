@@ -114,6 +114,3 @@ export function setSessionAnnouncement(
   session.activeAnnouncement = announcement;
   return true;
 }
-
-// Export the Map for direct access where needed (migration phase)
-export { activeSessions };

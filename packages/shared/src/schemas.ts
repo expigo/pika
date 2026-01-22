@@ -59,17 +59,17 @@ export const MESSAGE_TYPES = {
  * Includes optional fingerprint data for analytics
  */
 export const TrackInfoSchema = z.object({
-  title: z.string(),
-  artist: z.string(),
+  title: z.string().min(1).max(500).trim(),
+  artist: z.string().min(1).max(500).trim(),
   // Core metrics
-  bpm: z.number().optional(),
-  key: z.string().optional(),
+  bpm: z.number().min(0).max(300).optional(),
+  key: z.string().max(10).optional(),
   // Fingerprint metrics (all 0-100 scale)
-  energy: z.number().optional(),
-  danceability: z.number().optional(),
-  brightness: z.number().optional(),
-  acousticness: z.number().optional(),
-  groove: z.number().optional(),
+  energy: z.number().min(0).max(100).optional(),
+  danceability: z.number().min(0).max(100).optional(),
+  brightness: z.number().min(0).max(100).optional(),
+  acousticness: z.number().min(0).max(100).optional(),
+  groove: z.number().min(0).max(100).optional(),
 });
 
 export type TrackInfo = z.infer<typeof TrackInfoSchema>;
@@ -78,12 +78,12 @@ export type TrackInfo = z.infer<typeof TrackInfoSchema>;
  * Full track metadata (for library/database)
  */
 export const TrackMetadataSchema = z.object({
-  title: z.string(),
-  artist: z.string(),
-  filePath: z.string().optional(),
-  bpm: z.number().min(0).max(300).optional(),
+  title: z.string().min(1).max(500).trim(),
+  artist: z.string().min(1).max(500).trim(),
+  filePath: z.string().min(1).optional(),
+  bpm: z.number().min(40).max(300).optional(),
   energy: z.number().min(0).max(100).optional(),
-  key: z.string().optional(),
+  key: z.string().max(10).optional(),
 });
 
 export type TrackMetadata = z.infer<typeof TrackMetadataSchema>;
@@ -133,31 +133,36 @@ export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
 export const RegisterSessionSchema = z.object({
   type: z.literal(MESSAGE_TYPES.REGISTER_SESSION),
-  sessionId: z.string().optional(),
-  djName: z.string().optional(),
-  token: z.string().optional(), // JWT for DJ authentication
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim().optional(),
+  djName: z.string().min(1).max(100).trim().optional(),
+  token: z.string().min(50).max(2000).optional(), // JWT for DJ authentication
 });
 
 export const BroadcastTrackSchema = z.object({
   type: z.literal(MESSAGE_TYPES.BROADCAST_TRACK),
-  sessionId: z.string(),
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim(),
   track: TrackInfoSchema,
 });
 
 export const TrackStoppedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.TRACK_STOPPED),
-  sessionId: z.string(),
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim(),
 });
 
 export const EndSessionSchema = z.object({
   type: z.literal(MESSAGE_TYPES.END_SESSION),
-  sessionId: z.string(),
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim(),
 });
 
 export const SubscribeSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SUBSCRIBE),
-  sessionId: z.string().optional(), // Session to subscribe to (for listener tracking)
-  clientId: z.string().optional(), // Client identifier (for unique listener count)
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim().optional(), // Session to subscribe to (for listener tracking)
+  clientId: z.string().min(8).max(256).trim().optional(), // Client identifier (for unique listener count)
 });
 
 export const SendLikeSchema = z.object({
@@ -187,27 +192,31 @@ export const PongSchema = z.object({
 
 export const SessionRegisteredSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_REGISTERED),
-  sessionId: z.string(),
-  djName: z.string().optional(), // Confirmed display name (may differ from requested)
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim(),
+  djName: z.string().min(1).max(100).trim().optional(), // Confirmed display name (may differ from requested)
   authenticated: z.boolean().optional(), // True if token was valid
 });
 
 export const SessionStartedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_STARTED),
-  sessionId: z.string(),
-  djName: z.string(),
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim(),
+  djName: z.string().min(1).max(100).trim(),
 });
 
 export const NowPlayingSchema = z.object({
   type: z.literal(MESSAGE_TYPES.NOW_PLAYING),
-  sessionId: z.string(),
-  djName: z.string(),
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim(),
+  djName: z.string().min(1).max(100).trim(),
   track: TrackInfoSchema,
 });
 
 export const SessionEndedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_ENDED),
-  sessionId: z.string(),
+  version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim(),
 });
 
 export const SessionsListSchema = z.object({
@@ -278,7 +287,7 @@ export const StartPollSchema = z.object({
   type: z.literal(MESSAGE_TYPES.START_POLL),
   sessionId: z.string(),
   question: z.string(),
-  options: z.array(z.string()).min(2).max(5), // 2-5 options
+  options: z.array(z.string().min(1).max(100)).min(2).max(10), // 2-10 options, max 100 chars per option
   durationSeconds: z.number().min(30).max(300).optional(), // 30s to 5min, optional
 });
 

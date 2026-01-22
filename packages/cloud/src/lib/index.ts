@@ -11,7 +11,6 @@ export {
   removeListener,
   clearListeners,
   cleanupStaleListeners,
-  sessionListeners,
 } from "./listeners";
 
 // Tempo feedback
@@ -19,7 +18,6 @@ export {
   getTempoFeedback,
   recordTempoVote,
   clearTempoVotes,
-  tempoVotes,
   type TempoVote,
 } from "./tempo";
 

@@ -13,7 +13,7 @@
  */
 
 import { StartPollSchema, EndPollSchema, CancelPollSchema, VoteOnPollSchema } from "@pika/shared";
-import { activeSessions } from "../lib/sessions";
+import { getSession } from "../lib/sessions";
 import {
   activePolls,
   endPoll,
@@ -45,7 +45,21 @@ export async function handleStartPoll(ctx: WSContext) {
   }
 
   const { question, options, durationSeconds } = msg;
-  const session = activeSessions.get(msg.sessionId);
+
+  // 🛡️ Safe Limits: Poll Validation
+  if (options.length < 2 || options.length > 10) {
+    console.warn(`⚠️ Poll rejected: Invalid option count (${options.length})`);
+    if (messageId) sendNack(ws, messageId, "Poll must have 2-10 options");
+    return;
+  }
+
+  if (options.some((opt) => opt.length === 0 || opt.length > 100)) {
+    console.warn(`⚠️ Poll rejected: Invalid option length`);
+    if (messageId) sendNack(ws, messageId, "Poll options must be 1-100 characters");
+    return;
+  }
+
+  const session = getSession(msg.sessionId);
 
   // 💾 Persist poll to database first to get an ID
   const pollId = await createPollInDb(msg.sessionId, question, options, session?.currentTrack);

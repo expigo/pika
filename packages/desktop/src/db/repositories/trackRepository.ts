@@ -21,6 +21,11 @@ export interface VirtualDJTrack {
   duration?: number;
 }
 
+interface SqlQueryResult {
+  rowsAffected: number;
+  lastInsertId: number;
+}
+
 // Re-export AnalysisResult for backwards compatibility
 export type { AnalysisResult } from "@pika/shared";
 
@@ -307,13 +312,23 @@ export const trackRepository = {
   /**
    * Delete multiple tracks by IDs
    */
+  /**
+   * Delete multiple tracks by IDs (Batch Optimized)
+   */
   async deleteTracks(ids: number[]): Promise<number> {
-    let deleted = 0;
-    for (const id of ids) {
-      const success = await this.deleteTrack(id);
-      if (success) deleted++;
+    if (ids.length === 0) return 0;
+
+    try {
+      const sqlite = await getSqlite();
+      const placeholders = ids.map(() => "?").join(",");
+      const result = await sqlite.execute(`DELETE FROM tracks WHERE id IN (${placeholders})`, ids);
+
+      console.log(`Batch deleted ${ids.length} tracks`);
+      return (result as any).rowsAffected ?? 0;
+    } catch (e) {
+      console.error("Failed to batch delete tracks:", e);
+      return 0;
     }
-    return deleted;
   },
 
   /**

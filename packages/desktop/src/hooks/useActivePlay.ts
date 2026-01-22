@@ -4,6 +4,7 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { type PlayWithTrack, sessionRepository } from "../db/repositories/sessionRepository";
 import type { PlayReaction } from "../db/schema";
 import { useLiveStore } from "./useLiveSession";
@@ -77,11 +78,18 @@ export function useActivePlay(pollIntervalMs = 1500): UseActivePlayResult {
     async (reaction: PlayReaction) => {
       if (!currentPlay) return;
 
-      await sessionRepository.updatePlayReaction(currentPlay.id, reaction);
+      try {
+        await sessionRepository.updatePlayReaction(currentPlay.id, reaction);
 
-      // Update local state immediately
-      setCurrentPlay((prev) => (prev ? { ...prev, reaction } : null));
-      setRecentPlays((prev) => prev.map((p) => (p.id === currentPlay.id ? { ...p, reaction } : p)));
+        // Update local state immediately
+        setCurrentPlay((prev) => (prev ? { ...prev, reaction } : null));
+        setRecentPlays((prev) =>
+          prev.map((p) => (p.id === currentPlay.id ? { ...p, reaction } : p)),
+        );
+      } catch (e) {
+        console.error("Failed to update reaction:", e);
+        toast.error("Failed to save reaction");
+      }
     },
     [currentPlay],
   );
@@ -91,11 +99,16 @@ export function useActivePlay(pollIntervalMs = 1500): UseActivePlayResult {
     async (notes: string) => {
       if (!currentPlay) return;
 
-      await sessionRepository.updatePlayNotes(currentPlay.id, notes);
+      try {
+        await sessionRepository.updatePlayNotes(currentPlay.id, notes);
 
-      // Update local state immediately
-      setCurrentPlay((prev) => (prev ? { ...prev, notes } : null));
-      setRecentPlays((prev) => prev.map((p) => (p.id === currentPlay.id ? { ...p, notes } : p)));
+        // Update local state immediately
+        setCurrentPlay((prev) => (prev ? { ...prev, notes } : null));
+        setRecentPlays((prev) => prev.map((p) => (p.id === currentPlay.id ? { ...p, notes } : p)));
+      } catch (e) {
+        console.error("Failed to update notes:", e);
+        toast.error("Failed to save notes");
+      }
     },
     [currentPlay],
   );

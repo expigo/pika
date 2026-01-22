@@ -14,9 +14,8 @@
 import { Hono } from "hono";
 import { and, count, desc, eq, inArray, isNotNull } from "drizzle-orm";
 import { db, schema } from "../db";
-import { activeSessions } from "../lib/sessions";
+import { getAllSessions } from "../lib/sessions";
 import { getListenerCount } from "../lib/listeners";
-import { likesSent } from "../lib/likes";
 import { withCache } from "../lib/cache";
 import { validateToken } from "../lib/auth";
 
@@ -31,7 +30,7 @@ const sessions = new Hono();
  * Get all active sessions (simple list)
  */
 sessions.get("/", (c) => {
-  const sessionsList = Array.from(activeSessions.values());
+  const sessionsList = getAllSessions();
   return c.json(sessionsList);
 });
 
@@ -40,41 +39,46 @@ sessions.get("/", (c) => {
  * Get active sessions for landing page (lightweight check, no WebSocket needed)
  */
 sessions.get("/active", (c) => {
-  const sessionsList = Array.from(activeSessions.values());
+  try {
+    const sessionsList = getAllSessions();
 
-  if (sessionsList.length === 0) {
+    if (sessionsList.length === 0) {
+      return c.json({
+        live: false,
+        sessions: [],
+      });
+    }
+
+    // Return active sessions with basic info
+    const activeSummary = sessionsList.map((session) => ({
+      sessionId: session.sessionId,
+      djName: session.djName,
+      startedAt: session.startedAt,
+      currentTrack: session.currentTrack
+        ? {
+            title: session.currentTrack.title,
+            artist: session.currentTrack.artist,
+            bpm: session.currentTrack.bpm,
+          }
+        : null,
+      listenerCount: getListenerCount(session.sessionId),
+      // Calculate Vibe Momentum (0.0 to 1.0)
+      // Formula: (Listeners * 0.4) + (RecentLikes * 0.6) - normalized
+      momentum: Math.min(
+        1,
+        getListenerCount(session.sessionId) * 0.05 + 0, // RecentLikes removed (was broken/encapsulated)
+      ),
+    }));
+
     return c.json({
-      live: false,
-      sessions: [],
+      live: true,
+      count: sessionsList.length,
+      sessions: activeSummary,
     });
+  } catch (e) {
+    console.error("Failed to fetch active sessions:", e);
+    return c.json({ error: "Internal Server Error" }, 500);
   }
-
-  // Return active sessions with basic info
-  const activeSummary = sessionsList.map((session) => ({
-    sessionId: session.sessionId,
-    djName: session.djName,
-    startedAt: session.startedAt,
-    currentTrack: session.currentTrack
-      ? {
-          title: session.currentTrack.title,
-          artist: session.currentTrack.artist,
-          bpm: session.currentTrack.bpm,
-        }
-      : null,
-    listenerCount: getListenerCount(session.sessionId),
-    // Calculate Vibe Momentum (0.0 to 1.0)
-    // Formula: (Listeners * 0.4) + (RecentLikes * 0.6) - normalized
-    momentum: Math.min(
-      1,
-      getListenerCount(session.sessionId) * 0.05 + (likesSent.get(session.sessionId) ? 0.2 : 0),
-    ),
-  }));
-
-  return c.json({
-    live: true,
-    count: sessionsList.length,
-    sessions: activeSummary,
-  });
 });
 
 /**
@@ -147,6 +151,7 @@ sessions.get("/:sessionId/recap", async (c) => {
     const sessionData = await db
       .select({
         id: schema.sessions.id,
+        djUserId: schema.sessions.djUserId,
         djName: schema.sessions.djName,
         startedAt: schema.sessions.startedAt,
         endedAt: schema.sessions.endedAt,
@@ -174,7 +179,8 @@ sessions.get("/:sessionId/recap", async (c) => {
       })
       .from(schema.playedTracks)
       .where(eq(schema.playedTracks.sessionId, sessionId))
-      .orderBy(schema.playedTracks.playedAt);
+      .orderBy(schema.playedTracks.playedAt)
+      .limit(500); // 🛡️ S1.1.4: Limit cap for safety
 
     if (!dbSession) {
       console.log(`📭 Recap not found for session: ${sessionId} (session not in DB)`);

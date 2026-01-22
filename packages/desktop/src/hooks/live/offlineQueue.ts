@@ -129,6 +129,7 @@ export async function flushQueue(): Promise<void> {
     }
   } catch (e) {
     console.error("[Queue] Failed to flush queue:", e);
+    toast.error("Offline sync failed - will retry");
   } finally {
     isFlushingQueue = false;
   }
