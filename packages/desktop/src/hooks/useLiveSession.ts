@@ -36,6 +36,7 @@ import {
 import {
   CONNECTION_TIMEOUT_MS,
   GHOST_FILE_PREFIX,
+  LIKE_STORAGE_DEBOUNCE_MS,
   MAX_ANNOUNCEMENT_DURATION_SECONDS,
   MAX_ANNOUNCEMENT_LENGTH,
   MAX_POLL_DURATION_SECONDS,
@@ -73,6 +74,32 @@ export { subscribeToReactions } from "./live";
 // =============================================================================
 
 let socketInstance: ReconnectingWebSocket | null = null;
+
+// Like storage batching (H4 fix - prevents DB spam)
+let pendingLikeCount = 0;
+let likeStorageTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Flush pending likes to database (batched write)
+ * Calls incrementDancerLikes once per pending like
+ */
+async function flushPendingLikes(playId: number): Promise<void> {
+  const count = pendingLikeCount;
+  pendingLikeCount = 0;
+  likeStorageTimer = null;
+
+  if (count > 0) {
+    try {
+      // Write all pending likes in sequence
+      for (let i = 0; i < count; i++) {
+        await sessionRepository.incrementDancerLikes(playId);
+      }
+      logger.debug("Live", "Batched likes stored", { playId, count });
+    } catch (error) {
+      logger.error("Live", "Failed to store batched likes", error);
+    }
+  }
+}
 
 /**
  * Track info from database with fingerprint data
@@ -393,17 +420,17 @@ export function useLiveSession() {
             addToPendingLikes(trackTitle);
             useLiveStore.getState().incrementLiveLikes();
 
-            // Store like in database
+            // Debounced DB storage (H4 fix - prevents spam writes)
             const currentPlayId = getStoreCurrentPlayId();
             if (currentPlayId) {
-              void (async () => {
-                try {
-                  await sessionRepository.incrementDancerLikes(currentPlayId);
-                  logger.debug("Live", "Like stored", { playId: currentPlayId });
-                } catch (error) {
-                  logger.error("Live", "Failed to store like", error);
-                }
-              })();
+              pendingLikeCount++;
+              // Clear existing timer and set new one
+              if (likeStorageTimer) {
+                clearTimeout(likeStorageTimer);
+              }
+              likeStorageTimer = setTimeout(() => {
+                void flushPendingLikes(currentPlayId);
+              }, LIKE_STORAGE_DEBOUNCE_MS);
             } else {
               logger.warn("Live", "No current play ID to store like");
             }
@@ -827,24 +854,14 @@ export function useLiveSession() {
       logger.info("Live", "Resent track", { title: currentTrack.title });
     }
 
-    // 2. Resend active poll
+    // 2. Note: We intentionally DON'T resend polls in forceSync
+    // Reason: If poll has a server ID (>= 0), resending START_POLL would create duplicates
+    // If server truly lost state, DJ should manually restart the poll
     const poll = useLiveStore.getState().activePoll;
-    if (poll) {
-      // Resend poll start or update
-      if (poll.id >= 0) {
-        // If it has an ID, maybe just send an update or nothing?
-        // Actually, if server lost state, we might need to "restart" it.
-        // But for now let's assume server mostly kept state and we just want to ensure client is active.
-        // Let's just send the track for now, as that's the most critical "missing" piece usually.
-        // Actually, let's re-send the poll start just in case.
-        sendMessage({
-          type: "START_POLL",
-          sessionId: getStoreSessionId(),
-          question: poll.question,
-          options: poll.options,
-          // We don't know original duration, so maybe omit?
-        });
-      }
+    if (poll && poll.id >= 0) {
+      logger.debug("Live", "Active poll exists, not resending to avoid duplicates", {
+        pollId: poll.id,
+      });
     }
 
     toast.success("State synced!");
@@ -858,6 +875,13 @@ export function useLiveSession() {
         logger.debug("Live", "Cleaning up socket on unmount");
         socketInstance.close();
         socketInstance = null;
+      }
+      // Clear pending message timeouts (H6 fix)
+      clearPendingMessages();
+      // Clear like storage timer
+      if (likeStorageTimer) {
+        clearTimeout(likeStorageTimer);
+        likeStorageTimer = null;
       }
       // Clear message router context
       messageRouter.clearContext();

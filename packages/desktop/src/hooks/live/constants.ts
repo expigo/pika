@@ -58,6 +58,9 @@ export const LIKE_BATCH_THRESHOLD = 5;
 /** Number of queued messages before showing sync toast */
 export const QUEUE_TOAST_THRESHOLD = 5;
 
+/** Debounce interval for batching like storage to DB (prevents spam writes) */
+export const LIKE_STORAGE_DEBOUNCE_MS = 2000;
+
 /** Maximum consecutive failures before stopping queue flush */
 export const MAX_CONSECUTIVE_FAILURES = 3;
 
