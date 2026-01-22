@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import { fetch } from "@tauri-apps/plugin-http";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AnalysisResult,
   type Track,
@@ -89,6 +89,41 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
   const activeSet = useSetStore((state) => state.activeSet);
   const playedTrackKeys = useLiveStore((state) => state.playedTrackKeys);
   const { baseUrl: sidecarBaseUrl } = useSidecar();
+
+  const isInSet = useCallback(
+    (trackId: number) => activeSet.some((t) => t.id === trackId),
+    [activeSet],
+  );
+
+  // Keyboard Navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedTrackId) return;
+
+      const currentIndex = filteredAndSortedTracks.findIndex((t) => t.id === selectedTrackId);
+      if (currentIndex === -1) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        const nextIndex = Math.min(currentIndex + 1, filteredAndSortedTracks.length - 1);
+        setSelectedTrackId(filteredAndSortedTracks[nextIndex].id);
+        // Ensure visible (would need ref to virtualizer, but state change triggers re-render)
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        const prevIndex = Math.max(currentIndex - 1, 0);
+        setSelectedTrackId(filteredAndSortedTracks[prevIndex].id);
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const track = filteredAndSortedTracks[currentIndex];
+        if (track && !isInSet(track.id)) {
+          addTrack(track);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedTrackId, filteredAndSortedTracks, setSelectedTrackId, addTrack, isInSet]); // Dependencies
 
   // 5. Local UI State
   const [trackPerformance, setTrackPerformance] = useState<TrackPlayHistory | null>(null);
@@ -176,8 +211,6 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
     return parts[parts.length - 1] || filePath;
   };
 
-  const isInSet = (trackId: number) => activeSet.some((t) => t.id === trackId);
-
   // Rendering Helpers
   const SortIcon = ({ columnKey, className = "" }: { columnKey: SortKey; className?: string }) => {
     if (sortKey !== columnKey) {
@@ -215,18 +248,32 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
   // Loading UI
   if (loading && tracks.length === 0) {
     return (
-      <div className="flex flex-col h-full bg-slate-950 rounded-xl overflow-hidden border border-slate-800">
-        <div className="flex items-center justify-between p-3 bg-slate-900/50 border-b border-slate-800">
-          <span className="flex items-center text-sm font-bold text-slate-200">
-            <Music size={16} className="mr-2 text-pika-accent" />
-            Library
-          </span>
+      <div className="pro-table-container animate-pulse">
+        {/* Skeleton Header */}
+        <div className="flex items-center justify-between p-3 border-b border-white/5 bg-pika-surface-1">
+          <div className="h-8 w-48 bg-slate-800/50 rounded-lg" />
+          <div className="h-8 w-24 bg-slate-800/50 rounded-lg" />
         </div>
-        <div className="flex-1 flex flex-col items-center justify-center text-slate-500 gap-3">
-          <RefreshCw size={24} className="animate-spin text-pika-accent opacity-50" />
-          <span className="text-xs font-medium uppercase tracking-widest">
-            Warming up library...
-          </span>
+        {/* Skeleton Rows */}
+        <div className="flex-1 p-4 space-y-3 opacity-50">
+          {[...Array(15)].map((_, i) => (
+            <div key={i} className="flex gap-4 items-center h-8">
+              <div className="h-4 w-6 bg-slate-800 rounded" />
+              <div className="h-4 w-32 bg-slate-800 rounded flex-1" />
+              <div className="h-4 w-48 bg-slate-800 rounded flex-[1.5]" />
+              <div className="h-4 w-12 bg-slate-800 rounded" />
+              <div className="h-4 w-12 bg-slate-800 rounded" />
+              <div className="h-4 w-12 bg-slate-800 rounded" />
+            </div>
+          ))}
+        </div>
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-slate-900/80 px-4 py-2 rounded-full border border-pika-border backdrop-blur shadow-xl flex items-center gap-3">
+            <RefreshCw size={16} className="animate-spin text-pika-accent" />
+            <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">
+              Loading Details...
+            </span>
+          </div>
         </div>
       </div>
     );

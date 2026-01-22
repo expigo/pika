@@ -46,6 +46,8 @@ const LazyFallback = () => (
   </div>
 );
 
+import { StartupAnimation } from "./components/StartupAnimation";
+
 function App() {
   const { settings } = useSettings();
   const { status, baseUrl } = useSidecar();
@@ -116,6 +118,7 @@ function App() {
 
   return (
     <div className={`app-shell ${isAnyResizing ? "select-none cursor-resizing" : ""}`}>
+      <StartupAnimation />
       {/* 1. Sidebar Navigation */}
       <nav className="pro-nav">
         <div className="flex flex-col items-center gap-6">
