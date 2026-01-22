@@ -325,6 +325,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
               {isLive && (
                 <button
                   onClick={handleShare}
+                  aria-label="Share session"
                   className="w-10 h-10 flex items-center justify-center bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-white transition-all shadow-xl"
                 >
                   <Share2 className="w-4 h-4" />
@@ -361,6 +362,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                   <button
                     onClick={handleLike}
                     disabled={isLiked}
+                    aria-label={isLiked ? "Track already liked" : "Like this track"}
                     className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 ${
                       isLiked
                         ? "bg-red-500/20 border-2 border-red-500/50 scale-100 shadow-none"
@@ -414,6 +416,8 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                       <button
                         key={btn.id}
                         onClick={() => sendTempoRequest(btn.id)}
+                        aria-label={`Vote for tempo: ${btn.label}`}
+                        aria-pressed={isActive}
                         className={`flex-1 py-3 rounded-2xl flex flex-col items-center justify-center transition-all border font-black text-[9px] uppercase tracking-widest gap-1 active:scale-90 ${
                           isActive
                             ? `${btn.activeClass} shadow-lg`

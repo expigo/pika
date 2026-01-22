@@ -217,6 +217,7 @@ export default function LandingPage() {
                     src="/screenshots/dj/vdj-sync.png"
                     alt="DJ Booth Integration"
                     fill
+                    sizes="(max-width: 1000px) 100vw, 1000px"
                     priority
                     className="object-cover object-center scale-105 group-hover:scale-110 transition-transform duration-[4s] ease-out"
                   />
@@ -244,6 +245,7 @@ export default function LandingPage() {
                       src="/screenshots/dancer/live-id.png"
                       alt="Dancer Mobile View"
                       fill
+                      sizes="(max-width: 640px) 130px, 260px"
                       priority
                       className="object-cover opacity-90 group-hover/handshake:opacity-100 transition-opacity duration-700"
                     />
@@ -301,6 +303,7 @@ export default function LandingPage() {
                 src="/screenshots/dj/track-inspector.png"
                 alt="Pika! Track Inspector"
                 fill
+                sizes="360px"
                 className="object-cover scale-110 group-hover/handshake:scale-100 transition-transform duration-[3s] ease-out opacity-90 group-hover/handshake:opacity-100"
               />
 
@@ -586,6 +589,7 @@ export default function LandingPage() {
                     src="/screenshots/dj/governance-view.png"
                     alt="High Resolution Performance Mode"
                     fill
+                    sizes="(max-width: 1024px) 100vw, 600px"
                     className="object-cover opacity-80 group-hover/booth:opacity-100 transition-all duration-[2s]"
                   />
                   {/* Glass Sweep Animation */}
@@ -603,6 +607,7 @@ export default function LandingPage() {
                         src="/screenshots/dancer/live-id.png"
                         alt="Floor Signal"
                         fill
+                        sizes="192px"
                         className="object-cover opacity-80 group-hover/booth:opacity-100 transition-all duration-[2s]"
                       />
                       {/* Glass Sweep Animation */}

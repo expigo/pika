@@ -38,6 +38,7 @@ export function ProCard({
             src={bgImage}
             alt=""
             fill
+            sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover scale-110 group-hover/card:scale-100 transition-transform duration-[3s]"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />

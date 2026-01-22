@@ -1,7 +1,8 @@
 "use client";
 
-import { use } from "react";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { LivePlayer } from "@/components/LivePlayer";
+import { use } from "react";
 
 /**
  * /live/[sessionId] - Join a specific DJ session
@@ -12,5 +13,9 @@ import { LivePlayer } from "@/components/LivePlayer";
 export default function SessionPage({ params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = use(params);
 
-  return <LivePlayer targetSessionId={sessionId} />;
+  return (
+    <ErrorBoundary>
+      <LivePlayer targetSessionId={sessionId} />
+    </ErrorBoundary>
+  );
 }

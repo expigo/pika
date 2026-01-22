@@ -19,6 +19,7 @@ import { useCallback, useEffect, useState } from "react";
 import { LivePlayer } from "@/components/LivePlayer";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
+import { getApiBaseUrl } from "@/lib/api";
 
 interface ActiveSession {
   sessionId: string;
@@ -61,7 +62,7 @@ export default function LivePage() {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
   const fetchAllData = useCallback(async () => {
-    const apiUrl = process.env.NEXT_PUBLIC_CLOUD_API_URL || "http://localhost:3001";
+    const apiUrl = getApiBaseUrl();
     setLoading(true);
     setError(null);
 
