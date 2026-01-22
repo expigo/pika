@@ -205,39 +205,17 @@ export const trackRepository = {
     const { getTrackKey } = await import("@pika/shared");
     const trackKey = getTrackKey(track.artist ?? "", track.title ?? "");
 
-    // Check if track already exists by track_key (O(log n) indexed lookup)
-    const existing = await sqlite.select<{ id: number }[]>(
-      `SELECT id FROM tracks WHERE track_key = ?`,
-      [trackKey],
-    );
-
-    if (existing.length > 0) {
-      // Track exists - update metadata if provided
-      const trackId = existing[0].id;
-      await sqlite.execute(
-        `UPDATE tracks SET 
-          artist = COALESCE(?, artist),
-          title = COALESCE(?, title),
-          file_path = COALESCE(?, file_path),
-          bpm = COALESCE(?, bpm), 
-          key = COALESCE(?, key) 
-        WHERE id = ?`,
-        [
-          track.artist ?? null,
-          track.title ?? null,
-          track.filePath,
-          track.bpm ?? null,
-          track.key ?? null,
-          trackId,
-        ],
-      );
-      return trackId;
-    }
-
-    // Insert new track
+    // S0.3.2 Fix: Use atomic UPSERT (ON CONFLICT) to prevent TOCTOU races
     await sqlite.execute(
       `INSERT INTO tracks (file_path, artist, title, bpm, key, track_key, analyzed) 
-       VALUES (?, ?, ?, ?, ?, ?, 0)`,
+       VALUES (?, ?, ?, ?, ?, ?, 0)
+       ON CONFLICT(track_key) DO UPDATE SET
+         artist = COALESCE(excluded.artist, artist),
+         title = COALESCE(excluded.title, title),
+         file_path = COALESCE(excluded.file_path, file_path),
+         bpm = COALESCE(excluded.bpm, bpm),
+         key = COALESCE(excluded.key, key)
+      `,
       [
         track.filePath,
         track.artist ?? null,
@@ -248,17 +226,17 @@ export const trackRepository = {
       ],
     );
 
-    // Query back by track_key
-    const inserted = await sqlite.select<{ id: number }[]>(
+    // Query back the ID (safe now as it's guaranteed to exist)
+    const result = await sqlite.select<{ id: number }[]>(
       `SELECT id FROM tracks WHERE track_key = ?`,
       [trackKey],
     );
 
-    if (inserted.length === 0) {
-      throw new Error(`Failed to insert track: ${track.filePath}`);
+    if (result.length === 0) {
+      throw new Error(`Failed to insert/update track: ${track.filePath}`);
     }
 
-    return inserted[0].id;
+    return result[0].id;
   },
 
   async getTrackCount(): Promise<number> {

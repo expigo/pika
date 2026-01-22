@@ -13,6 +13,10 @@ async function initializeDb(): Promise<void> {
   try {
     sqliteInstance = await Database.load("sqlite:pika.db");
 
+    // S0.3.1 Fix: Enable WAL mode and busy_timeout for concurrency
+    await sqliteInstance.execute("PRAGMA journal_mode = WAL;");
+    await sqliteInstance.execute("PRAGMA busy_timeout = 5000;");
+
     // Create tracks table
     await sqliteInstance.execute(`
             CREATE TABLE IF NOT EXISTS tracks (

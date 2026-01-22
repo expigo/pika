@@ -47,9 +47,8 @@ const seenNonces = new Map<string, NonceEntry>();
 export function checkAndRecordNonce(nonce: string | undefined, sessionId: string): boolean {
   if (!nonce) return true; // No nonce = no deduplication (legacy clients)
 
-  // Check if already seen
-  const existing = seenNonces.get(nonce);
-  if (existing) {
+  // S0.3.3 Fix: Atomic check-and-set pattern
+  if (seenNonces.has(nonce)) {
     console.log(
       `🔄 Duplicate nonce detected: ${nonce.substring(0, 16)}... (session: ${sessionId})`,
     );

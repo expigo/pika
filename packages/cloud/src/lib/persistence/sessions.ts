@@ -35,10 +35,7 @@ const sessionWaiters = new Map<string, Array<(value: boolean) => void>>();
  * @param timeoutMs - Maximum time to wait (default 4000ms for backwards compat)
  * @returns true if session is ready, false if timeout
  */
-export async function waitForSession(
-  sessionId: string,
-  timeoutMs = 4000,
-): Promise<boolean> {
+export async function waitForSession(sessionId: string, timeoutMs = 4000): Promise<boolean> {
   // Fast path: already persisted
   if (persistedSessions.has(sessionId)) return true;
   if (process.env.NODE_ENV === "test") return true;
@@ -71,11 +68,17 @@ export async function waitForSession(
 function signalSessionReady(sessionId: string): void {
   const waiters = sessionWaiters.get(sessionId);
   if (waiters && waiters.length > 0) {
-    console.log(`📢 Signaling session ready to ${waiters.length} waiters: ${sessionId.substring(0, 8)}...`);
-    for (const resolve of waiters) {
+    console.log(
+      `📢 Signaling session ready to ${waiters.length} waiters: ${sessionId.substring(0, 8)}...`,
+    );
+
+    // S0.3.1 Fix: Defensive copy to allow mutation during iteration
+    const waitersCopy = [...waiters];
+    sessionWaiters.delete(sessionId);
+
+    for (const resolve of waitersCopy) {
       resolve(true);
     }
-    sessionWaiters.delete(sessionId);
   }
 }
 
@@ -158,4 +161,3 @@ export async function endSessionInDb(sessionId: string): Promise<void> {
     console.error("❌ Failed to end session in DB:", e);
   }
 }
-
