@@ -213,6 +213,15 @@ export function LivePerformanceMode({
     }, 250);
   }, []);
 
+  // S0.2.4 Fix: Clean up confetti interval on unmount
+  useEffect(() => {
+    return () => {
+      if (confettiIntervalRef.current) {
+        clearInterval(confettiIntervalRef.current);
+      }
+    };
+  }, []);
+
   // Reaction Subscription (Confetti with Velocity Tracking)
   useEffect(() => {
     return subscribeToReactions((reaction) => {

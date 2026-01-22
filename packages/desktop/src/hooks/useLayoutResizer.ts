@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
 export interface LayoutResizer {
   splitOffset: number;
@@ -23,76 +23,94 @@ export function useLayoutResizer(): LayoutResizer {
   const [isResizingV, setIsResizingV] = useState(false);
   const [isResizingTopH, setIsResizingTopH] = useState(false);
 
+  // Refs to store start values for delta calculation
+  const startRef = useRef({ x: 0, y: 0, width: 0, height: 0 });
+
+  // Top Horizontal Resizer (X-Ray vs Stats)
   const startResizingTopH = useCallback(
     (e: React.MouseEvent) => {
       setIsResizingTopH(true);
-      const startX = e.clientX;
-      const startWidth = topSplitOffset;
-
-      const handleMouseMove = (mmE: MouseEvent) => {
-        const deltaX = mmE.clientX - startX;
-        const deltaPercent = (deltaX / window.innerWidth) * 100;
-        setTopSplitOffset(Math.min(90, Math.max(50, startWidth + deltaPercent)));
-      };
-
-      const handleMouseUp = () => {
-        setIsResizingTopH(false);
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      startRef.current = { x: e.clientX, y: 0, width: topSplitOffset, height: 0 };
     },
     [topSplitOffset],
   );
 
+  useEffect(() => {
+    if (!isResizingTopH) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startRef.current.x;
+      const deltaPercent = (deltaX / window.innerWidth) * 100;
+      setTopSplitOffset(Math.min(90, Math.max(50, startRef.current.width + deltaPercent)));
+    };
+
+    const handleMouseUp = () => setIsResizingTopH(false);
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingTopH]);
+
+  // Vertical Resizer (Top Row Height)
   const startResizingV = useCallback(
     (e: React.MouseEvent) => {
       setIsResizingV(true);
-      const startY = e.clientY;
-      const startHeight = topHeight;
-
-      const handleMouseMove = (mmE: MouseEvent) => {
-        const deltaY = mmE.clientY - startY;
-        setTopHeight(Math.min(600, Math.max(120, startHeight + deltaY)));
-      };
-
-      const handleMouseUp = () => {
-        setIsResizingV(false);
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      startRef.current = { x: 0, y: e.clientY, width: 0, height: topHeight };
     },
     [topHeight],
   );
 
+  useEffect(() => {
+    if (!isResizingV) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaY = e.clientY - startRef.current.y;
+      setTopHeight(Math.min(600, Math.max(120, startRef.current.height + deltaY)));
+    };
+
+    const handleMouseUp = () => setIsResizingV(false);
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingV]);
+
+  // Main Horizontal Resizer (Library vs Sidecar)
   const startResizingH = useCallback(
     (e: React.MouseEvent) => {
       setIsResizingH(true);
-      const startX = e.clientX;
-      const startWidth = splitOffset;
-
-      const handleMouseMove = (mmE: MouseEvent) => {
-        const deltaX = mmE.clientX - startX;
-        const deltaPercent = (deltaX / window.innerWidth) * 100;
-        setSplitOffset(Math.min(85, Math.max(15, startWidth + deltaPercent)));
-      };
-
-      const handleMouseUp = () => {
-        setIsResizingH(false);
-        window.removeEventListener("mousemove", handleMouseMove);
-        window.removeEventListener("mouseup", handleMouseUp);
-      };
-
-      window.addEventListener("mousemove", handleMouseMove);
-      window.addEventListener("mouseup", handleMouseUp);
+      startRef.current = { x: e.clientX, y: 0, width: splitOffset, height: 0 };
     },
     [splitOffset],
   );
+
+  useEffect(() => {
+    if (!isResizingH) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - startRef.current.x;
+      const deltaPercent = (deltaX / window.innerWidth) * 100;
+      setSplitOffset(Math.min(85, Math.max(15, startRef.current.width + deltaPercent)));
+    };
+
+    const handleMouseUp = () => setIsResizingH(false);
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isResizingH]);
 
   return {
     splitOffset,

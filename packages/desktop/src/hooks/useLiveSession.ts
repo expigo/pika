@@ -493,6 +493,13 @@ export function useLiveSession() {
         const { wsUrl } = getConfiguredUrls();
         logger.info("Live", "Connecting to cloud", { wsUrl });
 
+        // S0.2.3 Fix: Ensure strict cleanup of existing socket before creating new one
+        if (socketInstance) {
+          logger.warn("Live", "Closing existing orphan socket before reconnecting");
+          socketInstance.close();
+          socketInstance = null;
+        }
+
         const socket = new ReconnectingWebSocket(wsUrl, [], {
           connectionTimeout: CONNECTION_TIMEOUT_MS,
           maxRetries: MAX_RECONNECT_ATTEMPTS,

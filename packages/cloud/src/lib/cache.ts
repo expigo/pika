@@ -11,9 +11,12 @@ interface CacheEntry<T> {
 
 const globalCache = new Map<string, CacheEntry<unknown>>();
 
+const MAX_CACHE_SIZE = 1000;
+
 /**
  * Simple TTL cache helper
  * Fetches data and caches it for the specified duration
+ * Implements LRU-like eviction (deletes oldest entry when full)
  */
 export async function withCache<T>(
   key: string,
@@ -27,6 +30,13 @@ export async function withCache<T>(
   }
 
   const data = await fetcher();
+
+  // Eviction policy: If full, delete oldest key (first inserted)
+  if (globalCache.size >= MAX_CACHE_SIZE) {
+    const oldestKey = globalCache.keys().next().value;
+    if (oldestKey) globalCache.delete(oldestKey);
+  }
+
   globalCache.set(key, {
     data,
     expiresAt: Date.now() + ttlMs,
