@@ -546,6 +546,10 @@ export function useLiveSession() {
     if (dbSessionIdToSync && sessionIdToSync) {
       const syncEnabled = await settingsRepository.get("analysis.afterSession");
       if (syncEnabled) {
+        // Create AbortController for fetch timeout (prevents orphaned requests on fast endSet)
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10s timeout
+
         try {
           logger.info("Live", "Syncing fingerprints to Cloud");
           const tracks = await trackRepository.getSessionTracksWithFingerprints(dbSessionIdToSync);
@@ -553,11 +557,12 @@ export function useLiveSession() {
           if (tracks.length > 0) {
             const { apiUrl } = getConfiguredUrls();
             const response = await fetch(
-              `${apiUrl}/api/session/${getStoreSessionId()}/sync-fingerprints`,
+              `${apiUrl}/api/session/${sessionIdToSync}/sync-fingerprints`,
               {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ tracks }),
+                signal: abortController.signal,
               },
             );
 
@@ -572,7 +577,13 @@ export function useLiveSession() {
             }
           }
         } catch (error) {
-          logger.error("Live", "Error syncing fingerprints", error);
+          if (error instanceof Error && error.name === "AbortError") {
+            logger.warn("Live", "Fingerprint sync aborted (timeout or cancelled)");
+          } else {
+            logger.error("Live", "Error syncing fingerprints", error);
+          }
+        } finally {
+          clearTimeout(timeoutId);
         }
       }
     }
@@ -839,10 +850,17 @@ export function useLiveSession() {
     toast.success("State synced!");
   }, []);
 
-  // Cleanup on unmount (only cleanup socket, not state - state is global)
+  // Cleanup on unmount - close socket and clear router to prevent memory leaks
   useEffect(() => {
     return () => {
-      // Don't cleanup on unmount - state is global
+      // Close socket if still open
+      if (socketInstance) {
+        logger.debug("Live", "Cleaning up socket on unmount");
+        socketInstance.close();
+        socketInstance = null;
+      }
+      // Clear message router context
+      messageRouter.clearContext();
     };
   }, []);
 
