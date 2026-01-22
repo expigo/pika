@@ -50,11 +50,7 @@ export async function handleRegisterSession(ctx: WSContext) {
   let djUserId: number | null = null;
   let djName = requestedDjName;
 
-  if (process.env.NODE_ENV === "test") {
-    console.log("🧪 TEST MODE: Bypassing auth validation");
-    djUserId = 999;
-    djName = requestedDjName || "Test DJ";
-  } else if (djToken) {
+  if (djToken) {
     const djUser = await validateToken(djToken);
     if (djUser) {
       djUserId = djUser.id;

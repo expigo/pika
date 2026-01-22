@@ -12,7 +12,7 @@ import {
   User,
 } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 import { getApiBaseUrl } from "@/lib/api";
 
@@ -39,6 +39,21 @@ export default function RegisterPage() {
   const [tokenCopied, setTokenCopied] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+
+  // Auto-hide token after 5 minutes for security
+  useEffect(() => {
+    let timeout: NodeJS.Timeout;
+    if (showToken) {
+      timeout = setTimeout(
+        () => {
+          setShowToken(false);
+        },
+        5 * 60 * 1000,
+      );
+    }
+    return () => clearTimeout(timeout);
+  }, [showToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,14 +151,38 @@ export default function RegisterPage() {
                   Private Access Key
                 </label>
                 <div
-                  className="bg-slate-950 border border-white/10 rounded-2xl p-6 font-mono text-sm text-purple-400 break-all leading-relaxed shadow-inner group/token relative cursor-pointer active:scale-[0.99] transition-transform"
+                  className="bg-slate-950 border border-white/10 rounded-2xl p-6 font-mono text-sm text-purple-400 break-all leading-relaxed shadow-inner group/token relative cursor-pointer active:scale-[0.99] transition-transform flex items-center justify-between gap-4"
                   onClick={copyToken}
                 >
-                  {success.token}
-                  <div className="absolute inset-0 bg-purple-500/0 group-hover/token:bg-purple-500/5 transition-colors rounded-2xl flex items-center justify-end pr-4">
-                    <span className="text-[9px] font-bold text-purple-400/0 group-hover/token:text-purple-400/80 uppercase tracking-widest">
-                      Click to Copy
-                    </span>
+                  <span className={!showToken ? "blur-sm select-none" : "select-text"}>
+                    {showToken ? success.token : "•".repeat(success.token?.length || 32)}
+                  </span>
+
+                  <div
+                    className="flex items-center gap-2 relative z-10"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setShowToken(!showToken)}
+                      className="p-2 hover:bg-white/10 rounded-lg text-slate-500 hover:text-white transition-colors"
+                      title={showToken ? "Hide Token" : "Show Token"}
+                    >
+                      {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    <div
+                      className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 p-2 rounded-lg transition-colors"
+                      onClick={copyToken}
+                      title="Copy Token"
+                    >
+                      {tokenCopied ? (
+                        <CheckCircle className="w-4 h-4 text-emerald-500" />
+                      ) : (
+                        <div className="text-[9px] font-bold uppercase tracking-widest px-2">
+                          COPY
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>

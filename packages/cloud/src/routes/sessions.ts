@@ -18,6 +18,7 @@ import { activeSessions } from "../lib/sessions";
 import { getListenerCount } from "../lib/listeners";
 import { likesSent } from "../lib/likes";
 import { withCache } from "../lib/cache";
+import { validateToken } from "../lib/auth";
 
 const sessions = new Hono();
 
@@ -226,63 +227,87 @@ sessions.get("/:sessionId/recap", async (c) => {
       });
     }
 
-    // Get polls for this session
-    const pollsData = await db
-      .select({
-        id: schema.polls.id,
-        question: schema.polls.question,
-        options: schema.polls.options,
-        status: schema.polls.status,
-        startedAt: schema.polls.startedAt,
-        endedAt: schema.polls.endedAt,
-        currentTrackArtist: schema.polls.currentTrackArtist,
-        currentTrackTitle: schema.polls.currentTrackTitle,
-      })
-      .from(schema.polls)
-      .where(eq(schema.polls.sessionId, sessionId));
+    // Verify auth token (Conditional Access)
+    // If DJ is authenticated, they get full data including polls/votes.
+    // If Public/Unauthenticated, they get track list but NO poll data (privacy).
+    const authHeader = c.req.header("Authorization");
+    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+    let isAuthenticated = false;
 
-    // Get vote counts for each poll
-    const pollsWithResults = await Promise.all(
-      pollsData.map(async (poll) => {
-        const votes = await db
-          .select({
-            optionIndex: schema.pollVotes.optionIndex,
-            count: count(),
-          })
-          .from(schema.pollVotes)
-          .where(eq(schema.pollVotes.pollId, poll.id))
-          .groupBy(schema.pollVotes.optionIndex);
-
-        const options = poll.options as string[];
-        const voteCounts = new Array(options.length).fill(0) as number[];
-
-        for (const v of votes) {
-          if (v.optionIndex >= 0 && v.optionIndex < voteCounts.length) {
-            voteCounts[v.optionIndex] = v.count;
-          }
+    if (token) {
+      const user = await validateToken(token);
+      // Only allow if this user OWNS the session or is an admin?
+      // For now, simpler check: is a valid DJ.
+      // Ideally we check user.id === dbSession.djUserId, but dbSession might be null if not loaded yet.
+      // We'll check ownership after loading session.
+      if (user) {
+        // Enforce ownership: Authenticated user must equal the session creator
+        if (dbSession.djUserId === user.id) {
+          isAuthenticated = true;
         }
+      }
+    }
 
-        const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
-        const winnerIndex = totalVotes > 0 ? voteCounts.indexOf(Math.max(...voteCounts)) : -1;
+    // Get polls for this session (only if authenticated)
+    let pollsWithResults: any[] = [];
+    if (isAuthenticated) {
+      const pollsData = await db
+        .select({
+          id: schema.polls.id,
+          question: schema.polls.question,
+          options: schema.polls.options,
+          status: schema.polls.status,
+          startedAt: schema.polls.startedAt,
+          endedAt: schema.polls.endedAt,
+          currentTrackArtist: schema.polls.currentTrackArtist,
+          currentTrackTitle: schema.polls.currentTrackTitle,
+        })
+        .from(schema.polls)
+        .where(eq(schema.polls.sessionId, sessionId));
 
-        return {
-          id: poll.id,
-          question: poll.question,
-          options,
-          votes: voteCounts,
-          totalVotes,
-          winnerIndex,
-          winner: winnerIndex >= 0 ? options[winnerIndex] : null,
-          startedAt: poll.startedAt,
-          endedAt: poll.endedAt,
-          // Track context: what was playing when poll was created
-          currentTrack:
-            poll.currentTrackArtist && poll.currentTrackTitle
-              ? { artist: poll.currentTrackArtist, title: poll.currentTrackTitle }
-              : null,
-        };
-      }),
-    );
+      // Get vote counts for each poll
+      pollsWithResults = await Promise.all(
+        pollsData.map(async (poll) => {
+          const votes = await db
+            .select({
+              optionIndex: schema.pollVotes.optionIndex,
+              count: count(),
+            })
+            .from(schema.pollVotes)
+            .where(eq(schema.pollVotes.pollId, poll.id))
+            .groupBy(schema.pollVotes.optionIndex);
+
+          const options = poll.options as string[];
+          const voteCounts = new Array(options.length).fill(0) as number[];
+
+          for (const v of votes) {
+            if (v.optionIndex >= 0 && v.optionIndex < voteCounts.length) {
+              voteCounts[v.optionIndex] = v.count;
+            }
+          }
+
+          const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
+          const winnerIndex = totalVotes > 0 ? voteCounts.indexOf(Math.max(...voteCounts)) : -1;
+
+          return {
+            id: poll.id,
+            question: poll.question,
+            options,
+            votes: voteCounts,
+            totalVotes,
+            winnerIndex,
+            winner: winnerIndex >= 0 ? options[winnerIndex] : null,
+            startedAt: poll.startedAt,
+            endedAt: poll.endedAt,
+            // Track context: what was playing when poll was created
+            currentTrack:
+              poll.currentTrackArtist && poll.currentTrackTitle
+                ? { artist: poll.currentTrackArtist, title: poll.currentTrackTitle }
+                : null,
+          };
+        }),
+      );
+    }
 
     // Calculate session stats
     const lastTrack = tracks[tracks.length - 1];
@@ -306,7 +331,8 @@ sessions.get("/:sessionId/recap", async (c) => {
       endTime = new Date();
     }
 
-    return c.json({
+    // Response object
+    const response: any = {
       sessionId,
       djName: dbSession?.djName || "DJ",
       startedAt: startTime?.toISOString(),
@@ -338,10 +364,16 @@ sessions.get("/:sessionId/recap", async (c) => {
             : null,
         };
       }),
-      polls: pollsWithResults,
-      totalPolls: pollsWithResults.length,
-      totalPollVotes: pollsWithResults.reduce((sum, p) => sum + p.totalVotes, 0),
-    });
+    };
+
+    // Only include polls if authenticated
+    if (isAuthenticated) {
+      response.polls = pollsWithResults;
+      response.totalPolls = pollsWithResults.length;
+      response.totalPollVotes = pollsWithResults.reduce((sum, p) => sum + p.totalVotes, 0);
+    }
+
+    return c.json(response);
   } catch (e) {
     console.error("Failed to fetch recap:", e);
     return c.json({ error: "Failed to fetch recap" }, 500);
