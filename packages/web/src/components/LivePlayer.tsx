@@ -573,7 +573,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                               {isWinner && "🏆 "}
                               {option}
                               {activePoll.userChoice === idx && (
-                                <span className="ml-2 bg-purple-500/10 text-purple-400 text-[8px] border border-purple-500/20 rounded px-1.5 py-0.5 align-middle">
+                                <span className="ml-2 bg-purple-500/10 text-purple-400 text-[8px] border border-purple-500/20 rounded px-1.5 py-0.5 align-middle whitespace-nowrap">
                                   YOUR VOTE
                                 </span>
                               )}
