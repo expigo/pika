@@ -102,6 +102,7 @@ class VirtualDJWatcher {
     const initial = await this.readLatestTrack();
     if (initial) {
       console.log("[VDJ Watcher] Initial track:", initial.artist, "-", initial.title);
+      this.lastTrack = initial;
       this.lastTimestamp = initial.rawTimestamp ?? 0;
       // Notify listeners of initial track
       this.notifyListeners(initial);
@@ -113,6 +114,7 @@ class VirtualDJWatcher {
         const track = await this.readLatestTrack();
         if (track && this.hasTrackChanged(track)) {
           console.log("[VDJ Watcher] Track changed:", track.artist, "-", track.title);
+          this.lastTrack = track;
           this.lastTimestamp = track.rawTimestamp ?? 0;
           this.notifyListeners(track);
         }

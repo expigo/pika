@@ -36,9 +36,12 @@ interface DjSettings {
   tokenValidatedAt: number | null; // Timestamp of last successful validation (U1 fix)
 }
 
+// Auto-detect environment: DEV mode in Vite dev server, PROD for release builds
+const DEFAULT_SERVER_ENV: ServerEnv = import.meta.env.DEV ? "dev" : "prod";
+
 const DEFAULT_SETTINGS: DjSettings = {
   djName: "",
-  serverEnv: "prod", // Default to PROD for release builds!
+  serverEnv: DEFAULT_SERVER_ENV,
   authToken: "",
   djInfo: null,
   tokenValidatedAt: null,
@@ -51,7 +54,25 @@ function loadSettings(): DjSettings {
       const parsed = JSON.parse(stored);
       // S1.4.3: Safe JSON parsing (ensure object and not array/null)
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return { ...DEFAULT_SETTINGS, ...parsed };
+        const settings = { ...DEFAULT_SETTINGS, ...parsed };
+        // 🔧 Dev Mode Override: Force dev environment when running locally
+        // Multiple detection methods for Tauri + Vite compatibility
+        const isViteDev = import.meta.env.DEV;
+        const isLocalhost =
+          typeof window !== "undefined" &&
+          (window.location.hostname === "localhost" ||
+            window.location.hostname === "127.0.0.1" ||
+            window.location.port === "5173" || // Vite default port
+            window.location.protocol === "tauri:");
+
+        if ((isViteDev || isLocalhost) && settings.serverEnv !== "dev") {
+          console.log("[DJ Settings] Dev mode detected - forcing serverEnv to 'dev'", {
+            isViteDev,
+            isLocalhost,
+          });
+          settings.serverEnv = "dev";
+        }
+        return settings;
       }
     }
   } catch (e) {
