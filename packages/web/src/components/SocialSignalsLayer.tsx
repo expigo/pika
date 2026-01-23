@@ -51,34 +51,15 @@ export function SocialSignalsLayer({ onLikeReceived }: Props) {
     window.addEventListener("resize", handleResize);
     handleResize();
 
-    // Spawner Function
-    const spawnParticle = (_track: unknown, count = 1) => {
-      if (particlesRef.current.length >= MAX_PARTICLES) return;
-
-      const spawnCount = Math.min(count || 1, 5);
-
-      for (let i = 0; i < spawnCount; i++) {
-        const width = window.visualViewport?.width || window.innerWidth;
-        const height = window.visualViewport?.height || window.innerHeight;
-
-        particlesRef.current.push({
-          x: Math.random() * width,
-          y: height + 50,
-          vx: (Math.random() - 0.5) * 2,
-          vy: -(Math.random() * 4 + 3), // Faster upward velocity (was *3+2)
-          life: 1.0,
-          scale: Math.random() * 0.5 + 1.0, // Larger scale (1.0 to 1.5)
-          emoji: EMOJIS[Math.floor(Math.random() * EMOJIS.length)],
-          rotation: (Math.random() - 0.5) * 0.5,
-          rotationSpeed: (Math.random() - 0.5) * 0.05,
-        });
-      }
-    };
-
-    const unsubscribe = onLikeReceived(spawnParticle);
-
+    // Animation loop - only runs when there are particles to animate
     const loop = () => {
       if (!canvas || !ctx) return;
+
+      // 🔋 Battery optimization: Stop loop when no particles exist
+      if (particlesRef.current.length === 0) {
+        animationFrameRef.current = null;
+        return;
+      }
 
       const width = window.visualViewport?.width || window.innerWidth;
       const height = window.visualViewport?.height || window.innerHeight;
@@ -108,7 +89,43 @@ export function SocialSignalsLayer({ onLikeReceived }: Props) {
       animationFrameRef.current = requestAnimationFrame(loop);
     };
 
-    loop();
+    // Helper to ensure loop is running (starts on-demand)
+    const ensureLoopRunning = () => {
+      if (!animationFrameRef.current) {
+        loop();
+      }
+    };
+
+    // Spawner Function - now starts loop on-demand
+    const spawnParticleWithLoop = (_track: unknown, count = 1) => {
+      if (particlesRef.current.length >= MAX_PARTICLES) return;
+
+      const spawnCount = Math.min(count || 1, 5);
+
+      for (let i = 0; i < spawnCount; i++) {
+        const width = window.visualViewport?.width || window.innerWidth;
+        const height = window.visualViewport?.height || window.innerHeight;
+
+        particlesRef.current.push({
+          x: Math.random() * width,
+          y: height + 50,
+          vx: (Math.random() - 0.5) * 2,
+          vy: -(Math.random() * 4 + 3),
+          life: 1.0,
+          scale: Math.random() * 0.5 + 1.0,
+          emoji: EMOJIS[Math.floor(Math.random() * EMOJIS.length)],
+          rotation: (Math.random() - 0.5) * 0.5,
+          rotationSpeed: (Math.random() - 0.5) * 0.05,
+        });
+      }
+
+      // 🔋 Start loop on-demand only when particles exist
+      ensureLoopRunning();
+    };
+
+    const unsubscribe = onLikeReceived(spawnParticleWithLoop);
+
+    // Don't start loop immediately - wait for first particle
 
     return () => {
       window.removeEventListener("resize", handleResize);
