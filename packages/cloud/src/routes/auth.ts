@@ -219,12 +219,6 @@ auth.post("/register", authLimiter, async (c) => {
  * Login with email and password, returns token
  */
 auth.post("/login", authLimiter, async (c) => {
-  // 🔐 CSRF Protection: Require custom header
-  const requestedWith = c.req.header("X-Requested-With");
-  if (requestedWith !== "Pika") {
-    return c.json({ error: "Invalid request" }, 403);
-  }
-
   try {
     const body = await c.req.json();
     const { email, password } = body as { email?: string; password?: string };

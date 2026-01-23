@@ -136,7 +136,9 @@ export const RegisterSessionSchema = z.object({
   version: z.literal("0.3.0").optional(),
   sessionId: z.string().min(8).max(64).trim().optional(),
   djName: z.string().min(1).max(100).trim().optional(),
-  token: z.string().min(50).max(2000).optional(), // JWT for DJ authentication
+  token: z.union([z.literal(""), z.string().min(10).max(2000)]).optional(), // pk_dj_<uuid> (~42 chars) or JWT
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 export const BroadcastTrackSchema = z.object({
@@ -144,18 +146,24 @@ export const BroadcastTrackSchema = z.object({
   version: z.literal("0.3.0").optional(),
   sessionId: z.string().min(8).max(64).trim(),
   track: TrackInfoSchema,
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 export const TrackStoppedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.TRACK_STOPPED),
   version: z.literal("0.3.0").optional(),
   sessionId: z.string().min(8).max(64).trim(),
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 export const EndSessionSchema = z.object({
   type: z.literal(MESSAGE_TYPES.END_SESSION),
   version: z.literal("0.3.0").optional(),
   sessionId: z.string().min(8).max(64).trim(),
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 export const SubscribeSchema = z.object({
@@ -163,12 +171,14 @@ export const SubscribeSchema = z.object({
   version: z.literal("0.3.0").optional(),
   sessionId: z.string().min(8).max(64).trim().optional(), // Session to subscribe to (for listener tracking)
   clientId: z.string().min(8).max(256).trim().optional(), // Client identifier (for unique listener count)
+  messageId: z.string().optional(),
 });
 
 export const SendLikeSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SEND_LIKE),
   sessionId: z.string().optional(), // Explicit session targeting
   clientId: z.string().optional(), // For server-side tracking
+  messageId: z.string().optional(),
   payload: z.object({
     track: TrackInfoSchema,
   }),
@@ -177,10 +187,12 @@ export const SendLikeSchema = z.object({
 export const GetSessionsSchema = z.object({
   type: z.literal(MESSAGE_TYPES.GET_SESSIONS),
   clientId: z.string().optional(),
+  messageId: z.string().optional(),
 });
 
 export const PingSchema = z.object({
   type: z.literal(MESSAGE_TYPES.PING),
+  messageId: z.string().optional(),
 });
 
 // --- Server -> Client Messages ---
@@ -260,6 +272,8 @@ export const SendTempoRequestSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SEND_TEMPO_REQUEST),
   sessionId: z.string(),
   preference: TempoPreferenceSchema,
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 // Server -> DJ: Aggregated tempo feedback
@@ -289,12 +303,16 @@ export const StartPollSchema = z.object({
   question: z.string(),
   options: z.array(z.string().min(1).max(100)).min(2).max(10), // 2-10 options, max 100 chars per option
   durationSeconds: z.number().min(30).max(300).optional(), // 30s to 5min, optional
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 // DJ -> Server: End poll early
 export const EndPollSchema = z.object({
   type: z.literal(MESSAGE_TYPES.END_POLL),
   pollId: z.number(),
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 // DJ -> Server: Cancel poll (by poll ID)
@@ -302,6 +320,8 @@ export const CancelPollSchema = z.object({
   type: z.literal(MESSAGE_TYPES.CANCEL_POLL),
   pollId: z.number(),
   sessionId: z.string().optional(), // Legacy/optional for backwards compat
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 // Dancer -> Server: Vote on a poll
@@ -310,6 +330,7 @@ export const VoteOnPollSchema = z.object({
   pollId: z.number(),
   optionIndex: z.number(),
   clientId: z.string(),
+  messageId: z.string().optional(),
 });
 
 // Server -> Dancers: New poll started
@@ -377,6 +398,8 @@ export const SendReactionSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SEND_REACTION),
   sessionId: z.string(),
   reaction: z.literal("thank_you"),
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 export const ReactionReceivedSchema = z.object({
@@ -395,6 +418,8 @@ export const SendAnnouncementSchema = z.object({
   sessionId: z.string(),
   message: z.string().max(200),
   durationSeconds: z.number().min(60).max(3600).optional(), // 1 min to 1 hour
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 // Server -> Dancers: Announcement received
@@ -411,6 +436,8 @@ export const AnnouncementReceivedSchema = z.object({
 export const CancelAnnouncementSchema = z.object({
   type: z.literal(MESSAGE_TYPES.CANCEL_ANNOUNCEMENT),
   sessionId: z.string(),
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
 });
 
 // Server -> Dancers: Announcement cancelled

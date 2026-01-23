@@ -7,7 +7,7 @@
  * Extracted from index.ts for modularity.
  */
 import { Hono } from "hono";
-import { count, desc, inArray } from "drizzle-orm";
+import { count, desc, eq, inArray, isNull } from "drizzle-orm";
 import { slugify } from "@pika/shared";
 import { db, schema } from "../db";
 
@@ -21,7 +21,26 @@ dj.get("/:slug", async (c) => {
   const slug = c.req.param("slug");
 
   try {
-    // Find all sessions where DJ name slugifies to this slug
+    // 🔍 S0.3.5 Fix: Look up the DJ user first (ensures profiles work before first session)
+    const djUser = await db
+      .select({
+        id: schema.djUsers.id,
+        displayName: schema.djUsers.displayName,
+      })
+      .from(schema.djUsers)
+      .where(eq(schema.djUsers.slug, slug))
+      .limit(1);
+
+    const userResult = djUser[0];
+    if (!userResult) {
+      return c.json({ error: "DJ not found" }, 404);
+    }
+
+    const djName = userResult.displayName;
+
+    // Find all sessions where DJ name slugifies to this slug (legacy support) OR matches the DJ UID
+    // For now, we'll keep the slug-based match for historical sessions but prioritize UID if we had it
+    // Actually, sessions table has djUserId (optional)
     const allSessions = await db
       .select({
         id: schema.sessions.id,
@@ -30,20 +49,31 @@ dj.get("/:slug", async (c) => {
         endedAt: schema.sessions.endedAt,
       })
       .from(schema.sessions)
+      .where(eq(schema.sessions.djUserId, userResult.id))
       .orderBy(desc(schema.sessions.startedAt));
 
-    // Filter sessions by slug match
-    const djSessions = allSessions.filter((session) => slugify(session.djName) === slug);
+    // Fallback: also fetch sessions where djName slug matches (for legacy/anonymous sessions)
+    // In a real migration we'd link these, but for now we'll merge them
+    const legacySessions = await db
+      .select({
+        id: schema.sessions.id,
+        djName: schema.sessions.djName,
+        startedAt: schema.sessions.startedAt,
+        endedAt: schema.sessions.endedAt,
+      })
+      .from(schema.sessions)
+      .where(isNull(schema.sessions.djUserId))
+      .orderBy(desc(schema.sessions.startedAt));
 
-    if (djSessions.length === 0) {
-      return c.json({ error: "DJ not found" }, 404);
-    }
+    const matchedLegacy = legacySessions.filter((s) => slugify(s.djName) === slug);
 
-    const firstSession = djSessions[0];
-    if (!firstSession) {
-      return c.json({ error: "DJ not found" }, 404);
+    // Combine and deduplicate
+    const djSessions = [...allSessions];
+    for (const ls of matchedLegacy) {
+      if (!djSessions.find((s) => s.id === ls.id)) {
+        djSessions.push(ls);
+      }
     }
-    const djName = firstSession.djName;
 
     // Limit to 20 most recent sessions BEFORE fetching counts to avoid N+1
     const recentSessions = djSessions
