@@ -62,7 +62,7 @@ export const TrackInfoSchema = z.object({
   title: z.string().min(1).max(500).trim(),
   artist: z.string().min(1).max(500).trim(),
   // Core metrics
-  bpm: z.number().min(0).max(300).optional(),
+  bpm: z.number().min(40).max(300).optional(),
   key: z.string().max(10).optional(),
   // Fingerprint metrics (all 0-100 scale)
   energy: z.number().min(0).max(100).optional(),
@@ -134,8 +134,14 @@ export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 export const RegisterSessionSchema = z.object({
   type: z.literal(MESSAGE_TYPES.REGISTER_SESSION),
   version: z.literal("0.3.0").optional(),
-  sessionId: z.string().min(8).max(64).trim().optional(),
-  djName: z.string().min(1).max(100).trim().optional(),
+  sessionId: z.string().trim().min(8).max(64).optional(),
+  djName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .regex(/^[^<>"']+$/, "DJ name cannot contain <, >, or quote characters")
+    .optional(),
   token: z.union([z.literal(""), z.string().min(10).max(2000)]).optional(), // pk_dj_<uuid> (~42 chars) or JWT
   messageId: z.string().optional(),
   clientId: z.string().optional(),
@@ -205,8 +211,14 @@ export const PongSchema = z.object({
 export const SessionRegisteredSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_REGISTERED),
   version: z.literal("0.3.0").optional(),
-  sessionId: z.string().min(8).max(64).trim(),
-  djName: z.string().min(1).max(100).trim().optional(), // Confirmed display name (may differ from requested)
+  sessionId: z.string().trim().min(8).max(64),
+  djName: z
+    .string()
+    .trim()
+    .min(1)
+    .max(100)
+    .regex(/^[^<>"']+$/, "DJ name cannot contain <, >, or quote characters")
+    .optional(), // Confirmed display name (may differ from requested)
   authenticated: z.boolean().optional(), // True if token was valid
 });
 
@@ -300,8 +312,8 @@ export const TempoResetSchema = z.object({
 export const StartPollSchema = z.object({
   type: z.literal(MESSAGE_TYPES.START_POLL),
   sessionId: z.string(),
-  question: z.string(),
-  options: z.array(z.string().min(1).max(100)).min(2).max(10), // 2-10 options, max 100 chars per option
+  question: z.string().trim().min(1).max(500),
+  options: z.array(z.string().trim().min(1).max(100)).min(2).max(10), // 2-10 options, max 100 chars per option
   durationSeconds: z.number().min(30).max(300).optional(), // 30s to 5min, optional
   messageId: z.string().optional(),
   clientId: z.string().optional(),
@@ -416,7 +428,7 @@ export const ReactionReceivedSchema = z.object({
 export const SendAnnouncementSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SEND_ANNOUNCEMENT),
   sessionId: z.string(),
-  message: z.string().max(200),
+  message: z.string().min(1).max(200).trim(),
   durationSeconds: z.number().min(60).max(3600).optional(), // 1 min to 1 hour
   messageId: z.string().optional(),
   clientId: z.string().optional(),

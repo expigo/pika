@@ -13,16 +13,15 @@
  * @created 2026-01-23
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
-import { z } from "zod";
+import { describe, test, expect } from "bun:test";
 
 // Import schemas from shared package
 import {
   TrackInfoSchema,
   BroadcastTrackSchema,
-  SendLikeSchema,
   StartPollSchema,
   SendAnnouncementSchema,
+  RegisterSessionSchema,
   MESSAGE_TYPES,
 } from "@pika/shared";
 
@@ -306,7 +305,7 @@ describe("Security: XSS Prevention", () => {
 
   test("schema accepts special characters that need escaping", () => {
     const result = TrackInfoSchema.safeParse({
-      title: "Track & \"Title\" <test>",
+      title: 'Track & "Title" <test>',
       artist: "Artist's Name",
     });
 
@@ -612,5 +611,83 @@ describe("Security: Payload Size Limits", () => {
     const serialized = JSON.stringify(maxPoll);
     // Should be under 2KB
     expect(serialized.length).toBeLessThan(2048);
+  });
+});
+
+// ============================================================================
+// New Security Checks (Ref: S3, S4)
+// ============================================================================
+
+describe("Security: DJ Name Safety (S4)", () => {
+  test("rejects DJ name with HTML/script tags", () => {
+    const result = RegisterSessionSchema.safeParse({
+      type: "REGISTER_SESSION",
+      djName: "<script>alert(1)</script>",
+      sessionId: "session-123",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects DJ name with less-than bracket", () => {
+    const result = RegisterSessionSchema.safeParse({
+      type: "REGISTER_SESSION",
+      djName: "DJ < Cool",
+      sessionId: "session-123",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects DJ name with quotes (Attribute Injection Prevention)", () => {
+    const namingAttempts = ['DJ "Bobby"', "DJ 'Cool'", 'DJ " onclick="alert(1)'];
+
+    for (const name of namingAttempts) {
+      const result = RegisterSessionSchema.safeParse({
+        type: "REGISTER_SESSION",
+        djName: name,
+        sessionId: "session-123",
+      });
+      expect(result.success).toBe(false);
+    }
+  });
+
+  test("accepts valid alphanumeric DJ name", () => {
+    const result = RegisterSessionSchema.safeParse({
+      type: "REGISTER_SESSION",
+      djName: "DJ Cool 123",
+      sessionId: "session-123",
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe("Security: Poll Question Safety (S3)", () => {
+  test("rejects question over 500 characters", () => {
+    const result = StartPollSchema.safeParse({
+      type: "START_POLL",
+      sessionId: "session-123",
+      question: "a".repeat(501),
+      options: ["A", "B"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("rejects empty/whitespace-only question (min 1)", () => {
+    const result = StartPollSchema.safeParse({
+      type: "START_POLL",
+      sessionId: "session-123",
+      question: "   ",
+      options: ["A", "B"],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test("accepts question with 500 characters", () => {
+    const result = StartPollSchema.safeParse({
+      type: "START_POLL",
+      sessionId: "session-123",
+      question: "a".repeat(500),
+      options: ["A", "B"],
+    });
+    expect(result.success).toBe(true);
   });
 });

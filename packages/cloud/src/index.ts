@@ -115,18 +115,26 @@ function checkWsRateLimit(ip: string): boolean {
   return true;
 }
 
+// Helper to get IP from context
+function getClientIp(c: Context): string {
+  return (
+    c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For")?.split(",")[0] || "unknown"
+  );
+}
+
 // --- WebSocket route: registered early to avoid conflict with wildcard routes ---
 app.get(
   "/ws",
-  upgradeWebSocket((c) => {
-    const ip =
-      c.req.header("CF-Connecting-IP") ||
-      c.req.header("X-Forwarded-For")?.split(",")[0] ||
-      "unknown";
+  // 🛡️ Security: Rate Limit Middleware
+  (c, next) => {
+    const ip = getClientIp(c);
     if (!checkWsRateLimit(ip)) {
       console.log(`🚫 WS connection rejected for rate-limited IP: ${ip.substring(0, 10)}...`);
+      return c.text("Rate limit exceeded", 429);
     }
-
+    return next();
+  },
+  upgradeWebSocket((_c) => {
     const state: handlers.WSConnectionState = {
       clientId: null,
       isListener: false,
@@ -162,7 +170,20 @@ app.get(
           const rawWs = ws.raw as ServerWebSocket;
           const messageId = message.messageId;
 
-          if (message.clientId) state.clientId = message.clientId;
+          // 🛡️ Security: ClientID Locking
+          // Once a connection declares a ClientID, it is locked to that ID.
+          // Subsequent attempts to use a different ClientID are ignored.
+          if (message.clientId) {
+            if (state.clientId === null) {
+              state.clientId = message.clientId;
+            } else if (state.clientId !== message.clientId) {
+              console.warn(
+                `⚠️ ClientID spoofing attempt ignored: ${message.clientId} (locked to ${state.clientId})`,
+              );
+              // Do NOT update state.clientId
+            }
+          }
+
           if (state.djSessionId) activeBroadcaster = rawWs;
 
           const ctx: handlers.WSContext = { message, ws, rawWs, state, messageId };
