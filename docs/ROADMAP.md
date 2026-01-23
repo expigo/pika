@@ -16,6 +16,7 @@ This is the central index for the Pika! project, tracking active development, fu
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
     *   **Recent Completions (Jan 23, 2026 - Production Ready v0.2.8):**
+        *   ✅ **Sprint 0 (Battery & Security):** Fixed continuous RAF loop (B1), verified CSRF (S1), confirmed Reduced Motion (B2)
         *   ✅ **Sprint S0-S5 Complete:** All 150+ issues resolved with code verification
         *   ✅ **Security Hardening:** Auth bypass removed, token masking, rate limiting
         *   ✅ **Performance Optimization:** 9 database indexes, batch operations, transaction handling

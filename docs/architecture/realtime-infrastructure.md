@@ -2,7 +2,7 @@
 
 This document describes the technical implementation of the synchronization layer between the **Desktop** app (the source of truth) and the **Cloud** server (the distribution layer).
 
-**Last Updated:** January 22, 2026 (v0.2.6)
+**Last Updated:** January 23, 2026 (v0.2.8)
 
 ## 1. Design Philosophy: "Local First, Cloud Second"
 
@@ -15,11 +15,14 @@ Pika! is designed to run in venue environments where internet connectivity is in
 
 The connection is established via WebSockets (`wss://`).
 
-### Client-Side (`packages/desktop`)
+### Client-Side (`packages/desktop` & `@pika/web`)
 *   **Library:** `reconnecting-websocket` wraps the standard DOM `WebSocket`.
-*   **Behavior:**
+*   **Behavior (Desktop):**
     *   **Auto-Reconnect:** Exponential backoff (1s to 10s) on disconnection.
-    *   **Session Restoration:** On `onopen`, the client immediately re-sends `REGISTER_SESSION` with the active `sessionId`. This allows the server to rebuild in-memory state after a deployment or restart without the user noticing.
+    *   **Session Restoration:** On `onopen`, the client immediately re-sends `REGISTER_SESSION` with the active `sessionId`.
+*   **Behavior (Mobile Web):**
+    *   **Battery Optimization:** Heartbeats adapt to tab visibility (30s foreground / 60s background).
+    *   **Animation Control:** Rendering loops (RAF) pause when idle to save CPU.
 
 ### Server-Side (`packages/cloud`)
 *   **Library:** Bun's native `ServerWebSocket` via Hono integration.
@@ -44,6 +47,7 @@ To handle network drops without data loss, the Desktop app implements a persiste
 *   Max delay: 2000ms
 *   Concurrent flush guard: Only one flush at a time
 *   Failure handling: Stops after 3 consecutive failures (retries on next reconnect)
+*   **Mobile Note:** The Web App uses IndexedDB (`idb-keyval`) for offline "Like" queueing with similar logic.
 
 > [!NOTE]
 > Only critical messages (like `BROADCAST_TRACK`) are queued. Ephemeral messages (like "typing indicators" or high-frequency updates) may be dropped to prevent flood on reconnection.

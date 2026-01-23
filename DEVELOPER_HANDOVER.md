@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
 **Date:** January 22, 2026
-**Version:** 0.2.4 (Cloud Robustness)
+**Version:** 0.2.8 (Production Ready + Battery Opt)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -28,6 +28,7 @@ The system is divided into three distinct environments (monorepo via **Bun Works
     *   **Tech:** Next.js 15, React 19, TailwindCSS 4, Recharts.
     *   **Role:** The public-facing interface for Dancers and the Landing Page.
     *   **Features:** Live "Now Playing" view, History, Voting/Polls, and DJ Registration.
+    *   **Optimization:** Battery-aware animations (RAF loops stop when idle).
 
 ---
 
