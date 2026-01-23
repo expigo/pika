@@ -41,6 +41,9 @@ export default function LandingPage() {
   // Fetch active sessions on mount
   useEffect(() => {
     async function checkLiveSessions() {
+      // 🔋 11/10 Performance: Pause polling if tab is hidden
+      if (document.visibilityState === "hidden") return;
+
       try {
         const response = await fetch(`${getApiBaseUrl()}/api/sessions/active`);
         if (response.ok) {
@@ -56,7 +59,17 @@ export default function LandingPage() {
 
     checkLiveSessions();
     const interval = setInterval(checkLiveSessions, 30000); // 30s polling
-    return () => clearInterval(interval);
+
+    // Refresh immediately on visibility change
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") checkLiveSessions();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, []);
 
   const isLive = liveData?.live && liveData.sessions.length > 0;

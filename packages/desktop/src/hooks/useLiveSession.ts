@@ -268,6 +268,44 @@ async function findOrCreateTrack(
   const existing = await trackRepository.findByTrackKey(trackKey);
 
   if (existing) {
+    // Self-healing: If BPM is missing, try to fetch it from VDJ
+    if (!existing.bpm && filePath && !filePath.startsWith(GHOST_FILE_PREFIX)) {
+      try {
+        const vdjMeta = await invoke<VdjTrackMetadata | null>("lookup_vdj_track_metadata", {
+          filePath,
+        });
+        if (vdjMeta?.bpm) {
+          logger.debug("Live", "Healing track metadata", {
+            id: existing.id,
+            bpm: vdjMeta.bpm,
+            key: vdjMeta.key,
+          });
+
+          // Update DB (fire and forget await, but use the value for return)
+          const bpmToSave =
+            typeof vdjMeta.bpm === "string"
+              ? Number.parseFloat(vdjMeta.bpm)
+              : (vdjMeta.bpm as number | null);
+
+          await trackRepository.insertTrack({
+            filePath,
+            artist,
+            title,
+            bpm: bpmToSave,
+            key: vdjMeta.key || existing.key,
+          });
+
+          return {
+            ...existing,
+            bpm: bpmToSave,
+            key: vdjMeta.key || existing.key,
+          };
+        }
+      } catch (error) {
+        logger.warn("Live", "Failed to heal track metadata", error);
+      }
+    }
+
     return {
       id: existing.id,
       bpm: existing.bpm,
@@ -300,18 +338,21 @@ async function findOrCreateTrack(
   }
 
   // Insert new track
-  logger.debug("Live", "Creating track", { artist, title, bpm: vdjBpm });
+  const bpmToSave =
+    typeof vdjBpm === "string" ? Number.parseFloat(vdjBpm) : (vdjBpm as number | null);
+
+  logger.debug("Live", "Creating track", { artist, title, bpm: bpmToSave });
   const newId = await trackRepository.insertTrack({
     filePath: filePath || `${GHOST_FILE_PREFIX}${artist}/${title}`,
     artist,
     title,
-    bpm: vdjBpm,
+    bpm: bpmToSave,
     key: vdjKey,
   });
 
   return {
     id: newId,
-    bpm: vdjBpm,
+    bpm: bpmToSave,
     key: vdjKey,
     energy: null,
     danceability: null,
@@ -412,10 +453,20 @@ export function useLiveSession() {
           setCurrentPlayId(result.playId);
 
           // Enrich track with fingerprint data from database
+          const dbBpm =
+            typeof result.trackInfo.bpm === "string"
+              ? Number.parseFloat(result.trackInfo.bpm)
+              : (result.trackInfo.bpm as number | null);
+
+          const trackBpm =
+            typeof track.bpm === "string"
+              ? Number.parseFloat(track.bpm)
+              : (track.bpm as number | undefined);
+
           enrichedTrack = {
             ...track,
-            bpm: result.trackInfo.bpm ?? undefined,
-            key: result.trackInfo.key ?? undefined,
+            bpm: dbBpm ?? trackBpm ?? undefined,
+            key: result.trackInfo.key ?? track.key ?? undefined,
             energy: result.trackInfo.energy ?? undefined,
             danceability: result.trackInfo.danceability ?? undefined,
             brightness: result.trackInfo.brightness ?? undefined,
@@ -480,12 +531,26 @@ export function useLiveSession() {
         prepareInitialTrackState(initialTrack, includeCurrentTrack);
 
         // If including current track, record it to database
+        let enrichedInitialTrack = initialTrack;
+
         if (initialTrack && includeCurrentTrack) {
           setNowPlaying(initialTrack);
           const result = await recordPlay(initialTrack);
           if (result) {
             setStoreCurrentPlayId(result.playId);
             setCurrentPlayId(result.playId);
+
+            // Enrich the initial track with DB data (BPM, Energy, etc)
+            enrichedInitialTrack = {
+              ...initialTrack,
+              bpm: result.trackInfo.bpm ?? undefined,
+              key: result.trackInfo.key ?? undefined,
+              energy: result.trackInfo.energy ?? undefined,
+              danceability: result.trackInfo.danceability ?? undefined,
+              brightness: result.trackInfo.brightness ?? undefined,
+              acousticness: result.trackInfo.acousticness ?? undefined,
+              groove: result.trackInfo.groove ?? undefined,
+            };
           }
         }
 
@@ -534,10 +599,13 @@ export function useLiveSession() {
 
           // Send initial track if available AND user chose to include it
           if (!shouldSkipInitialTrackBroadcast()) {
-            const currentTrack = virtualDjWatcher.getCurrentTrack();
-            if (currentTrack) {
-              logger.info("Live", "Broadcasting initial track", { title: currentTrack.title });
-              broadcastTrack(newSessionId, toTrackInfo(currentTrack));
+            // Use the ENRICHED track from the setup phase, not the raw one from watcher
+            if (enrichedInitialTrack) {
+              logger.info("Live", "Broadcasting initial track", {
+                title: enrichedInitialTrack.title,
+                bpm: enrichedInitialTrack.bpm,
+              });
+              broadcastTrack(newSessionId, toTrackInfo(enrichedInitialTrack));
             }
           } else {
             logger.debug("Live", "Not broadcasting initial track (user skipped)");
@@ -593,10 +661,15 @@ export function useLiveSession() {
     // Send end session message and close socket
     if (socketInstance) {
       if (socketInstance.readyState === WebSocket.OPEN) {
-        sendMessage({
-          type: MESSAGE_TYPES.END_SESSION,
-          sessionId: getStoreSessionId(),
-        });
+        // U4 Fix: Wait for server to acknowledge END_SESSION before killing socket
+        // This ensures clients get the broadcast event reliably
+        await sendMessage(
+          {
+            type: MESSAGE_TYPES.END_SESSION,
+            sessionId: getStoreSessionId(),
+          },
+          true, // reliable
+        );
       }
       socketInstance.close();
       socketInstance = null;

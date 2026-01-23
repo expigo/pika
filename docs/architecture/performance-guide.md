@@ -135,8 +135,37 @@ This document tracks performance considerations, bottlenecks, and optimization s
 - **GPU Overdraw**: On low-end mobile devices, multiple 120px blurs can cause frame drops during scrolling.
 
 ### Mitigation
-- **Strategic Deployment**: Blurs are only used on top-level absolute background elements to minimize layout recalculations.
 - **Intentional Trade-off**: We prioritize the "Premium" look over support for legacy ultra-low-end mobile devices. The Pika! core audience (DJs/Dancers) is expected to use reasonably modern hardware for the connected floor experience.
+
+---
+
+## 7. Battery Optimization (Zero-Wakeup Architecture)
+
+To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architecture that eliminates all CPU and Network activity when the application is backgrounded.
+
+### Behavior Protocol
+
+| Condition | WebSocket | Polling (API) | Animations (GPU) | Power State |
+|-----------|-----------|---------------|------------------|-------------|
+| **Active** | Connected (Ping/Pong) | 30s Interval | 60 FPS | Normal |
+| **Hidden** | **Suspended** (No Pings) | **Stopped** | **Frozen** (0 FPS) | **Deep Sleep** |
+| **Resumed** | Auto-Reconnect | Immediate Fetch | Resume Loop | Awake |
+
+### 1. WebSocket Suspension
+- **Logic:** `useWebSocketConnection.ts` checks `document.visibilityState` inside the heartbeat loop.
+- **Action:** If hidden, it **skips** sending the `PING` frame.
+- **Benefit:** Prevents keeping the mobile radio/modem active (which consumes significant power).
+- **Recovery:** When the tab becomes visible, `reconnecting-websocket` + explicit visibility handlers immediately restore the connection.
+
+### 2. Desktop Hibernation
+- **Logic:** `useActivePlay.ts` checks `document.visibilityState` before firing the SQLite query hook.
+- **Action:** Returns early if window is minimized or hidden.
+- **Benefit:** Reduces CPU wakeups on the DJ's laptop during long sets.
+
+### 3. Loop Termination
+- **Logic:** `SocialSignalsLayer.tsx` checks `document.hidden` inside the `requestAnimationFrame` callback.
+- **Action:** Sets `animationFrameRef.current = null` and **returns** from the function, effectively stopping the loop.
+- **Benefit:** Ensures 0% GPU/CPU usage for rendering when the tab is not visible, bypassing browser heuristics that might only throttle to 1fps.
 
 ---
 
@@ -144,6 +173,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 
 | Date | Change |
 |------|--------|
+| 2026-01-23 | **11/10 Battery Update**: Implemented Zero-Wakeup architecture (WS suspension, Poll freezing, Animation kill) |
 | 2026-01-17 | Library virtualization (`@tanstack/react-virtual`) and lazy component loading implemented |
 | 2026-01-16 | Restored `blur-[120px]` on all devices; documented Aesthetic Intensity |
 | 2026-01-16 | Added debounced broadcasts, TTL caching, sticky participants (Pro Enhancements) |

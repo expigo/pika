@@ -121,6 +121,13 @@ The "Save/Load" functionality was moved from a standalone modal into an integrat
 - **Archive Display:** New high-fidelity retrieval list with track counts and relative timestamps.
 - **Feedback:** All DB operations are wired to `sonner` toast notifications for user confirmation.
 
+### D. Zero-Wakeup Battery Architecture (v0.2.8)
+To protect user battery life (both DJ laptops and dancer phones), we implemented aggressive resource suspension:
+1.  **WebSocket:** Heartbeats (PINGs) are **suspended** when the tab/window is hidden. This allows the mobile radio to sleep.
+2.  **Polling:** All API polling (active sessions, current track) is **paused** when the document is hidden.
+3.  **Animations:** The particle rendering loop (`requestAnimationFrame`) is **hard-stopped** (not just throttled) when backgrounded.
+4.  **Instant Resume:** Event listeners on `visibilitychange` trigger an immediate data refresh and connection check upon return.
+
 ---
 
 ## 5. Design Language & Workspace Taxonomy
@@ -213,4 +220,4 @@ Early in development, Tauri's HMR would spawn multiple Python sidecars, leading 
 
 ---
 
-*Last Updated: January 22, 2026 (v0.2.4 - Cloud Robustness)*
+*Last Updated: January 23, 2026 (v0.2.8 - Battery Optimization)*

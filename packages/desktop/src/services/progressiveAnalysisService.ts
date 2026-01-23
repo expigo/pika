@@ -9,6 +9,8 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import { type AnalysisResult, trackRepository } from "../db/repositories/trackRepository";
 import { settingsRepository } from "../db/repositories/settingsRepository";
+import { broadcastTrack } from "../hooks/live";
+import { getSessionId as getStoreSessionId } from "../hooks/live/stateHelpers";
 
 interface AnalysisJob {
   trackId: number;
@@ -109,6 +111,27 @@ async function processQueue() {
       } else {
         console.log("[ProgressiveAnalysis] Complete:", result.bpm, result.key);
         await trackRepository.markTrackAnalyzed(job.trackId, result);
+
+        // U4 Fix: Immediately broadcast improved data to listeners
+        // This solves the issue where Web App is stuck with "null" BPM until next track
+        const sessionId = getStoreSessionId();
+        if (sessionId) {
+          const track = await trackRepository.getTrackById(job.trackId);
+          if (track) {
+            console.log("[ProgressiveAnalysis] Broadcasting updated metadata");
+            broadcastTrack(sessionId, {
+              artist: track.artist ?? "",
+              title: track.title ?? "",
+              bpm: track.bpm ?? undefined,
+              key: track.key ?? undefined,
+              energy: track.energy ?? undefined,
+              danceability: track.danceability ?? undefined,
+              brightness: track.brightness ?? undefined,
+              acousticness: track.acousticness ?? undefined,
+              groove: track.groove ?? undefined,
+            });
+          }
+        }
       }
     } else {
       console.error("[ProgressiveAnalysis] HTTP error:", response.status);

@@ -20,8 +20,11 @@ export function toTrackInfo(track: NowPlayingTrack): TrackInfo {
   return {
     artist: track.artist,
     title: track.title,
-    // Core metrics
-    bpm: track.bpm,
+    // Core metrics (Ensure BPM is a number for shared schema validation)
+    bpm:
+      typeof track.bpm === "string"
+        ? Number.parseFloat(track.bpm) || undefined
+        : (track.bpm as number | undefined),
     key: track.key,
     // Fingerprint metrics (if available on track)
     energy: track.energy,
@@ -37,6 +40,14 @@ interface HistoryTrack {
   title: string;
   file_path: string;
   timestamp: number;
+  // Optional fields that might come from improved Rust backend
+  bpm?: number;
+  key?: string;
+  energy?: number;
+  danceability?: number;
+  brightness?: number;
+  acousticness?: number;
+  groove?: number;
 }
 
 type TrackChangeCallback = (track: NowPlayingTrack) => void;
@@ -64,22 +75,50 @@ class VirtualDJWatcher {
       });
 
       if (!result) {
-        console.log("[VDJ Watcher] No track found in history");
         return null;
       }
 
-      console.log("[VDJ Watcher] Got track from Rust:", result.artist, "-", result.title);
+      // If BPM is missing (common with history logs), fetch from VDJ database/sidecar
+      let bpm = result.bpm;
+      let key = result.key;
+
+      if ((!bpm || !key) && result.file_path && !result.file_path.startsWith("unknown")) {
+        try {
+          const metadata = await invoke<{
+            bpm: number | null;
+            key: string | null;
+            energy: number | null;
+          } | null>("lookup_vdj_track_metadata", {
+            filePath: result.file_path,
+          });
+
+          if (metadata) {
+            bpm = metadata.bpm ?? bpm;
+            key = metadata.key ?? key;
+            // Only update energy if provided
+            // energy = metadata.energy ?? energy;
+          }
+        } catch (e) {
+          console.warn("[VDJ Watcher] Metadata lookup failed:", e);
+        }
+      }
 
       const track: NowPlayingTrack = {
         artist: result.artist,
         title: result.title,
+        bpm: bpm ? Number.parseFloat(String(bpm)) : undefined,
+        key: key,
         filePath: result.file_path,
         timestamp: new Date(result.timestamp * 1000),
         rawTimestamp: result.timestamp,
+        // Fingerprint fields
+        energy: result.energy,
+        danceability: result.danceability,
+        brightness: result.brightness,
+        acousticness: result.acousticness,
+        groove: result.groove,
       };
 
-      // Do not update this.lastTrack here - let the watcher handle it
-      // this.lastTrack = track;
       return track;
     } catch (e) {
       console.error("[VDJ Watcher] Failed to read history:", e);

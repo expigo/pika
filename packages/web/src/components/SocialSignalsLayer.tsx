@@ -55,8 +55,8 @@ export function SocialSignalsLayer({ onLikeReceived }: Props) {
     const loop = () => {
       if (!canvas || !ctx) return;
 
-      // 🔋 Battery optimization: Stop loop when no particles exist
-      if (particlesRef.current.length === 0) {
+      // 🔋 Battery optimization: Stop loop when no particles exist or tab is hidden
+      if (particlesRef.current.length === 0 || document.hidden) {
         animationFrameRef.current = null;
         return;
       }
@@ -127,8 +127,16 @@ export function SocialSignalsLayer({ onLikeReceived }: Props) {
 
     // Don't start loop immediately - wait for first particle
 
+    const onVisibilityChange = () => {
+      if (!document.hidden && particlesRef.current.length > 0) {
+        ensureLoopRunning();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
     return () => {
       window.removeEventListener("resize", handleResize);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       unsubscribe();
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };

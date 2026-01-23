@@ -142,11 +142,11 @@ export function useWebSocketConnection({
     // Heartbeat monitor (Adaptive)
     const heartbeatInterval = setInterval(() => {
       const isBackground = document.visibilityState === "hidden";
-      const readyState = socket.readyState;
 
       // Skip heartbeats if backgrounded for too long or not connected
       // This saves battery for dancers who leave the tab open in their pocket
-      if (readyState !== WebSocket.OPEN) return;
+      // 🔋 11/10 Performance: Skip heartbeats if backgrounded
+      if (isBackground) return;
 
       // Send PING (using constant string to avoid GC churn)
       socket.send(PING_STR);

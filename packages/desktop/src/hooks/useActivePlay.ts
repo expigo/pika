@@ -39,6 +39,11 @@ export function useActivePlay(pollIntervalMs = 1500): UseActivePlayResult {
 
   // Fetch the latest play
   const fetchLatestPlay = useCallback(async () => {
+    // 🔋 11/10 Performance: Stop polling if window is hidden/minimized
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+      return;
+    }
+
     if (!dbSessionId) {
       setCurrentPlay(null);
       setRecentPlays([]);
