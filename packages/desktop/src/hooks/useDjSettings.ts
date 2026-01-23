@@ -18,6 +18,9 @@ import { TOKEN_FOCUS_REVALIDATION_MIN_MS, TOKEN_REVALIDATION_INTERVAL_MS } from 
 
 const STORAGE_KEY = "pika_dj_settings";
 
+// 🛡️ R2 Fix: Module-level lock to prevent cross-instance validation races
+let globalValidatingLock = false;
+
 export type ServerEnv = "dev" | "prod" | "staging";
 
 // Validated DJ info from token
@@ -178,13 +181,14 @@ export function useDjSettings() {
    * Revalidate the current token silently
    * U1 fix: Ensures revoked tokens are detected
    */
-  const revalidateToken = useCallback(async (): Promise<boolean> => {
+  const revalidateToken = useCallback(async (): Promise<{ valid: boolean; skipped?: boolean }> => {
     const currentSettings = loadSettings();
-    if (!currentSettings.authToken || isRevalidatingRef.current) {
-      return true; // No token to revalidate or already revalidating
+    if (!currentSettings.authToken || isRevalidatingRef.current || globalValidatingLock) {
+      return { valid: true, skipped: true }; // No token, already local revalidating, or global revalidating
     }
 
     isRevalidatingRef.current = true;
+    globalValidatingLock = true;
 
     try {
       const djInfo = await validateTokenWithServer(currentSettings.authToken);
@@ -196,7 +200,7 @@ export function useDjSettings() {
           saveSettings(newSettings);
           return newSettings;
         });
-        return true;
+        return { valid: true, skipped: false };
       } else {
         // Token revoked or expired - clear auth state
         console.warn("[DJ Settings] Token revalidation failed - token may be revoked");
@@ -212,14 +216,15 @@ export function useDjSettings() {
           saveSettings(newSettings);
           return newSettings;
         });
-        return false;
+        return { valid: false, skipped: false };
       }
     } catch (e) {
       // Network error - don't clear token, just log
       console.warn("[DJ Settings] Token revalidation network error:", e);
-      return true; // Assume valid on network error
+      return { valid: true, skipped: true }; // Assume valid on network error (skipped validation)
     } finally {
       isRevalidatingRef.current = false;
+      globalValidatingLock = false;
     }
   }, []);
 

@@ -148,6 +148,12 @@ export function recordPollVote(
     return { success: false, error: "Already voted" };
   }
 
+  // 🛡️ R4 Fix: Defensive check for poll expiration (TOCTOU)
+  // Even though Node is single-threaded, ensuring we don't accept votes after end time is critical
+  if (poll.endsAt && Date.now() > poll.endsAt.getTime()) {
+    return { success: false, error: "Poll has ended" };
+  }
+
   if (optionIndex < 0 || optionIndex >= poll.options.length) {
     return { success: false, error: "Invalid option" };
   }

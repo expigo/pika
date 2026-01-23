@@ -138,7 +138,11 @@ export async function persistLike(
       }
     } catch (e) {
       console.error("❌ Failed to persist like:", e);
-      return;
+      // 🛡️ R6 Fix: Check if we should retry instead of aborting immediately
+      if (attempt < maxRetries - 1) {
+        await new Promise((r) => setTimeout(r, retryDelays[attempt]));
+        continue;
+      }
     }
   }
 

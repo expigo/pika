@@ -72,32 +72,42 @@ export const sessionRepository = {
 
     const sqlite = await getSqlite();
 
-    // Insert the new session
-    await sqlite.execute(
-      `INSERT INTO sessions (uuid, dj_identity, name, started_at, ended_at) VALUES (?, ?, ?, ?, NULL)`,
-      [uuid, identity, sessionName, startedAt],
-    );
+    // 🛡️ R3 Fix: Transaction to prevent race where session isn't found immediately after insert
+    await sqlite.execute("BEGIN TRANSACTION");
 
-    // Get the inserted session by UUID
-    const result = await sqlite.select<Record<string, unknown>[]>(
-      `SELECT * FROM sessions WHERE uuid = ? LIMIT 1`,
-      [uuid],
-    );
+    try {
+      // Insert the new session
+      await sqlite.execute(
+        `INSERT INTO sessions (uuid, dj_identity, name, started_at, ended_at) VALUES (?, ?, ?, ?, NULL)`,
+        [uuid, identity, sessionName, startedAt],
+      );
 
-    if (result.length === 0) {
-      throw new Error("Failed to create session - not found after insert");
+      // Get the inserted session by UUID
+      const result = await sqlite.select<Record<string, unknown>[]>(
+        `SELECT * FROM sessions WHERE uuid = ? LIMIT 1`,
+        [uuid],
+      );
+
+      await sqlite.execute("COMMIT");
+
+      if (result.length === 0) {
+        throw new Error("Failed to create session - not found after insert");
+      }
+
+      const row = result[0];
+      return {
+        id: row.id as number,
+        uuid: row.uuid as string,
+        cloudSessionId: row.cloud_session_id as string | null,
+        djIdentity: row.dj_identity as string,
+        name: row.name as string | null,
+        startedAt: row.started_at as number,
+        endedAt: row.ended_at as number | null,
+      };
+    } catch (e) {
+      await sqlite.execute("ROLLBACK");
+      throw e;
     }
-
-    const row = result[0];
-    return {
-      id: row.id as number,
-      uuid: row.uuid as string,
-      cloudSessionId: row.cloud_session_id as string | null,
-      djIdentity: row.dj_identity as string,
-      name: row.name as string | null,
-      startedAt: row.started_at as number,
-      endedAt: row.ended_at as number | null,
-    };
   },
 
   /**

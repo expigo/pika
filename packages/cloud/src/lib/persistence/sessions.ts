@@ -65,19 +65,25 @@ export async function waitForSession(sessionId: string, timeoutMs = 4000): Promi
  * Signal that a session is ready (called after persistSession completes).
  * Resolves all waiting promises for this session.
  */
-function signalSessionReady(sessionId: string): void {
+/**
+ * Signal that a session is ready (called after persistSession completes).
+ * Resolves all waiting promises for this session.
+ * @param success - Whether the session was successfully persisted
+ */
+function signalSessionReady(sessionId: string, success: boolean): void {
   const waiters = sessionWaiters.get(sessionId);
   if (waiters && waiters.length > 0) {
     console.log(
-      `📢 Signaling session ready to ${waiters.length} waiters: ${sessionId.substring(0, 8)}...`,
+      `📢 Signaling session ${success ? "ready" : "failed"} to ${waiters.length} waiters: ${sessionId.substring(0, 8)}...`,
     );
 
     // S0.3.1 Fix: Defensive copy to allow mutation during iteration
     const waitersCopy = [...waiters];
     sessionWaiters.delete(sessionId);
 
+    // 🛡️ R5 Fix: Signal actual status instead of just 'true' (if failed, waiters should wake up and fail)
     for (const resolve of waitersCopy) {
-      resolve(true);
+      resolve(success);
     }
   }
 }
@@ -120,7 +126,7 @@ export async function persistSession(
 ): Promise<boolean> {
   if (process.env.NODE_ENV === "test") {
     persistedSessions.add(sessionId);
-    signalSessionReady(sessionId); // Signal waiters in test mode too
+    signalSessionReady(sessionId, true); // Signal waiters in test mode too
     return true;
   }
 
@@ -137,11 +143,13 @@ export async function persistSession(
     console.log(`💾 Session persisted: ${sessionId}${djUserId ? ` (DJ ID: ${djUserId})` : ""}`);
 
     // Signal all waiters that session is ready
-    signalSessionReady(sessionId);
+    signalSessionReady(sessionId, true);
 
     return true;
   } catch (e) {
     console.error("❌ Failed to persist session:", e);
+    // 🛡️ R5 Fix: Signal failure to waiters so they don't hang until timeout
+    signalSessionReady(sessionId, false);
     return false;
   }
 }

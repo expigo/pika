@@ -21,11 +21,6 @@ export interface VirtualDJTrack {
   duration?: number;
 }
 
-interface SqlQueryResult {
-  rowsAffected: number;
-  lastInsertId: number;
-}
-
 // Re-export AnalysisResult for backwards compatibility
 export type { AnalysisResult } from "@pika/shared";
 

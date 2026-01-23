@@ -525,77 +525,7 @@ export function Logbook() {
             </div>
 
             {/* Rankings */}
-            {useMemo(
-              () => (
-                <div style={styles.rankingsContainer}>
-                  {/* Top Liked Tracks */}
-                  {summary.topLikedTracks.length > 0 && (
-                    <div style={styles.rankingSection}>
-                      <h4 style={styles.rankingTitle}>
-                        <Heart size={16} color="#ef4444" />
-                        Most Liked Tracks
-                      </h4>
-                      <ol style={styles.rankingList}>
-                        {summary.topLikedTracks.map((track, i) => (
-                          <li key={track.trackId} style={styles.rankingItem}>
-                            <span style={styles.rankNumber}>{i + 1}</span>
-                            <span style={styles.rankTrack}>
-                              {track.title || "Unknown"} - {track.artist || "Unknown"}
-                            </span>
-                            <span style={styles.rankValue}>❤️ {track.totalLikes}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-
-                  {/* Top Peaked Tracks */}
-                  {summary.topPeakedTracks.length > 0 && (
-                    <div style={styles.rankingSection}>
-                      <h4 style={styles.rankingTitle}>
-                        <Flame size={16} color="#f97316" />
-                        Top Peak Moments
-                      </h4>
-                      <ol style={styles.rankingList}>
-                        {summary.topPeakedTracks.map((track, i) => (
-                          <li key={track.trackId} style={styles.rankingItem}>
-                            <span style={styles.rankNumber}>{i + 1}</span>
-                            <span style={styles.rankTrack}>
-                              {track.title || "Unknown"} - {track.artist || "Unknown"}
-                            </span>
-                            <span style={styles.rankValue}>🔥 {track.peakCount}</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-
-                  {/* Best Sessions */}
-                  {summary.topSessions.length > 0 && (
-                    <div style={styles.rankingSection}>
-                      <h4 style={styles.rankingTitle}>
-                        <Calendar size={16} color="#3b82f6" />
-                        Best Sessions
-                      </h4>
-                      <ol style={styles.rankingList}>
-                        {summary.topSessions.map((session, i) => (
-                          <li key={session.sessionId} style={styles.rankingItem}>
-                            <span style={styles.rankNumber}>{i + 1}</span>
-                            <span style={styles.rankTrack}>
-                              {session.sessionName || `Session ${session.sessionId}`}
-                            </span>
-                            <span style={styles.rankValue}>
-                              🔥 {session.peakCount}/{session.trackCount} tracks
-                            </span>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
-                </div>
-              ),
-              [summary],
-            )}
+            {rankingsContent}
           </>
         ) : sessionDetails ? (
           <>

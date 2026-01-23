@@ -114,6 +114,19 @@ async function flushAllPendingLikes(): Promise<void> {
  * Uses module-level pendingLikesByPlayId Map for correct track attribution (A2 fix)
  */
 function handleLikeReceivedCallback(trackTitle: string): void {
+  // 🛡️ R1 Fix: Prevent attribution to wrong track if like arrives after track change
+  // The 'trackTitle' arg comes from the server broadcast "someone liked [title]"
+  // We only show it visually if it matches what we think is playing
+  const currentTrack = useLiveStore.getState().nowPlaying;
+
+  if (!currentTrack || currentTrack.title !== trackTitle) {
+    logger.debug("Live", "Ignored like for previous/unknown track", {
+      msgTitle: trackTitle,
+      currentTitle: currentTrack?.title,
+    });
+    return;
+  }
+
   logger.debug("Live", "Like received", { title: trackTitle });
   addToPendingLikes(trackTitle);
   useLiveStore.getState().incrementLiveLikes();

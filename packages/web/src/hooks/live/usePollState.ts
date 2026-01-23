@@ -24,6 +24,7 @@ interface UsePollStateReturn {
 export function usePollState({ socketRef }: UsePollStateProps): UsePollStateReturn {
   const [activePoll, setActivePoll] = useState<PollState | null>(null);
   const [hasVotedOnPoll, setHasVotedOnPoll] = useState(false);
+  const hasVotedRef = useRef(false); // 🛡️ R7 Fix: Ref for synchronous access in callbacks
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Reset poll state
@@ -34,6 +35,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
     }
     setActivePoll(null);
     setHasVotedOnPoll(false);
+    hasVotedRef.current = false; // 🛡️ R7 Fix
   }, []);
 
   // Vote on active poll
@@ -44,7 +46,8 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
         return false;
       }
 
-      if (!activePoll || hasVotedOnPoll) {
+      // 🛡️ R7 Fix: Check ref instead of state to avoid stale closure
+      if (!activePoll || hasVotedRef.current) {
         return false;
       }
 
@@ -70,11 +73,12 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
         };
       });
       setHasVotedOnPoll(true);
+      hasVotedRef.current = true; // 🛡️ R7 Fix
 
       console.log("[Poll] Voted:", activePoll.options[optionIndex]);
       return true;
     },
-    [activePoll, hasVotedOnPoll, socketRef],
+    [activePoll, socketRef], // removed hasVotedOnPoll dependency
   );
 
   // Message handlers
@@ -120,6 +124,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
         userChoice: msg.votedOptionIndex,
       });
       setHasVotedOnPoll(hasVoted);
+      hasVotedRef.current = hasVoted; // 🛡️ R7 Fix
     },
 
     [MESSAGE_TYPES.POLL_UPDATE]: (message: WebSocketMessage) => {
