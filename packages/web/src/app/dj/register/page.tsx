@@ -100,10 +100,20 @@ export default function RegisterPage() {
   };
 
   const copyToken = async () => {
-    if (success?.token) {
-      await navigator.clipboard.writeText(success.token);
-      setTokenCopied(true);
-      setTimeout(() => setTokenCopied(false), 2000);
+    if (success?.token && typeof navigator !== "undefined" && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(success.token);
+        setTokenCopied(true);
+        setTimeout(() => setTokenCopied(false), 2000);
+      } catch (err) {
+        console.error("Failed to copy token:", err);
+      }
+    } else if (success?.token) {
+      // Fallback for insecure contexts
+      console.warn("Clipboard API unavailable (likely insecure context)");
+      alert(
+        "Please copy the token manually from the screen. Automated copy is disabled on insecure connections.",
+      );
     }
   };
 

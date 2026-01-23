@@ -144,6 +144,13 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
   const [thanksText, setThanksText] = useState("SEND THANKS 🦄");
   const [signalLost, setSignalLost] = useState(false);
 
+  // Haptic Feedback Utility
+  const triggerHaptic = (pattern: number | number[] = 10) => {
+    if (typeof window !== "undefined" && window.navigator?.vibrate) {
+      window.navigator.vibrate(pattern);
+    }
+  };
+
   // Monitor heartbeat for signal loss - reset immediately when heartbeat updates
   useEffect(() => {
     if (!lastHeartbeat) return;
@@ -181,6 +188,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     const sent = sendLike(currentTrack);
     if (sent) {
       setLikeAnimating(true);
+      triggerHaptic([15, 30, 15]); // Rhythmic double heart-beat
       setTimeout(() => setLikeAnimating(false), 1000);
     }
   };
@@ -225,26 +233,31 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
 
       {/* Announcement Banner */}
       {announcement && (
-        <div className="fixed top-0 left-0 right-0 z-50 animate-in slide-in-from-top duration-500">
-          <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-amber-600 px-6 py-4 shadow-2xl">
-            <div className="max-w-md mx-auto flex items-start gap-4">
-              <span className="text-2xl flex-shrink-0">📢</span>
+        <div className="fixed top-0 left-0 right-0 z-50 animate-in slide-in-from-top duration-700">
+          <div className="mx-4 mt-4 bg-slate-900/40 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-5 shadow-2xl overflow-hidden group">
+            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 opacity-50" />
+            <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-amber-400/30 to-transparent" />
+
+            <div className="max-w-md mx-auto flex items-start gap-4 relative z-10">
+              <div className="w-10 h-10 bg-amber-500/20 rounded-2xl flex items-center justify-center text-xl shadow-inner border border-amber-500/20">
+                📢
+              </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white font-black text-xs uppercase tracking-tight leading-snug italic">
+                <p className="text-white font-black text-sm uppercase tracking-tight leading-snug italic drop-shadow-sm">
                   {announcement.message}
                 </p>
                 <div className="flex items-center gap-3 mt-2">
-                  <p className="text-amber-200/50 text-[9px] font-black uppercase tracking-[0.2em]">
-                    {announcement.djName && <span>BY {announcement.djName}</span>}
+                  <p className="text-amber-400 text-[10px] font-black uppercase tracking-[0.2em] opacity-80">
+                    {announcement.djName && <span>BOOTH: {announcement.djName}</span>}
                   </p>
-                  <span className="text-amber-200/30 text-[9px] font-black uppercase">
+                  <span className="text-white/20 text-[9px] font-black uppercase">
                     {formatRelativeTime(announcement.timestamp)}
                   </span>
                 </div>
               </div>
               <button
                 onClick={dismissAnnouncement}
-                className="flex-shrink-0 p-1 text-white/50 hover:text-white transition-colors"
+                className="flex-shrink-0 p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/40 hover:text-white transition-all active:scale-95"
                 aria-label="Dismiss"
               >
                 <X className="w-4 h-4" />
@@ -256,7 +269,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
 
       {/* Main Card */}
       <div className="w-full max-w-md relative z-10">
-        <ProCard glow className={`overflow-hidden ${announcement ? "mt-24" : ""}`}>
+        <ProCard glow className={`overflow-hidden ${announcement ? "mt-24" : ""}`} variant="hero">
           {/* Header */}
           <div className="px-8 py-6 border-b border-slate-800/50 flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -280,9 +293,9 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 >
                   {isConnected
                     ? signalLost
-                      ? "SIGNAL WEAK - WAITING FOR DJ"
-                      : "CONNECTED FLOOR"
-                    : "SEARCHING FOR VIBE"}
+                      ? "TUNING FREQUENCIES"
+                      : "NETWORK PULSE: ACTIVE"
+                    : "SYNCING PULSE"}
                 </p>
               </div>
             </div>
@@ -362,28 +375,44 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                   <button
                     onClick={handleLike}
                     disabled={isLiked}
+                    style={{
+                      animationDuration: currentTrack.bpm ? `${60 / currentTrack.bpm}s` : "0.6s",
+                    }}
                     aria-label={isLiked ? "Track already liked" : "Like this track"}
-                    className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 ${
+                    className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 relative ${
                       isLiked
                         ? "bg-red-500/20 border-2 border-red-500/50 scale-100 shadow-none"
                         : likeAnimating
                           ? "bg-red-500 border-none scale-125 shadow-2xl shadow-red-500/50"
                           : "bg-slate-900 border-2 border-slate-800 hover:border-red-500/50 hover:bg-red-500/5 hover:scale-110 active:scale-95 shadow-2xl shadow-black/50 group"
-                    }`}
+                    } ${!isLiked && !likeAnimating ? "animate-[heartbeat-glow_infinite_ease-in-out]" : ""}`}
                   >
+                    {!isLiked && !likeAnimating && (
+                      <div
+                        className="absolute inset-x-0 inset-y-0 rounded-full border border-red-500/30 animate-ping opacity-20 pointer-events-none"
+                        style={{
+                          animationDuration: currentTrack.bpm
+                            ? `${120 / currentTrack.bpm}s`
+                            : "1.2s",
+                        }}
+                      />
+                    )}
                     <Heart
                       className={`w-12 h-12 transition-all duration-500 ${
                         isLiked || likeAnimating
                           ? "text-red-500 fill-red-500 drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]"
                           : "text-slate-700 group-hover:text-red-500/50"
                       }`}
+                      strokeWidth={isLiked ? 2.5 : 1.5}
                     />
                   </button>
-                  {isLiked && (
-                    <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-black text-red-500 uppercase tracking-[0.3em]">
-                      SYNCED
+                  <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 whitespace-nowrap flex flex-col items-center gap-1">
+                    <div
+                      className={`text-[10px] font-black uppercase tracking-[0.3em] transition-colors duration-500 ${isLiked ? "text-red-500" : "text-slate-600 opacity-50"}`}
+                    >
+                      {isLiked ? "SYNCED" : "PULSE"}
                     </div>
-                  )}
+                  </div>
                 </div>
 
                 {/* Secondary Actions: Tempo */}
@@ -415,7 +444,10 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                     return (
                       <button
                         key={btn.id}
-                        onClick={() => sendTempoRequest(btn.id)}
+                        onClick={() => {
+                          triggerHaptic(10);
+                          sendTempoRequest(btn.id);
+                        }}
                         aria-label={`Vote for tempo: ${btn.label}`}
                         aria-pressed={isActive}
                         className={`flex-1 py-3 rounded-2xl flex flex-col items-center justify-center transition-all border font-black text-[9px] uppercase tracking-widest gap-1 active:scale-90 ${
@@ -468,15 +500,28 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
               </div>
             ) : (
               <div className="text-center">
-                <div className="w-20 h-20 bg-slate-900 border-2 border-slate-800 rounded-full flex items-center justify-center mx-auto mb-8 animate-pulse shadow-2xl">
-                  <Radio className="w-10 h-10 text-slate-700" />
+                <div className="w-24 h-24 bg-slate-900/50 border border-slate-800 rounded-full flex items-center justify-center mx-auto mb-10 relative overflow-hidden group">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(168,85,247,0.1),transparent_70%)] animate-pulse" />
+                  <div className="absolute top-0 left-0 w-full h-[2px] bg-purple-500/20 animate-[scan_2s_linear_infinite]" />
+                  <Radio className="w-10 h-10 text-slate-700 relative z-10 animate-pulse" />
                 </div>
-                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-2">
-                  Searching...
+                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-3 animate-pulse">
+                  TUNING FREQUENCIES
                 </h2>
-                <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">
-                  {djName ? `WAITING FOR ${djName.toUpperCase()}` : "NO ACTIVE BROADCASTER"}
-                </p>
+                <div className="flex flex-col items-center gap-2">
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">
+                    {djName ? `LOCKED TO ${djName.toUpperCase()}` : "SCANNING FOR BROADCAST"}
+                  </p>
+                  <div className="flex gap-1 h-1 items-center">
+                    {[1, 2, 3].map((i) => (
+                      <div
+                        key={i}
+                        className="w-1 h-full bg-slate-800 rounded-full animate-bounce"
+                        style={{ animationDelay: `${i * 0.2}s` }}
+                      />
+                    ))}
+                  </div>
+                </div>
                 {isTargetedSession && !djName && (
                   <div className="mt-12">
                     <Link
@@ -498,7 +543,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 <div className="flex items-center gap-3 mb-6">
                   <Activity className="w-4 h-4 text-purple-400 animate-pulse" />
                   <span className="text-[10px] font-black text-purple-400 uppercase tracking-[0.25em] drop-shadow-[0_0_10px_rgba(168,85,247,0.5)]">
-                    Live Governance
+                    FLOOR CONSENSUS
                   </span>
                 </div>
 
@@ -535,9 +580,13 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                             </span>
                             <span className="text-slate-500">{percent}%</span>
                           </div>
-                          <div className="h-2 bg-black rounded-full overflow-hidden">
+                          <div className="h-3 bg-black/40 rounded-full overflow-hidden border border-white/5 relative">
                             <div
-                              className={`h-full rounded-full transition-all duration-1000 ${isWinner ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" : "bg-purple-600"}`}
+                              className={`h-full rounded-full transition-all duration-1000 relative ${
+                                isWinner
+                                  ? "bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                                  : "bg-gradient-to-r from-purple-600 to-purple-400 shadow-[0_0_20px_rgba(168,85,247,0.2)]"
+                              }`}
                               style={{ width: `${percent}%` }}
                             />
                           </div>
@@ -551,6 +600,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                       <button
                         key={idx}
                         onClick={() => {
+                          triggerHaptic(20);
                           setVotingOption(idx);
                           voteOnPoll(idx);
                           setTimeout(() => setVotingOption(null), 500);
