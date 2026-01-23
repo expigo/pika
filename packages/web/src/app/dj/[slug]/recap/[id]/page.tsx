@@ -6,18 +6,16 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
-  Clock,
   Heart,
   Music2,
   Radio,
   Share2,
   TrendingUp,
   User,
-  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { ProCard, ProHeader } from "@/components/ui/ProCard";
+import { ProCard } from "@/components/ui/ProCard";
 
 import { getApiBaseUrl } from "@/lib/api";
 
@@ -67,8 +65,9 @@ function formatDate(dateString: string): string {
 function formatTime(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
+    hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -147,8 +146,8 @@ export default function DjRecapPage({ params }: RecapPageProps) {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `Set Recap - ${recap?.djName || "DJ"}`,
-          text: `Check out this DJ set: ${recap?.trackCount} tracks played!`,
+          title: `Handshake Recap - ${recap?.djName || "DJ"}`,
+          text: `Review the connection flow: ${recap?.trackCount} pulses captured!`,
           url,
         });
       } catch {
@@ -173,7 +172,7 @@ export default function DjRecapPage({ params }: RecapPageProps) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
         <div className="text-purple-400 animate-pulse font-black tracking-widest text-[10px] uppercase">
-          Rewinding Tape...
+          Reading Connection Flow...
         </div>
       </div>
     );
@@ -213,13 +212,13 @@ export default function DjRecapPage({ params }: RecapPageProps) {
 
       <div className="relative max-w-2xl mx-auto px-4 py-16">
         {/* Header Card */}
-        <ProCard glow className="mb-8 overflow-hidden">
+        <ProCard glow className="mb-8 overflow-hidden" variant="hero">
           {/* Top Bar */}
           <div className="px-8 py-4 border-b border-slate-800/50 flex items-center justify-between bg-slate-900/40">
             <div className="flex items-center gap-3">
               <Radio className="w-5 h-5 text-red-500" />
               <h1 className="text-sm font-black text-white italic uppercase tracking-tighter">
-                Pika! <span className="text-red-500">Recap</span>
+                Pika! <span className="text-red-500">Recap.</span>
               </h1>
             </div>
             <button
@@ -245,19 +244,18 @@ export default function DjRecapPage({ params }: RecapPageProps) {
             </Link>
             <Link href={`/dj/${djSlug}`}>
               <h2 className="text-3xl font-black text-white mb-2 italic uppercase tracking-tighter hover:text-purple-400 transition-colors">
-                {recap.djName}
+                {recap.djName}.
               </h2>
             </Link>
             <div className="flex items-center justify-center gap-3 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">
               <Calendar className="w-4 h-4 text-purple-500/50" />
-              {formatDate(recap.startedAt)}
+              {formatDate(recap.startedAt).toUpperCase()}
             </div>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 divide-x divide-slate-800/50 bg-slate-900/20">
+          <div className="grid grid-cols-3 divide-x divide-white/[0.03] bg-white/[0.02]">
             <div className="px-6 py-6 text-center">
-              <div className="text-2xl font-black text-white italic tracking-tighter">
+              <div className="text-2xl font-black text-white italic tracking-tighter font-mono">
                 {recap.trackCount}
               </div>
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">
@@ -265,7 +263,7 @@ export default function DjRecapPage({ params }: RecapPageProps) {
               </div>
             </div>
             <div className="px-6 py-6 text-center">
-              <div className="text-2xl font-black text-white italic tracking-tighter">
+              <div className="text-2xl font-black text-white italic tracking-tighter font-mono">
                 {formatDuration(recap.startedAt, recap.endedAt)}
               </div>
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">
@@ -273,12 +271,12 @@ export default function DjRecapPage({ params }: RecapPageProps) {
               </div>
             </div>
             <div className="px-6 py-6 text-center">
-              <div className="text-2xl font-black text-red-500 italic tracking-tighter flex items-center justify-center gap-2">
+              <div className="text-2xl font-black text-red-500 italic tracking-tighter flex items-center justify-center gap-2 font-mono">
                 <Heart className="w-5 h-5 fill-current" />
                 {recap.totalLikes}
               </div>
               <div className="text-[9px] font-black text-slate-500 uppercase tracking-widest mt-1">
-                Total Syncs
+                Total Pulses
               </div>
             </div>
           </div>
@@ -297,7 +295,7 @@ export default function DjRecapPage({ params }: RecapPageProps) {
               </div>
               <div>
                 <div className="font-black text-white italic uppercase tracking-tight text-lg leading-tight">
-                  Deep Intelligence
+                  Deep Intelligence.
                 </div>
                 <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mt-1">
                   View engagement charts & vibe analysis
@@ -316,7 +314,7 @@ export default function DjRecapPage({ params }: RecapPageProps) {
             <div className="flex items-center gap-3">
               <Music2 className="w-5 h-5 text-purple-500" />
               <h3 className="font-black text-white italic uppercase tracking-tight">
-                Timeline Archive
+                Flow Sequence.
               </h3>
             </div>
             <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">
@@ -328,53 +326,63 @@ export default function DjRecapPage({ params }: RecapPageProps) {
             {visibleTracks?.map((track) => (
               <div
                 key={track.position}
-                className="px-8 py-5 flex items-center gap-5 hover:bg-slate-900/50 transition-all group"
+                className="px-6 sm:px-8 py-4 flex items-center gap-4 sm:gap-6 hover:bg-white/[0.02] transition-colors group relative"
               >
-                <div className="flex-shrink-0 w-8 text-[11px] font-black text-slate-700 italic group-hover:text-purple-500/50 transition-colors">
+                {/* 1. POSITION TRACKER */}
+                <div className="flex-shrink-0 w-6 sm:w-8 text-[10px] sm:text-[11px] font-black text-slate-800 italic group-hover:text-purple-500/40 transition-colors">
                   {String(track.position).padStart(2, "0")}
                 </div>
+
+                {/* 2. CORE IDENTITY (TRUNCATED) */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-white font-black italic uppercase tracking-tight leading-tight group-hover:text-purple-400 transition-colors">
-                    {track.title}
-                  </p>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-1">
-                    {track.artist}
-                  </p>
-                </div>
-
-                {/* Tempo feedback */}
-                {track.tempo &&
-                  (track.tempo.slower > 0 || track.tempo.perfect > 0 || track.tempo.faster > 0) && (
-                    <div className="flex items-center gap-2 mr-2">
-                      {track.tempo.slower > 0 && (
-                        <span className="px-2 py-1 bg-blue-500/10 border border-blue-500/20 rounded-lg text-[10px] font-black text-blue-400 flex items-center gap-1">
-                          🐢 {track.tempo.slower}
-                        </span>
-                      )}
-                      {track.tempo.perfect > 0 && (
-                        <span className="px-2 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-[10px] font-black text-emerald-400 flex items-center gap-1">
-                          👌 {track.tempo.perfect}
-                        </span>
-                      )}
-                      {track.tempo.faster > 0 && (
-                        <span className="px-2 py-1 bg-orange-500/10 border border-orange-500/20 rounded-lg text-[10px] font-black text-orange-400 flex items-center gap-1">
-                          🐇 {track.tempo.faster}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                <div className="flex items-center gap-4 flex-shrink-0">
-                  {track.likes > 0 && (
-                    <span className="flex items-center gap-1.5 px-3 py-1 bg-red-500/5 border border-red-500/10 rounded-full text-red-500 font-black text-[10px]">
-                      <Heart className="w-3.5 h-3.5 fill-current" />
-                      {track.likes}
-                    </span>
-                  )}
-                  <div className="text-slate-700 font-black text-[10px] uppercase w-16 text-right group-hover:text-slate-500 transition-colors">
-                    {formatTime(track.playedAt)}
+                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-3">
+                    <p className="text-white font-black italic uppercase tracking-tight text-sm leading-none truncate group-hover:text-purple-400 transition-colors">
+                      {track.title}
+                    </p>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] truncate mt-1 sm:mt-0 opacity-60">
+                      {track.artist}
+                    </p>
                   </div>
                 </div>
+
+                {/* 3. PERFORMANCE DATA (FIXED COLUMN) */}
+                <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+                  {/* Feedback Group */}
+                  <div className="hidden sm:flex items-center gap-2">
+                    {track.tempo &&
+                      (track.tempo.slower > 0 ||
+                        track.tempo.perfect > 0 ||
+                        track.tempo.faster > 0) && (
+                        <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
+                          {track.tempo.perfect > 0 && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
+                          )}
+                          {track.tempo.slower > 0 && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
+                          )}
+                          {track.tempo.faster > 0 && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
+                          )}
+                        </div>
+                      )}
+                    {track.likes > 0 && (
+                      <div className="flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-md">
+                        <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
+                        <span className="text-[9px] font-black text-red-500 mt-0.5">
+                          {track.likes}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Timestamp */}
+                  <div className="text-slate-800 font-black text-[9px] uppercase w-12 text-right group-hover:text-slate-600 transition-colors font-mono">
+                    {formatTime(track.playedAt).split(" ")[0]}
+                  </div>
+                </div>
+
+                {/* Hover Selection Beam */}
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-0 bg-purple-500 group-hover:h-8 transition-all duration-300" />
               </div>
             ))}
           </div>
@@ -401,19 +409,20 @@ export default function DjRecapPage({ params }: RecapPageProps) {
         </ProCard>
 
         {/* Back Link & Footer */}
-        <div className="mt-12 text-center">
+        <div className="mt-16 text-center pb-32">
           <Link
             href={`/dj/${djSlug}`}
-            className="inline-flex items-center gap-3 px-6 py-3 bg-slate-900/50 hover:bg-slate-900 rounded-2xl text-slate-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest border border-slate-800/50"
+            className="inline-flex items-center gap-3 px-6 py-3 bg-white/[0.03] hover:bg-white/[0.08] rounded-2xl text-slate-500 hover:text-white transition-all text-[10px] font-black uppercase tracking-widest border border-white/[0.05] mb-12 shadow-xl active:scale-95"
           >
             <ArrowLeft className="w-4 h-4" />
-            Full {recap.djName} Profile
+            Return to {recap.djName} Profile
           </Link>
-        </div>
 
-        <div className="text-center mt-20 opacity-30">
-          <p className="text-[9px] font-black uppercase tracking-[0.5em] text-slate-500">
-            Powered by Pika! Deep Analytics Engine
+          <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-600 mb-2">
+            The Neural Fiber of the Floor
+          </p>
+          <p className="text-[9px] font-bold text-slate-700 italic uppercase tracking-widest opacity-60">
+            Powered by Pika! Deep Intelligence Engine
           </p>
         </div>
       </div>

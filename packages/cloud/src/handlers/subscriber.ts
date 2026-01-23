@@ -26,6 +26,14 @@ export function handleSubscribe(ctx: WSContext) {
   if (!msg) return;
   const targetSession = msg.sessionId;
 
+  const allSessions = getAllSessions();
+  console.log(`🔍 [SUBSCRIBE] Request received`, {
+    targetSession: targetSession || "NONE",
+    clientId: state.clientId || "UNKNOWN",
+    currentSessionCount: allSessions.length,
+    availableSessions: allSessions.map(s => ({ id: s.sessionId, dj: s.djName })),
+  });
+
   // Only log if this is a new subscription (not a repeat)
   const isNewSubscription = !state.isListener && state.clientId && targetSession;
   if (isNewSubscription) {

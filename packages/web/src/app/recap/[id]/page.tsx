@@ -53,8 +53,9 @@ function formatDate(dateString: string): string {
 function formatTime(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
+    hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -190,7 +191,7 @@ export default function RecapPage() {
         </div>
 
         {/* HERO CARD */}
-        <ProCard className="p-8 sm:p-12 mb-10 text-center" glow>
+        <ProCard className="p-8 sm:p-12 mb-10 text-center" glow variant="hero" align="center">
           <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-[2rem] mb-8 shadow-2xl shadow-purple-500/20">
             <User className="w-10 h-10 text-white" />
           </div>

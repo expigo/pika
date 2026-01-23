@@ -47,21 +47,28 @@ const activeSessions = new Map<string, LiveSession>();
  * Get a session by ID
  */
 export function getSession(sessionId: string): LiveSession | undefined {
-  return activeSessions.get(sessionId);
+  const session = activeSessions.get(sessionId);
+  console.log(`🔍 [SESSIONS] getSession(${sessionId}): ${session ? "FOUND" : "NOT FOUND"} (total: ${activeSessions.size})`);
+  return session;
 }
 
 /**
  * Set/update a session
  */
 export function setSession(sessionId: string, session: LiveSession): void {
+  const wasNew = !activeSessions.has(sessionId);
   activeSessions.set(sessionId, session);
+  console.log(`🔍 [SESSIONS] setSession(${sessionId}): ${wasNew ? "NEW" : "UPDATE"} - DJ: ${session.djName} (total: ${activeSessions.size})`);
 }
 
 /**
  * Delete a session
  */
 export function deleteSession(sessionId: string): boolean {
-  return activeSessions.delete(sessionId);
+  const existed = activeSessions.has(sessionId);
+  const result = activeSessions.delete(sessionId);
+  console.log(`🔍 [SESSIONS] deleteSession(${sessionId}): ${existed ? "DELETED" : "NOT FOUND"} (total: ${activeSessions.size})`);
+  return result;
 }
 
 /**
@@ -113,4 +120,35 @@ export function setSessionAnnouncement(
   if (!session) return false;
   session.activeAnnouncement = announcement;
   return true;
+}
+
+/**
+ * Clean up stale sessions that have been running for too long
+ * (likely orphaned due to missed cleanup on disconnect)
+ *
+ * @param maxAgeMs Maximum session age in milliseconds (default: 8 hours)
+ * @returns Array of removed session IDs
+ */
+export function cleanupStaleSessions(maxAgeMs = 8 * 60 * 60 * 1000): string[] {
+  const now = Date.now();
+  const removed: string[] = [];
+
+  for (const [sessionId, session] of activeSessions) {
+    const startedAt = new Date(session.startedAt).getTime();
+    const age = now - startedAt;
+
+    if (age > maxAgeMs) {
+      console.warn(
+        `🧹 [SESSIONS] Removing stale session: ${sessionId} (DJ: ${session.djName}, age: ${Math.round(age / 1000 / 60)} minutes)`
+      );
+      activeSessions.delete(sessionId);
+      removed.push(sessionId);
+    }
+  }
+
+  if (removed.length > 0) {
+    console.log(`🧹 [SESSIONS] Cleaned up ${removed.length} stale session(s). Remaining: ${activeSessions.size}`);
+  }
+
+  return removed;
 }

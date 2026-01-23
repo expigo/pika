@@ -347,6 +347,7 @@ export function LivePerformanceMode({
         currentPlay={currentPlay ?? null}
         tempoFeedback={tempoFeedback}
         liveLikes={liveLikes}
+        env={settings.serverEnv}
       />
 
       <main className="flex-1 flex flex-col items-center justify-center p-8 overflow-hidden relative">

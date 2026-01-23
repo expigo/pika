@@ -6,7 +6,6 @@ import {
   ChevronRight,
   ExternalLink,
   Flame,
-  Globe,
   Heart,
   History,
   Music2,
@@ -17,7 +16,7 @@ import {
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { LivePlayer } from "@/components/LivePlayer";
-import { ProCard, ProHeader } from "@/components/ui/ProCard";
+import { ProCard } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 import { getApiBaseUrl } from "@/lib/api";
 
@@ -100,6 +99,8 @@ export default function LivePage() {
 
   useEffect(() => {
     fetchAllData();
+    const interval = setInterval(fetchAllData, 15000); // 15s polling
+    return () => clearInterval(interval);
   }, [fetchAllData]);
 
   if (selectedSessionId) {
@@ -169,20 +170,24 @@ export default function LivePage() {
               className={`w-2 h-2 rounded-full ${sessions.length > 0 ? "bg-red-500 animate-pulse shadow-lg shadow-red-500/50" : "bg-slate-700"}`}
             />
             <span className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
-              {sessions.length > 0 ? `${sessions.length} ROOMS ACTIVE` : "AIRWAVES QUIET"}
+              {sessions.length > 0 ? `${sessions.length} ROOMS ACTIVE` : "NO ROOMS ACTIVE"}
             </span>
           </div>
           <h1 className="text-7xl font-black text-white italic tracking-tighter mb-4 uppercase leading-none">
-            LOBBY
+            LOBBY.
           </h1>
 
           {/* Discovery HUB / Community Pulse */}
           <div className="flex items-center justify-center gap-4 mt-6">
             <VibeBadge variant="purple" icon={Activity}>
-              Avg Vibe: {avgBpm > 0 ? `${Math.round(avgBpm)} BPM` : "CALM"}
+              Avg Vibe:{" "}
+              <span className="font-mono text-[10px]">
+                {avgBpm > 0 ? `${Math.round(avgBpm)} BPM` : "CALM"}
+              </span>
             </VibeBadge>
             <VibeBadge variant="slate" icon={Users}>
-              {totalDancers} {totalDancers === 1 ? "Dancer" : "Dancers"} Online
+              <span className="font-mono text-[10px]">{totalDancers}</span>{" "}
+              {totalDancers === 1 ? "Dancer" : "Dancers"} Online
             </VibeBadge>
           </div>
         </div>
@@ -285,17 +290,17 @@ export default function LivePage() {
         ) : (
           /* RICH QUIET FLOOR STATE (Discovery Hub) */
           <div className="space-y-12 mb-16">
-            <ProCard glow className="bg-slate-900/20">
+            <ProCard glow className="bg-white/[0.01]">
               <div className="p-16 text-center">
-                <div className="w-24 h-24 bg-slate-950 border border-slate-800 rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 shadow-2xl group/hub transition-all">
+                <div className="w-24 h-24 bg-slate-950 border border-white/[0.05] rounded-[2.5rem] flex items-center justify-center mx-auto mb-10 shadow-2xl group/hub transition-all">
                   <Radio className="w-10 h-10 text-slate-800 group-hover:text-purple-500 transition-colors" />
                 </div>
                 <h2 className="text-4xl font-black text-white mb-3 italic uppercase tracking-tighter">
-                  THE FLOOR IS QUIET
+                  THE FLOOR IS QUIET.
                 </h2>
-                <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.2em] max-w-sm mx-auto mb-12 italic leading-relaxed">
-                  No active frequencies detected. Catch up on previous pulse data or explore the
-                  archives.
+                <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] max-w-sm mx-auto mb-12 italic leading-relaxed opacity-60">
+                  No one is broadcasting right now. Catch up on the latest set archives or explore
+                  the system portal below.
                 </p>
                 <Link
                   href="/"
@@ -308,7 +313,12 @@ export default function LivePage() {
 
             <div className="grid gap-8 sm:grid-cols-2">
               <ProCard className="overflow-hidden">
-                <ProHeader title="Top Volume" icon={Trophy} subtitle="Network-wide Syncs" />
+                <div className="px-8 py-5 border-b border-white/[0.03] flex items-center gap-3 bg-white/[0.02]">
+                  <Trophy className="w-4 h-4 text-amber-500" />
+                  <h3 className="font-black text-white italic uppercase tracking-widest text-[10px]">
+                    Popular Tracks.
+                  </h3>
+                </div>
                 <div className="divide-y divide-slate-800/30">
                   {topTracks.length > 0 ? (
                     topTracks.slice(0, 5).map((track, i) => (
@@ -324,9 +334,9 @@ export default function LivePage() {
                             {track.artist}
                           </p>
                         </div>
-                        <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/5 border border-red-500/10 rounded-lg">
+                        <div className="flex items-center gap-1.5 px-2 py-1 bg-red-500/5 border border-red-500/10 rounded-lg min-w-[50px] justify-center">
                           <Heart className="w-3 h-3 text-red-500 fill-red-500" />
-                          <span className="text-[10px] font-black text-red-500">
+                          <span className="text-[10px] font-black text-red-500 font-mono">
                             {track.likeCount}
                           </span>
                         </div>
@@ -343,7 +353,12 @@ export default function LivePage() {
               </ProCard>
 
               <ProCard className="overflow-hidden">
-                <ProHeader title="Legacy Sets" icon={History} subtitle="Timeline Archives" />
+                <div className="px-8 py-5 border-b border-white/[0.03] flex items-center gap-3 bg-white/[0.02]">
+                  <History className="w-4 h-4 text-purple-500" />
+                  <h3 className="font-black text-white italic uppercase tracking-widest text-[10px]">
+                    Recent Sets.
+                  </h3>
+                </div>
                 <div className="divide-y divide-slate-800/30">
                   {recentSessions.length > 0 ? (
                     recentSessions.map((session) => (
@@ -356,11 +371,13 @@ export default function LivePage() {
                           <p className="text-white font-black text-[11px] uppercase italic group-hover:text-purple-400 transition-colors">
                             {session.djName}
                           </p>
-                          <p className="text-slate-600 text-[9px] font-black uppercase tracking-widest mt-1">
-                            {new Date(session.startedAt).toLocaleDateString([], {
-                              month: "short",
-                              day: "numeric",
-                            })}
+                          <p className="text-slate-600 text-[9px] font-black uppercase tracking-widest mt-1 font-mono">
+                            {new Date(session.startedAt)
+                              .toLocaleDateString([], {
+                                month: "short",
+                                day: "numeric",
+                              })
+                              .toUpperCase()}
                           </p>
                         </div>
                         <div className="w-8 h-8 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center group-hover:bg-purple-500 group-hover:border-purple-500 transition-all">
@@ -382,13 +399,13 @@ export default function LivePage() {
         )}
 
         {/* Footer Branded Line */}
-        <div className="mt-24 text-center">
-          <div className="inline-flex items-center gap-3 px-6 py-3 bg-slate-950/50 border border-slate-800/50 rounded-2xl opacity-40">
-            <Globe className="w-3.5 h-3.5 text-blue-500" />
-            <p className="text-[9px] font-black uppercase tracking-[0.5em] text-slate-500">
-              Broadcasting World Wide Floor Awareness
-            </p>
-          </div>
+        <div className="mt-24 text-center pb-32">
+          <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-600 mb-2">
+            The Digital Pulse of West Coast Swing
+          </p>
+          <p className="text-[9px] font-bold text-slate-700 italic uppercase tracking-widest opacity-60">
+            Powered by Pika! Network Intelligence
+          </p>
         </div>
       </div>
     </div>

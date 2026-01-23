@@ -37,6 +37,7 @@ interface Props {
   onShowQr: () => void;
   tempoFeedback?: { slower: number; perfect: number; faster: number; total: number } | null;
   liveLikes?: number;
+  env?: string;
 }
 
 export function LiveHUD({
@@ -50,6 +51,7 @@ export function LiveHUD({
   onShowQr,
   tempoFeedback,
   liveLikes = 0,
+  env,
 }: Omit<Props, "loading" | "localIp">) {
   const [time, setTime] = useState(new Date());
   const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null);
@@ -129,6 +131,7 @@ export function LiveHUD({
                   : "disconnected"
             }
             pingEndpoint={baseUrl ? `${baseUrl}/health` : undefined}
+            env={env}
           />
 
           {(listenerCount > 0 || liveLikes > 0) && (

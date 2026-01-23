@@ -42,11 +42,24 @@ const lastBroadcastTime = new Map<string, number>();
  */
 export async function handleRegisterSession(ctx: WSContext) {
   const { message, ws, rawWs, state, messageId } = ctx;
+
+  console.log(`🔍 [REGISTER_SESSION] Handler invoked`, {
+    hasMessage: !!message,
+    messageType: (message as { type?: string })?.type,
+    currentDjSessionId: state.djSessionId,
+    messageId,
+  });
+
   const msg = parseMessage(RegisterSessionSchema, message, ws, messageId);
-  if (!msg) return;
+  if (!msg) {
+    console.error(`❌ [REGISTER_SESSION] Schema validation FAILED`);
+    return;
+  }
 
   const sessionId = msg.sessionId || `session_${Date.now()}`;
   const requestedDjName = msg.djName || "DJ";
+
+  console.log(`🔍 [REGISTER_SESSION] Parsed`, { sessionId, requestedDjName, hasToken: !!msg.token });
 
   // 🔐 Token validation for DJ authentication
   const djToken = msg.token;
@@ -69,17 +82,20 @@ export async function handleRegisterSession(ctx: WSContext) {
     djName,
     startedAt: new Date().toISOString(),
   };
+
+  // 🔧 CRITICAL FIX: Set state.djSessionId BEFORE any async operations
+  // This ensures cleanup happens even if disconnect occurs during DB persist
+  state.djSessionId = sessionId;
+  console.log(`🔍 [REGISTER_SESSION] state.djSessionId SET to: ${sessionId}`);
+
   setSession(sessionId, session);
   console.log(
     `🎧 DJ going live: ${djName} (${sessionId})${djUserId ? ` [Verified]` : ` [Anonymous]`}`,
   );
 
-  // 💾 Persist to database
+  // 💾 Persist to database (async, but state is already set for cleanup)
   await persistSession(sessionId, djName, djUserId);
   console.log(`✅ Session ready for polls: ${sessionId}`);
-
-  // Track this connection as owning this session
-  state.djSessionId = sessionId;
 
   // Confirm registration to the client
   ws.send(

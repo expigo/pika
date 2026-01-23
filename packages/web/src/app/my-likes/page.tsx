@@ -3,7 +3,7 @@
 import { ArrowRight, Heart, Radio, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ProCard, ProHeader } from "@/components/ui/ProCard";
+import { ProCard } from "@/components/ui/ProCard";
 
 import { getApiBaseUrl } from "@/lib/api";
 
@@ -43,8 +43,9 @@ function formatDate(dateString: string): string {
 function formatTime(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleTimeString("en-US", {
-    hour: "numeric",
+    hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -121,7 +122,7 @@ export default function MyLikesPage() {
   if (error === "no_likes" || (likes && likes.totalLikes === 0)) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
-        <ProCard className="max-w-md w-full p-12 text-center" glow>
+        <ProCard className="max-w-md w-full p-12 text-center" glow align="center">
           <div className="w-20 h-20 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl">
             <Heart className="w-8 h-8 text-slate-700" />
           </div>
@@ -153,16 +154,19 @@ export default function MyLikesPage() {
 
       <div className="relative max-w-2xl mx-auto px-4 py-12">
         {/* HEADER CARD */}
-        <ProCard className="mb-12 p-12 text-center" glow>
+        <ProCard className="mb-12 p-12 text-center" glow align="center">
           <div className="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-red-500 to-pink-600 rounded-[2.5rem] mb-6 shadow-2xl shadow-red-500/20">
             <Heart className="w-10 h-10 text-white fill-current" />
           </div>
           <h1 className="text-4xl font-black text-white mb-4 tracking-tighter italic uppercase">
-            JOURNAL
+            JOURNAL.
           </h1>
-          <div className="inline-flex items-center gap-2 px-4 py-1 bg-slate-900 border border-slate-800 rounded-full">
+          <p className="text-slate-500 font-bold uppercase tracking-[0.4em] sm:tracking-[0.6em] text-[10px] mb-8">
+            Personal Connection Archive
+          </p>
+          <div className="inline-flex items-center gap-2 px-4 py-1 bg-white/[0.03] border border-white/10 rounded-full">
             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-              {likes?.totalLikes} TRACKS SYNCED
+              {likes?.totalLikes} MOMENTS CAPTURED
             </span>
           </div>
         </ProCard>
@@ -175,62 +179,70 @@ export default function MyLikesPage() {
             const djSlug = slugify(djName);
 
             return (
-              <ProCard key={sessionId || "unknown"}>
-                <ProHeader
-                  title={djName}
-                  icon={User}
-                  subtitle={
-                    firstLike?.sessionDate ? formatDate(firstLike.sessionDate) : "Historical Set"
-                  }
-                />
+              <ProCard key={sessionId || "unknown"} className="overflow-hidden">
+                <div className="px-6 sm:px-8 py-5 border-b border-white/[0.03] flex items-center justify-between bg-white/[0.02]">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+                      <User className="w-5 h-5 text-purple-400" />
+                    </div>
+                    <div>
+                      <h3 className="font-black text-white uppercase text-xs tracking-wider leading-none mb-1">
+                        {djName}
+                      </h3>
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                        {firstLike?.sessionDate
+                          ? formatDate(firstLike.sessionDate)
+                          : "Historical Set"}
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="divide-y divide-slate-800/30">
+                  {sessionId && (
+                    <Link
+                      href={`/dj/${djSlug}/recap/${sessionId}`}
+                      className="p-2 hover:bg-white/5 rounded-lg text-slate-500 hover:text-white transition-all group/link"
+                    >
+                      <ArrowRight className="w-4 h-4 group-hover/link:translate-x-0.5 transition-transform" />
+                    </Link>
+                  )}
+                </div>
+
+                <div className="divide-y divide-white/[0.03]">
                   {sessionLikes.map((like) => (
                     <div
                       key={like.id}
-                      className="px-8 py-5 flex items-center justify-between transition-colors active:bg-slate-900/80"
+                      className="px-6 sm:px-8 py-4 flex items-center justify-between group/row hover:bg-white/[0.01] transition-colors"
                     >
                       <div className="flex-1 min-w-0 flex items-center gap-4">
-                        <Heart className="w-4 h-4 text-red-500 fill-red-500/20 group-hover:fill-red-500 transition-all" />
-                        <div>
-                          <p className="text-white font-black text-sm tracking-tight uppercase italic truncate">
+                        <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500/20 group-hover/row:fill-red-500 transition-all" />
+                        <div className="min-w-0">
+                          <p className="text-slate-100 font-extrabold text-[13px] tracking-tight uppercase italic truncate leading-none">
                             {like.title}
                           </p>
-                          <p className="text-slate-500 text-[10px] font-black uppercase tracking-widest truncate mt-1">
+                          <p className="text-slate-500 text-[9px] font-bold uppercase tracking-[0.2em] truncate mt-1.5 opacity-60">
                             {like.artist}
                           </p>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end flex-shrink-0">
-                        <span className="text-slate-700 font-black text-[10px]">
-                          {formatTime(like.likedAt)}
+                      <div className="flex-shrink-0 ml-4">
+                        <span className="text-slate-700 font-black text-[9px] tabular-nums uppercase">
+                          {formatTime(like.likedAt).split(" ")[0]}
                         </span>
                       </div>
                     </div>
                   ))}
                 </div>
-
-                {sessionId && (
-                  <div className="px-8 py-4 bg-slate-900/30 flex justify-end border-t border-slate-800/30">
-                    <Link
-                      href={`/dj/${djSlug}/recap/${sessionId}`}
-                      className="inline-flex items-center gap-2 px-4 py-2 bg-slate-900 border border-slate-800 hover:border-purple-500/30 hover:bg-purple-500/5 text-[9px] font-black text-slate-400 hover:text-purple-400 transition-all uppercase tracking-widest rounded-lg"
-                    >
-                      View Full Recap <ArrowRight className="w-3 h-3" />
-                    </Link>
-                  </div>
-                )}
               </ProCard>
             );
           })}
         </div>
 
-        <div className="mt-20 text-center opacity-30 pb-32">
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-500">
-            A personal record of your WCS journey
+        <div className="mt-24 text-center pb-32">
+          <p className="text-[10px] font-black uppercase tracking-[0.5em] text-slate-600 mb-2">
+            The Neural Fiber of the Handshake
           </p>
-          <p className="mt-2 text-[9px] font-bold text-slate-600 italic">
-            Stored locally on this device
+          <p className="text-[9px] font-bold text-slate-700 italic uppercase tracking-widest opacity-60">
+            Your Synchronized Dance History
           </p>
         </div>
       </div>

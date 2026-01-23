@@ -365,6 +365,7 @@ export default function LandingPage() {
               glow
               glowColor="purple-500"
               bgImage="/textures/dj.png"
+              variant="hero"
             >
               <div className="w-16 h-16 bg-purple-500/5 border border-purple-500/10 rounded-[1.5rem] flex items-center justify-center mb-10 group-hover:bg-purple-500/20 group-hover:border-purple-500/30 transition-all duration-700 shadow-[0_0_20px_rgba(168,85,247,0.05)]">
                 <Headphones className="w-8 h-8 text-slate-300 group-hover:text-purple-400 transition-colors" />
@@ -415,6 +416,7 @@ export default function LandingPage() {
               glow
               glowColor="pink-500"
               bgImage="/textures/dancer.png"
+              variant="hero"
             >
               <div className="w-16 h-16 bg-pink-500/5 border border-pink-500/10 rounded-[1.5rem] flex items-center justify-center mb-10 group-hover:bg-pink-500/20 group-hover:border-pink-500/30 transition-all duration-700 shadow-[0_0_20px_rgba(236,72,153,0.05)]">
                 <Heart className="w-8 h-8 text-slate-300 group-hover:text-pink-400 transition-colors" />
@@ -465,6 +467,7 @@ export default function LandingPage() {
               glow
               glowColor="emerald-500"
               bgImage="/textures/organizer.png"
+              variant="hero"
             >
               <div className="w-16 h-16 bg-emerald-500/5 border border-emerald-500/10 rounded-[1.5rem] flex items-center justify-center mb-10 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/30 transition-all duration-700 shadow-[0_0_20px_rgba(16,185,129,0.05)]">
                 <Calendar className="w-8 h-8 text-slate-300 group-hover:text-emerald-400 transition-colors" />

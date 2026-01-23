@@ -38,6 +38,11 @@ export function handleGetSessions(ctx: WSContext) {
 
   const sessions = getAllSessions();
 
+  console.log(`🔍 [GET_SESSIONS] Returning ${sessions.length} sessions to client ${state.clientId || "unknown"}`, {
+    sessionIds: sessions.map(s => s.sessionId),
+    djNames: sessions.map(s => s.djName),
+  });
+
   // Backpressure awareness
   if (rawWs.getBufferedAmount() < 1024 * 64) {
     ws.send(

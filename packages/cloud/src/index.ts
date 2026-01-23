@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
-import { db } from "./db";
+import { db, client } from "./db";
 import { auth as authRoutes } from "./routes/auth";
 import { sessions as sessionsRoutes } from "./routes/sessions";
 import { stats as statsRoutes } from "./routes/stats";
@@ -14,7 +14,12 @@ import { client as clientRoutes } from "./routes/client";
 
 import { cleanupStaleListeners, getListenerCount } from "./lib/listeners";
 import { cachedListenerCounts } from "./lib/cache";
-import { getSessionCount, getSessionIds } from "./lib/sessions";
+import {
+  getSessionCount,
+  getSessionIds,
+  getAllSessions,
+  cleanupStaleSessions,
+} from "./lib/sessions";
 import * as handlers from "./handlers";
 
 // Type alias for Bun WebSocket
@@ -27,7 +32,18 @@ type WS = ServerWebSocket<{
 let activeBroadcaster: ServerWebSocket<unknown> | null = null;
 
 // Periodically cleanup stale listeners (every 30 mins)
-setInterval(cleanupStaleListeners, 30 * 60 * 1000);
+setInterval(cleanupStaleListeners, 30 * 60 * 1000).unref();
+
+// Periodically cleanup stale sessions (every hour) - catches orphaned sessions
+setInterval(
+  () => {
+    const removed = cleanupStaleSessions();
+    if (removed.length > 0) {
+      console.log(`🧹 Periodic cleanup removed ${removed.length} stale sessions`);
+    }
+  },
+  60 * 60 * 1000,
+).unref();
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
@@ -85,7 +101,7 @@ setInterval(
     }
   },
   5 * 60 * 1000,
-);
+).unref();
 
 function checkWsRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -124,7 +140,7 @@ app.get(
         handlers.handleOpen(ws.raw as ServerWebSocket);
       },
 
-      onMessage(event, ws) {
+      async onMessage(event, ws) {
         try {
           const data = event.data.toString();
           if (data.length > 10 * 1024) {
@@ -134,7 +150,10 @@ app.get(
 
           const json = JSON.parse(data);
           const result = WebSocketMessageSchema.safeParse(json);
-          if (!result.success) return;
+          if (!result.success) {
+            console.warn("⚠️ Message validation failed:", json.type, result.error.issues);
+            return;
+          }
 
           const message = result.data as WebSocketMessage & {
             messageId?: string;
@@ -150,10 +169,11 @@ app.get(
 
           switch (message.type) {
             case "REGISTER_SESSION":
-              handlers.handleRegisterSession(ctx);
+              // Async handler - await to ensure state is set before any subsequent messages
+              await handlers.handleRegisterSession(ctx);
               break;
             case "BROADCAST_TRACK":
-              handlers.handleBroadcastTrack(ctx);
+              await handlers.handleBroadcastTrack(ctx);
               break;
             case "TRACK_STOPPED":
               handlers.handleTrackStopped(ctx);
@@ -255,6 +275,31 @@ app.get("/health", async (c) => {
   }
 });
 
+// 🔍 Debug endpoint - shows current in-memory state (development only)
+app.get("/debug/sessions", (c) => {
+  if (process.env.NODE_ENV === "production") {
+    return c.json({ error: "Not available in production" }, 403);
+  }
+
+  const sessions = getAllSessions();
+  const sessionIds = getSessionIds();
+
+  return c.json({
+    timestamp: new Date().toISOString(),
+    sessionCount: sessions.length,
+    sessionIds,
+    sessions: sessions.map((s) => ({
+      sessionId: s.sessionId,
+      djName: s.djName,
+      startedAt: s.startedAt,
+      hasCurrentTrack: !!s.currentTrack,
+      currentTrack: s.currentTrack ? `${s.currentTrack.artist} - ${s.currentTrack.title}` : null,
+      hasAnnouncement: !!s.activeAnnouncement,
+    })),
+    cachedListenerCounts: Object.fromEntries(cachedListenerCounts),
+  });
+});
+
 // Root endpoint
 app.get("/", (c) => {
   return c.json({
@@ -300,7 +345,7 @@ setInterval(() => {
       }
     }
   }
-}, 2000);
+}, 2000).unref();
 
 // ============================================================================
 // Graceful Shutdown Handling
@@ -316,43 +361,68 @@ async function gracefulShutdown(signal: string) {
 
   console.log(`\n🛑 Received ${signal}, initiating graceful shutdown...`);
 
-  // Broadcast shutdown message to all connected clients
-  if (activeBroadcaster) {
-    try {
-      activeBroadcaster.publish(
-        "live-session",
-        JSON.stringify({
-          type: "SERVER_SHUTDOWN",
-          message: "Server is shutting down for maintenance",
+  // Force exit after 5 seconds if graceful shutdown hangs
+  const forceExitTimeout = setTimeout(() => {
+    console.warn("⚠️ Graceful shutdown timed out, forcing exit...");
+    process.exit(1);
+  }, 5000);
+
+  // Unref the timeout so it doesn't keep the process alive if everything else finishes
+  if (forceExitTimeout.unref) forceExitTimeout.unref();
+
+  try {
+    // Broadcast shutdown message to all connected clients
+    if (activeBroadcaster) {
+      try {
+        activeBroadcaster.publish(
+          "live-session",
+          JSON.stringify({
+            type: "SERVER_SHUTDOWN",
+            message: "Server is shutting down for maintenance",
+          }),
+        );
+        console.log("📢 Broadcast shutdown notification to clients");
+      } catch (e) {
+        console.warn("⚠️ Failed to broadcast shutdown:", e);
+      }
+    }
+
+    // End all active sessions in database
+    const sessionIds = getSessionIds();
+    if (sessionIds.length > 0) {
+      console.log(`💾 Ending ${sessionIds.length} active session(s)...`);
+      await Promise.all(
+        sessionIds.map(async (sessionId) => {
+          try {
+            await endSessionInDb(sessionId);
+            console.log(`  ✅ Ended session: ${sessionId.substring(0, 8)}...`);
+          } catch (e) {
+            console.error(`  ❌ Failed to end session ${sessionId}:`, e);
+          }
         }),
       );
-      console.log("📢 Broadcast shutdown notification to clients");
-    } catch (e) {
-      console.warn("⚠️ Failed to broadcast shutdown:", e);
     }
+
+    // Close database connection pool
+    try {
+      console.log("🔌 Closing database connection pool...");
+      // @ts-ignore - client is postgres.js instance
+      await client.end({ timeout: 2 });
+      console.log("  ✅ Database connection pool closed");
+    } catch (e) {
+      console.warn("⚠️ Error closing database connection:", e);
+    }
+
+    // Small delay to allow messages to be sent
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    console.log("👋 Shutdown complete");
+    clearTimeout(forceExitTimeout);
+    process.exit(0);
+  } catch (err) {
+    console.error("❌ Critical error during shutdown:", err);
+    process.exit(1);
   }
-
-  // End all active sessions in database
-  const sessionIds = getSessionIds();
-  if (sessionIds.length > 0) {
-    console.log(`💾 Ending ${sessionIds.length} active session(s)...`);
-    await Promise.all(
-      sessionIds.map(async (sessionId) => {
-        try {
-          await endSessionInDb(sessionId);
-          console.log(`  ✅ Ended session: ${sessionId.substring(0, 8)}...`);
-        } catch (e) {
-          console.error(`  ❌ Failed to end session ${sessionId}:`, e);
-        }
-      }),
-    );
-  }
-
-  // Small delay to allow messages to be sent
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  console.log("👋 Shutdown complete");
-  process.exit(0);
 }
 
 // Register shutdown handlers

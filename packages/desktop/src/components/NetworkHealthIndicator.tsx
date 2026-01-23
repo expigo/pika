@@ -7,9 +7,15 @@ interface Props {
   status: ConnectionStatus;
   latency?: number; // External latency (if available)
   pingEndpoint?: string; // Optional endpoint to ping for latency
+  env?: string;
 }
 
-export function NetworkHealthIndicator({ status, latency: externalLatency, pingEndpoint }: Props) {
+export function NetworkHealthIndicator({
+  status,
+  latency: externalLatency,
+  pingEndpoint,
+  env,
+}: Props) {
   const [measuredLatency, setMeasuredLatency] = useState<number | null>(null);
 
   // Ping loop
@@ -78,12 +84,17 @@ export function NetworkHealthIndicator({ status, latency: externalLatency, pingE
   }[health];
 
   return (
-    <div className="flex items-center">
+    <div className="flex items-center gap-2">
+      {env && (
+        <div className="px-2 py-1 bg-white/5 border border-white/10 rounded-lg text-[9px] font-black text-slate-500 uppercase tracking-widest hidden sm:block">
+          {env}
+        </div>
+      )}
       <div
         className={`flex items-center gap-2 px-3 py-1.5 border rounded-xl text-sm font-black transition-all ${statusConfig.border} ${statusConfig.bg} ${statusConfig.color}`}
       >
         <Activity size={16} />
-        <span>{displayLatency}ms</span>
+        <span className="tabular-nums">{displayLatency}ms</span>
       </div>
     </div>
   );

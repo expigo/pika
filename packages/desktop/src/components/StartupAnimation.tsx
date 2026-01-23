@@ -5,12 +5,11 @@ export function StartupAnimation() {
   const [visible, setVisible] = useState(() => {
     // Check constraints synchronously to prevent "blink"
     if (typeof window !== "undefined") {
-      // DEV: Commented out session check for design review
-      // const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
+      const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
       const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
       if (prefersReducedMotion) return false;
-      // if (hasSeenIntro) return false;
+      if (hasSeenIntro) return false;
     }
     return true;
   });

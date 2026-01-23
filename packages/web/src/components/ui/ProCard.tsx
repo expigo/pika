@@ -8,6 +8,8 @@ interface ProCardProps {
   glow?: boolean;
   glowColor?: string; // Example: 'purple-500' or 'pink-500'
   bgImage?: string;
+  variant?: "default" | "hero";
+  align?: "start" | "center" | "end";
 }
 
 export function ProCard({
@@ -16,6 +18,8 @@ export function ProCard({
   glow = false,
   glowColor = "purple-500",
   bgImage,
+  variant = "default",
+  align,
 }: ProCardProps) {
   // Map common colors to gradient classes to ensure Tailwind pick them up
   const glowClasses: Record<string, string> = {
@@ -25,11 +29,18 @@ export function ProCard({
     "blue-500": "from-blue-500/20",
   };
 
+  const alignmentClasses = {
+    start: "items-start",
+    center: "items-center",
+    end: "items-end",
+  };
+
   const gradientClass = glowClasses[glowColor] || "from-purple-500/20";
+  const radiusClass = variant === "hero" ? "rounded-[2.5rem]" : "rounded-3xl";
 
   return (
     <div
-      className={`relative group/card bg-slate-900 border border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl transition-all duration-700 hover:border-white/10 flex flex-col ${className}`}
+      className={`relative group/card bg-slate-900 border border-slate-800 ${radiusClass} overflow-hidden shadow-2xl transition-all duration-700 hover:border-white/10 flex flex-col ${className}`}
     >
       {/* Ambient Texture Layer */}
       {bgImage && (
@@ -41,7 +52,7 @@ export function ProCard({
             sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover scale-110 group-hover/card:scale-100 transition-transform duration-[3s]"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/40 to-transparent" />
         </div>
       )}
 
@@ -53,7 +64,13 @@ export function ProCard({
       )}
 
       {/* Main Content */}
-      <div className="relative z-20 flex flex-col h-full flex-1">{children}</div>
+      <div
+        className={`relative z-20 flex flex-col h-full flex-1 ${
+          align ? alignmentClasses[align] : ""
+        }`}
+      >
+        {children}
+      </div>
     </div>
   );
 }

@@ -1,14 +1,17 @@
 # Cloud Package Testing Guide
 
-**Package:** `@pika/cloud`  
-**Version:** 0.2.4  
-**Last Updated:** 2026-01-22  
+**Package:** `@pika/cloud`
+**Version:** 0.2.8
+**Last Updated:** 2026-01-23
+**Status:** ✅ 251 tests passing
 
 ---
 
 ## Overview
 
 This guide documents the testing strategy and patterns for the Cloud backend package.
+
+> **📊 Test Coverage:** See [ROADMAP_11_10.md](../ROADMAP_11_10.md#sprint-5-complete-when--verified-2026-01-23) for complete Sprint S5 verification.
 
 ## Running Tests
 
@@ -21,6 +24,9 @@ cd packages/cloud && bun test --verbose
 
 # Run specific test file
 cd packages/cloud && bun test src/__tests__/robustness.test.ts
+
+# Run security tests
+cd packages/cloud && bun test test/security.test.ts
 ```
 
 ## Test Files
@@ -28,14 +34,16 @@ cd packages/cloud && bun test src/__tests__/robustness.test.ts
 | File | Tests | Coverage Area |
 |:---|:---:|:---|
 | `src/routes/auth.test.ts` | 15 | Auth validation (login, register, email) |
-| `src/__tests__/websocket-handlers.test.ts` | 43 | WS handlers: PING/PONG, nonce, listeners, tempo, ACK/NACK, session ownership, likes |
+| `src/__tests__/websocket-handlers.test.ts` | 43 | WS handlers: PING/PONG, nonce, listeners, tempo, ACK/NACK |
 | `src/__tests__/subscriber-handlers.test.ts` | 17 | SUBSCRIBE, announcements, late-joiner sync, backpressure |
 | `src/__tests__/rest-api.test.ts` | 17 | Health, sessions, history, recap, global stats |
 | `src/__tests__/cache-telemetry.test.ts` | 20 | withCache, invalidateCache, clearCache, session telemetry |
 | `src/__tests__/robustness.test.ts` | 24 | parseMessage, safeHandler, poll timers, waitForSession |
 | `src/__tests__/poll-handlers.test.ts` | 28 | Poll voting, results, timer behavior |
 | `src/__tests__/db-persistence.test.ts` | 15 | Mock DB operations |
-| **Total** | **179** | |
+| `test/security.test.ts` | 42 | Schema validation, rate limits, boundaries |
+| `test/auth_security.test.ts` | 30 | Auth edge cases, token validation |
+| **Total** | **251** | |
 
 ## Testing Strategy
 
@@ -128,7 +136,18 @@ endPoll(pollId);
 | Step 1 Complete | 30 | ✅ |
 | Step 2 Complete | 58 | ✅ |
 | Step 3 Complete | 100 | ✅ |
-| **Robustness (v0.2.4)** | **179** | ✅ |
+| Robustness (v0.2.4) | 179 | ✅ |
+| **Sprint S5 (v0.2.8)** | **251** | ✅ |
+
+## All Package Test Counts (v0.2.8)
+
+| Package | Tests | Test Files | Runner |
+|:---|:---:|:---:|:---|
+| Desktop | 293 | 8 | Vitest |
+| Cloud | 251 | 9 | bun:test |
+| Web | 53 | 1 | bun:test |
+| Shared | 15 | 1 | bun:test |
+| **Total** | **612** | **21** | |
 
 ## Adding New Tests
 
@@ -140,3 +159,4 @@ endPoll(pollId);
 ---
 
 *Test coverage is our safety net. Never skip it.*
+*Last Updated: January 23, 2026 - Sprint S5 Complete*

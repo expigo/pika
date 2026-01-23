@@ -32,12 +32,24 @@ export function handleOpen(rawWs: ServerWebSocket) {
  * Handle WebSocket disconnection
  */
 export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
-  console.log("❌ Client disconnected");
   const { djSessionId, isListener, clientId, subscribedSessionId } = state;
+
+  console.log(`🔍 [CLOSE] Client disconnected`, {
+    djSessionId: djSessionId || "NONE",
+    isListener,
+    clientId: clientId || "NONE",
+    subscribedSessionId: subscribedSessionId || "NONE",
+  });
 
   // End DJ session if this was a DJ connection
   if (djSessionId) {
     const session = getSession(djSessionId);
+    console.log(`🔍 [CLOSE] DJ session lookup`, {
+      djSessionId,
+      sessionFound: !!session,
+      sessionDjName: session?.djName,
+    });
+
     if (session) {
       console.log(`⚠️ DJ disconnected unexpectedly: ${session.djName} (${djSessionId})`);
 
@@ -56,6 +68,8 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
       }
 
       deleteSession(djSessionId);
+      console.log(`🔍 [CLOSE] Session deleted from memory: ${djSessionId}`);
+
       endSessionInDb(djSessionId);
       clearLikesForSession(djSessionId);
       clearListeners(djSessionId);
@@ -75,7 +89,11 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
       logSessionEvent(djSessionId, "disconnect", { reason: "unexpected" });
 
       console.log(`👋 Session auto-ended: ${session.djName}`);
+    } else {
+      console.warn(`⚠️ [CLOSE] DJ had sessionId ${djSessionId} but session not found in memory - possible zombie!`);
     }
+  } else {
+    console.log(`🔍 [CLOSE] Not a DJ connection (no djSessionId in state)`);
   }
 
   // Remove listener from session if this was a listener
