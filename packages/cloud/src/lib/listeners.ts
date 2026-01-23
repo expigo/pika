@@ -100,11 +100,16 @@ export function cleanupStaleListeners(): void {
   const now = Date.now();
   const CLEANUP_THRESHOLD = 60 * 60 * 1000; // 1 hour
 
-  for (const [_sessionId, clients] of sessionListeners.entries()) {
+  for (const [sessionId, clients] of sessionListeners.entries()) {
     for (const [clientId, data] of clients.entries()) {
       if (data.count === 0 && now - data.lastSeen > CLEANUP_THRESHOLD) {
         clients.delete(clientId);
       }
+    }
+    // 🧹 M3 Fix: Delete empty session entries from outer Map
+    if (clients.size === 0) {
+      sessionListeners.delete(sessionId);
+      console.log(`🧹 [M3] Removed empty listener map for session ${sessionId}`);
     }
   }
 }

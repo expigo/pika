@@ -13,6 +13,8 @@ import { getSession, deleteSession } from "../lib/sessions";
 import { removeListener, getListenerCount, clearListeners } from "../lib/listeners";
 import { endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
 import { persistTempoVotes } from "../lib/persistence/tracks";
+import { lastBroadcastTime } from "./dj";
+import { clearSessionPolls } from "../lib/polls";
 import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
 import { clearLikesForSession } from "../lib/likes";
 import { logSessionEvent } from "../lib/protocol";
@@ -90,8 +92,17 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
 
       console.log(`👋 Session auto-ended: ${session.djName}`);
     } else {
-      console.warn(`⚠️ [CLOSE] DJ had sessionId ${djSessionId} but session not found in memory - possible zombie!`);
+      console.warn(
+        `⚠️ [CLOSE] DJ had sessionId ${djSessionId} but session not found in memory - possible zombie!`,
+      );
     }
+
+    // 🧹 M1 & M4 Fix: Ensure Map cleanup happens even if session was deleted
+    if (lastBroadcastTime.has(djSessionId)) {
+      lastBroadcastTime.delete(djSessionId);
+      console.log(`🧹 [M1] Cleared lastBroadcastTime for ${djSessionId}`);
+    }
+    clearSessionPolls(djSessionId);
   } else {
     console.log(`🔍 [CLOSE] Not a DJ connection (no djSessionId in state)`);
   }

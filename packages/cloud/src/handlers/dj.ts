@@ -33,9 +33,12 @@ import { checkAndRecordNonce } from "../lib/nonces";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
 import type { WSContext } from "./ws-context";
+import { getSessionCount } from "../lib/sessions";
 
 // 🛡️ Rate Limiting State
-const lastBroadcastTime = new Map<string, number>();
+// Max 1000 concurrent sessions to prevent memory exhaustion (M5)
+const MAX_CONCURRENT_SESSIONS = Number(process.env["MAX_SESSIONS"] ?? 1000);
+export const lastBroadcastTime = new Map<string, number>();
 
 /**
  * REGISTER_SESSION: DJ starts a new live session
@@ -59,7 +62,19 @@ export async function handleRegisterSession(ctx: WSContext) {
   const sessionId = msg.sessionId || `session_${Date.now()}`;
   const requestedDjName = msg.djName || "DJ";
 
-  console.log(`🔍 [REGISTER_SESSION] Parsed`, { sessionId, requestedDjName, hasToken: !!msg.token });
+  // 🛡️ M5 Fix: Prevent unbounded session growth
+  // Check limit BEFORE creating new session (unless it's a reconnect to existing)
+  if (!getSession(sessionId) && getSessionCount() >= MAX_CONCURRENT_SESSIONS) {
+    console.warn(`🛑 Session limit reached (${MAX_CONCURRENT_SESSIONS}). Rejecting ${sessionId}`);
+    ws.close(1013, "Server busy (max sessions reached)");
+    return;
+  }
+
+  console.log(`🔍 [REGISTER_SESSION] Parsed`, {
+    sessionId,
+    requestedDjName,
+    hasToken: !!msg.token,
+  });
 
   // 🔐 Token validation for DJ authentication
   const djToken = msg.token;

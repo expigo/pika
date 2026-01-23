@@ -103,6 +103,19 @@ setInterval(
   5 * 60 * 1000,
 ).unref();
 
+// 🧹 M3 & M5 Fix: Global Cleanup Intervals
+// Run every 5 minutes to remove stale listeners and orphaned sessions
+
+setInterval(
+  () => {
+    const now = new Date().toISOString();
+    console.log(`🧹 [CLEANUP] Running scheduled cleanup at ${now}`);
+    cleanupStaleListeners();
+    cleanupStaleSessions(); // Default 8h timeout
+  },
+  5 * 60 * 1000,
+).unref();
+
 function checkWsRateLimit(ip: string): boolean {
   const now = Date.now();
   const attempts = wsConnectionAttempts.get(ip);

@@ -502,7 +502,23 @@ export function useLiveSession() {
       listenerSetupRef.current = false;
       unsubscribe();
     };
+    return () => {
+      logger.debug("Live", "Removing track change listener");
+      listenerSetupRef.current = false;
+      unsubscribe();
+    };
   }, [handleTrackChange]);
+
+  // 🧹 M6 Fix: Cleanup socket on unmount to prevent leaks
+  useEffect(() => {
+    return () => {
+      if (socketInstance) {
+        logger.debug("Live", "Cleaning up socket on unmount");
+        socketInstance.close();
+        socketInstance = null;
+      }
+    };
+  }, []);
 
   // Go live - connect to cloud and start watching
   // includeCurrentTrack: if false, skip recording/broadcasting whatever is currently playing

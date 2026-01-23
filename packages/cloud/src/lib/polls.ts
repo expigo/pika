@@ -200,6 +200,19 @@ export function getPollResults(pollId: number): PollResults | undefined {
 }
 
 /**
+ * Clear any active poll for a session (M4 Fix)
+ */
+export function clearSessionPolls(sessionId: string): void {
+  const pollId = sessionActivePoll.get(sessionId);
+  if (pollId) {
+    cancelPollTimer(pollId);
+    activePolls.delete(pollId);
+    sessionActivePoll.delete(sessionId);
+    console.log(`🧹 [M4] Cleared active poll for session ${sessionId}`);
+  }
+}
+
+/**
  * Clear all polls (for testing)
  */
 export function clearAllPolls(): void {
@@ -214,4 +227,3 @@ export function clearAllPolls(): void {
 
 // Export maps for migration phase
 export { activePolls, sessionActivePoll };
-
