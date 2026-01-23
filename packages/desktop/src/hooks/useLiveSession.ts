@@ -502,11 +502,6 @@ export function useLiveSession() {
       listenerSetupRef.current = false;
       unsubscribe();
     };
-    return () => {
-      logger.debug("Live", "Removing track change listener");
-      listenerSetupRef.current = false;
-      unsubscribe();
-    };
   }, [handleTrackChange]);
 
   // 🧹 M6 Fix: Cleanup socket on unmount to prevent leaks
