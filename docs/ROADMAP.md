@@ -18,7 +18,11 @@ This is the central index for the Pika! project, tracking active development, fu
     *   **Recent Completions (Jan 23, 2026 - Production Ready v0.2.8):**
         *   ✅ **Sprint 0 (Battery & Security):** Fixed continuous RAF loop (B1), verified CSRF (S1), confirmed Reduced Motion (B2)
         *   ✅ **Sprint S0-S5 Complete:** All 150+ issues resolved with code verification
-        *   ✅ **Security Hardening:** Auth bypass removed, token masking, rate limiting
+        *   ✅ **Security Hardening (Phase 1):**
+            *   **S1 (DoS):** Rate limit middleware rejection (429)
+            *   **S2 (Spoofing):** WebSocket ClientID locking
+            *   **S3 (Memory):** Poll question length cap (500 chars)
+            *   **S4 (XSS):** DJ name regex sanitization (`^[^<>"']+$`)
         *   ✅ **Performance Optimization:** 9 database indexes, batch operations, transaction handling
         *   ✅ **Schema Validation:** All string/numeric constraints enforced
         *   ✅ **Test Coverage:** 612+ tests passing (exceeded 442 target by 38%)

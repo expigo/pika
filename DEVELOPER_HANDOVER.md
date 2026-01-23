@@ -72,14 +72,16 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Fortified Sidecar:** Aggressive kill protocol in `useSidecar.ts` ensuring zero zombie Python processes or port collisions.
     *   **Restored Playlists:** Professionalized `SaveLoadSets.tsx` integrated into "The Crate" header with full Tailwind/sonner feedback.
     *   **Dynamic Theming:** Instant synchronization of `display.profile` (High Contrast, Midnight, Stealth) via `data-theme` on `documentElement`.
-*   **Security Hardening (v0.2.2):**
+*   **Security Hardening (v0.2.8):**
+    *   **Rate Limits (S1):** Middleware rejection (429) for WS floods.
+    *   **Anti-Spoofing (S2):** ClientID locking on first message.
+    *   **Schema Guards (S3, S4):** String length caps (500 chars) and strict regex sanitization for user input.
     *   **CSP Headers:** Content-Security-Policy via Next.js middleware.
     *   **Desktop CSP:** Tauri app CSP enabled for defense-in-depth.
     *   **CSRF Protection:** X-Pika-Client header validation.
-    *   **Rate Limiting:** Auth endpoints and WebSocket connections.
     *   **Email Validation:** Zod `.email()` validator.
     *   **Password Max Length:** 128 character limit.
-    *   **DB Integrity:** CASCADE deletes, CHECK constraints on all metrics.
+    *   **DB Integrity:** CASCADE deletes, CHECK constraints.
 *   **Cloud Testing (v0.2.2):**
     *   **Auth Routes:** Extracted to `routes/auth.ts` (~300 lines).
     *   **Unit Tests:** 15 tests for auth validation using Bun test runner.
