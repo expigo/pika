@@ -245,10 +245,7 @@ describe("ACK/NACK Protocol", () => {
      */
     it("should retry under MAX_RETRIES limit", () => {
       const messageId = "msg_retry_test";
-      let _retryCalled = false;
-      const retrySendMock = vi.fn(() => {
-        _retryCalled = true;
-      });
+      const retrySendMock = vi.fn();
 
       pendingMessages.set(messageId, {
         messageId,
@@ -724,7 +721,6 @@ describe("Offline Queue", () => {
     deleteMany: vi.fn(),
   };
 
-  let _isFlushingQueue: boolean;
   const QUEUE_FLUSH_BASE_DELAY_MS = 100;
   const QUEUE_FLUSH_MAX_DELAY_MS = 2000;
 
@@ -735,7 +731,6 @@ describe("Offline Queue", () => {
   };
 
   beforeEach(() => {
-    _isFlushingQueue = false;
     mockSocket = {
       readyState: 1, // WebSocket.OPEN
       send: vi.fn(),
@@ -1052,8 +1047,8 @@ describe("sendMessage", () => {
     const messageId = reliable ? `msg_${Date.now()}_test` : undefined;
     const payload = messageId ? { ...message, messageId } : message;
 
-    expect(payload.messageId).toBeDefined();
-    expect(payload.messageId).toMatch(/^msg_\d+_test$/);
+    expect((payload as any).messageId).toBeDefined();
+    expect((payload as any).messageId).toMatch(/^msg_\d+_test$/);
   });
 
   /**
@@ -1139,7 +1134,7 @@ describe("sendMessage", () => {
 
 describe("broadcastTrack", () => {
   let lastBroadcastedTrackKey: string | null;
-  let _sendMessageCalled: boolean;
+
   let useLiveStoreGetState: {
     setLiveLikes: Mock;
     addPlayedTrack: Mock;
@@ -1149,7 +1144,6 @@ describe("broadcastTrack", () => {
 
   beforeEach(() => {
     lastBroadcastedTrackKey = null;
-    _sendMessageCalled = false;
     useLiveStoreGetState = {
       setLiveLikes: vi.fn(),
       addPlayedTrack: vi.fn(),
@@ -1165,7 +1159,6 @@ describe("broadcastTrack", () => {
    * FAILURE IMPACT: Duplicate tracks in recap
    */
   it("should skip duplicate broadcasts", () => {
-    const _sessionId = "session_123";
     const track = { title: "Test Song", artist: "Artist" };
     const trackKey = `${track.artist}:${track.title}`;
 
@@ -1233,7 +1226,7 @@ describe("broadcastTrack", () => {
    */
   it("should use reliable mode for track broadcasts", () => {
     const track = { title: "Critical Track", artist: "Artist" };
-    const _sessionId = "session_123";
+
     const trackKey = `${track.artist}:${track.title}`;
     let reliableUsed = false;
 
@@ -1379,33 +1372,13 @@ describe("Reaction Subscriptions", () => {
 describe("Poll Management", () => {
   let isLiveFlag: boolean;
   let currentSessionId: string | null;
-  let mockSendMessage: ReturnType<typeof vi.fn>;
-  let _mockUseLiveStore: {
-    getState: () => {
-      activePoll: {
-        id: number;
-        question: string;
-        options: string[];
-        votes: number[];
-        totalVotes: number;
-        endsAt?: string;
-      } | null;
-      setActivePoll: ReturnType<typeof vi.fn>;
-      setEndedPoll: ReturnType<typeof vi.fn>;
-    };
-  };
+  let mockSendMessage: any;
+  // let _mockUseLiveStore: { ... } removed
 
   beforeEach(() => {
     isLiveFlag = true;
     currentSessionId = "session_123";
     mockSendMessage = vi.fn();
-    _mockUseLiveStore = {
-      getState: () => ({
-        activePoll: null,
-        setActivePoll: vi.fn(),
-        setEndedPoll: vi.fn(),
-      }),
-    };
   });
 
   describe("startPoll", () => {
@@ -1630,7 +1603,7 @@ describe("Poll Management", () => {
 describe("Announcement Management", () => {
   let isLiveFlag: boolean;
   let currentSessionId: string | null;
-  let mockSendMessage: ReturnType<typeof vi.fn>;
+  let mockSendMessage: Mock;
   let toastMessages: string[];
 
   const mockToast = {
@@ -1861,8 +1834,8 @@ describe("Session Lifecycle", () => {
 describe("clearNowPlaying", () => {
   let isLiveFlag: boolean;
   let currentSessionId: string | null;
-  let mockSendMessage: ReturnType<typeof vi.fn>;
-  let mockSetNowPlaying: ReturnType<typeof vi.fn>;
+  let mockSendMessage: Mock;
+  let mockSetNowPlaying: any;
   let mockSocketReadyState: number;
 
   beforeEach(() => {
@@ -2072,9 +2045,9 @@ describe("useLiveSession return value", () => {
     // isCloudConnected: status === "live"
     const statuses = ["live", "connecting", "offline", "error"] as const;
     expect(statuses[0] === "live").toBe(true);
-    expect(statuses[1] === "live").toBe(false);
-    expect(statuses[2] === "live").toBe(false);
-    expect(statuses[3] === "live").toBe(false);
+    expect((statuses[1] as any) === "live").toBe(false);
+    expect((statuses[2] as any) === "live").toBe(false);
+    expect((statuses[3] as any) === "live").toBe(false);
   });
 });
 
@@ -2647,7 +2620,7 @@ describe("Edge Cases: Network Scenarios", () => {
     const queuedMessages: object[] = [];
 
     const sendMessage = (message: object) => {
-      if (socketReadyState === 1) {
+      if ((socketReadyState as any) === 1) {
         // Send directly
       } else if (isLiveFlag) {
         queuedMessages.push(message);
@@ -3021,8 +2994,8 @@ describe("Edge Cases: Message Handling", () => {
     const message3 = { type: "LIKE_RECEIVED" };
 
     // Safe access
-    const track1 = message1.payload?.track;
-    const track2 = message2.payload?.track;
+    const track1 = (message1.payload as any)?.track;
+    const track2 = (message2.payload as any)?.track;
     const track3 = (message3 as { payload?: { track?: unknown } }).payload?.track;
 
     expect(track1).toBeUndefined();
@@ -3126,7 +3099,6 @@ describe("Edge Cases: Message Handling", () => {
 
     for (const msg of messages) {
       const sessionId = msg.sessionId;
-      const _count = msg.count;
 
       // Only update if matches our session or is global
       const shouldUpdate = !sessionId || sessionId === currentSessionId;

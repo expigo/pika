@@ -4,14 +4,10 @@
  * Tests CRUD operations for set templates.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect } from "bun:test";
 import type { SetTemplate, TemplateSlot } from "./templateRepository";
 
 describe("templateRepository", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
   describe("TemplateSlot interface", () => {
     it("should have correct structure with all fields", () => {
       const slot: TemplateSlot = {

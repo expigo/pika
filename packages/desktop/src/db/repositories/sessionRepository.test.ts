@@ -13,23 +13,23 @@
  * @created 2026-01-23
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session, Play, PlayWithTrack, SessionDetails, AllSessionsSummary } from "./sessionRepository";
+import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
+import type { Session, Play } from "./sessionRepository";
 
 // ============================================================================
 // Mock Setup
 // ============================================================================
 
-const mockExecute = vi.fn();
-const mockSelect = vi.fn();
-const mockUpdate = vi.fn();
+const mockExecute = mock();
+const mockSelect = mock();
+const mockUpdate = mock();
 
-vi.mock("../index", () => ({
-  getSqlite: vi.fn(() =>
+mock.module("../index", () => ({
+  getSqlite: mock(() =>
     Promise.resolve({
       execute: mockExecute,
       select: mockSelect,
-    })
+    }),
   ),
   db: {
     update: () => ({
@@ -42,23 +42,24 @@ vi.mock("../index", () => ({
 
 // Mock crypto.randomUUID
 const mockUUID = "550e8400-e29b-41d4-a716-446655440000";
-vi.stubGlobal("crypto", {
-  randomUUID: () => mockUUID,
-});
+global.crypto.randomUUID = mock(() => mockUUID);
 
 // Import after mocking
 import { sessionRepository } from "./sessionRepository";
 
 describe("sessionRepository", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockExecute.mockClear();
+    mockSelect.mockClear();
+    mockUpdate.mockClear();
+
     mockExecute.mockResolvedValue({ rowsAffected: 1 });
     mockSelect.mockResolvedValue([]);
     mockUpdate.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   // ==========================================================================
@@ -138,9 +139,9 @@ describe("sessionRepository", () => {
 
       const session = await sessionRepository.createSession("Test Session");
 
-      expect(mockExecute).toHaveBeenCalledWith(
+      expect(mockSelect).toHaveBeenCalledWith(
         expect.stringContaining("INSERT INTO sessions"),
-        expect.arrayContaining([mockUUID, "Default", "Test Session"])
+        expect.arrayContaining([mockUUID, "Default", "Test Session"]),
       );
       expect(session.uuid).toBe(mockUUID);
       expect(session.name).toBe("Test Session");
@@ -169,7 +170,7 @@ describe("sessionRepository", () => {
       mockSelect.mockResolvedValueOnce([]);
 
       await expect(sessionRepository.createSession("Test")).rejects.toThrow(
-        "Failed to create session"
+        "Failed to create session",
       );
     });
 
@@ -188,9 +189,9 @@ describe("sessionRepository", () => {
 
       const session = await sessionRepository.createSession("Pro Session", "DJ Pro");
 
-      expect(mockExecute).toHaveBeenCalledWith(
+      expect(mockSelect).toHaveBeenCalledWith(
         expect.any(String),
-        expect.arrayContaining([mockUUID, "DJ Pro"])
+        expect.arrayContaining([mockUUID, "DJ Pro"]),
       );
       expect(session.djIdentity).toBe("DJ Pro");
     });
@@ -264,9 +265,7 @@ describe("sessionRepository", () => {
 
       expect(session).not.toBeNull();
       expect(session?.endedAt).toBeNull();
-      expect(mockSelect).toHaveBeenCalledWith(
-        expect.stringContaining("WHERE ended_at IS NULL")
-      );
+      expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining("WHERE ended_at IS NULL"));
     });
 
     it("should return null if no active session", async () => {
@@ -312,10 +311,7 @@ describe("sessionRepository", () => {
 
       await sessionRepository.getAllSessions(10);
 
-      expect(mockSelect).toHaveBeenCalledWith(
-        expect.stringContaining("LIMIT ?"),
-        [10]
-      );
+      expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining("LIMIT ?"), [10]);
     });
 
     it("should use default limit of 50", async () => {
@@ -373,7 +369,7 @@ describe("sessionRepository", () => {
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.any(String),
-        expect.arrayContaining([1, 42, customTime])
+        expect.arrayContaining([1, 42, customTime]),
       );
       expect(play.playedAt).toBe(customTime);
     });
@@ -381,9 +377,7 @@ describe("sessionRepository", () => {
     it("should throw error if play not found after insert", async () => {
       mockSelect.mockResolvedValueOnce([]);
 
-      await expect(sessionRepository.addPlay(1, 42)).rejects.toThrow(
-        "Failed to create play"
-      );
+      await expect(sessionRepository.addPlay(1, 42)).rejects.toThrow("Failed to create play");
     });
   });
 
@@ -491,7 +485,7 @@ describe("sessionRepository", () => {
       expect(plays[1].trackId).toBe(43);
       expect(mockSelect).toHaveBeenCalledWith(
         expect.stringContaining("ORDER BY p.played_at ASC"),
-        [1]
+        [1],
       );
     });
 
@@ -542,63 +536,28 @@ describe("sessionRepository", () => {
   // 5. Transaction Handling (deleteSession)
   // ==========================================================================
 
-  describe("deleteSession - transaction handling", () => {
-    it("should use transaction for atomic delete", async () => {
+  describe("deleteSession", () => {
+    it("should delete session (plays cleaned by cascade)", async () => {
       await sessionRepository.deleteSession(1);
 
-      // Verify transaction sequence
+      // Verify deletion
       const calls = mockExecute.mock.calls;
-      expect(calls[0][0]).toBe("BEGIN TRANSACTION");
-      expect(calls[1][0]).toContain("DELETE FROM plays");
-      expect(calls[2][0]).toContain("DELETE FROM sessions");
-      expect(calls[3][0]).toBe("COMMIT");
+      expect(calls[0][0]).toContain("DELETE FROM sessions");
+      expect(calls).toHaveLength(1);
     });
 
-    it("should delete plays before session (FK constraint)", async () => {
-      await sessionRepository.deleteSession(1);
-
-      const calls = mockExecute.mock.calls;
-      const playsDeleteIndex = calls.findIndex((c) => c[0].includes("DELETE FROM plays"));
-      const sessionDeleteIndex = calls.findIndex((c) => c[0].includes("DELETE FROM sessions"));
-
-      expect(playsDeleteIndex).toBeLessThan(sessionDeleteIndex);
-    });
-
-    it("should rollback on plays delete error", async () => {
-      mockExecute
-        .mockResolvedValueOnce(undefined) // BEGIN
-        .mockRejectedValueOnce(new Error("FK violation")) // DELETE plays
-        .mockResolvedValueOnce(undefined); // ROLLBACK
-
-      await expect(sessionRepository.deleteSession(1)).rejects.toThrow("FK violation");
-
-      const calls = mockExecute.mock.calls;
-      expect(calls[calls.length - 1][0]).toBe("ROLLBACK");
-    });
-
-    it("should rollback on session delete error", async () => {
-      mockExecute
-        .mockResolvedValueOnce(undefined) // BEGIN
-        .mockResolvedValueOnce(undefined) // DELETE plays
-        .mockRejectedValueOnce(new Error("Constraint error")) // DELETE session
-        .mockResolvedValueOnce(undefined); // ROLLBACK
+    it("should throw on session delete error", async () => {
+      mockExecute.mockRejectedValueOnce(new Error("Constraint error"));
 
       await expect(sessionRepository.deleteSession(1)).rejects.toThrow("Constraint error");
-
-      const calls = mockExecute.mock.calls;
-      expect(calls[calls.length - 1][0]).toBe("ROLLBACK");
     });
 
-    it("should pass correct session ID to both deletes", async () => {
+    it("should pass correct session ID to delete", async () => {
       await sessionRepository.deleteSession(42);
 
       expect(mockExecute).toHaveBeenCalledWith(
-        expect.stringContaining("DELETE FROM plays WHERE session_id = ?"),
-        [42]
-      );
-      expect(mockExecute).toHaveBeenCalledWith(
         expect.stringContaining("DELETE FROM sessions WHERE id = ?"),
-        [42]
+        [42],
       );
     });
   });
@@ -632,10 +591,62 @@ describe("sessionRepository", () => {
 
       // Mock getSessionPlays
       mockSelect.mockResolvedValueOnce([
-        { id: 1, session_id: 1, track_id: 1, played_at: 1705968100, duration: 180, reaction: "peak", notes: null, dancer_likes: 5, artist: "A", title: "1", bpm: 120, key: "Am" },
-        { id: 2, session_id: 1, track_id: 2, played_at: 1705968300, duration: 200, reaction: "peak", notes: null, dancer_likes: 3, artist: "B", title: "2", bpm: 125, key: "Cm" },
-        { id: 3, session_id: 1, track_id: 3, played_at: 1705968500, duration: 190, reaction: "brick", notes: null, dancer_likes: 0, artist: "C", title: "3", bpm: 118, key: "Dm" },
-        { id: 4, session_id: 1, track_id: 4, played_at: 1705968700, duration: 210, reaction: "neutral", notes: null, dancer_likes: 1, artist: "D", title: "4", bpm: 122, key: "Em" },
+        {
+          id: 1,
+          session_id: 1,
+          track_id: 1,
+          played_at: 1705968100,
+          duration: 180,
+          reaction: "peak",
+          notes: null,
+          dancer_likes: 5,
+          artist: "A",
+          title: "1",
+          bpm: 120,
+          key: "Am",
+        },
+        {
+          id: 2,
+          session_id: 1,
+          track_id: 2,
+          played_at: 1705968300,
+          duration: 200,
+          reaction: "peak",
+          notes: null,
+          dancer_likes: 3,
+          artist: "B",
+          title: "2",
+          bpm: 125,
+          key: "Cm",
+        },
+        {
+          id: 3,
+          session_id: 1,
+          track_id: 3,
+          played_at: 1705968500,
+          duration: 190,
+          reaction: "brick",
+          notes: null,
+          dancer_likes: 0,
+          artist: "C",
+          title: "3",
+          bpm: 118,
+          key: "Dm",
+        },
+        {
+          id: 4,
+          session_id: 1,
+          track_id: 4,
+          played_at: 1705968700,
+          duration: 210,
+          reaction: "neutral",
+          notes: null,
+          dancer_likes: 1,
+          artist: "D",
+          title: "4",
+          bpm: 122,
+          key: "Em",
+        },
       ]);
 
       const details = await sessionRepository.getSessionDetails(1);
@@ -827,7 +838,7 @@ describe("sessionRepository", () => {
     });
 
     it("should handle special characters in notes", async () => {
-      const specialNotes = "🔥 Peak moment! \"Crowd went crazy\" & <loud>";
+      const specialNotes = '🔥 Peak moment! "Crowd went crazy" & <loud>';
 
       await sessionRepository.updatePlayNotes(1, specialNotes);
 

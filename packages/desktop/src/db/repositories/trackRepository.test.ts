@@ -13,7 +13,7 @@
  * @created 2026-01-23
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
 import type { Track, VirtualDJTrack, AnalysisResult } from "./trackRepository";
 import { CURRENT_ANALYSIS_VERSION } from "./trackRepository";
 
@@ -22,18 +22,18 @@ import { CURRENT_ANALYSIS_VERSION } from "./trackRepository";
 // ============================================================================
 
 // Mock the database module
-const mockExecute = vi.fn();
-const mockSelect = vi.fn();
-const mockInsert = vi.fn();
-const mockUpdate = vi.fn();
-const mockDelete = vi.fn();
+const mockExecute = mock();
+const mockSelect = mock();
+const mockInsert = mock();
+const mockUpdate = mock();
+const mockDelete = mock();
 
-vi.mock("../index", () => ({
-  getSqlite: vi.fn(() =>
+mock.module("../index", () => ({
+  getSqlite: mock(() =>
     Promise.resolve({
       execute: mockExecute,
       select: mockSelect,
-    })
+    }),
   ),
   db: {
     insert: () => ({
@@ -53,7 +53,7 @@ vi.mock("../index", () => ({
 }));
 
 // Mock @pika/shared getTrackKey
-vi.mock("@pika/shared", () => ({
+mock.module("@pika/shared", () => ({
   getTrackKey: (artist: string, title: string) => `${artist.toLowerCase()}:${title.toLowerCase()}`,
 }));
 
@@ -62,7 +62,12 @@ import { trackRepository } from "./trackRepository";
 
 describe("trackRepository", () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    mockExecute.mockClear();
+    mockSelect.mockClear();
+    mockInsert.mockClear();
+    mockUpdate.mockClear();
+    mockDelete.mockClear();
+
     mockExecute.mockResolvedValue({ rowsAffected: 1, lastInsertId: 1 });
     mockSelect.mockResolvedValue([]);
     mockInsert.mockResolvedValue(undefined);
@@ -71,7 +76,7 @@ describe("trackRepository", () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    mock.restore();
   });
 
   // ==========================================================================
@@ -158,7 +163,7 @@ describe("trackRepository", () => {
           120,
           "Am",
           "artist name:song title", // computed track_key
-        ])
+        ]),
       );
       expect(id).toBe(42);
     });
@@ -188,7 +193,7 @@ describe("trackRepository", () => {
 
       expect(mockExecute).toHaveBeenCalledWith(
         expect.any(String),
-        expect.arrayContaining(["/music/untitled.mp3", null, null, null, null, ":"])
+        expect.arrayContaining(["/music/untitled.mp3", null, null, null, null, ":"]),
       );
       expect(id).toBe(3);
     });
@@ -201,7 +206,7 @@ describe("trackRepository", () => {
           filePath: "/music/fail.mp3",
           artist: "Artist",
           title: "Song",
-        })
+        }),
       ).rejects.toThrow("Failed to insert/update track");
     });
   });
@@ -277,7 +282,7 @@ describe("trackRepository", () => {
       expect(deleted).toBe(5);
       expect(mockExecute).toHaveBeenCalledWith(
         expect.stringMatching(/DELETE FROM tracks WHERE id IN \(\?,\?,\?,\?,\?\)/),
-        [1, 2, 3, 4, 5]
+        [1, 2, 3, 4, 5],
       );
     });
 
@@ -446,10 +451,9 @@ describe("trackRepository", () => {
 
       expect(track).not.toBeNull();
       expect(track?.artist).toBe("Test Artist");
-      expect(mockSelect).toHaveBeenCalledWith(
-        expect.stringContaining("WHERE track_key = ?"),
-        ["test artist:test song"]
-      );
+      expect(mockSelect).toHaveBeenCalledWith(expect.stringContaining("WHERE track_key = ?"), [
+        "test artist:test song",
+      ]);
     });
 
     it("should return null for non-existent track_key", async () => {
@@ -490,7 +494,7 @@ describe("trackRepository", () => {
       expect(tracks).toHaveLength(1);
       expect(tracks[0].analyzed).toBe(false);
       expect(mockSelect).toHaveBeenCalledWith(
-        expect.stringContaining("WHERE analyzed = 0 OR analyzed IS NULL")
+        expect.stringContaining("WHERE analyzed = 0 OR analyzed IS NULL"),
       );
     });
   });
@@ -540,12 +544,8 @@ describe("trackRepository", () => {
       const result = await trackRepository.resetAnalysis();
 
       expect(result).toBe(true);
-      expect(mockExecute).toHaveBeenCalledWith(
-        expect.stringContaining("UPDATE tracks SET")
-      );
-      expect(mockExecute).toHaveBeenCalledWith(
-        expect.stringContaining("analyzed = 0")
-      );
+      expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("UPDATE tracks SET"));
+      expect(mockExecute).toHaveBeenCalledWith(expect.stringContaining("analyzed = 0"));
     });
 
     it("should clear all fingerprint metrics", async () => {
@@ -579,7 +579,7 @@ describe("trackRepository", () => {
       expect(result).toBe(true);
       expect(mockExecute).toHaveBeenCalledWith(
         expect.stringContaining("UPDATE tracks SET tags = ?"),
-        ['["peak","opener","crowd-favorite"]', 1]
+        ['["peak","opener","crowd-favorite"]', 1],
       );
     });
 
@@ -587,10 +587,7 @@ describe("trackRepository", () => {
       const result = await trackRepository.updateTrackTags(1, []);
 
       expect(result).toBe(true);
-      expect(mockExecute).toHaveBeenCalledWith(
-        expect.any(String),
-        ["[]", 1]
-      );
+      expect(mockExecute).toHaveBeenCalledWith(expect.any(String), ["[]", 1]);
     });
 
     it("should return false on error", async () => {
@@ -609,7 +606,7 @@ describe("trackRepository", () => {
       expect(result).toBe(true);
       expect(mockExecute).toHaveBeenCalledWith(
         expect.stringContaining("UPDATE tracks SET notes = ?"),
-        ["Great for peaks!", 1]
+        ["Great for peaks!", 1],
       );
     });
 
@@ -640,10 +637,7 @@ describe("trackRepository", () => {
     });
 
     it("should handle invalid JSON in tags", async () => {
-      mockSelect.mockResolvedValueOnce([
-        { tags: '["valid"]' },
-        { tags: "invalid json" },
-      ]);
+      mockSelect.mockResolvedValueOnce([{ tags: '["valid"]' }, { tags: "invalid json" }]);
 
       const tags = await trackRepository.getAllTags();
 
@@ -682,7 +676,5 @@ describe("trackRepository", () => {
 
       expect(history).toBeNull();
     });
-
   });
-
 });

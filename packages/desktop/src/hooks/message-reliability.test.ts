@@ -23,7 +23,7 @@ interface PendingMessage {
   payload: object;
   resolve: (ack: boolean) => void;
   retryCount: number;
-  timeout: ReturnType<typeof setTimeout>;
+  timeout: any;
 }
 
 // Constants from production
@@ -52,14 +52,12 @@ function handleAck(messageId: string): boolean {
   return false;
 }
 
-function handleNack(messageId: string, error: string, socketOpen = true): void {
+function handleNack(messageId: string, _error: string, socketOpen = true): void {
   const pending = pendingMessages.get(messageId);
   if (pending) {
     clearTimeout(pending.timeout);
 
     if (pending.retryCount < MAX_RETRIES) {
-      const delay = RETRY_DELAYS[pending.retryCount] || RETRY_DELAYS[RETRY_DELAYS.length - 1];
-
       if (socketOpen) {
         // Would retry - track for testing
         retrySendCalls.push(messageId);
