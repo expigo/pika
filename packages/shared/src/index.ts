@@ -70,6 +70,8 @@ export {
   ValidateSessionSchema,
   SessionExpiredSchema,
   SessionValidSchema,
+  SettingsSchema,
+  type Settings,
 } from "./schemas";
 
 // Re-export slug utilities
@@ -101,3 +103,6 @@ export {
   type PikaEnvironment,
   type UrlOptions,
 } from "./protocol";
+
+export { TIMEOUTS, LIMITS, URLS } from "./config";
+export { logger, type LogLevel, type LogContext } from "./logger";
