@@ -12,6 +12,7 @@
 
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { TIMEOUTS } from "@pika/shared";
 
 interface StaleDataBannerProps {
   /**
@@ -43,7 +44,7 @@ interface StaleDataBannerProps {
 export function StaleDataBanner({
   lastHeartbeat,
   isConnected,
-  staleThresholdMs = 30000,
+  staleThresholdMs = TIMEOUTS.SOCKET_RECONNECT_MAX,
   sessionEnded = false,
   hasData = false,
 }: StaleDataBannerProps) {

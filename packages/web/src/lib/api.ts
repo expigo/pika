@@ -1,4 +1,4 @@
-import { getBaseApiUrl, getBaseWsUrl } from "@pika/shared";
+import { URLS } from "@pika/shared";
 
 /**
  * Get the base URL for REST API calls
@@ -17,7 +17,7 @@ export function getApiBaseUrl(): string {
     }
   }
 
-  return "http://localhost:3001";
+  return URLS.getApiUrl("development");
 }
 
 /**
@@ -39,5 +39,5 @@ export function getWebSocketUrl(): string {
     }
   }
 
-  return "ws://localhost:3001/ws";
+  return `${URLS.getWsUrl("development")}/ws`;
 }
