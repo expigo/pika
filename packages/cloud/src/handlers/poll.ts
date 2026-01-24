@@ -13,7 +13,8 @@
  */
 
 import { StartPollSchema, EndPollSchema, CancelPollSchema, VoteOnPollSchema } from "@pika/shared";
-import { getSession } from "../lib/sessions";
+import { getSession, refreshSessionActivity } from "../lib/sessions";
+import { checkBackpressure } from "./utility";
 import {
   activePolls,
   endPoll,
@@ -83,21 +84,24 @@ export async function handleStartPoll(ctx: WSContext) {
 
   activePolls.set(pollId, newPoll);
   sessionActivePoll.set(msg.sessionId, pollId);
+  refreshSessionActivity(msg.sessionId);
 
   // Broadcast poll arrival to all listeners
-  rawWs.publish(
-    "live-session",
-    JSON.stringify({
-      type: "POLL_STARTED",
-      pollId,
-      sessionId: msg.sessionId,
-      question,
-      options,
-      endsAt: endsAt?.toISOString(),
-    }),
-  );
+  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "POLL_STARTED",
+        sessionId: msg.sessionId,
+        pollId: newPoll.id,
+        question: newPoll.question,
+        options: newPoll.options,
+        endsAt: newPoll.endsAt?.toISOString(),
+      }),
+    );
+  }
 
-  console.log(`📊 Poll started: "${question}" (ID: ${pollId}, sessionId: ${msg.sessionId})`);
+  console.log(`📊 Poll started: "${newPoll.question}" (ID: ${pollId})`);
 
   // Auto-end poll if duration is provided (with timer tracking)
   if (durationSeconds) {
@@ -106,19 +110,21 @@ export async function handleStartPoll(ctx: WSContext) {
       if (poll) {
         console.log(`📊 Auto-ending poll: ${poll.id}`);
         endPoll(pollId); // This also clears the timer reference
-        await closePollInDb(pollId);
+        closePollInDb(pollId).catch((e) => console.error("❌ Failed to close poll in DB:", e));
         const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
         const winnerIndex = totalVotes > 0 ? poll.votes.indexOf(Math.max(...poll.votes)) : 0;
-        rawWs.publish(
-          "live-session",
-          JSON.stringify({
-            type: "POLL_ENDED",
-            pollId,
-            results: poll.votes,
-            totalVotes,
-            winnerIndex,
-          }),
-        );
+        if (checkBackpressure(rawWs, state.clientId || undefined)) {
+          rawWs.publish(
+            "live-session",
+            JSON.stringify({
+              type: "POLL_ENDED",
+              pollId,
+              results: poll.votes,
+              totalVotes,
+              winnerIndex,
+            }),
+          );
+        }
       }
     }, durationSeconds * 1000);
     // Track the timer so it can be cancelled if poll ends early
@@ -149,21 +155,27 @@ export async function handleEndPoll(ctx: WSContext) {
 
     console.log(`📊 Manually ending poll: ${poll.id}`);
     endPoll(msg.pollId);
-    await closePollInDb(msg.pollId);
-
+    refreshSessionActivity(poll.sessionId);
     const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
-    const winnerIndex = totalVotes > 0 ? poll.votes.indexOf(Math.max(...poll.votes)) : 0;
-    rawWs.publish(
-      "live-session",
-      JSON.stringify({
-        type: "POLL_ENDED",
-        pollId: poll.id,
-        results: poll.votes,
-        totalVotes,
-        winnerIndex,
-      }),
-    );
+
+    // Broadcast results
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "POLL_ENDED",
+          pollId: msg.pollId,
+          results: poll.votes,
+          totalVotes,
+          winnerIndex: poll.votes.indexOf(Math.max(...poll.votes)),
+        }),
+      );
+    }
+
     if (messageId) sendAck(ws, messageId);
+
+    // DB op after broadcast
+    closePollInDb(msg.pollId).catch((e) => console.error("❌ Failed to close poll in DB:", e));
   } else {
     if (messageId) sendNack(ws, messageId, "Poll not found");
   }
@@ -190,20 +202,23 @@ export async function handleCancelPoll(ctx: WSContext) {
 
     console.log(`📊 Cancelling poll: ${poll.id}`);
     endPoll(msg.pollId);
-    await closePollInDb(msg.pollId); // Mark as closed in DB too
-
+    refreshSessionActivity(poll.sessionId);
     // For cancelled polls, send 0 results
-    rawWs.publish(
-      "live-session",
-      JSON.stringify({
-        type: "POLL_ENDED",
-        pollId: poll.id,
-        results: poll.votes.map(() => 0), // Zero out results for cancelled polls
-        totalVotes: 0,
-        winnerIndex: 0,
-      }),
-    );
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "POLL_ENDED",
+          pollId: msg.pollId,
+          results: poll.options.map(() => 0),
+          totalVotes: 0,
+          winnerIndex: -1,
+        }),
+      );
+    }
+
     if (messageId) sendAck(ws, messageId);
+    closePollInDb(msg.pollId).catch((e) => console.error("❌ Failed to close poll in DB:", e));
   } else {
     if (messageId) sendNack(ws, messageId, "Poll not found");
   }
@@ -243,21 +258,25 @@ export async function handleVoteOnPoll(ctx: WSContext) {
     recordPollVote(pollId, state.clientId, optionIndex);
 
     // 💾 Persist vote to database
-    recordPollVoteInDb(pollId, state.clientId, optionIndex);
+    recordPollVoteInDb(pollId, state.clientId, optionIndex).catch((e) =>
+      console.error("❌ Failed to record poll vote in DB:", e),
+    );
 
     const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
 
-    // Broadcast poll update to all subscribers
-    rawWs.publish(
-      "live-session",
-      JSON.stringify({
-        type: "POLL_UPDATE",
-        pollId: poll.id,
-        sessionId: poll.sessionId,
-        votes: poll.votes,
-        totalVotes,
-      }),
-    );
+    // Broadcast live update to DJ (and potentially others)
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "POLL_UPDATE",
+          pollId: msg.pollId,
+          votes: poll.votes,
+          totalVotes,
+          sessionId: poll.sessionId,
+        }),
+      );
+    }
 
     if (messageId) sendAck(ws, messageId);
   } else {

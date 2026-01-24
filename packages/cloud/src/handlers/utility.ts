@@ -10,10 +10,25 @@
  * @created 2026-01-21
  */
 
-import { PingSchema, GetSessionsSchema } from "@pika/shared";
-import { getAllSessions } from "../lib/sessions";
+import { PingSchema, GetSessionsSchema, ValidateSessionSchema } from "@pika/shared";
+import { getAllSessions, hasSession } from "../lib/sessions";
 import { sendAck, parseMessage } from "../lib/protocol";
 import type { WSContext } from "./ws-context";
+
+/**
+ * Check if the WebSocket buffer is full (Backpressure)
+ * Returns true if safe to send, false if backed up.
+ */
+export function checkBackpressure(
+  rawWs: { getBufferedAmount: () => number },
+  clientId?: string | null,
+): boolean {
+  if (rawWs.getBufferedAmount() > 1024 * 64) {
+    console.warn(`⏳ Backpressure: Skipping message for ${clientId || "unknown"} (buffer full)`);
+    return false;
+  }
+  return true;
+}
 
 /**
  * PING: Client heart-beat
@@ -38,20 +53,42 @@ export function handleGetSessions(ctx: WSContext) {
 
   const sessions = getAllSessions();
 
-  console.log(`🔍 [GET_SESSIONS] Returning ${sessions.length} sessions to client ${state.clientId || "unknown"}`, {
-    sessionIds: sessions.map(s => s.sessionId),
-    djNames: sessions.map(s => s.djName),
-  });
+  console.log(
+    `🔍 [GET_SESSIONS] Returning ${sessions.length} sessions to client ${state.clientId || "unknown"}`,
+    {
+      sessionIds: sessions.map((s) => s.sessionId),
+      djNames: sessions.map((s) => s.djName),
+    },
+  );
 
   // Backpressure awareness
-  if (rawWs.getBufferedAmount() < 1024 * 64) {
+  if (checkBackpressure(rawWs, state.clientId)) {
     ws.send(
       JSON.stringify({
         type: "SESSIONS_LIST",
         sessions,
       }),
     );
-  } else {
-    console.warn(`⏳ Backpressure: Skipping SESSIONS_LIST for ${state.clientId} (buffer full)`);
   }
+}
+
+/**
+ * VALIDATE_SESSION: Client checks if its session is still active
+ */
+export function handleValidateSession(ctx: WSContext) {
+  const { message, ws, messageId } = ctx;
+  const msg = parseMessage(ValidateSessionSchema, message, ws, messageId);
+  if (!msg) return;
+
+  const isValid = hasSession(msg.sessionId);
+
+  ws.send(
+    JSON.stringify({
+      type: "SESSION_VALID",
+      sessionId: msg.sessionId,
+      isValid,
+    }),
+  );
+
+  if (messageId) sendAck(ws, messageId);
 }

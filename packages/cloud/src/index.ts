@@ -20,29 +20,59 @@ import {
   getAllSessions,
   cleanupStaleSessions,
 } from "./lib/sessions";
+import { cleanupSessionQueue } from "./lib/persistence/queue";
+import { clearLastPersistedTrackKey } from "./lib/persistence/tracks";
 import * as handlers from "./handlers";
 
-// Type alias for Bun WebSocket
-type WS = ServerWebSocket<{
-  state: handlers.WSConnectionState;
-  messageId?: string;
-}>;
+// WS type alias removed (unused)
 
 // Capture a reference to any active WebSocket to use for global broadcasts
 let activeBroadcaster: ServerWebSocket<unknown> | null = null;
 
-// Periodically cleanup stale listeners (every 30 mins)
-setInterval(cleanupStaleListeners, 30 * 60 * 1000).unref();
-
-// Periodically cleanup stale sessions (every hour) - catches orphaned sessions
+// 🧹 M3 & M5 Fix: Global Cleanup Intervals
+// Run every 5 minutes to remove stale listeners and orphaned sessions
 setInterval(
   () => {
-    const removed = cleanupStaleSessions();
-    if (removed.length > 0) {
-      console.log(`🧹 Periodic cleanup removed ${removed.length} stale sessions`);
+    const now = new Date().toISOString();
+    console.log(`🧹 [CLEANUP] Running scheduled cleanup at ${now}`);
+    cleanupStaleListeners();
+
+    const removedIds = cleanupStaleSessions(); // Default thresholds: Idle 4h, Age 8h, Hard 24h
+    if (removedIds.length > 0 && activeBroadcaster) {
+      for (const sessionId of removedIds) {
+        try {
+          // 1. Notify Dancers
+          activeBroadcaster.publish(
+            "live-session",
+            JSON.stringify({
+              type: "SESSION_ENDED",
+              sessionId: sessionId,
+            }),
+          );
+
+          // 2. Notify DJ (Broadcast to the specific session topic)
+          // DJs also subscribe to live-session, but they might need a specific message
+          activeBroadcaster.publish(
+            "live-session",
+            JSON.stringify({
+              type: "SESSION_EXPIRED",
+              sessionId: sessionId,
+              reason: "Session expired due to inactivity or age limit",
+            }),
+          );
+        } catch (e) {
+          console.warn(`⚠️ Cleanup broadcast failed for ${sessionId}:`, e);
+        }
+
+        // 3. Deep Cleanup (Memory Leaks Fix M2)
+        // Ensure resources are freed even if loop-based cleanup missed them
+        cleanupSessionQueue(sessionId);
+        clearLastPersistedTrackKey(sessionId);
+      }
+      console.log(`🧹 Cleanup removed and notified ${removedIds.length} stale sessions`);
     }
   },
-  60 * 60 * 1000,
+  5 * 60 * 1000,
 ).unref();
 
 // Create WebSocket upgrader for Hono + Bun
@@ -103,18 +133,7 @@ setInterval(
   5 * 60 * 1000,
 ).unref();
 
-// 🧹 M3 & M5 Fix: Global Cleanup Intervals
-// Run every 5 minutes to remove stale listeners and orphaned sessions
-
-setInterval(
-  () => {
-    const now = new Date().toISOString();
-    console.log(`🧹 [CLEANUP] Running scheduled cleanup at ${now}`);
-    cleanupStaleListeners();
-    cleanupStaleSessions(); // Default 8h timeout
-  },
-  5 * 60 * 1000,
-).unref();
+// Legacy cleanup removed (consolidated above)
 
 function checkWsRateLimit(ip: string): boolean {
   const now = Date.now();
@@ -251,6 +270,9 @@ app.get(
             case "GET_SESSIONS":
               handlers.handleGetSessions(ctx);
               break;
+            case "VALIDATE_SESSION":
+              handlers.handleValidateSession(ctx);
+              break;
             default:
               break;
           }
@@ -260,7 +282,7 @@ app.get(
       },
 
       onClose(_event, ws) {
-        handlers.handleClose({ raw: (ws as any).raw }, state);
+        handlers.handleClose({ raw: (ws as any).raw as ServerWebSocket }, state);
       },
 
       onError(_event, _ws) {

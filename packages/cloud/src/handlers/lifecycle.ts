@@ -19,6 +19,9 @@ import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
 import { clearLikesForSession } from "../lib/likes";
 import { logSessionEvent } from "../lib/protocol";
 import type { WSConnectionState } from "./ws-context";
+import { checkBackpressure } from "./utility";
+import { cleanupSessionQueue } from "../lib/persistence/queue";
+import { clearLastPersistedTrackKey } from "../lib/persistence/tracks";
 
 /**
  * Handle new WebSocket connection
@@ -72,23 +75,29 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
       deleteSession(djSessionId);
       console.log(`🔍 [CLOSE] Session deleted from memory: ${djSessionId}`);
 
-      endSessionInDb(djSessionId);
+      endSessionInDb(djSessionId).catch((e) => console.error("❌ Failed to end session in DB:", e));
       clearLikesForSession(djSessionId);
       clearListeners(djSessionId);
       persistedSessions.delete(djSessionId);
+      cleanupSessionQueue(djSessionId);
+      clearLastPersistedTrackKey(djSessionId);
 
       // Broadcast session ended to all listeners
       const rawWs = ws.raw as ServerWebSocket;
-      rawWs.publish(
-        "live-session",
-        JSON.stringify({
-          type: "SESSION_ENDED",
-          sessionId: djSessionId,
-        }),
-      );
+      if (checkBackpressure(rawWs, clientId || undefined)) {
+        rawWs.publish(
+          "live-session",
+          JSON.stringify({
+            type: "SESSION_ENDED",
+            sessionId: djSessionId,
+          }),
+        );
+      }
 
       // 📊 Telemetry: Log DJ disconnect event
-      logSessionEvent(djSessionId, "disconnect", { reason: "unexpected" });
+      logSessionEvent(djSessionId, "disconnect", { reason: "unexpected" }).catch((e) =>
+        console.error("❌ Telemetry failed:", e),
+      );
 
       console.log(`👋 Session auto-ended: ${session.djName}`);
     } else {

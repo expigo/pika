@@ -29,6 +29,7 @@ export interface LiveSession {
   sessionId: string;
   djName: string;
   startedAt: string;
+  lastActivityAt: string;
   currentTrack?: TrackInfo;
   activeAnnouncement?: Announcement | null;
 }
@@ -48,7 +49,9 @@ const activeSessions = new Map<string, LiveSession>();
  */
 export function getSession(sessionId: string): LiveSession | undefined {
   const session = activeSessions.get(sessionId);
-  console.log(`🔍 [SESSIONS] getSession(${sessionId}): ${session ? "FOUND" : "NOT FOUND"} (total: ${activeSessions.size})`);
+  console.log(
+    `🔍 [SESSIONS] getSession(${sessionId}): ${session ? "FOUND" : "NOT FOUND"} (total: ${activeSessions.size})`,
+  );
   return session;
 }
 
@@ -57,8 +60,24 @@ export function getSession(sessionId: string): LiveSession | undefined {
  */
 export function setSession(sessionId: string, session: LiveSession): void {
   const wasNew = !activeSessions.has(sessionId);
+  // Ensure lastActivityAt is set if not provided
+  if (!session.lastActivityAt) {
+    session.lastActivityAt = new Date().toISOString();
+  }
   activeSessions.set(sessionId, session);
-  console.log(`🔍 [SESSIONS] setSession(${sessionId}): ${wasNew ? "NEW" : "UPDATE"} - DJ: ${session.djName} (total: ${activeSessions.size})`);
+  console.log(
+    `🔍 [SESSIONS] setSession(${sessionId}): ${wasNew ? "NEW" : "UPDATE"} - DJ: ${session.djName} (total: ${activeSessions.size})`,
+  );
+}
+
+/**
+ * Update activity timestamp for a session
+ */
+export function refreshSessionActivity(sessionId: string): void {
+  const session = activeSessions.get(sessionId);
+  if (session) {
+    session.lastActivityAt = new Date().toISOString();
+  }
 }
 
 /**
@@ -67,7 +86,9 @@ export function setSession(sessionId: string, session: LiveSession): void {
 export function deleteSession(sessionId: string): boolean {
   const existed = activeSessions.has(sessionId);
   const result = activeSessions.delete(sessionId);
-  console.log(`🔍 [SESSIONS] deleteSession(${sessionId}): ${existed ? "DELETED" : "NOT FOUND"} (total: ${activeSessions.size})`);
+  console.log(
+    `🔍 [SESSIONS] deleteSession(${sessionId}): ${existed ? "DELETED" : "NOT FOUND"} (total: ${activeSessions.size})`,
+  );
   return result;
 }
 
@@ -106,6 +127,18 @@ export function updateSessionTrack(sessionId: string, track: TrackInfo): boolean
   const session = activeSessions.get(sessionId);
   if (!session) return false;
   session.currentTrack = track;
+  session.lastActivityAt = new Date().toISOString();
+  return true;
+}
+
+/**
+ * Clear the current track for a session
+ */
+export function clearSessionTrack(sessionId: string): boolean {
+  const session = activeSessions.get(sessionId);
+  if (!session) return false;
+  delete session.currentTrack;
+  session.lastActivityAt = new Date().toISOString();
   return true;
 }
 
@@ -119,27 +152,41 @@ export function setSessionAnnouncement(
   const session = activeSessions.get(sessionId);
   if (!session) return false;
   session.activeAnnouncement = announcement;
+  session.lastActivityAt = new Date().toISOString();
   return true;
 }
 
 /**
- * Clean up stale sessions that have been running for too long
- * (likely orphaned due to missed cleanup on disconnect)
+ * Clean up stale sessions using a Smart Buffer strategy.
  *
- * @param maxAgeMs Maximum session age in milliseconds (default: 8 hours)
+ * 11/10 Magic Plan:
+ * - Kill if (Idle > 4h AND Age > 8h)
+ * - OR Kill if (Age > 24h) - Hard limit
+ *
+ * @param idleTimeoutMs Max idle time (default: 4 hours)
+ * @param ageThresholdMs Age after which idle check applies (default: 8 hours)
+ * @param hardLimitMs Max absolute session age (default: 24 hours)
  * @returns Array of removed session IDs
  */
-export function cleanupStaleSessions(maxAgeMs = 8 * 60 * 60 * 1000): string[] {
+export function cleanupStaleSessions(
+  idleTimeoutMs = 4 * 60 * 60 * 1000,
+  ageThresholdMs = 8 * 60 * 60 * 1000,
+  hardLimitMs = 24 * 60 * 60 * 1000,
+): string[] {
   const now = Date.now();
   const removed: string[] = [];
 
   for (const [sessionId, session] of activeSessions) {
     const startedAt = new Date(session.startedAt).getTime();
+    const lastActivity = new Date(session.lastActivityAt).getTime();
     const age = now - startedAt;
+    const idleTime = now - lastActivity;
 
-    if (age > maxAgeMs) {
+    const shouldCleanup = (idleTime > idleTimeoutMs && age > ageThresholdMs) || age > hardLimitMs;
+
+    if (shouldCleanup) {
       console.warn(
-        `🧹 [SESSIONS] Removing stale session: ${sessionId} (DJ: ${session.djName}, age: ${Math.round(age / 1000 / 60)} minutes)`
+        `🧹 [SESSIONS] Removing stale session: ${sessionId} (DJ: ${session.djName}, age: ${Math.round(age / 1000 / 60)}m, idle: ${Math.round(idleTime / 1000 / 60)}m)`,
       );
       activeSessions.delete(sessionId);
       removed.push(sessionId);
@@ -147,7 +194,9 @@ export function cleanupStaleSessions(maxAgeMs = 8 * 60 * 60 * 1000): string[] {
   }
 
   if (removed.length > 0) {
-    console.log(`🧹 [SESSIONS] Cleaned up ${removed.length} stale session(s). Remaining: ${activeSessions.size}`);
+    console.log(
+      `🧹 [SESSIONS] Cleaned up ${removed.length} stale session(s). Remaining: ${activeSessions.size}`,
+    );
   }
 
   return removed;

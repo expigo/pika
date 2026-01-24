@@ -24,6 +24,9 @@ import {
   isPollStartedMessage,
   isPollUpdateMessage,
   isReactionReceivedMessage,
+  isSessionExpiredMessage,
+  isSessionRegisteredMessage,
+  isSessionValidMessage,
   isTempoFeedbackMessage,
 } from "./typeGuards";
 
@@ -50,6 +53,8 @@ export interface MessageRouterContext {
   onPollEnded: (pollId: number) => void;
   onReactionReceived: (reaction: "thank_you") => void;
   onSessionRegistered: (sessionId: string) => void;
+  onSessionExpired: (sessionId: string, reason: string) => void;
+  onSessionValid: (sessionId: string, isValid: boolean) => void;
 }
 
 // =============================================================================
@@ -192,13 +197,22 @@ class MessageRouter {
 
     // Session registered handler
     this.register(MESSAGE_TYPES.SESSION_REGISTERED, (msg: unknown) => {
-      if (
-        typeof msg === "object" &&
-        msg !== null &&
-        "sessionId" in msg &&
-        typeof (msg as { sessionId: string }).sessionId === "string"
-      ) {
-        ctx.onSessionRegistered((msg as { sessionId: string }).sessionId);
+      if (isSessionRegisteredMessage(msg)) {
+        ctx.onSessionRegistered(msg.sessionId);
+      }
+    });
+
+    // Session expired handler
+    this.register(MESSAGE_TYPES.SESSION_EXPIRED, (msg: unknown) => {
+      if (isSessionExpiredMessage(msg)) {
+        ctx.onSessionExpired(msg.sessionId, msg.reason);
+      }
+    });
+
+    // Session valid handler
+    this.register(MESSAGE_TYPES.SESSION_VALID, (msg: unknown) => {
+      if (isSessionValidMessage(msg)) {
+        ctx.onSessionValid(msg.sessionId, msg.isValid);
       }
     });
   }

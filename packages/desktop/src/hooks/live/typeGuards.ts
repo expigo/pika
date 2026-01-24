@@ -76,6 +76,40 @@ export function isSessionRegisteredMessage(msg: unknown): msg is SessionRegister
   );
 }
 
+export interface SessionExpiredMessage extends BaseMessage {
+  type: typeof MESSAGE_TYPES.SESSION_EXPIRED;
+  sessionId: string;
+  reason: string;
+}
+
+export function isSessionExpiredMessage(msg: unknown): msg is SessionExpiredMessage {
+  return (
+    typeof msg === "object" &&
+    msg !== null &&
+    "type" in msg &&
+    msg.type === MESSAGE_TYPES.SESSION_EXPIRED &&
+    "sessionId" in msg &&
+    "reason" in msg
+  );
+}
+
+export interface SessionValidMessage extends BaseMessage {
+  type: typeof MESSAGE_TYPES.SESSION_VALID;
+  sessionId: string;
+  isValid: boolean;
+}
+
+export function isSessionValidMessage(msg: unknown): msg is SessionValidMessage {
+  return (
+    typeof msg === "object" &&
+    msg !== null &&
+    "type" in msg &&
+    msg.type === MESSAGE_TYPES.SESSION_VALID &&
+    "sessionId" in msg &&
+    "isValid" in msg
+  );
+}
+
 // =============================================================================
 // Like Messages
 // =============================================================================
@@ -232,7 +266,9 @@ export type WebSocketMessage =
   | PollStartedMessage
   | PollUpdateMessage
   | PollEndedMessage
-  | ReactionReceivedMessage;
+  | ReactionReceivedMessage
+  | SessionExpiredMessage
+  | SessionValidMessage;
 
 /**
  * Check if a message has a valid type field

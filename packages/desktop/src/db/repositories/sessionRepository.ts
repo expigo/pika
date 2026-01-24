@@ -72,26 +72,19 @@ export const sessionRepository = {
 
     const sqlite = await getSqlite();
 
-    // 🛡️ R3 Fix: Transaction to prevent race where session isn't found immediately after insert
-    await sqlite.execute("BEGIN TRANSACTION");
-
     try {
-      // Insert the new session
-      await sqlite.execute(
-        `INSERT INTO sessions (uuid, dj_identity, name, started_at, ended_at) VALUES (?, ?, ?, ?, NULL)`,
+      // 🛡️ R3 Fix: Use RETURNING * for atomic insert and retrieval
+      // This avoids manual transaction management which is unreliable with connection pools
+      // and solves the "Session not found" race condition.
+      const result = await sqlite.select<Record<string, unknown>[]>(
+        `INSERT INTO sessions (uuid, dj_identity, name, started_at, ended_at) 
+         VALUES (?, ?, ?, ?, NULL) 
+         RETURNING *`,
         [uuid, identity, sessionName, startedAt],
       );
 
-      // Get the inserted session by UUID
-      const result = await sqlite.select<Record<string, unknown>[]>(
-        `SELECT * FROM sessions WHERE uuid = ? LIMIT 1`,
-        [uuid],
-      );
-
-      await sqlite.execute("COMMIT");
-
       if (result.length === 0) {
-        throw new Error("Failed to create session - not found after insert");
+        throw new Error("Failed to create session - returned no rows");
       }
 
       const row = result[0];
@@ -105,7 +98,7 @@ export const sessionRepository = {
         endedAt: row.ended_at as number | null,
       };
     } catch (e) {
-      await sqlite.execute("ROLLBACK");
+      console.error("Failed to create session:", e);
       throw e;
     }
   },
@@ -360,15 +353,11 @@ export const sessionRepository = {
   async deleteSession(sessionId: number): Promise<void> {
     const sqlite = await getSqlite();
     try {
-      await sqlite.execute("BEGIN TRANSACTION");
-      // Delete plays first (foreign key constraint)
-      await sqlite.execute(`DELETE FROM plays WHERE session_id = ?`, [sessionId]);
-      // Delete the session
+      // 🛡️ 11/10 Safety: Atomic deletion via ON DELETE CASCADE
+      // Related plays are automatically cleared by the database.
       await sqlite.execute(`DELETE FROM sessions WHERE id = ?`, [sessionId]);
-      await sqlite.execute("COMMIT");
     } catch (e) {
-      console.error(`Failed to delete session ${sessionId}, rolling back:`, e);
-      await sqlite.execute("ROLLBACK");
+      console.error(`Failed to delete session ${sessionId}:`, e);
       throw e;
     }
   },

@@ -56,6 +56,7 @@ mock.module("../src/db", () => ({
 const mockWs = {
   send: mock(),
   publish: mock(),
+  getBufferedAmount: () => 0,
 } as any;
 
 describe("Security Audit Tests (Sprint 0.1)", () => {

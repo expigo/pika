@@ -17,6 +17,7 @@ import { hasLikedTrack, recordLike } from "../lib/likes";
 import { persistLike } from "../lib/persistence/tracks";
 import { recordTempoVote, getTempoFeedback } from "../lib/tempo";
 import { sendAck, sendNack, parseMessage } from "../lib/protocol";
+import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
 
 // 🛡️ Rate Limiting: ClientID -> Array of timestamps
@@ -114,16 +115,20 @@ export async function handleSendLike(ctx: WSContext) {
   console.log(`❤️ Like: ${track.artist} - ${track.title} from ${state.clientId}`);
 
   // 💾 Persist to database
-  persistLike(track, likeSessionId, state.clientId);
+  persistLike(track, likeSessionId, state.clientId).catch((e) =>
+    console.error("❌ Failed to persist like:", e),
+  );
 
   // Broadcast the like to all subscribers (including the DJ)
-  rawWs.publish(
-    "live-session",
-    JSON.stringify({
-      type: "LIKE_RECEIVED",
-      payload: { track },
-    }),
-  );
+  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "LIKE_RECEIVED",
+        payload: { track },
+      }),
+    );
+  }
 
   if (messageId) sendAck(ws, messageId);
 }
@@ -138,14 +143,16 @@ export function handleSendReaction(ctx: WSContext) {
 
   if (msg.reaction === "thank_you") {
     // Broadcast reaction to all subscribers
-    rawWs.publish(
-      "live-session",
-      JSON.stringify({
-        type: "REACTION_RECEIVED",
-        sessionId: msg.sessionId,
-        reaction: "thank_you",
-      }),
-    );
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "REACTION_RECEIVED",
+          sessionId: msg.sessionId,
+          reaction: "thank_you",
+        }),
+      );
+    }
 
     console.log(`🦄 Thank You received from ${state.clientId} in session ${msg.sessionId}`);
     if (messageId) sendAck(ws, messageId);
@@ -191,17 +198,19 @@ export function handleSendTempoRequest(ctx: WSContext) {
   const feedback = getTempoFeedback(targetSessionId);
 
   // Broadcast updated aggregates to all subscribers
-  rawWs.publish(
-    "live-session",
-    JSON.stringify({
-      type: "TEMPO_FEEDBACK",
-      sessionId: targetSessionId,
-      faster: feedback.faster,
-      slower: feedback.slower,
-      perfect: feedback.perfect,
-      total: feedback.total,
-    }),
-  );
+  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "TEMPO_FEEDBACK",
+        sessionId: targetSessionId,
+        faster: feedback.faster,
+        slower: feedback.slower,
+        perfect: feedback.perfect,
+        total: feedback.total,
+      }),
+    );
+  }
 
   if (messageId) sendAck(ws, messageId);
 }

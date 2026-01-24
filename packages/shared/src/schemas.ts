@@ -25,6 +25,7 @@ export const MESSAGE_TYPES = {
   SEND_REACTION: "SEND_REACTION",
   SEND_ANNOUNCEMENT: "SEND_ANNOUNCEMENT",
   CANCEL_ANNOUNCEMENT: "CANCEL_ANNOUNCEMENT",
+  VALIDATE_SESSION: "VALIDATE_SESSION",
 
   // Server -> Client
   SESSION_REGISTERED: "SESSION_REGISTERED",
@@ -52,6 +53,8 @@ export const MESSAGE_TYPES = {
   PONG: "PONG",
   ACK: "ACK",
   NACK: "NACK",
+  SESSION_EXPIRED: "SESSION_EXPIRED",
+  SESSION_VALID: "SESSION_VALID",
 } as const;
 
 /**
@@ -201,11 +204,30 @@ export const PingSchema = z.object({
   messageId: z.string().optional(),
 });
 
+export const ValidateSessionSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.VALIDATE_SESSION),
+  sessionId: z.string().min(8).max(64).trim(),
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
+});
+
 // --- Server -> Client Messages ---
 
 export const PongSchema = z.object({
   type: z.literal(MESSAGE_TYPES.PONG),
   timestamp: z.string().optional(),
+});
+
+export const SessionExpiredSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.SESSION_EXPIRED),
+  sessionId: z.string(),
+  reason: z.string(),
+});
+
+export const SessionValidSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.SESSION_VALID),
+  sessionId: z.string(),
+  isValid: z.boolean(),
 });
 
 export const SessionRegisteredSchema = z.object({
@@ -514,6 +536,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   // Client System
   GetSessionsSchema,
   PingSchema,
+  ValidateSessionSchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -548,6 +571,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   AckSchema,
   NackSchema,
   PongSchema,
+  SessionExpiredSchema,
+  SessionValidSchema,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

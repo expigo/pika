@@ -33,7 +33,11 @@ import {
   handleVoteOnPoll as _handleVoteOnPoll,
 } from "./poll";
 
-import { handlePing as _handlePing, handleGetSessions as _handleGetSessions } from "./utility";
+import {
+  handlePing as _handlePing,
+  handleGetSessions as _handleGetSessions,
+  handleValidateSession as _handleValidateSession,
+} from "./utility";
 
 // ============================================================================
 // Safe Handler Wrapper
@@ -96,6 +100,7 @@ export const handleVoteOnPoll = safeHandler(_handleVoteOnPoll);
 // Utility Handlers
 export const handlePing = safeHandler(_handlePing);
 export const handleGetSessions = safeHandler(_handleGetSessions);
+export const handleValidateSession = safeHandler(_handleValidateSession);
 
 // Re-export types and lifecycle handlers (no wrapping needed for lifecycle)
 export * from "./ws-context";

@@ -16,6 +16,7 @@ async function initializeDb(): Promise<void> {
     // S0.3.1 Fix: Enable WAL mode and busy_timeout for concurrency
     await sqliteInstance.execute("PRAGMA journal_mode = WAL;");
     await sqliteInstance.execute("PRAGMA busy_timeout = 5000;");
+    await sqliteInstance.execute("PRAGMA foreign_keys = ON;");
 
     // Create tracks table
     await sqliteInstance.execute(`
@@ -172,10 +173,46 @@ async function initializeDb(): Promise<void> {
                 reaction TEXT DEFAULT 'neutral',
                 notes TEXT,
                 dancer_likes INTEGER DEFAULT 0,
-                FOREIGN KEY (session_id) REFERENCES sessions(id),
+                FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
                 FOREIGN KEY (track_id) REFERENCES tracks(id)
             );
         `);
+
+    // Migration: Update existing plays table to support ON DELETE CASCADE
+    try {
+      const playsSchema = await sqliteInstance.select<{ sql: string }[]>(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='plays'",
+      );
+      if (playsSchema[0] && !playsSchema[0].sql.includes("CASCADE")) {
+        console.log("Migration: Adding CASCADE to plays table...");
+        await sqliteInstance.execute("BEGIN TRANSACTION;");
+        await sqliteInstance.execute("CREATE TABLE plays_backup AS SELECT * FROM plays;");
+        await sqliteInstance.execute("DROP TABLE plays;");
+        await sqliteInstance.execute(`
+                    CREATE TABLE plays (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        session_id INTEGER NOT NULL,
+                        track_id INTEGER NOT NULL,
+                        played_at INTEGER NOT NULL,
+                        duration INTEGER,
+                        reaction TEXT DEFAULT 'neutral',
+                        notes TEXT,
+                        dancer_likes INTEGER DEFAULT 0,
+                        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE,
+                        FOREIGN KEY (track_id) REFERENCES tracks(id)
+                    );
+                `);
+        await sqliteInstance.execute("INSERT INTO plays SELECT * FROM plays_backup;");
+        await sqliteInstance.execute("DROP TABLE plays_backup;");
+        await sqliteInstance.execute("COMMIT;");
+        console.log("Migration: plays table CASCADE added successfully");
+      }
+    } catch (e) {
+      console.error("Migration: plays table CASCADE failed:", e);
+      try {
+        await sqliteInstance.execute("ROLLBACK;");
+      } catch {}
+    }
 
     // Create saved_sets table
     await sqliteInstance.execute(`

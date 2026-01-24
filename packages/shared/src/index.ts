@@ -67,6 +67,9 @@ export {
   GetSessionsSchema,
   PingSchema,
   PongSchema,
+  ValidateSessionSchema,
+  SessionExpiredSchema,
+  SessionValidSchema,
 } from "./schemas";
 
 // Re-export slug utilities

@@ -19,8 +19,8 @@ import { getTrackKey, type TrackInfo } from "@pika/shared";
 // State
 // ============================================================================
 
-// Key: "sessionId:clientId" -> Set of track keys
-const likesSent = new Map<string, Set<string>>();
+// Key: sessionId -> Map<clientId, Set<trackKey>>
+const likesSent = new Map<string, Map<string, Set<string>>>();
 
 // ============================================================================
 // Operations
@@ -30,39 +30,44 @@ const likesSent = new Map<string, Set<string>>();
  * Check if client has already liked this track in this session
  */
 export function hasLikedTrack(sessionId: string, clientId: string, track: TrackInfo): boolean {
-  const key = `${sessionId}:${clientId}`;
-  const clientLikes = likesSent.get(key);
-  if (!clientLikes) return false;
-  return clientLikes.has(getTrackKey(track));
+  return likesSent.get(sessionId)?.get(clientId)?.has(getTrackKey(track)) ?? false;
 }
 
 /**
  * Record a like for a track
  */
 export function recordLike(sessionId: string, clientId: string, track: TrackInfo): void {
-  const key = `${sessionId}:${clientId}`;
-  if (!likesSent.has(key)) {
-    likesSent.set(key, new Set());
+  let sessionLikes = likesSent.get(sessionId);
+  if (!sessionLikes) {
+    sessionLikes = new Map();
+    likesSent.set(sessionId, sessionLikes);
   }
-  likesSent.get(key)?.add(getTrackKey(track));
+
+  let clientLikes = sessionLikes.get(clientId);
+  if (!clientLikes) {
+    clientLikes = new Set();
+    sessionLikes.set(clientId, clientLikes);
+  }
+
+  clientLikes.add(getTrackKey(track));
 }
 
 /**
  * Clear all likes for a session (when session ends)
  */
 export function clearLikesForSession(sessionId: string): void {
-  for (const key of likesSent.keys()) {
-    if (key.startsWith(`${sessionId}:`)) {
-      likesSent.delete(key);
-    }
-  }
+  likesSent.delete(sessionId);
 }
 
 /**
  * Get count of likes tracked (for monitoring)
  */
 export function getLikeEntryCount(): number {
-  return likesSent.size;
+  let count = 0;
+  for (const session of likesSent.values()) {
+    count += session.size;
+  }
+  return count;
 }
 
 /**

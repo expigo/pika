@@ -214,7 +214,7 @@ function handlePollEndedCallback(pollId: number): void {
  * Create the MessageRouterContext with all callbacks
  * Extracted from goLive to improve readability (U3 refactor)
  */
-function createRouterContext(sessionId: string): MessageRouterContext {
+function createRouterContext(sessionId: string, endSet: () => Promise<void>): MessageRouterContext {
   return {
     sessionId,
     onAck: handleAck,
@@ -237,6 +237,21 @@ function createRouterContext(sessionId: string): MessageRouterContext {
     },
     onSessionRegistered: (sessionIdFromServer: string) => {
       logger.info("Live", "Session registered", { sessionId: sessionIdFromServer });
+    },
+    onSessionExpired: (sessionId, reason) => {
+      logger.warn("Live", "Session expired", { sessionId, reason });
+      toast.error(`Session expired: ${reason}`);
+      // Gracefully end local state
+      void endSet();
+    },
+    onSessionValid: (sessionId, isValid) => {
+      if (!isValid) {
+        logger.warn("Live", "Session validation failed", { sessionId });
+        toast.error("Session no longer active on server.");
+        void endSet();
+      } else {
+        logger.debug("Live", "Session validation successful", { sessionId });
+      }
     },
   };
 }
@@ -528,8 +543,122 @@ export function useLiveSession() {
     };
   }, []);
 
+  // 💓 Session Sanity Check (Heartbeat)
+  // Periodically validates that the session is still active on the server
+  useEffect(() => {
+    if (status !== "live" || !sessionId) return;
+
+    logger.debug("Live", "Setting up hourly sanity check");
+    const intervalId = setInterval(
+      () => {
+        if (status === "live" && sessionId && socketInstance?.readyState === WebSocket.OPEN) {
+          logger.debug("Live", "Running hourly session validation");
+          sendMessage({
+            type: MESSAGE_TYPES.VALIDATE_SESSION,
+            sessionId: sessionId,
+          });
+        }
+      },
+      60 * 60 * 1000,
+    ); // 1 hour
+
+    return () => clearInterval(intervalId);
+  }, [status, sessionId]);
+
+  // End set - disconnect and stop watching
+  const endSet = useCallback(async () => {
+    logger.info("Live", "Ending set");
+
+    // Send end session message and close socket
+    if (socketInstance) {
+      if (socketInstance.readyState === WebSocket.OPEN) {
+        // U4 Fix: Wait for server to acknowledge END_SESSION before killing socket
+        // This ensures clients get the broadcast event reliably
+        await sendMessage(
+          {
+            type: MESSAGE_TYPES.END_SESSION,
+            sessionId: getStoreSessionId(),
+          },
+          true, // reliable
+        );
+      }
+      socketInstance.close();
+      socketInstance = null;
+    }
+
+    // Stop watcher
+    virtualDjWatcher.stopWatching();
+
+    // Sync fingerprint data to Cloud before ending (if enabled)
+    const dbSessionIdToSync = getStoreDbSessionId();
+    const sessionIdToSync = getStoreSessionId();
+    if (dbSessionIdToSync && sessionIdToSync) {
+      const syncEnabled = await settingsRepository.get("analysis.afterSession");
+      if (syncEnabled) {
+        // Create AbortController for fetch timeout (prevents orphaned requests on fast endSet)
+        const abortController = new AbortController();
+        const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10s timeout
+
+        try {
+          logger.info("Live", "Syncing fingerprints to Cloud");
+          const tracks = await trackRepository.getSessionTracksWithFingerprints(dbSessionIdToSync);
+
+          if (tracks.length > 0) {
+            const { apiUrl } = getConfiguredUrls();
+            const response = await fetch(
+              `${apiUrl}/api/session/${sessionIdToSync}/sync-fingerprints`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tracks }),
+                signal: abortController.signal,
+              },
+            );
+
+            if (response.ok) {
+              const result = await response.json();
+              logger.info("Live", "Synced fingerprints", {
+                synced: result.synced,
+                total: result.total,
+              });
+            } else {
+              logger.error("Live", "Failed to sync fingerprints", { status: response.status });
+            }
+          }
+        } catch (error) {
+          if (error instanceof Error && error.name === "AbortError") {
+            logger.warn("Live", "Fingerprint sync aborted (timeout or cancelled)");
+          } else {
+            logger.error("Live", "Error syncing fingerprints", error);
+          }
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      }
+    }
+
+    // End database session
+    const dbSessionIdToEnd = getStoreDbSessionId();
+    if (dbSessionIdToEnd) {
+      try {
+        await sessionRepository.endSession(dbSessionIdToEnd);
+        logger.info("Live", "Database session ended", { dbSessionId: dbSessionIdToEnd });
+      } catch (error) {
+        logger.error("Live", "Failed to end database session", error);
+      }
+    }
+
+    // Reset state
+    reset();
+    // Note: store is reset via reset() below
+    // Note: reset() clears all these in the store
+    clearProcessedTrackKeys();
+    setLastBroadcastedTrackKey(null);
+    clearPendingMessages(); // Clear any pending ACK messages
+  }, [reset]);
+
   // Go live - connect to cloud and start watching
-  // includeCurrentTrack: if false, skip recording/broadcasting whatever is currently playing
+  // include currentTrack: if false, skip recording/broadcasting whatever is currently playing
   const goLive = useCallback(
     async (sessionName?: string, includeCurrentTrack: boolean = true) => {
       if (status === "live" || status === "connecting") {
@@ -637,7 +766,7 @@ export function useLiveSession() {
         };
 
         // Initialize message router with callbacks for this session (U3 refactor)
-        messageRouter.setContext(createRouterContext(newSessionId));
+        messageRouter.setContext(createRouterContext(newSessionId, endSet));
 
         // Message handler using O(1) router dispatch
         socket.onmessage = (event) => {
@@ -675,100 +804,17 @@ export function useLiveSession() {
         setError(error instanceof Error ? error.message : String(error));
       }
     },
-    [status, setStatus, setError, setSessionId, setDbSessionId, setNowPlaying, setCurrentPlayId],
+    [
+      status,
+      setStatus,
+      setError,
+      setSessionId,
+      setDbSessionId,
+      setNowPlaying,
+      setCurrentPlayId,
+      endSet,
+    ],
   );
-
-  // End set - disconnect and stop watching
-  const endSet = useCallback(async () => {
-    logger.info("Live", "Ending set");
-
-    // Send end session message and close socket
-    if (socketInstance) {
-      if (socketInstance.readyState === WebSocket.OPEN) {
-        // U4 Fix: Wait for server to acknowledge END_SESSION before killing socket
-        // This ensures clients get the broadcast event reliably
-        await sendMessage(
-          {
-            type: MESSAGE_TYPES.END_SESSION,
-            sessionId: getStoreSessionId(),
-          },
-          true, // reliable
-        );
-      }
-      socketInstance.close();
-      socketInstance = null;
-    }
-
-    // Stop watcher
-    virtualDjWatcher.stopWatching();
-
-    // Sync fingerprint data to Cloud before ending (if enabled)
-    const dbSessionIdToSync = getStoreDbSessionId();
-    const sessionIdToSync = getStoreSessionId();
-    if (dbSessionIdToSync && sessionIdToSync) {
-      const syncEnabled = await settingsRepository.get("analysis.afterSession");
-      if (syncEnabled) {
-        // Create AbortController for fetch timeout (prevents orphaned requests on fast endSet)
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10s timeout
-
-        try {
-          logger.info("Live", "Syncing fingerprints to Cloud");
-          const tracks = await trackRepository.getSessionTracksWithFingerprints(dbSessionIdToSync);
-
-          if (tracks.length > 0) {
-            const { apiUrl } = getConfiguredUrls();
-            const response = await fetch(
-              `${apiUrl}/api/session/${sessionIdToSync}/sync-fingerprints`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ tracks }),
-                signal: abortController.signal,
-              },
-            );
-
-            if (response.ok) {
-              const result = await response.json();
-              logger.info("Live", "Synced fingerprints", {
-                synced: result.synced,
-                total: result.total,
-              });
-            } else {
-              logger.error("Live", "Failed to sync fingerprints", { status: response.status });
-            }
-          }
-        } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
-            logger.warn("Live", "Fingerprint sync aborted (timeout or cancelled)");
-          } else {
-            logger.error("Live", "Error syncing fingerprints", error);
-          }
-        } finally {
-          clearTimeout(timeoutId);
-        }
-      }
-    }
-
-    // End database session
-    const dbSessionIdToEnd = getStoreDbSessionId();
-    if (dbSessionIdToEnd) {
-      try {
-        await sessionRepository.endSession(dbSessionIdToEnd);
-        logger.info("Live", "Database session ended", { dbSessionId: dbSessionIdToEnd });
-      } catch (error) {
-        logger.error("Live", "Failed to end database session", error);
-      }
-    }
-
-    // Reset state
-    reset();
-    // Note: store is reset via reset() below
-    // Note: reset() clears all these in the store
-    clearProcessedTrackKeys();
-    setLastBroadcastedTrackKey(null);
-    clearPendingMessages(); // Clear any pending ACK messages
-  }, [reset]);
 
   // Clear now playing
   const clearNowPlaying = useCallback(() => {

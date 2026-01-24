@@ -23,15 +23,26 @@ import {
   SendAnnouncementSchema,
   CancelAnnouncementSchema,
 } from "@pika/shared";
-import { setSession, getSession, deleteSession, type LiveSession } from "../lib/sessions";
+import {
+  setSession,
+  getSession,
+  deleteSession,
+  updateSessionTrack,
+  clearSessionTrack,
+  setSessionAnnouncement,
+  type LiveSession,
+} from "../lib/sessions";
 import { persistSession, endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
 import { persistTrack, persistTempoVotes } from "../lib/persistence/tracks";
 import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
 import { logSessionEvent, sendAck, sendNack, parseMessage } from "../lib/protocol";
 import { validateToken } from "../lib/auth";
+import { checkBackpressure } from "./utility";
 import { checkAndRecordNonce } from "../lib/nonces";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
+import { cleanupSessionQueue } from "../lib/persistence/queue";
+import { clearLastPersistedTrackKey } from "../lib/persistence/tracks";
 import type { WSContext } from "./ws-context";
 import { getSessionCount } from "../lib/sessions";
 
@@ -96,6 +107,7 @@ export async function handleRegisterSession(ctx: WSContext) {
     sessionId,
     djName,
     startedAt: new Date().toISOString(),
+    lastActivityAt: new Date().toISOString(),
   };
 
   // 🔧 CRITICAL FIX: Set state.djSessionId BEFORE any async operations
@@ -125,17 +137,22 @@ export async function handleRegisterSession(ctx: WSContext) {
   if (messageId) sendAck(ws, messageId);
 
   // Broadcast to all subscribers
-  rawWs.publish(
-    "live-session",
-    JSON.stringify({
-      type: "SESSION_STARTED",
-      sessionId,
-      djName,
-    }),
-  );
+  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "SESSION_STARTED",
+        sessionId,
+        djName: session.djName,
+        startTime: session.startedAt,
+      }),
+    );
+  }
 
-  // 📊 Telemetry: Log DJ connect event
-  logSessionEvent(sessionId, "connect", { clientVersion: PIKA_VERSION });
+  // Log to telemetry (Fire-and-forget)
+  logSessionEvent(sessionId, "connect", { clientVersion: msg.version || PIKA_VERSION }).catch((e) =>
+    console.error("❌ Telemetry failed:", e),
+  );
 }
 
 /**
@@ -193,36 +210,38 @@ export async function handleBroadcastTrack(ctx: WSContext) {
         clearTempoVotes(msg.sessionId);
 
         // Broadcast to all clients to reset their tempo vote UI
-        rawWs.publish(
-          "live-session",
-          JSON.stringify({
-            type: "TEMPO_RESET",
-            sessionId: msg.sessionId,
-          }),
-        );
+        if (checkBackpressure(rawWs, state.clientId || undefined)) {
+          rawWs.publish(
+            "live-session",
+            JSON.stringify({
+              type: "TEMPO_RESET",
+              sessionId: msg.sessionId,
+            }),
+          );
+        }
       }
     }
 
-    session.currentTrack = msg.track;
+    updateSessionTrack(msg.sessionId, msg.track);
     console.log(`🎵 Now playing: ${msg.track.artist} - ${msg.track.title}`);
 
-    // 💾 Persist to database
-    try {
-      await persistTrack(msg.sessionId, msg.track);
-    } catch (err) {
-      console.error(`❌ DB Error: Failed to persist track for ${msg.sessionId}`, err);
+    // Broadcast new track to all connected clients
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "NOW_PLAYING",
+          sessionId: msg.sessionId,
+          djName: session.djName,
+          track: msg.track,
+        }),
+      );
     }
 
-    // Broadcast to all subscribers
-    rawWs.publish(
-      "live-session",
-      JSON.stringify({
-        type: "NOW_PLAYING",
-        sessionId: msg.sessionId,
-        djName: session.djName || "DJ",
-        track: msg.track,
-      }),
-    );
+    // 💾 Persist track (Fire-and-forget, handled by queue)
+    persistTrack(msg.sessionId, msg.track).catch((err) => {
+      console.error(`❌ DB Error: Failed to persist track for ${msg.sessionId}`, err);
+    });
     if (messageId) sendAck(ws, messageId);
   } else {
     if (messageId) sendNack(ws, messageId, "Session not found");
@@ -248,16 +267,19 @@ export function handleTrackStopped(ctx: WSContext) {
 
   const session = getSession(msg.sessionId);
   if (session) {
-    delete session.currentTrack;
+    // Clear track and refresh activity
+    clearSessionTrack(msg.sessionId);
     console.log(`⏸️ Track stopped for session: ${msg.sessionId}`);
 
-    rawWs.publish(
-      "live-session",
-      JSON.stringify({
-        type: "TRACK_STOPPED",
-        sessionId: msg.sessionId,
-      }),
-    );
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "TRACK_STOPPED",
+          sessionId: msg.sessionId,
+        }),
+      );
+    }
     if (messageId) sendAck(ws, messageId);
   } else {
     if (messageId) sendNack(ws, messageId, "Session not found");
@@ -302,21 +324,27 @@ export function handleEndSession(ctx: WSContext) {
     deleteSession(msg.sessionId);
 
     // 💾 Update in database
-    endSessionInDb(msg.sessionId);
+    endSessionInDb(msg.sessionId).catch((e) => console.error("❌ Failed to end session in DB:", e));
 
     // 🧹 Clean up all in-memory state
     clearLikesForSession(msg.sessionId);
     clearListeners(msg.sessionId);
     persistedSessions.delete(msg.sessionId);
     lastBroadcastTime.delete(msg.sessionId);
+    cleanupSessionQueue(msg.sessionId);
+    clearLastPersistedTrackKey(msg.sessionId);
 
-    rawWs.publish(
-      "live-session",
-      JSON.stringify({
-        type: "SESSION_ENDED",
-        sessionId: msg.sessionId,
-      }),
-    );
+    // Broadcast end session (best effort)
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "SESSION_ENDED",
+          sessionId: msg.sessionId,
+        }),
+      );
+    }
+    logSessionEvent(msg.sessionId, "end").catch((e) => console.error("❌ Telemetry failed:", e));
     if (messageId) sendAck(ws, messageId);
   } else {
     if (messageId) sendNack(ws, messageId, "Session not found");
@@ -354,23 +382,25 @@ export function handleSendAnnouncement(ctx: WSContext) {
     ? new Date(Date.now() + durationSeconds * 1000).toISOString()
     : undefined;
 
-  djSession.activeAnnouncement = {
+  setSessionAnnouncement(announcementSessionId, {
     message: announcementMessage,
     timestamp,
     ...(endsAt && { endsAt }),
-  };
+  });
 
-  rawWs.publish(
-    "live-session",
-    JSON.stringify({
-      type: "ANNOUNCEMENT_RECEIVED",
-      sessionId: announcementSessionId,
-      message: announcementMessage,
-      djName: djSession.djName,
-      timestamp,
-      endsAt,
-    }),
-  );
+  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "ANNOUNCEMENT_RECEIVED",
+        sessionId: announcementSessionId,
+        message: announcementMessage,
+        djName: djSession.djName,
+        timestamp: timestamp,
+        endsAt: endsAt,
+      }),
+    );
+  }
 
   console.log(
     `📢 Announcement from ${djSession.djName}: "${announcementMessage}"${durationSeconds ? ` (${durationSeconds}s timer)` : ""}`,
@@ -404,15 +434,17 @@ export function handleCancelAnnouncement(ctx: WSContext) {
     return;
   }
 
-  session.activeAnnouncement = null;
+  setSessionAnnouncement(cancelSessionId, null);
 
-  rawWs.publish(
-    "live-session",
-    JSON.stringify({
-      type: "ANNOUNCEMENT_CANCELLED",
-      sessionId: cancelSessionId,
-    }),
-  );
+  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "ANNOUNCEMENT_CANCELLED",
+        sessionId: cancelSessionId,
+      }),
+    );
+  }
 
   console.log(`📢❌ Announcement cancelled for session ${cancelSessionId}`);
   if (messageId) sendAck(ws, messageId);

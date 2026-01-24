@@ -13,6 +13,7 @@ import { and, desc, eq } from "drizzle-orm";
 import type { TrackInfo } from "@pika/shared";
 import { db, schema } from "../../db";
 import { waitForSession, persistedSessions } from "./sessions";
+import { enqueuePersistence } from "./queue";
 
 // ============================================================================
 // State
@@ -31,59 +32,62 @@ export const lastPersistedTrackKey = new Map<string, string>();
  * Stores BPM, key, and fingerprint for analytics visualizations
  */
 export async function persistTrack(sessionId: string, track: TrackInfo): Promise<void> {
-  const trackKey = `${track.artist}:${track.title}`;
+  // Wrap in serial queue to ensure order (Track -> Likes)
+  return enqueuePersistence(sessionId, async () => {
+    const trackKey = `${track.artist}:${track.title}`;
 
-  // Wait for session to be persisted (event-based, with timeout)
-  const sessionReady = await waitForSession(sessionId);
-  if (!sessionReady) {
-    console.warn(`⚠️ Session ${sessionId} not ready in time, skipping track persistence`);
-    return;
-  }
-
-  if (!persistedSessions.has(sessionId)) {
-    console.warn(`⚠️ Session ${sessionId} not found in DB, skipping track persistence`);
-    return;
-  }
-
-  // Deduplication: Don't persist if it's the same song as last time for this session
-  if (lastPersistedTrackKey.get(sessionId) === trackKey) {
-    return;
-  }
-
-  try {
-    if (process.env.NODE_ENV === "test") {
-      console.log(`🧪 TEST MODE: Mocking track persistence for ${track.title}`);
+    // Wait for session to be persisted (event-based, with timeout)
+    const sessionReady = await waitForSession(sessionId);
+    if (!sessionReady) {
+      console.warn(`⚠️ Session ${sessionId} not ready in time, skipping track persistence`);
       return;
     }
 
-    const [inserted] = await db
-      .insert(schema.playedTracks)
-      .values({
-        sessionId,
-        artist: track.artist,
-        title: track.title,
-        // Core metrics
-        bpm: track.bpm ? Math.round(track.bpm) : null,
-        key: track.key ?? null,
-        // Fingerprint metrics
-        energy: track.energy ? Math.round(track.energy) : null,
-        danceability: track.danceability ? Math.round(track.danceability) : null,
-        brightness: track.brightness ? Math.round(track.brightness) : null,
-        acousticness: track.acousticness ? Math.round(track.acousticness) : null,
-        groove: track.groove ? Math.round(track.groove) : null,
-      })
-      .returning({ id: schema.playedTracks.id });
-
-    if (inserted) {
-      lastPersistedTrackKey.set(sessionId, trackKey);
-      const bpmInfo = track.bpm ? ` (${track.bpm} BPM)` : "";
-      console.log(
-        `💾 Track persisted: ${track.artist} - ${track.title} (ID: ${inserted.id})${bpmInfo}`,
-      );
+    if (!persistedSessions.has(sessionId)) {
+      console.warn(`⚠️ Session ${sessionId} not found in DB, skipping track persistence`);
+      return;
     }
-  } catch (e) {
-    console.error("❌ Failed to persist track:", e);
-  }
+
+    // Deduplication: Don't persist if it's the same song as last time for this session
+    if (lastPersistedTrackKey.get(sessionId) === trackKey) {
+      return;
+    }
+
+    try {
+      if (process.env.NODE_ENV === "test") {
+        console.log(`🧪 TEST MODE: Mocking track persistence for ${track.title}`);
+        return;
+      }
+
+      const [inserted] = await db
+        .insert(schema.playedTracks)
+        .values({
+          sessionId,
+          artist: track.artist,
+          title: track.title,
+          // Core metrics
+          bpm: track.bpm ? Math.round(track.bpm) : null,
+          key: track.key ?? null,
+          // Fingerprint metrics
+          energy: track.energy ? Math.round(track.energy) : null,
+          danceability: track.danceability ? Math.round(track.danceability) : null,
+          brightness: track.brightness ? Math.round(track.brightness) : null,
+          acousticness: track.acousticness ? Math.round(track.acousticness) : null,
+          groove: track.groove ? Math.round(track.groove) : null,
+        })
+        .returning({ id: schema.playedTracks.id });
+
+      if (inserted) {
+        lastPersistedTrackKey.set(sessionId, trackKey);
+        const bpmInfo = track.bpm ? ` (${track.bpm} BPM)` : "";
+        console.log(
+          `💾 Track persisted: ${track.artist} - ${track.title} (ID: ${inserted.id})${bpmInfo}`,
+        );
+      }
+    } catch (e) {
+      console.error("❌ Failed to persist track:", e);
+    }
+  });
 }
 
 /**
@@ -97,10 +101,8 @@ export async function persistLike(
 ): Promise<void> {
   if (!sessionId) return;
 
-  const maxRetries = 3;
-  const retryDelays = [100, 200, 400]; // Exponential backoff in ms
-
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  // Enqueue ensures this runs AFTER persistTrack for the same session
+  return enqueuePersistence(sessionId, async () => {
     try {
       // 1. Find the specific "play instance" of this track in this session.
       const [playedTrack] = await db
@@ -123,33 +125,18 @@ export async function persistLike(
           clientId: clientId ?? null,
           playedTrackId: playedTrack.id,
         });
-        console.log(
-          `💾 Like persisted: ${track.title} (client: ${clientId?.substring(0, 20)}...${attempt > 0 ? `, attempt ${attempt + 1}` : ""})`,
+        console.log(`💾 Like persisted: ${track.title} (client: ${clientId?.substring(0, 8)})`);
+      } else {
+        // Fallback: This shouldn't happen often thanks to the queue,
+        // but could happen if persistTrack failed or track doesn't match exactly.
+        console.warn(
+          `⚠️ Like orphan (track not found): "${track.title}" - persistence queue failed to sync order?`,
         );
-        return;
-      }
-
-      // Track not found - wait and retry if not last attempt
-      if (attempt < maxRetries - 1) {
-        console.log(
-          `⏳ Like waiting for track: "${track.title}" (retry ${attempt + 1}/${maxRetries})`,
-        );
-        await new Promise((r) => setTimeout(r, retryDelays[attempt]));
       }
     } catch (e) {
       console.error("❌ Failed to persist like:", e);
-      // 🛡️ R6 Fix: Check if we should retry instead of aborting immediately
-      if (attempt < maxRetries - 1) {
-        await new Promise((r) => setTimeout(r, retryDelays[attempt]));
-        continue;
-      }
     }
-  }
-
-  // All retries exhausted - log for monitoring
-  console.error(
-    `❌ Like lost after ${maxRetries} retries: "${track.title}" - track never appeared in played_tracks`,
-  );
+  });
 }
 
 /**
@@ -165,19 +152,31 @@ export async function persistTempoVotes(
     return;
   }
 
-  try {
-    await db.insert(schema.tempoVotes).values({
-      sessionId,
-      trackArtist: track.artist,
-      trackTitle: track.title,
-      slowerCount: votes.slower,
-      perfectCount: votes.perfect,
-      fasterCount: votes.faster,
-    });
-    console.log(
-      `🎚️ Tempo votes persisted: ${track.title} (🐢${votes.slower} ✅${votes.perfect} 🐇${votes.faster})`,
-    );
-  } catch (e) {
-    console.error("❌ Failed to persist tempo votes:", e);
+  // Wrap in queue to prevent race conditions
+  return enqueuePersistence(sessionId, async () => {
+    try {
+      await db.insert(schema.tempoVotes).values({
+        sessionId,
+        trackArtist: track.artist,
+        trackTitle: track.title,
+        slowerCount: votes.slower,
+        perfectCount: votes.perfect,
+        fasterCount: votes.faster,
+      });
+      console.log(
+        `🎚️ Tempo votes persisted: ${track.title} (🐢${votes.slower} ✅${votes.perfect} 🐇${votes.faster})`,
+      );
+    } catch (e) {
+      console.error("❌ Failed to persist tempo votes:", e);
+    }
+  });
+}
+
+/**
+ * Cleanup function for memory management (M1)
+ */
+export function clearLastPersistedTrackKey(sessionId: string): void {
+  if (lastPersistedTrackKey.has(sessionId)) {
+    lastPersistedTrackKey.delete(sessionId);
   }
 }
