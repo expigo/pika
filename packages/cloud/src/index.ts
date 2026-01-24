@@ -20,6 +20,45 @@ import { stats as statsRoutes } from "./routes/stats";
 import { dj as djRoutes } from "./routes/dj";
 import { client as clientRoutes } from "./routes/client";
 
+import * as Sentry from "@sentry/bun";
+
+// Initialize Sentry for production error monitoring
+if (process.env["NODE_ENV"] === "production" || process.env["SENTRY_DSN"]) {
+  Sentry.init({
+    dsn: process.env["SENTRY_DSN"],
+    environment: process.env["NODE_ENV"] || "production",
+    release: `pika-cloud@${PIKA_VERSION}`,
+    tracesSampleRate: 0.1,
+
+    // PII Scrubbing
+    beforeSend(event) {
+      if (event.request) {
+        delete event.request.headers;
+        delete event.request.cookies;
+      }
+      return event;
+    },
+
+    ignoreErrors: ["WebSocket connection failed", "Broken pipe", "Connection reset by peer"],
+  });
+
+  // Register Sentry as the reporter for the shared logger
+  logger.setReporter((message, error, context) => {
+    if (error instanceof Error) {
+      Sentry.captureException(error, {
+        extra: { logMessage: message, ...context },
+      });
+    } else {
+      Sentry.captureMessage(message, {
+        level: "error",
+        extra: { error, ...context },
+      });
+    }
+  });
+
+  logger.info("🛡️ Sentry initialized for Cloud service");
+}
+
 import { cleanupStaleListeners, getListenerCount } from "./lib/listeners";
 import { cachedListenerCounts } from "./lib/cache";
 import {
@@ -67,8 +106,8 @@ setInterval(() => {
             reason: "Session expired due to inactivity or age limit",
           }),
         );
-      } catch (e) {
-        logger.warn(`⚠️ Cleanup broadcast failed for ${sessionId}`, e);
+      } catch (e: any) {
+        logger.warn(`⚠️ Cleanup broadcast failed for ${sessionId}`, e, undefined);
       }
 
       // 3. Deep Cleanup (Memory Leaks Fix M2)
@@ -283,17 +322,17 @@ app.get(
             default:
               break;
           }
-        } catch (e) {
-          logger.error("❌ Failed to handle message", e);
+        } catch (e: any) {
+          logger.error("❌ Failed to handle message", e, undefined);
         }
       },
 
       onClose(_event, ws) {
         handlers.handleClose({ raw: (ws as any).raw as ServerWebSocket }, state);
       },
-
       onError(_event, _ws) {
-        logger.error("⚠️ WebSocket error");
+        const error = (_event as any).error || _event;
+        logger.error("⚠️ WebSocket error", error);
       },
     };
   }),
@@ -324,8 +363,8 @@ app.get("/health", async (c) => {
       activeSessions: getSessionCount(),
       database: "connected",
     });
-  } catch (e) {
-    logger.error("❌ Health check failed", e);
+  } catch (e: any) {
+    logger.error("❌ Health check failed", e, undefined);
     return c.json(
       {
         status: "error",
@@ -403,8 +442,8 @@ setInterval(() => {
           "live-session",
           JSON.stringify({ type: "LISTENER_COUNT", sessionId, count: currentCount }),
         );
-      } catch (e) {
-        logger.warn("⚠️ Broadcast failed", e);
+      } catch (e: any) {
+        logger.warn("⚠️ Broadcast failed", e, undefined);
       }
     }
   }
@@ -445,8 +484,8 @@ async function gracefulShutdown(signal: string) {
           }),
         );
         logger.info("📢 Broadcast shutdown notification to clients");
-      } catch (e) {
-        logger.warn("⚠️ Failed to broadcast shutdown", e);
+      } catch (e: any) {
+        logger.warn("⚠️ Failed to broadcast shutdown", e, undefined);
       }
     }
 
@@ -459,8 +498,8 @@ async function gracefulShutdown(signal: string) {
           try {
             await endSessionInDb(sessionId);
             logger.debug(`  ✅ Ended session: ${sessionId.substring(0, 8)}...`);
-          } catch (e) {
-            logger.error(`  ❌ Failed to end session ${sessionId}`, e);
+          } catch (e: any) {
+            logger.error(`  ❌ Failed to end session ${sessionId}`, e, undefined);
           }
         }),
       );
@@ -482,8 +521,8 @@ async function gracefulShutdown(signal: string) {
     logger.info("👋 Shutdown complete");
     clearTimeout(forceExitTimeout);
     process.exit(0);
-  } catch (err) {
-    logger.error("❌ Critical error during shutdown", err);
+  } catch (err: any) {
+    logger.error("❌ Critical error during shutdown", err, undefined);
     process.exit(1);
   }
 }

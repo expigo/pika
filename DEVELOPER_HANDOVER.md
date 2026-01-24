@@ -101,6 +101,12 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Poll Timer Cleanup:** Tracked timers cancelled on manual end/cancel.
     *   **Event-Based Coordination:** `waitForSession()` replaces busy-wait loops.
     *   **Test Coverage:** 179 tests (up from 58).
+*   **Observability (v0.3.1):**
+    *   **Sentry Integration:** Comprehensive error and performance tracking across `@pika/cloud`, `@pika/web`, and `@pika/desktop`.
+    *   **Shared Logger Hook:** The `@pika/shared` logger automatically reports errors/warnings to Sentry in production.
+    *   **PII Privacy:** All telemetry is scrubbed of headers, cookies, and IP addresses before transmission.
+    *   **Root Layout Recovery:** Next.js `global-error.tsx` catches and reports crashes in the root application shell.
+    *   **Selective Sampling:** 10% traces sample rate to balance cloud costs with visibility.
 
 ---
 

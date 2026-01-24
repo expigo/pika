@@ -1,5 +1,7 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
+import { useEffect } from "react";
 import { Radio, RotateCcw } from "lucide-react";
 import Link from "next/link";
 
@@ -14,6 +16,9 @@ export default function LiveError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 selection:bg-purple-500/30">
       <div className="w-full max-w-md text-center">

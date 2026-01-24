@@ -9,14 +9,24 @@ export interface LogContext {
   [key: string]: unknown;
 }
 
+export type ErrorReporter = (message: string, error?: unknown, context?: LogContext) => void;
+
 class PikaLogger {
   private isDev: boolean;
+  private reporter: ErrorReporter | null = null;
 
   constructor() {
     // Basic detection - can be overridden
     this.isDev =
       typeof process !== "undefined" &&
       (process.env["NODE_ENV"] === "development" || process.env["NODE_ENV"] === "test");
+  }
+
+  /**
+   * Register a custom error reporter (e.g., Sentry)
+   */
+  setReporter(reporter: ErrorReporter) {
+    this.reporter = reporter;
   }
 
   private format(level: LogLevel, message: string, context?: LogContext): string {
@@ -71,8 +81,26 @@ class PikaLogger {
     console.info(this.format("info", message, context));
   }
 
-  warn(message: string, context?: LogContext) {
-    console.warn(this.format("warn", message, context));
+  warn(message: string, error?: unknown, context?: LogContext) {
+    const errCtx =
+      error instanceof Error
+        ? {
+            error: error.message,
+            stack: error.stack,
+            ...context,
+          }
+        : { error, ...context };
+
+    console.warn(this.format("warn", message, errCtx));
+
+    // Report warnings to external monitoring if they have an error
+    if (this.reporter && error) {
+      try {
+        this.reporter(message, error, context);
+      } catch (e) {
+        console.error("❌ Logger reporter failed", e);
+      }
+    }
   }
 
   error(message: string, error?: unknown, context?: LogContext) {
@@ -86,6 +114,16 @@ class PikaLogger {
         : { error, ...context };
 
     console.error(this.format("error", message, errCtx));
+
+    // Report to external monitoring if available
+    if (this.reporter) {
+      try {
+        this.reporter(message, error, context);
+      } catch (e) {
+        // Don't let reporter failures crash the logger
+        console.error("❌ Logger reporter failed", e);
+      }
+    }
   }
 }
 

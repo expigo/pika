@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@pika/shared": "workspace:*",
+    "@sentry/bun": "^10.36.0",
     "drizzle-orm": "^0.38.0",
     "hono": "^4.6.0",
     "hono-rate-limiter": "^0.5.3",

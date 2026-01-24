@@ -1,6 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import * as Sentry from "@sentry/react";
+import { initSentry } from "./lib/sentry";
+
+// Initialize Sentry for production error monitoring
+initSentry();
 
 // Simple error boundary for debugging
 class ErrorBoundary extends React.Component<
@@ -18,6 +23,7 @@ class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("React Error Boundary caught:", error, errorInfo);
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } });
   }
 
   render() {
