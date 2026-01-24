@@ -1,10 +1,18 @@
-import { PIKA_VERSION, type WebSocketMessage, WebSocketMessageSchema } from "@pika/shared";
+import {
+  PIKA_VERSION,
+  type WebSocketMessage,
+  WebSocketMessageSchema,
+  TIMEOUTS,
+  LIMITS,
+  URLS,
+  logger,
+} from "@pika/shared";
 import type { ServerWebSocket } from "bun";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
-import { logger } from "hono/logger";
+import { logger as honoLogger } from "hono/logger";
 import { db, client } from "./db";
 import { auth as authRoutes } from "./routes/auth";
 import { sessions as sessionsRoutes } from "./routes/sessions";
@@ -31,49 +39,48 @@ let activeBroadcaster: ServerWebSocket<unknown> | null = null;
 
 // 🧹 M3 & M5 Fix: Global Cleanup Intervals
 // Run every 5 minutes to remove stale listeners and orphaned sessions
-setInterval(
-  () => {
-    const now = new Date().toISOString();
-    console.log(`🧹 [CLEANUP] Running scheduled cleanup at ${now}`);
-    cleanupStaleListeners();
+setInterval(() => {
+  const now = new Date().toISOString();
+  logger.info("🧹 [CLEANUP] Running scheduled cleanup", { timestamp: now });
+  cleanupStaleListeners();
 
-    const removedIds = cleanupStaleSessions(); // Default thresholds: Idle 4h, Age 8h, Hard 24h
-    if (removedIds.length > 0 && activeBroadcaster) {
-      for (const sessionId of removedIds) {
-        try {
-          // 1. Notify Dancers
-          activeBroadcaster.publish(
-            "live-session",
-            JSON.stringify({
-              type: "SESSION_ENDED",
-              sessionId: sessionId,
-            }),
-          );
+  const removedIds = cleanupStaleSessions(); // Default thresholds: Idle 4h, Age 8h, Hard 24h
+  if (removedIds.length > 0 && activeBroadcaster) {
+    for (const sessionId of removedIds) {
+      try {
+        // 1. Notify Dancers
+        activeBroadcaster.publish(
+          "live-session",
+          JSON.stringify({
+            type: "SESSION_ENDED",
+            sessionId: sessionId,
+          }),
+        );
 
-          // 2. Notify DJ (Broadcast to the specific session topic)
-          // DJs also subscribe to live-session, but they might need a specific message
-          activeBroadcaster.publish(
-            "live-session",
-            JSON.stringify({
-              type: "SESSION_EXPIRED",
-              sessionId: sessionId,
-              reason: "Session expired due to inactivity or age limit",
-            }),
-          );
-        } catch (e) {
-          console.warn(`⚠️ Cleanup broadcast failed for ${sessionId}:`, e);
-        }
-
-        // 3. Deep Cleanup (Memory Leaks Fix M2)
-        // Ensure resources are freed even if loop-based cleanup missed them
-        cleanupSessionQueue(sessionId);
-        clearLastPersistedTrackKey(sessionId);
+        // 2. Notify DJ (Broadcast to the specific session topic)
+        // DJs also subscribe to live-session, but they might need a specific message
+        activeBroadcaster.publish(
+          "live-session",
+          JSON.stringify({
+            type: "SESSION_EXPIRED",
+            sessionId: sessionId,
+            reason: "Session expired due to inactivity or age limit",
+          }),
+        );
+      } catch (e) {
+        logger.warn(`⚠️ Cleanup broadcast failed for ${sessionId}`, e);
       }
-      console.log(`🧹 Cleanup removed and notified ${removedIds.length} stale sessions`);
+
+      // 3. Deep Cleanup (Memory Leaks Fix M2)
+      // Ensure resources are freed even if loop-based cleanup missed them
+      cleanupSessionQueue(sessionId);
+      clearLastPersistedTrackKey(sessionId);
     }
-  },
-  5 * 60 * 1000,
-).unref();
+  }
+  if (removedIds.length > 0) {
+    logger.info("🧹 Cleanup removed stale sessions", { count: removedIds.length, ids: removedIds });
+  }
+}, TIMEOUTS.CLEANUP_INTERVAL).unref();
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
@@ -81,7 +88,7 @@ const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
 const app = new Hono();
 
 // Middleware
-app.use("*", logger());
+app.use("*", honoLogger());
 app.use(
   "*",
   cors({
@@ -89,10 +96,10 @@ app.use(
       process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test"
         ? "*"
         : [
-            "https://pika.stream",
-            "https://api.pika.stream",
-            "https://staging.pika.stream",
-            "https://staging-api.pika.stream",
+            URLS.getWebUrl("production"),
+            URLS.getApiUrl("production"),
+            URLS.getWebUrl("staging"),
+            URLS.getApiUrl("staging"),
           ],
     credentials: process.env.NODE_ENV !== "development",
   }),
@@ -108,7 +115,7 @@ const csrfCheck = async (c: Context, next: Next) => {
   if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
     const clientHeader = c.req.header("X-Pika-Client");
     if (!clientHeader || !VALID_CLIENTS.includes(clientHeader as any)) {
-      console.warn(`🚫 CSRF/Client check failed: ${clientHeader || "no header"}`);
+      logger.warn(`🚫 CSRF/Client check failed: ${clientHeader || "no header"}`);
       return c.json({ error: "Invalid client" }, 403);
     }
   }
@@ -120,18 +127,15 @@ const csrfCheck = async (c: Context, next: Next) => {
 // ============================================================================
 
 const wsConnectionAttempts = new Map<string, { count: number; resetAt: number }>();
-const WS_RATE_LIMIT = Number(process.env["WS_RATE_LIMIT"] ?? 20);
-const WS_RATE_WINDOW = 60 * 1000;
+const WS_RATE_LIMIT = Number(process.env["WS_RATE_LIMIT"] ?? LIMITS.WS_CONNECT_RATE_LIMIT_MAX);
+const WS_RATE_WINDOW = LIMITS.WS_CONNECT_RATE_LIMIT_WINDOW;
 
-setInterval(
-  () => {
-    const now = Date.now();
-    for (const [ip, data] of wsConnectionAttempts) {
-      if (now > data.resetAt) wsConnectionAttempts.delete(ip);
-    }
-  },
-  5 * 60 * 1000,
-).unref();
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, data] of wsConnectionAttempts) {
+    if (now > data.resetAt) wsConnectionAttempts.delete(ip);
+  }
+}, TIMEOUTS.CLEANUP_INTERVAL).unref();
 
 // Legacy cleanup removed (consolidated above)
 
@@ -161,7 +165,7 @@ app.get(
   (c, next) => {
     const ip = getClientIp(c);
     if (!checkWsRateLimit(ip)) {
-      console.log(`🚫 WS connection rejected for rate-limited IP: ${ip.substring(0, 10)}...`);
+      logger.warn(`🚫 WS connection rejected for rate-limited IP: ${ip.substring(0, 10)}...`);
       return c.text("Rate limit exceeded", 429);
     }
     return next();
@@ -191,7 +195,10 @@ app.get(
           const json = JSON.parse(data);
           const result = WebSocketMessageSchema.safeParse(json);
           if (!result.success) {
-            console.warn("⚠️ Message validation failed:", json.type, result.error.issues);
+            logger.warn("⚠️ Message validation failed", {
+              type: json.type,
+              issues: result.error.issues,
+            });
             return;
           }
 
@@ -209,7 +216,7 @@ app.get(
             if (state.clientId === null) {
               state.clientId = message.clientId;
             } else if (state.clientId !== message.clientId) {
-              console.warn(
+              logger.warn(
                 `⚠️ ClientID spoofing attempt ignored: ${message.clientId} (locked to ${state.clientId})`,
               );
               // Do NOT update state.clientId
@@ -277,7 +284,7 @@ app.get(
               break;
           }
         } catch (e) {
-          console.error("❌ Failed to handle message:", e);
+          logger.error("❌ Failed to handle message", e);
         }
       },
 
@@ -286,7 +293,7 @@ app.get(
       },
 
       onError(_event, _ws) {
-        console.error("⚠️ WebSocket error");
+        logger.error("⚠️ WebSocket error");
       },
     };
   }),
@@ -318,7 +325,7 @@ app.get("/health", async (c) => {
       database: "connected",
     });
   } catch (e) {
-    console.error("❌ Health check failed:", e);
+    logger.error("❌ Health check failed", e);
     return c.json(
       {
         status: "error",
@@ -372,9 +379,9 @@ app.get("/", (c) => {
 const port = Number(process.env["PORT"] ?? 3001);
 const hostname = process.env["HOST"] ?? "0.0.0.0";
 
-console.log(`🚀 Pika! Cloud server starting on http://${hostname}:${port}`);
-console.log(`📡 WebSocket endpoint: ws://${hostname}:${port}/ws`);
-console.log(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "localhost (default)"}`);
+logger.info(`🚀 Pika! Cloud server starting on http://${hostname}:${port}`);
+logger.info(`📡 WebSocket endpoint: ws://${hostname}:${port}/ws`);
+logger.info(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "localhost (default)"}`);
 
 /**
  * Debounced broadcast of listener counts (Heartbeat).
@@ -397,11 +404,11 @@ setInterval(() => {
           JSON.stringify({ type: "LISTENER_COUNT", sessionId, count: currentCount }),
         );
       } catch (e) {
-        console.warn("⚠️ Broadcast failed:", e);
+        logger.warn("⚠️ Broadcast failed", e);
       }
     }
   }
-}, 2000).unref();
+}, TIMEOUTS.BROADCAST_DEBOUNCE).unref();
 
 // ============================================================================
 // Graceful Shutdown Handling
@@ -415,13 +422,13 @@ async function gracefulShutdown(signal: string) {
   if (isShuttingDown) return;
   isShuttingDown = true;
 
-  console.log(`\n🛑 Received ${signal}, initiating graceful shutdown...`);
+  logger.info(`🛑 Received ${signal}, initiating graceful shutdown...`);
 
   // Force exit after 5 seconds if graceful shutdown hangs
   const forceExitTimeout = setTimeout(() => {
-    console.warn("⚠️ Graceful shutdown timed out, forcing exit...");
+    logger.warn("⚠️ Graceful shutdown timed out, forcing exit...");
     process.exit(1);
-  }, 5000);
+  }, TIMEOUTS.SHUTDOWN_FORCE_EXIT);
 
   // Unref the timeout so it doesn't keep the process alive if everything else finishes
   if (forceExitTimeout.unref) forceExitTimeout.unref();
@@ -437,23 +444,23 @@ async function gracefulShutdown(signal: string) {
             message: "Server is shutting down for maintenance",
           }),
         );
-        console.log("📢 Broadcast shutdown notification to clients");
+        logger.info("📢 Broadcast shutdown notification to clients");
       } catch (e) {
-        console.warn("⚠️ Failed to broadcast shutdown:", e);
+        logger.warn("⚠️ Failed to broadcast shutdown", e);
       }
     }
 
     // End all active sessions in database
     const sessionIds = getSessionIds();
     if (sessionIds.length > 0) {
-      console.log(`💾 Ending ${sessionIds.length} active session(s)...`);
+      logger.info(`💾 Ending ${sessionIds.length} active session(s)...`);
       await Promise.all(
         sessionIds.map(async (sessionId) => {
           try {
             await endSessionInDb(sessionId);
-            console.log(`  ✅ Ended session: ${sessionId.substring(0, 8)}...`);
+            logger.debug(`  ✅ Ended session: ${sessionId.substring(0, 8)}...`);
           } catch (e) {
-            console.error(`  ❌ Failed to end session ${sessionId}:`, e);
+            logger.error(`  ❌ Failed to end session ${sessionId}`, e);
           }
         }),
       );
@@ -461,22 +468,22 @@ async function gracefulShutdown(signal: string) {
 
     // Close database connection pool
     try {
-      console.log("🔌 Closing database connection pool...");
+      logger.info("🔌 Closing database connection pool...");
       // @ts-ignore - client is postgres.js instance
       await client.end({ timeout: 2 });
-      console.log("  ✅ Database connection pool closed");
+      logger.info("  ✅ Database connection pool closed");
     } catch (e) {
-      console.warn("⚠️ Error closing database connection:", e);
+      logger.warn("⚠️ Error closing database connection", e);
     }
 
     // Small delay to allow messages to be sent
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolve) => setTimeout(resolve, TIMEOUTS.SHUTDOWN_GRACE_PERIOD));
 
-    console.log("👋 Shutdown complete");
+    logger.info("👋 Shutdown complete");
     clearTimeout(forceExitTimeout);
     process.exit(0);
   } catch (err) {
-    console.error("❌ Critical error during shutdown:", err);
+    logger.error("❌ Critical error during shutdown", err);
     process.exit(1);
   }
 }

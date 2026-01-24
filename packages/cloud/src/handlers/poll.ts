@@ -12,7 +12,13 @@
  * @created 2026-01-21
  */
 
-import { StartPollSchema, EndPollSchema, CancelPollSchema, VoteOnPollSchema } from "@pika/shared";
+import {
+  StartPollSchema,
+  EndPollSchema,
+  CancelPollSchema,
+  VoteOnPollSchema,
+  logger,
+} from "@pika/shared";
 import { getSession, refreshSessionActivity } from "../lib/sessions";
 import { checkBackpressure } from "./utility";
 import {
@@ -38,9 +44,10 @@ export async function handleStartPoll(ctx: WSContext) {
 
   // Verify this is a DJ starting a poll for their own session
   if (state.djSessionId !== msg.sessionId) {
-    console.warn(
-      `⚠️ Unauthorized poll attempt: connection owns ${state.djSessionId || "none"}, tried to start poll for ${msg.sessionId}`,
-    );
+    logger.warn("⚠️ Unauthorized poll attempt", {
+      owner: state.djSessionId || "none",
+      target: msg.sessionId,
+    });
     if (messageId) sendNack(ws, messageId, "Unauthorized poll attempt");
     return;
   }
@@ -49,13 +56,13 @@ export async function handleStartPoll(ctx: WSContext) {
 
   // 🛡️ Safe Limits: Poll Validation
   if (options.length < 2 || options.length > 10) {
-    console.warn(`⚠️ Poll rejected: Invalid option count (${options.length})`);
+    logger.warn(`⚠️ Poll rejected: Invalid option count (${options.length})`);
     if (messageId) sendNack(ws, messageId, "Poll must have 2-10 options");
     return;
   }
 
   if (options.some((opt) => opt.length === 0 || opt.length > 100)) {
-    console.warn(`⚠️ Poll rejected: Invalid option length`);
+    logger.warn("⚠️ Poll rejected: Invalid option length");
     if (messageId) sendNack(ws, messageId, "Poll options must be 1-100 characters");
     return;
   }
@@ -101,16 +108,20 @@ export async function handleStartPoll(ctx: WSContext) {
     );
   }
 
-  console.log(`📊 Poll started: "${newPoll.question}" (ID: ${pollId})`);
+  logger.info("📊 Poll started", {
+    question: newPoll.question,
+    pollId,
+    sessionId: msg.sessionId,
+  });
 
   // Auto-end poll if duration is provided (with timer tracking)
   if (durationSeconds) {
     const timer = setTimeout(async () => {
       const poll = activePolls.get(pollId);
       if (poll) {
-        console.log(`📊 Auto-ending poll: ${poll.id}`);
+        logger.info(`📊 Auto-ending poll: ${poll.id}`);
         endPoll(pollId); // This also clears the timer reference
-        closePollInDb(pollId).catch((e) => console.error("❌ Failed to close poll in DB:", e));
+        closePollInDb(pollId).catch((e) => logger.error("❌ Failed to close poll in DB", e));
         const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
         const winnerIndex = totalVotes > 0 ? poll.votes.indexOf(Math.max(...poll.votes)) : 0;
         if (checkBackpressure(rawWs, state.clientId || undefined)) {
@@ -146,14 +157,15 @@ export async function handleEndPoll(ctx: WSContext) {
   if (poll) {
     // 🔐 Security: Verify this connection owns the session
     if (state.djSessionId !== poll.sessionId) {
-      console.warn(
-        `⚠️ Unauthorized end poll attempt: connection owns ${state.djSessionId || "none"}, tried to end poll for ${poll.sessionId}`,
-      );
+      logger.warn("⚠️ Unauthorized end poll attempt", {
+        owner: state.djSessionId || "none",
+        target: poll.sessionId,
+      });
       if (messageId) sendNack(ws, messageId, "Unauthorized end poll");
       return;
     }
 
-    console.log(`📊 Manually ending poll: ${poll.id}`);
+    logger.info(`📊 Manually ending poll: ${poll.id}`);
     endPoll(msg.pollId);
     refreshSessionActivity(poll.sessionId);
     const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
@@ -175,7 +187,7 @@ export async function handleEndPoll(ctx: WSContext) {
     if (messageId) sendAck(ws, messageId);
 
     // DB op after broadcast
-    closePollInDb(msg.pollId).catch((e) => console.error("❌ Failed to close poll in DB:", e));
+    closePollInDb(msg.pollId).catch((e) => logger.error("❌ Failed to close poll in DB", e));
   } else {
     if (messageId) sendNack(ws, messageId, "Poll not found");
   }
@@ -193,14 +205,15 @@ export async function handleCancelPoll(ctx: WSContext) {
   if (poll) {
     // 🔐 Security: Verify this connection owns the session
     if (state.djSessionId !== poll.sessionId) {
-      console.warn(
-        `⚠️ Unauthorized cancel poll attempt: connection owns ${state.djSessionId || "none"}, tried to cancel poll for ${poll.sessionId}`,
-      );
+      logger.warn("⚠️ Unauthorized cancel poll attempt", {
+        owner: state.djSessionId || "none",
+        target: poll.sessionId,
+      });
       if (messageId) sendNack(ws, messageId, "Unauthorized cancel poll");
       return;
     }
 
-    console.log(`📊 Cancelling poll: ${poll.id}`);
+    logger.info(`📊 Cancelling poll: ${poll.id}`);
     endPoll(msg.pollId);
     refreshSessionActivity(poll.sessionId);
     // For cancelled polls, send 0 results
@@ -218,7 +231,7 @@ export async function handleCancelPoll(ctx: WSContext) {
     }
 
     if (messageId) sendAck(ws, messageId);
-    closePollInDb(msg.pollId).catch((e) => console.error("❌ Failed to close poll in DB:", e));
+    closePollInDb(msg.pollId).catch((e) => logger.error("❌ Failed to close poll in DB", e));
   } else {
     if (messageId) sendNack(ws, messageId, "Poll not found");
   }
@@ -243,7 +256,7 @@ export async function handleVoteOnPoll(ctx: WSContext) {
   if (poll) {
     // 🔐 Security: Check if client already voted
     if (poll.votedClients.has(state.clientId)) {
-      console.log(`⚠️ User ${state.clientId} already voted for poll ${pollId}`);
+      logger.debug(`⚠️ User already voted for poll`, { clientId: state.clientId, pollId });
       if (messageId) sendAck(ws, messageId);
       return;
     }
@@ -259,7 +272,7 @@ export async function handleVoteOnPoll(ctx: WSContext) {
 
     // 💾 Persist vote to database
     recordPollVoteInDb(pollId, state.clientId, optionIndex).catch((e) =>
-      console.error("❌ Failed to record poll vote in DB:", e),
+      logger.error("❌ Failed to record poll vote in DB", e),
     );
 
     const totalVotes = poll.votes.reduce((a, b) => a + b, 0);

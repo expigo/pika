@@ -10,7 +10,7 @@
  * @created 2026-01-21
  */
 
-import { SubscribeSchema } from "@pika/shared";
+import { SubscribeSchema, logger } from "@pika/shared";
 import { getSession, getAllSessions } from "../lib/sessions";
 import { addListener, getListenerCount } from "../lib/listeners";
 import { getActivePoll, sessionActivePoll } from "../lib/polls";
@@ -27,17 +27,17 @@ export function handleSubscribe(ctx: WSContext) {
   const targetSession = msg.sessionId;
 
   const allSessions = getAllSessions();
-  console.log(`🔍 [SUBSCRIBE] Request received`, {
+  logger.debug("🔍 [SUBSCRIBE] Request received", {
     targetSession: targetSession || "NONE",
     clientId: state.clientId || "UNKNOWN",
     currentSessionCount: allSessions.length,
-    availableSessions: allSessions.map(s => ({ id: s.sessionId, dj: s.djName })),
+    availableSessions: allSessions.map((s) => ({ id: s.sessionId, dj: s.djName })),
   });
 
   // Only log if this is a new subscription (not a repeat)
   const isNewSubscription = !state.isListener && state.clientId && targetSession;
   if (isNewSubscription) {
-    console.log(`👀 New listener for session: ${targetSession}`);
+    logger.info("👀 New listener for session", { sessionId: targetSession });
   }
 
   // Mark this connection as a listener
@@ -47,7 +47,7 @@ export function handleSubscribe(ctx: WSContext) {
     const isNewUniqueClient = addListener(targetSession, state.clientId);
 
     const count = getListenerCount(targetSession);
-    console.log(`👥 Listener count for ${targetSession}: ${count}`);
+    logger.debug(`👥 Listener count for ${targetSession}: ${count}`);
 
     // Only broadcast if unique client count changed
     if (isNewUniqueClient) {
@@ -78,7 +78,9 @@ export function handleSubscribe(ctx: WSContext) {
       }),
     );
   } else {
-    console.warn(`⏳ Backpressure: Skipping SESSIONS_LIST for ${state.clientId} (buffer full)`);
+    logger.warn("⏳ Backpressure: Skipping SESSIONS_LIST for client (buffer full)", {
+      clientId: state.clientId,
+    });
   }
 
   // Send current listener count for the target session
@@ -102,9 +104,10 @@ export function handleSubscribe(ctx: WSContext) {
           track: session.currentTrack,
         }),
       );
-      console.log(
-        `🎵 Sent current track to new subscriber: ${session.currentTrack.artist} - ${session.currentTrack.title}`,
-      );
+      logger.debug("🎵 Sent current track to new subscriber", {
+        artist: session.currentTrack.artist,
+        title: session.currentTrack.title,
+      });
     }
 
     // If there's an active poll for this session, send it to the new subscriber
@@ -130,9 +133,11 @@ export function handleSubscribe(ctx: WSContext) {
             votedOptionIndex,
           }),
         );
-        console.log(
-          `📊 Sent active poll to new subscriber: "${poll.question}" (${totalVotes} votes, hasVoted: ${hasVoted})`,
-        );
+        logger.debug("📊 Sent active poll to new subscriber", {
+          question: poll.question,
+          totalVotes,
+          hasVoted,
+        });
       }
     }
 
@@ -148,9 +153,9 @@ export function handleSubscribe(ctx: WSContext) {
           endsAt: session.activeAnnouncement.endsAt,
         }),
       );
-      console.log(
-        `📢 Sent active announcement to late joiner: "${session.activeAnnouncement.message}"`,
-      );
+      logger.debug("📢 Sent active announcement to late joiner", {
+        message: session.activeAnnouncement.message,
+      });
     }
   }
 

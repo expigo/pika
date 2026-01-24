@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { slugify } from "@pika/shared";
+import { slugify, LIMITS } from "@pika/shared";
 import { db } from "../db";
 import * as schema from "../db/schema";
 
@@ -16,8 +16,8 @@ const auth = new Hono();
 
 // Rate limiter for auth endpoints (5 requests per 15 minutes)
 const authLimiter = rateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 5,
+  windowMs: LIMITS.AUTH_RATE_LIMIT_WINDOW,
+  limit: LIMITS.AUTH_RATE_LIMIT_MAX,
   standardHeaders: "draft-6",
   keyGenerator: (c) =>
     c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown",

@@ -9,6 +9,7 @@
  */
 
 import type { ServerWebSocket } from "bun";
+import { logger } from "@pika/shared";
 import { getSession, deleteSession } from "../lib/sessions";
 import { removeListener, getListenerCount, clearListeners } from "../lib/listeners";
 import { endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
@@ -27,7 +28,7 @@ import { clearLastPersistedTrackKey } from "../lib/persistence/tracks";
  * Handle new WebSocket connection
  */
 export function handleOpen(rawWs: ServerWebSocket) {
-  console.log("🔌 Client connected");
+  logger.debug("🔌 Client connected");
 
   // Subscribe all clients to the live-session channel
   rawWs.subscribe("live-session");
@@ -39,7 +40,7 @@ export function handleOpen(rawWs: ServerWebSocket) {
 export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
   const { djSessionId, isListener, clientId, subscribedSessionId } = state;
 
-  console.log(`🔍 [CLOSE] Client disconnected`, {
+  logger.debug("🔍 [CLOSE] Client disconnected", {
     djSessionId: djSessionId || "NONE",
     isListener,
     clientId: clientId || "NONE",
@@ -49,20 +50,20 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
   // End DJ session if this was a DJ connection
   if (djSessionId) {
     const session = getSession(djSessionId);
-    console.log(`🔍 [CLOSE] DJ session lookup`, {
+    logger.debug("🔍 [CLOSE] DJ session lookup", {
       djSessionId,
       sessionFound: !!session,
       sessionDjName: session?.djName,
     });
 
     if (session) {
-      console.log(`⚠️ DJ disconnected unexpectedly: ${session.djName} (${djSessionId})`);
+      logger.warn(`⚠️ DJ disconnected unexpectedly: ${session.djName} (${djSessionId})`);
 
       // Persist final tempo votes if track was playing
       if (session.currentTrack) {
         const feedback = getTempoFeedback(djSessionId);
         if (feedback.total > 0) {
-          console.log(`🎚️ Persisting final tempo votes: ${JSON.stringify(feedback)}`);
+          logger.debug("🎚️ Persisting final tempo votes", { feedback });
           persistTempoVotes(djSessionId, session.currentTrack, {
             slower: feedback.slower,
             perfect: feedback.perfect,
@@ -73,9 +74,9 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
       }
 
       deleteSession(djSessionId);
-      console.log(`🔍 [CLOSE] Session deleted from memory: ${djSessionId}`);
+      logger.debug(`🔍 [CLOSE] Session deleted from memory: ${djSessionId}`);
 
-      endSessionInDb(djSessionId).catch((e) => console.error("❌ Failed to end session in DB:", e));
+      endSessionInDb(djSessionId).catch((e) => logger.error("❌ Failed to end session in DB", e));
       clearLikesForSession(djSessionId);
       clearListeners(djSessionId);
       persistedSessions.delete(djSessionId);
@@ -96,12 +97,12 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
 
       // 📊 Telemetry: Log DJ disconnect event
       logSessionEvent(djSessionId, "disconnect", { reason: "unexpected" }).catch((e) =>
-        console.error("❌ Telemetry failed:", e),
+        logger.error("❌ Telemetry failed", e),
       );
 
-      console.log(`👋 Session auto-ended: ${session.djName}`);
+      logger.info(`👋 Session auto-ended: ${session.djName}`);
     } else {
-      console.warn(
+      logger.warn(
         `⚠️ [CLOSE] DJ had sessionId ${djSessionId} but session not found in memory - possible zombie!`,
       );
     }
@@ -109,11 +110,11 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
     // 🧹 M1 & M4 Fix: Ensure Map cleanup happens even if session was deleted
     if (lastBroadcastTime.has(djSessionId)) {
       lastBroadcastTime.delete(djSessionId);
-      console.log(`🧹 [M1] Cleared lastBroadcastTime for ${djSessionId}`);
+      logger.debug(`🧹 [M1] Cleared lastBroadcastTime for ${djSessionId}`);
     }
     clearSessionPolls(djSessionId);
   } else {
-    console.log(`🔍 [CLOSE] Not a DJ connection (no djSessionId in state)`);
+    logger.debug("🔍 [CLOSE] Not a DJ connection (no djSessionId in state)");
   }
 
   // Remove listener from session if this was a listener

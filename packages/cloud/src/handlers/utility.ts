@@ -10,7 +10,7 @@
  * @created 2026-01-21
  */
 
-import { PingSchema, GetSessionsSchema, ValidateSessionSchema } from "@pika/shared";
+import { PingSchema, GetSessionsSchema, ValidateSessionSchema, logger } from "@pika/shared";
 import { getAllSessions, hasSession } from "../lib/sessions";
 import { sendAck, parseMessage } from "../lib/protocol";
 import type { WSContext } from "./ws-context";
@@ -24,7 +24,10 @@ export function checkBackpressure(
   clientId?: string | null,
 ): boolean {
   if (rawWs.getBufferedAmount() > 1024 * 64) {
-    console.warn(`⏳ Backpressure: Skipping message for ${clientId || "unknown"} (buffer full)`);
+    logger.warn(`⏳ Backpressure: Skipping message`, {
+      clientId: clientId || "unknown",
+      reason: "buffer full",
+    });
     return false;
   }
   return true;
@@ -53,13 +56,11 @@ export function handleGetSessions(ctx: WSContext) {
 
   const sessions = getAllSessions();
 
-  console.log(
-    `🔍 [GET_SESSIONS] Returning ${sessions.length} sessions to client ${state.clientId || "unknown"}`,
-    {
-      sessionIds: sessions.map((s) => s.sessionId),
-      djNames: sessions.map((s) => s.djName),
-    },
-  );
+  logger.debug("🔍 [GET_SESSIONS] Returning sessions", {
+    client: state.clientId || "unknown",
+    count: sessions.length,
+    sessionIds: sessions.map((s) => s.sessionId),
+  });
 
   // Backpressure awareness
   if (checkBackpressure(rawWs, state.clientId)) {

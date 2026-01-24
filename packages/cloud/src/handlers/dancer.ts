@@ -11,7 +11,14 @@
  * @created 2026-01-21
  */
 
-import { SendLikeSchema, SendReactionSchema, SendTempoRequestSchema } from "@pika/shared";
+import {
+  SendLikeSchema,
+  SendReactionSchema,
+  SendTempoRequestSchema,
+  LIMITS,
+  TIMEOUTS,
+  logger,
+} from "@pika/shared";
 import { getSessionIds, hasSession } from "../lib/sessions";
 import { hasLikedTrack, recordLike } from "../lib/likes";
 import { persistLike } from "../lib/persistence/tracks";
@@ -22,28 +29,25 @@ import type { WSContext } from "./ws-context";
 
 // 🛡️ Rate Limiting: ClientID -> Array of timestamps
 const clientLikeHistory = new Map<string, number[]>();
-const LIKE_RATE_LIMIT = 10; // Max likes per window
-const LIKE_WINDOW_MS = 60 * 1000; // 1 minute window
+const LIKE_RATE_LIMIT = LIMITS.LIKE_RATE_LIMIT_MAX;
+const LIKE_WINDOW_MS = LIMITS.LIKE_RATE_LIMIT_WINDOW;
 
 // 🧹 Periodic cleanup for dormant clients (Every 5m)
-setInterval(
-  () => {
-    const now = Date.now();
-    let cleared = 0;
-    for (const [clientId, history] of clientLikeHistory.entries()) {
-      // If the newest like is older than the window, the whole history is stale
-      const newest = history[history.length - 1];
-      if (!newest || now - newest > LIKE_WINDOW_MS) {
-        clientLikeHistory.delete(clientId);
-        cleared++;
-      }
+setInterval(() => {
+  const now = Date.now();
+  let cleared = 0;
+  for (const [clientId, history] of clientLikeHistory.entries()) {
+    // If the newest like is older than the window, the whole history is stale
+    const newest = history[history.length - 1];
+    if (!newest || now - newest > LIKE_WINDOW_MS) {
+      clientLikeHistory.delete(clientId);
+      cleared++;
     }
-    if (cleared > 0) {
-      console.log(`🧹 Rate Limit Cleanup: Removed ${cleared} dormant clients`);
-    }
-  },
-  5 * 60 * 1000,
-);
+  }
+  if (cleared > 0) {
+    logger.info("🧹 Rate Limit Cleanup completed", { clearedClients: cleared });
+  }
+}, TIMEOUTS.CLEANUP_INTERVAL);
 
 /**
  * SEND_LIKE: Dancer likes the currently playing track
@@ -59,21 +63,21 @@ export async function handleSendLike(ctx: WSContext) {
 
   // DEPRECATED: Legacy fallback for clients without sessionId (remove after v0.3.0)
   if (!likeSessionId) {
-    console.warn(
+    logger.warn(
       `⚠️ DEPRECATED: Like received without sessionId from client ${state.clientId} - update required`,
     );
     likeSessionId = getSessionIds()[0];
   }
 
   if (!likeSessionId) {
-    console.log("⚠️ Like rejected: no active session found");
+    logger.warn("⚠️ Like rejected: no active session found");
     if (messageId) sendNack(ws, messageId, "No active session found");
     return;
   }
 
   // Require clientId for rate limiting
   if (!state.clientId) {
-    console.log("⚠️ Like rejected: no clientId provided");
+    logger.warn("⚠️ Like rejected: no clientId provided");
     if (messageId) sendNack(ws, messageId, "Client ID required for likes");
     return;
   }
@@ -92,18 +96,12 @@ export async function handleSendLike(ctx: WSContext) {
   history.push(now);
   clientLikeHistory.set(state.clientId, history);
 
-  // Cleanup map periodically or lazily? Lazy is fine for now, but a global cleanup would be better for memory.
-  // For Sprint 0.2 we fixed memory leaks. Let's not introduce one.
-  // Ideally we clean empty entries or old entries.
-  // We can add a setInterval cleanup similar to cache if needed, but for now this lazy prune helps.
-  // Actually, we should probably delete the key if history becomes empty... but here we just pushed.
-  // To avoid unbounded map growth, we should remove listeners logic. Wait, this is likes.
-  // Use a cleanup interval for `clientLikeHistory` later?
-  // I'll stick to lazy prune on access + S0.2.1-style cleanup if I was touching cache, but I'll leave it simple for Sprint 1 unless requested.
-
   // 🔐 Security: Check for duplicate likes
   if (hasLikedTrack(likeSessionId, state.clientId, track)) {
-    console.log(`⚠️ Duplicate like ignored: ${track.title} from ${state.clientId}`);
+    logger.warn("⚠️ Duplicate like ignored", {
+      track: `${track.artist} - ${track.title}`,
+      clientId: state.clientId,
+    });
     // Just send NACK - don't send non-schema message types
     if (messageId) sendNack(ws, messageId, "Already liked this track");
     return;
@@ -112,11 +110,16 @@ export async function handleSendLike(ctx: WSContext) {
   // Record like internally (prevents duplicates)
   recordLike(likeSessionId, state.clientId, track);
 
-  console.log(`❤️ Like: ${track.artist} - ${track.title} from ${state.clientId}`);
+  logger.info("❤️ Like received", {
+    artist: track.artist,
+    title: track.title,
+    clientId: state.clientId,
+    sessionId: likeSessionId,
+  });
 
   // 💾 Persist to database
   persistLike(track, likeSessionId, state.clientId).catch((e) =>
-    console.error("❌ Failed to persist like:", e),
+    logger.error("❌ Failed to persist like", e),
   );
 
   // Broadcast the like to all subscribers (including the DJ)
@@ -154,7 +157,11 @@ export function handleSendReaction(ctx: WSContext) {
       );
     }
 
-    console.log(`🦄 Thank You received from ${state.clientId} in session ${msg.sessionId}`);
+    logger.info("🦄 Thank You received", {
+      clientId: state.clientId,
+      sessionId: msg.sessionId,
+    });
+
     if (messageId) sendAck(ws, messageId);
   } else {
     if (messageId) sendNack(ws, messageId, "Unsupported reaction type");
@@ -173,21 +180,23 @@ export function handleSendTempoRequest(ctx: WSContext) {
 
   // Require clientId for rate limiting
   if (!state.clientId) {
-    console.log("⚠️ Tempo request rejected: no clientId provided");
+    logger.warn("⚠️ Tempo request rejected: no clientId provided");
     if (messageId) sendNack(ws, messageId, "Client ID required for tempo requests");
     return;
   }
 
   // Verify session exists
   if (!hasSession(targetSessionId)) {
-    console.log(`⚠️ Tempo request rejected: session ${targetSessionId} not found`);
+    logger.warn(`⚠️ Tempo request rejected: session ${targetSessionId} not found`);
     if (messageId) sendNack(ws, messageId, "Session not found");
     return;
   }
 
-  console.log(
-    `🎚️ Tempo vote: ${preference} for session ${targetSessionId} (from ${state.clientId})`,
-  );
+  logger.info("🎚️ Tempo vote received", {
+    preference,
+    sessionId: targetSessionId,
+    clientId: state.clientId,
+  });
 
   // Record the vote (skip if "clear" as it's a toggle-off)
   if (preference !== "clear") {
