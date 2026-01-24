@@ -8,6 +8,7 @@
  */
 
 import { toast } from "sonner";
+import { TIMEOUTS } from "@pika/shared";
 import { offlineQueueRepository } from "../../db/repositories/offlineQueueRepository";
 import { DEFAULT_QUEUE_FLUSH_CONFIG, type QueueFlushConfig } from "./types";
 
@@ -118,7 +119,7 @@ export async function flushQueue(): Promise<void> {
         }
 
         // Add longer delay after failure
-        await new Promise((r) => setTimeout(r, 500 * consecutiveFailures));
+        await new Promise((r) => setTimeout(r, TIMEOUTS.OFFLINE_RETRY_BASE * consecutiveFailures));
       }
     }
 

@@ -597,7 +597,7 @@ export function useLiveSession() {
       if (syncEnabled) {
         // Create AbortController for fetch timeout (prevents orphaned requests on fast endSet)
         const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10s timeout
+        const timeoutId = setTimeout(() => abortController.abort(), FINGERPRINT_SYNC_TIMEOUT_MS); // 10s timeout
 
         try {
           logger.info("Live", "Syncing fingerprints to Cloud");

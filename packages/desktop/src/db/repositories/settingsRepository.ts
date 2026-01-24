@@ -4,52 +4,19 @@
  */
 
 import { eq } from "drizzle-orm";
+import { SettingsSchema, type Settings } from "@pika/shared";
 import { db } from "..";
 import { settings } from "../schema";
 
 // ============================================================================
-// Types
+// Types & Defaults
 // ============================================================================
 
-export interface AppSettings {
-  // Analysis settings
-  "analysis.onTheFly": boolean;
-  "analysis.afterSession": boolean;
-  "analysis.cpuPriority": "low" | "normal" | "high";
-
-  // Library settings
-  "library.vdjPath": string;
-  "library.bpmThresholds": {
-    slow: number;
-    medium: number;
-  };
-
-  // Display settings
-  "display.advancedMetrics": boolean;
-  "display.showTooltips": boolean;
-  "display.profile": "high-contrast" | "midnight" | "stealth";
-
-  // Network settings
-  "network.apiUrl": string;
-}
-
+export type AppSettings = Settings;
 export type SettingKey = keyof AppSettings;
 
-// Default values for all settings
-export const DEFAULT_SETTINGS: AppSettings = {
-  "analysis.onTheFly": false,
-  "analysis.afterSession": true,
-  "analysis.cpuPriority": "low",
-  "library.vdjPath": "auto",
-  "library.bpmThresholds": {
-    slow: 85,
-    medium: 115,
-  },
-  "display.advancedMetrics": false,
-  "display.showTooltips": true,
-  "display.profile": "high-contrast",
-  "network.apiUrl": "https://api.pika.stream",
-};
+// Derive defaults from Zod schema
+export const DEFAULT_SETTINGS: AppSettings = SettingsSchema.parse({});
 
 // ============================================================================
 // Repository
@@ -57,7 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
 export const settingsRepository = {
   /**
-   * Get a single setting value
+   * Get a single setting value with type safety
    */
   async get<K extends SettingKey>(key: K): Promise<AppSettings[K]> {
     const result = await db.select().from(settings).where(eq(settings.key, key));
@@ -67,8 +34,19 @@ export const settingsRepository = {
     }
 
     try {
-      return JSON.parse(result[0].value) as AppSettings[K];
-    } catch {
+      const parsedJson = JSON.parse(result[0].value);
+      // Validate against the specific key's schema
+      const fieldSchema = SettingsSchema.shape[key];
+      const validation = fieldSchema.safeParse(parsedJson);
+
+      if (validation.success) {
+        return validation.data as AppSettings[K];
+      }
+
+      console.warn(`Settings validation failed for ${key}:`, validation.error);
+      return DEFAULT_SETTINGS[key];
+    } catch (e) {
+      console.warn(`Settings parse error for ${key}:`, e);
       return DEFAULT_SETTINGS[key];
     }
   },
@@ -104,8 +82,20 @@ export const settingsRepository = {
 
     const loaded: Partial<AppSettings> = {};
     for (const row of result) {
+      const key = row.key as SettingKey;
+      // Skip if key doesn't exist in our schema (legacy data cleanup)
+      if (!(key in SettingsSchema.shape)) continue;
+
       try {
-        loaded[row.key as SettingKey] = JSON.parse(row.value);
+        const parsed = JSON.parse(row.value);
+        const fieldSchema = SettingsSchema.shape[key];
+        const validation = fieldSchema.safeParse(parsed);
+
+        if (validation.success) {
+          loaded[key] = validation.data as any; // Safe cast after validation
+        } else {
+          console.warn(`Settings validation failed for ${key} in getAll:`, validation.error);
+        }
       } catch {
         // Skip invalid JSON
       }

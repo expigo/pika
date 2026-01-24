@@ -4,7 +4,7 @@
  * @package @pika/desktop
  */
 
-import type { TrackInfo } from "@pika/shared";
+import { TIMEOUTS, type TrackInfo } from "@pika/shared";
 
 // ============================================================================
 // Connection & Session Types
@@ -60,7 +60,7 @@ export interface QueueFlushConfig {
 }
 
 export const DEFAULT_QUEUE_FLUSH_CONFIG: QueueFlushConfig = {
-  baseDelayMs: 100,
+  baseDelayMs: typeof TIMEOUTS !== "undefined" ? TIMEOUTS.OFFLINE_RETRY_BASE : 500, // Fallback if import issues, but should be fine
   maxDelayMs: 2000,
   maxConsecutiveFailures: 3,
 };

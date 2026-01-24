@@ -15,6 +15,7 @@ import { fetch } from "@tauri-apps/plugin-http"; // Use Tauri HTTP to bypass COR
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { TOKEN_FOCUS_REVALIDATION_MIN_MS, TOKEN_REVALIDATION_INTERVAL_MS } from "./live/constants";
+import { PikaEnvironment, URLS } from "@pika/shared";
 
 const STORAGE_KEY = "pika_dj_settings";
 
@@ -101,17 +102,27 @@ function saveSettings(settings: DjSettings): void {
 }
 
 /**
+ * Helper to map local ServerEnv to Shared PikaEnvironment
+ */
+function mapEnv(env: ServerEnv): PikaEnvironment {
+  switch (env) {
+    case "dev":
+      return "development";
+    case "staging":
+      return "staging";
+    case "prod":
+      return "production";
+    default:
+      return "production";
+  }
+}
+
+/**
  * Get the API base URL based on current environment
  */
 function getApiBaseUrl(): string {
   const settings = loadSettings();
-  if (settings.serverEnv === "prod") {
-    return "https://api.pika.stream";
-  }
-  if (settings.serverEnv === "staging") {
-    return "https://staging-api.pika.stream";
-  }
-  return "http://localhost:3001";
+  return URLS.getApiUrl(mapEnv(settings.serverEnv));
 }
 
 /**
@@ -279,6 +290,7 @@ export function useDjSettings() {
         djInfo: null,
         djName: "",
         tokenValidatedAt: null,
+        // Reset defaults
       };
       saveSettings(newSettings);
       return newSettings;
@@ -404,26 +416,26 @@ export function getDjInfo(): DjInfo | null {
  */
 export function getConfiguredUrls() {
   const settings = loadSettings();
-  if (settings.serverEnv === "prod") {
+  const env = mapEnv(settings.serverEnv);
+
+  if (env === "production" || env === "staging") {
+    const wsUrl = URLS.getWsUrl(env);
+    // Ensure WS URL ends with /ws for production/staging if that's the convention
+    // Derived from original code: "wss://api.pika.stream/ws"
+    // Shared returns: "wss://api.pika.stream"
+    const finalWsUrl = wsUrl.endsWith("/ws") ? wsUrl : `${wsUrl}/ws`;
+
     return {
-      wsUrl: "wss://api.pika.stream/ws",
-      webUrl: "https://pika.stream",
-      apiUrl: "https://api.pika.stream",
+      wsUrl: finalWsUrl,
+      webUrl: URLS.getWebUrl(env),
+      apiUrl: URLS.getApiUrl(env),
     };
   }
 
-  if (settings.serverEnv === "staging") {
-    return {
-      wsUrl: "wss://staging-api.pika.stream/ws",
-      webUrl: "https://staging.pika.stream",
-      apiUrl: "https://staging-api.pika.stream",
-    };
-  }
-
-  // Dev overrides via env vars or default localhost
+  // Dev overrides via env vars (preserve original flexibility)
   return {
-    wsUrl: import.meta.env.VITE_CLOUD_WS_URL || "ws://localhost:3001/ws",
-    webUrl: import.meta.env.VITE_WEB_URL || "http://localhost:3002",
-    apiUrl: "http://localhost:3001",
+    wsUrl: import.meta.env.VITE_CLOUD_WS_URL || `${URLS.getWsUrl("development")}/ws`,
+    webUrl: import.meta.env.VITE_WEB_URL || URLS.getWebUrl("development"),
+    apiUrl: URLS.getApiUrl("development"),
   };
 }
