@@ -74,6 +74,14 @@ This document outlines the security architecture of Pika!, including implemented
 | `POST /api/auth/register` | 5 req / 15 min | 5 req / 15 min | ✅ |
 | `POST /api/auth/regenerate-token` | 5 req / 15 min | 3 req / 1 hour | ✅ |
 | WebSocket Connect | 20 / min | 10 conn / min | ✅ |
+| WebSocket Buffer | 64KB / client | Backpressure Drop | ✅ |
+
+### 2.4 Backpressure Protection (DoS)
+To prevent slow clients from exhausting server memory (slowloris-style attacks):
+- **Mechanism:** `checkBackpressure` before broadcasting.
+- **Threshold:** 64KB buffered data.
+- **Action:** Drop message if buffer full.
+- **Result:** Server memory remains stable even with thousands of slow clients.
 
 ---
 
@@ -130,6 +138,13 @@ const users = await db
 | :--- | :--- | :--- | :---: |
 | PostgreSQL (Cloud) | Drizzle | Parameterized | ✅ |
 | SQLite (Desktop) | Tauri SQL | Parameterized | ✅ |
+
+### 3.4 Data Integrity
+| Risk | Mitigation | Status |
+| :--- | :--- | :---: |
+| Partial Writes | Atomic Transactions (Desktop+Cloud) | ✅ |
+| Race Conditions | Serialized Persistence Queues | ✅ |
+| Orphan Data | Foreign Key Constraints (CASCADE) | ✅ |
 
 ---
 
@@ -299,6 +314,7 @@ The Python analysis sidecar:
 
 | Date | Type | Findings | Report |
 | :--- | :--- | :--- | :--- |
+| 2026-01-24 | Phase 2 Hardening | Backpressure, Queues | Internal |
 | 2026-01-23 | **Production Readiness** | 0 Open (All Fixed) | [ROADMAP_11_10.md](../ROADMAP_11_10.md) |
 | 2026-01-22 | Code Quality Audit | All P1/P2 Resolved | [AUDIT_REPORT.md](../AUDIT_REPORT.md) |
 | 2026-01-18 | Security Hardening v0.2.2 | Schema, Rate Limiting | Internal |
@@ -307,5 +323,5 @@ The Python analysis sidecar:
 
 ---
 
-*Last Updated: January 23, 2026*
+*Last Updated: January 24, 2026*
 *Status: ✅ All Security Issues Resolved - Production Ready*

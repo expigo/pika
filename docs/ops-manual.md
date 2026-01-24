@@ -411,6 +411,19 @@ cat backup.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U pi
     chmod +x packages/cloud/src/index.ts
     ```
 
+### 🧠 Memory Leaks (v0.3.0)
+*   **Symptoms:** Server RAM climbs continuously, eventually crashing (OOM).
+*   **Cause:** Stale sessions not being cleaned up, or pending promises accumulating.
+*   **Fix:**
+    1.  **Check Logs:** Look for "Cleanup removed... stale sessions" message every 5 minutes.
+    2.  **Force Cleanup:** Restart the cloud container to clear Node.js heap.
+    3.  **Monitor Queue Depth:** If queues are backing up (from logs), clients might be too slow.
+
+### ⚠️ Backpressure Warning
+*   **Log:** `⚠️ Backpressure: Dropping message for client_xyz`
+*   **Meaning:** A connected client (Dancer) is on a very slow connection and cannot keep up with broadcast volume.
+*   **Action:** None required. The system is protecting itself. If this happens for *all* clients, check server uplink.
+
 ---
 
 ## 📊 Session Telemetry (v0.1.9)
@@ -591,5 +604,5 @@ docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
 
 ---
 
-*Last Updated: January 15, 2026*
+*Last Updated: January 24, 2026 (v0.3.0)*
 

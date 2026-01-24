@@ -2,7 +2,7 @@
 
 This document describes the modular architecture of the `@pika/cloud` backend service, introduced in v0.2.6.
 
-**Last Updated:** January 22, 2026 (v0.2.6)
+**Last Updated:** January 24, 2026 (v0.3.0)
 
 ---
 
@@ -162,7 +162,8 @@ packages/cloud/src/lib/
 └── persistence/
     ├── sessions.ts       # Session DB ops + waitForSession
     ├── tracks.ts         # Track DB ops
-    └── polls.ts          # Poll DB ops
+    ├── polls.ts          # Poll DB ops
+    └── queue.ts          # Serialized persistence queue (v0.3.0)
 ```
 
 ### Key Modules
@@ -218,6 +219,21 @@ export async function persistSession(
 ): Promise<boolean>;
 ```
 
+#### `persistence/queue.ts` - Serialized Persistence (v0.3.0)
+
+Ensures operations like "Persist Track" and "Persist Like" happen in strict order, regardless of async database timings.
+
+```typescript
+// Enqueue a task for a session
+export function enqueuePersistence(
+  sessionId: string, 
+  task: () => Promise<void>
+): Promise<void>;
+
+// Clean up queue when session ends (Prevents leaks)
+export function cleanupSessionQueue(sessionId: string): void;
+```
+
 ---
 
 ## 4. Entry Point (`src/index.ts`)
@@ -271,8 +287,8 @@ switch (message.type) {
 | `websocket-handlers.test.ts` | 43 | Core WS behavior |
 | `subscriber-handlers.test.ts` | 17 | Subscription logic |
 | `poll-handlers.test.ts` | 28 | Poll VCs |
-| Others | 67 | REST, cache, auth |
-| **Total** | **179** | |
+| Others | 148 | REST, cache, auth, queues, backpressure |
+| **Total** | **260** | |
 
 ### Running Tests
 

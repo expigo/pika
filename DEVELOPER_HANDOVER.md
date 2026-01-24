@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** January 22, 2026
-**Version:** 0.2.8 (Production Ready + Battery Opt)
+**Date:** January 24, 2026
+**Version:** 0.3.0 (Hardened Production Release)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -130,6 +130,13 @@ To protect user battery life (both DJ laptops and dancer phones), we implemented
 3.  **Animations:** The particle rendering loop (`requestAnimationFrame`) is **hard-stopped** (not just throttled) when backgrounded.
 4.  **Instant Resume:** Event listeners on `visibilitychange` trigger an immediate data refresh and connection check upon return.
 
+### E. System Hardening (v0.3.0)
+To ensure production-grade stability under high load, we implemented:
+1.  **Persistence Queues (Cloud):** Serialized queue per session to prevent race conditions between Track and Like persistence.
+2.  **Backpressure Protection (Cloud):** Fast-fail mechanism for slow clients (64KB buffer limit) to prevent server OOM.
+3.  **Atomic Transactions (Desktop):** SQLite `BEGIN TRANSACTION` used for all Set operations (`saveSet`, `deleteSet`).
+4.  **O(1) Memory Cleanup:** Refactored Cloud state maps for instant cleanup on session end.
+
 ---
 
 ## 5. Design Language & Workspace Taxonomy
@@ -185,7 +192,10 @@ pika/
 │   │   │   ├── listeners.ts              <-- Listener count tracking
 │   │   │   ├── polls.ts                  <-- Poll state + timer cleanup
 │   │   │   ├── protocol.ts               <-- ACK/NACK + parseMessage
-│   │   │   └── persistence/              <-- DB operations
+│   │   │   ├── persistence/              <-- DB operations
+│   │   │   │   ├── sessions.ts           <-- Session ops
+│   │   │   │   ├── tracks.ts             <-- Track ops
+│   │   │   │   └── queue.ts              <-- Persistence Queue (NEW)
 │   │   └── src/db/                       <-- Drizzle Schemas (Postgres)
 │   │
 │   ├── web/
@@ -222,4 +232,4 @@ Early in development, Tauri's HMR would spawn multiple Python sidecars, leading 
 
 ---
 
-*Last Updated: January 23, 2026 (v0.2.8 - Battery Optimization)*
+*Last Updated: January 24, 2026 (v0.3.0 - Phase 2 Hardening)*

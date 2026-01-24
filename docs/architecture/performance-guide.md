@@ -57,6 +57,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **track_key index** | `CREATE UNIQUE INDEX idx_track_key` | ✅ Done |
 | **Remove getAllTracks from hot path** | Use `findByTrackKey` instead | ✅ Done |
 | **Cloud DB indexes** | 12 indexes on hot query paths (v0.2.2) | ✅ Done |
+| **Atomic Transactions** | `BEGIN TRANSACTION` on critical writes (v0.3.0) | ✅ Done |
 
 ---
 
@@ -120,6 +121,8 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Stream audio** | Don't load full file into memory | ✅ librosa handles |
 | **Clear analysis results** | Don't keep in React state | ✅ Done |
 | **Lazy component loading** | React.lazy() for LivePerformanceMode, Settings, Logbook | ✅ Done |
+| **O(1) Map Cleanup (Cloud)** | Nested `Map<Session, Map<Client...>>` for instant delete | ✅ Done (v0.3.0) |
+| **Explicit Queue Cleanup** | `cleanupSessionQueue()` on disconnect | ✅ Done (v0.3.0) |
 
 ---
 
@@ -173,6 +176,7 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 
 | Date | Change |
 |------|--------|
+| 2026-01-24 | **Phase 2 Hardening (v0.3.0)**: O(1) Map optimizations, Atomic Transactions (Desktop), Queue Cleanup |
 | 2026-01-23 | **11/10 Battery Update**: Implemented Zero-Wakeup architecture (WS suspension, Poll freezing, Animation kill) |
 | 2026-01-17 | Library virtualization (`@tanstack/react-virtual`) and lazy component loading implemented |
 | 2026-01-16 | Restored `blur-[120px]` on all devices; documented Aesthetic Intensity |
