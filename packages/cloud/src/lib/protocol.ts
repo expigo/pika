@@ -37,8 +37,8 @@ export function sendAck(ws: { send: (data: string) => void }, messageId: string)
         timestamp: new Date().toISOString(),
       }),
     );
-  } catch (e) {
-    // Socket write failed, client likely disconnected
+  } catch {
+    console.warn("⚠️ Protocol: Failed to send ACK (client likely disconnected)");
   }
 }
 
@@ -61,8 +61,8 @@ export function sendNack(
         timestamp: new Date().toISOString(),
       }),
     );
-  } catch (e) {
-    // Socket write failed
+  } catch {
+    console.warn("⚠️ Protocol: Failed to send NACK");
   }
 }
 

@@ -215,7 +215,7 @@ export const ValidateSessionSchema = z.object({
 
 export const PongSchema = z.object({
   type: z.literal(MESSAGE_TYPES.PONG),
-  timestamp: z.string().optional(),
+  timestamp: z.string().datetime().optional(),
 });
 
 export const SessionExpiredSchema = z.object({
@@ -271,13 +271,13 @@ export const SessionsListSchema = z.object({
     z.object({
       sessionId: z.string(),
       djName: z.string(),
-      startedAt: z.string().optional(), // ISO timestamp
+      startedAt: z.string().datetime().optional(), // ISO timestamp
       currentTrack: TrackInfoSchema.optional(),
       activeAnnouncement: z
         .object({
           message: z.string(),
-          timestamp: z.string(),
-          endsAt: z.string().optional(),
+          timestamp: z.string().datetime(),
+          endsAt: z.string().datetime().optional(),
         })
         .optional(),
     }),
@@ -372,9 +372,9 @@ export const PollStartedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.POLL_STARTED),
   pollId: z.number(),
   sessionId: z.string().optional(), // Included in broadcast for routing
-  question: z.string(),
+  question: z.string().max(500),
   options: z.array(z.string()),
-  endsAt: z.string().optional(), // ISO timestamp when poll auto-closes
+  endsAt: z.string().datetime().optional(), // ISO timestamp when poll auto-closes
   votes: z.array(z.number()).optional(), // Current vote distribution (late-joiner)
   totalVotes: z.number().optional(),
   hasVoted: z.boolean().optional(), // True if this client already voted
@@ -460,10 +460,10 @@ export const SendAnnouncementSchema = z.object({
 export const AnnouncementReceivedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.ANNOUNCEMENT_RECEIVED),
   sessionId: z.string(),
-  message: z.string(),
+  message: z.string().min(1),
   djName: z.string().optional(),
-  timestamp: z.string(), // ISO timestamp
-  endsAt: z.string().optional(), // ISO timestamp for countdown timer
+  timestamp: z.string().datetime(), // ISO timestamp
+  endsAt: z.string().datetime().optional(), // ISO timestamp for countdown timer
 });
 
 // DJ -> Server: Cancel active announcement
@@ -491,7 +491,7 @@ export const AckSchema = z.object({
   type: z.literal(MESSAGE_TYPES.ACK),
   messageId: z.string(),
   status: z.literal("ok"),
-  timestamp: z.string().optional(), // ISO timestamp
+  timestamp: z.string().datetime().optional(), // ISO timestamp
 });
 
 export type Ack = z.infer<typeof AckSchema>;
@@ -503,7 +503,7 @@ export const NackSchema = z.object({
   type: z.literal(MESSAGE_TYPES.NACK),
   messageId: z.string(),
   error: z.string(),
-  timestamp: z.string().optional(), // ISO timestamp
+  timestamp: z.string().datetime().optional(), // ISO timestamp
 });
 
 export type Nack = z.infer<typeof NackSchema>;
@@ -587,6 +587,36 @@ export type WebSocketMessage = z.infer<typeof WebSocketMessageSchema>;
 // ============================================================================
 // Validation Helpers
 // ============================================================================
+
+// ============================================================================
+// Settings Schema (Desktop App)
+// ============================================================================
+
+export const SettingsSchema = z.object({
+  // Analysis
+  "analysis.onTheFly": z.boolean().default(false),
+  "analysis.afterSession": z.boolean().default(true),
+  "analysis.cpuPriority": z.enum(["low", "normal", "high"]).default("low"),
+
+  // Library
+  "library.vdjPath": z.string().default("auto"),
+  "library.bpmThresholds": z
+    .object({
+      slow: z.number().default(85),
+      medium: z.number().default(115),
+    })
+    .default({ slow: 85, medium: 115 }),
+
+  // Display
+  "display.advancedMetrics": z.boolean().default(false),
+  "display.showTooltips": z.boolean().default(true),
+  "display.profile": z.enum(["high-contrast", "midnight", "stealth"]).default("high-contrast"),
+
+  // Network
+  "network.apiUrl": z.string().url().default("https://api.pika.stream"),
+});
+
+export type Settings = z.infer<typeof SettingsSchema>;
 
 /**
  * Safely parse a WebSocket message from raw JSON string

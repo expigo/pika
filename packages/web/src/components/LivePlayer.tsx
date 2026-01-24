@@ -3,12 +3,13 @@
 import { Activity, Check, Clock, Heart, Music2, Radio, Share2, Users, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
 import { SocialSignalsLayer } from "./SocialSignalsLayer";
 import { StaleDataBanner } from "./StaleDataBanner";
 import { ProCard } from "./ui/ProCard";
+import { TIMEOUTS } from "@pika/shared";
 
 // Dynamic import for QR code (only loaded when sharing)
 const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), {
@@ -70,8 +71,12 @@ function PollCountdown({ endsAt }: { endsAt?: string | null }) {
   return <span className="text-purple-400 font-black tabular-nums font-mono">⏱️ {timeStr}</span>;
 }
 
-// History list component
-function HistoryList({ tracks }: { tracks: HistoryTrack[] }) {
+interface HistoryListProps {
+  tracks: HistoryTrack[];
+}
+
+// History list component - Memoized to prevent re-renders on heartbeat/animation
+const HistoryList = memo(function HistoryList({ tracks }: HistoryListProps) {
   if (tracks.length === 0) return null;
 
   return (
@@ -111,7 +116,7 @@ function HistoryList({ tracks }: { tracks: HistoryTrack[] }) {
       </ul>
     </div>
   );
-}
+});
 
 interface LivePlayerProps {
   targetSessionId?: string;
@@ -189,7 +194,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     if (sent) {
       setLikeAnimating(true);
       triggerHaptic([15, 30, 15]); // Rhythmic double heart-beat
-      setTimeout(() => setLikeAnimating(false), 1000);
+      setTimeout(() => setLikeAnimating(false), TIMEOUTS.UI_ANIMATION_PULSE_NORMAL);
     }
   };
 
@@ -469,7 +474,10 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                   onClick={() => {
                     sendReaction("thank_you");
                     setThanksText("THANKS RECEIVED! 🦄");
-                    setTimeout(() => setThanksText("SEND THANKS 🦄"), 2000);
+                    setTimeout(
+                      () => setThanksText("SEND THANKS 🦄"),
+                      TIMEOUTS.UI_ANIMATION_PULSE_SLOW,
+                    );
                   }}
                   className="w-full max-w-[280px] py-4 bg-gradient-to-r from-purple-500/5 to-pink-500/5 border border-purple-500/20 rounded-2xl text-purple-400 text-[10px] font-black uppercase tracking-[0.3em] transition-all active:scale-[0.98] shadow-lg shadow-black/20 select-none"
                 >
@@ -603,7 +611,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                           triggerHaptic(20);
                           setVotingOption(idx);
                           voteOnPoll(idx);
-                          setTimeout(() => setVotingOption(null), 500);
+                          setTimeout(() => setVotingOption(null), TIMEOUTS.UI_ANIMATION_PULSE_FAST);
                         }}
                         disabled={votingOption !== null}
                         className={`w-full py-5 px-6 rounded-2xl font-black text-[11px] border text-left transition-all uppercase tracking-widest ${
@@ -683,7 +691,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
               onClick={async () => {
                 await navigator.clipboard.writeText(shareUrl);
                 setThanksText("LINK COPIED! 🔗");
-                setTimeout(() => setThanksText("SEND THANKS 🦄"), 2000);
+                setTimeout(() => setThanksText("SEND THANKS 🦄"), TIMEOUTS.UI_ANIMATION_PULSE_SLOW);
               }}
               className="w-full py-5 bg-white text-slate-950 rounded-2xl font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-white/10 hover:shadow-white/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
             >
