@@ -142,7 +142,7 @@ async function pollHistoryFolder(folderPath: string): Promise<ParsedTrack[]> {
  * Find a track in the database by artist and title (fuzzy match)
  */
 async function findTrackByArtistTitle(artist: string, title: string): Promise<Track | null> {
-  const allTracks = await trackRepository.getAllTracks();
+  const allTracks = await trackRepository.getTracks(10000);
 
   const normalizedArtist = normalizeForMatch(artist);
   const normalizedTitle = normalizeForMatch(title);

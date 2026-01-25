@@ -21,6 +21,7 @@ let config: QueueFlushConfig = DEFAULT_QUEUE_FLUSH_CONFIG;
 
 // Socket reference - will be set by the main hook
 let socketInstance: WebSocket | null = null;
+let currentFlushId = 0;
 
 // ============================================================================
 // Configuration
@@ -64,6 +65,16 @@ export async function flushQueue(): Promise<void> {
   }
 
   isFlushingQueue = true;
+  const flushId = Date.now();
+  currentFlushId = flushId;
+
+  // 🛡️ Issue 20 Fix: Add 30s watchdog timer to prevent stall
+  const watchdog = setTimeout(() => {
+    if (isFlushingQueue && currentFlushId === flushId) {
+      console.warn("[Queue] ⏱️ Flush watchdog triggered! Forcing reset.");
+      isFlushingQueue = false;
+    }
+  }, 30000);
 
   try {
     const queue = await offlineQueueRepository.getAll();
@@ -82,6 +93,13 @@ export async function flushQueue(): Promise<void> {
 
     // Process queue sequentially with exponential backoff
     for (let i = 0; i < queue.length; i++) {
+      // 🛡️ Optimization Audit: Concurrency ID check
+      // If a new flush was started (via watchdog/manual), abort this loop
+      if (currentFlushId !== flushId) {
+        console.warn("[Queue] 🛑 Concurrent flush detected, aborting stale loop");
+        return;
+      }
+
       const item = queue[i];
 
       // Check socket is still open
@@ -132,6 +150,7 @@ export async function flushQueue(): Promise<void> {
     console.error("[Queue] Failed to flush queue:", e);
     toast.error("Offline sync failed - will retry");
   } finally {
+    clearTimeout(watchdog);
     isFlushingQueue = false;
   }
 }

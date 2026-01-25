@@ -39,14 +39,24 @@ export function useWebSocketConnection({
     statusRef.current = status;
   }, [status]);
 
-  const [sessionId, setSessionId] = useState<string | null>(targetSessionId ?? null);
+  const [sessionId, setSessionIdState] = useState<string | null>(targetSessionId ?? null);
+  const sessionIdRef = useRef<string | null>(targetSessionId ?? null);
+
+  // Sync ref with state
+  const setSessionId = useCallback((id: string | null) => {
+    setSessionIdState(id);
+    sessionIdRef.current = id;
+  }, []);
+
   const [djName, setDjName] = useState<string | null>(null);
   const [listenerCount, setListenerCount] = useState(0);
   const [lastHeartbeat, setLastHeartbeat] = useState<number>(Date.now());
 
   const socketRef = useRef<ReconnectingWebSocket | null>(null);
   const lastPongRef = useRef<number>(Date.now());
+  const lastHiddenAtRef = useRef<number | null>(null); // Track when tab went background
   const hasReceivedPongRef = useRef<boolean>(false); // Track if we've received at least one PONG
+  const isHardReconnectingRef = useRef<boolean>(false); // Prevent redundant hard reconnects
 
   // Send a message if connected
   const send = useCallback((message: object): boolean => {
@@ -74,25 +84,32 @@ export function useWebSocketConnection({
     });
 
     socketRef.current = socket;
+    isHardReconnectingRef.current = false;
 
     // Event handlers
     const handleOpen = () => {
       logger.info("[Connection] Connected to cloud");
       setStatus("connected");
+      isHardReconnectingRef.current = false;
       lastPongRef.current = Date.now();
       setLastHeartbeat(Date.now());
 
       // Send initial message based on context
+      // Use ref to get latest discovered sessionId if targetSessionId isn't provided (Audit Item 1)
+      const sid = targetSessionId || sessionIdRef.current;
+
       if (socket.readyState === WebSocket.OPEN) {
-        if (targetSessionId) {
+        if (sid) {
+          logger.debug("[Connection] Subscribing to session", { sessionId: sid });
           socket.send(
             JSON.stringify({
               type: MESSAGE_TYPES.SUBSCRIBE,
               clientId,
-              sessionId: targetSessionId,
+              sessionId: sid,
             }),
           );
         } else {
+          logger.debug("[Connection] Listing sessions");
           socket.send(
             JSON.stringify({
               type: "GET_SESSIONS",
@@ -104,15 +121,23 @@ export function useWebSocketConnection({
     };
 
     const handleClose = (event: CloseEvent) => {
-      logger.info("[Connection] Disconnected from cloud", {
+      // Demote to debug if it's a normal close or if we're already reconnecting
+      const level = event.wasClean ? "debug" : "info";
+      logger[level]("[Connection] Disconnected from cloud", {
         code: event.code,
         reason: event.reason,
+        clean: event.wasClean,
       });
       setStatus("disconnected");
     };
 
-    const handleError = (error: Event) => {
-      logger.error("[Connection] WebSocket error", error);
+    const handleError = (_error: Event) => {
+      // 🛡️ MOBILE STABILITY: Errors are common on mobile during network transitions.
+      // Don't flood stdout with errors unless they are persistent.
+      logger.warn("[Connection] WebSocket error (will retry)", {
+        status: statusRef.current,
+        readyState: socket.readyState,
+      });
       setStatus("disconnected");
     };
 
@@ -190,51 +215,75 @@ export function useWebSocketConnection({
 
       if (document.visibilityState === "visible") {
         logger.debug("[Connection] Tab visible, checking connection");
+        const now = Date.now();
+        const backgroundDuration = lastHiddenAtRef.current ? now - lastHiddenAtRef.current : 0;
+        lastHiddenAtRef.current = null;
 
         // Proactive sync for Safari
         if (readyState === WebSocket.OPEN && currentStatus !== "connected") {
           setStatus("connected");
         }
 
-        // If explicitly disconnected or stale, hammer it back to life
-        const isStale = hasReceivedPongRef.current && Date.now() - lastPongRef.current > 30000;
+        // 🛡️ RECOVERY: If backgrounded for > 5s, the socket is likely aborted by iOS.
+        // Even if readyState says OPEN, we hammer it back to life to avoid "Software caused connection abort" (Audit Item 1).
+        const isStale = hasReceivedPongRef.current && now - lastPongRef.current > 30000;
+        const needsHardRefresh = backgroundDuration > 5000 || isStale;
 
         if (
-          readyState === WebSocket.CLOSED ||
-          readyState === WebSocket.CLOSING ||
-          currentStatus === "disconnected" ||
-          isStale
+          !isHardReconnectingRef.current &&
+          (readyState === WebSocket.CLOSED ||
+            readyState === WebSocket.CLOSING ||
+            currentStatus === "disconnected" ||
+            needsHardRefresh)
         ) {
-          logger.info("[Connection] Connection lost or stale, forcing reconnect");
+          logger.info("[Connection] Connection lost or stale, forcing hard reconnect", {
+            duration: backgroundDuration,
+            isStale,
+            readyState,
+          });
           setStatus("connecting");
           hasReceivedPongRef.current = false;
+          isHardReconnectingRef.current = true;
+          // Use hard reset (socket.reconnect handles clean close/open)
+          // 🛡️ RACE PROTECTION: We return immediately and wait for handleOpen
           socket.reconnect();
           return;
         }
 
-        // Re-request current state if socket is open
-        if (readyState === WebSocket.OPEN) {
-          logger.debug("[Connection] Re-syncing state");
+        // 🟢 SYNC PATH: If the socket is ALREADY open (e.g. quick tab switch),
+        // we just re-request state to catch up on anything missed while hidden.
+        if (readyState === WebSocket.OPEN && !isHardReconnectingRef.current) {
+          logger.debug("[Connection] Re-syncing state (Socket already open)");
           lastPongRef.current = Date.now();
           setLastHeartbeat(Date.now());
 
-          if (targetSessionId) {
-            socket.send(
-              JSON.stringify({
-                type: MESSAGE_TYPES.SUBSCRIBE,
-                clientId,
-                sessionId: targetSessionId,
-              }),
-            );
-          } else {
-            socket.send(
-              JSON.stringify({
-                type: "GET_SESSIONS",
-                clientId,
-              }),
-            );
+          // Use ref to get latest session ID (Audit Item 1)
+          const sid = targetSessionId || sessionIdRef.current;
+
+          try {
+            if (sid) {
+              socket.send(
+                JSON.stringify({
+                  type: MESSAGE_TYPES.SUBSCRIBE,
+                  clientId,
+                  sessionId: sid,
+                }),
+              );
+            } else {
+              socket.send(
+                JSON.stringify({
+                  type: "GET_SESSIONS",
+                  clientId,
+                }),
+              );
+            }
+          } catch (e) {
+            logger.warn("[Connection] Failed to send re-sync, reconnecting...", e);
+            socket.reconnect();
           }
         }
+      } else if (document.visibilityState === "hidden") {
+        lastHiddenAtRef.current = Date.now();
       }
     };
 

@@ -7,6 +7,7 @@
  * @package @pika/desktop
  */
 
+import { logger } from "@pika/shared";
 import { toast } from "sonner";
 import { offlineQueueRepository } from "../../db/repositories/offlineQueueRepository";
 import { DEFAULT_RELIABILITY_CONFIG, type PendingMessage, type ReliabilityConfig } from "./types";
@@ -160,6 +161,32 @@ export function clearPendingMessages(): void {
  * Returns a promise that resolves when ACK received or fails
  */
 export function trackMessage(messageId: string, payload: object): Promise<boolean> {
+  // 🛡️ Issue 11 Refinement: Robust buffer management
+  // Increase limit to 1,000 for network blackout resilience
+  const MAX_BUFFER = 1000;
+  const WARNING_THRESHOLD = 800;
+
+  if (pendingMessages.size >= MAX_BUFFER) {
+    // 🛡️ Optimization Audit: Drop oldest instead of rejecting new
+    const oldestId = pendingMessages.keys().next().value;
+    if (oldestId) {
+      const oldest = pendingMessages.get(oldestId);
+      if (oldest) {
+        clearTimeout(oldest.timeout);
+        oldest.resolve(false);
+        pendingMessages.delete(oldestId);
+        logger.warn("[ACK] ⚠️ Buffer full (1000). Dropped oldest pending message.", { oldestId });
+      }
+    }
+  }
+
+  // Capacity monitoring
+  if (pendingMessages.size === WARNING_THRESHOLD) {
+    logger.warn("[ACK] 🔔 Reliability buffer at 80% capacity (800 messages)", {
+      size: pendingMessages.size,
+    });
+  }
+
   return new Promise((resolve) => {
     const pending: PendingMessage = {
       messageId,

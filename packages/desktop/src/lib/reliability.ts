@@ -32,6 +32,7 @@ interface PendingMessage {
 export const ACK_TIMEOUT_MS = 5000; // Wait 5s for ACK
 export const MAX_RETRIES = 3;
 export const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
+export const MAX_QUEUE_SIZE = 1000; // ⚡️ Reliability Audit Issue 11: Prevent OOM
 
 // ============================================================================
 // State
@@ -167,11 +168,26 @@ export function clearPendingMessages(): void {
 /**
  * Track a message for reliable delivery
  */
-export function trackMessage(
-  messageId: string,
-  payload: object,
-): Promise<boolean> {
+export function trackMessage(messageId: string, payload: object): Promise<boolean> {
   return new Promise((resolve) => {
+    // 🛡️ ENFORCEMENT: Max Queue Size (Audit Issue 11)
+    if (pendingMessages.size >= MAX_QUEUE_SIZE) {
+      const oldestKey = pendingMessages.keys().next().value;
+      if (oldestKey) {
+        const oldest = pendingMessages.get(oldestKey);
+        if (oldest) {
+          clearTimeout(oldest.timeout);
+          oldest.resolve(false);
+        }
+        pendingMessages.delete(oldestKey);
+        console.warn(`[ACK] ⚠️ Reliability Buffer Full. Dropping: ${oldestKey}`);
+      }
+    }
+
+    if (pendingMessages.size === Math.floor(MAX_QUEUE_SIZE * 0.8)) {
+      console.warn(`[ACK] ⚠️ Reliability Buffer at 80% capacity`);
+    }
+
     const pending: PendingMessage = {
       messageId,
       payload,
