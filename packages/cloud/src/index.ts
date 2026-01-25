@@ -80,7 +80,7 @@ let activeBroadcaster: ServerWebSocket<unknown> | null = null;
 // Run every 5 minutes to remove stale listeners and orphaned sessions
 setInterval(() => {
   const now = new Date().toISOString();
-  logger.info("🧹 [CLEANUP] Running scheduled cleanup", { timestamp: now });
+  logger.debug("🧹 [CLEANUP] Running scheduled cleanup", { timestamp: now });
   cleanupStaleListeners();
 
   const removedIds = cleanupStaleSessions(); // Default thresholds: Idle 4h, Age 8h, Hard 24h
@@ -117,7 +117,10 @@ setInterval(() => {
     }
   }
   if (removedIds.length > 0) {
-    logger.info("🧹 Cleanup removed stale sessions", { count: removedIds.length, ids: removedIds });
+    logger.debug("🧹 Cleanup removed stale sessions", {
+      count: removedIds.length,
+      ids: removedIds,
+    });
   }
 }, TIMEOUTS.CLEANUP_INTERVAL).unref();
 
@@ -209,7 +212,8 @@ app.get(
     }
     return next();
   },
-  upgradeWebSocket((_c) => {
+  upgradeWebSocket((c) => {
+    const ip = getClientIp(c);
     const state: handlers.WSConnectionState = {
       clientId: null,
       isListener: false,
@@ -219,6 +223,8 @@ app.get(
 
     return {
       onOpen(_event, ws) {
+        // L9: Clear connection attempts on success
+        wsConnectionAttempts.delete(ip);
         activeBroadcaster = ws.raw as ServerWebSocket;
         handlers.handleOpen(ws.raw as ServerWebSocket);
       },
@@ -282,6 +288,9 @@ app.get(
               break;
             case "SEND_LIKE":
               handlers.handleSendLike(ctx);
+              break;
+            case "SEND_BULK_LIKE":
+              handlers.handleSendBulkLike(ctx);
               break;
             case "SEND_REACTION":
               handlers.handleSendReaction(ctx);
@@ -442,6 +451,8 @@ setInterval(() => {
           "live-session",
           JSON.stringify({ type: "LISTENER_COUNT", sessionId, count: currentCount }),
         );
+        // L10: Silence listener logs
+        // logger.debug("📡 Broadcasted listener count", { sessionId, count: currentCount });
       } catch (e: any) {
         logger.warn("⚠️ Broadcast failed", e, undefined);
       }
@@ -531,4 +542,12 @@ async function gracefulShutdown(signal: string) {
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-export default { port, hostname, fetch: app.fetch, websocket };
+export default {
+  port,
+  hostname,
+  fetch: app.fetch,
+  websocket: {
+    ...websocket,
+    perMessageDeflate: true, // L6: WS Compression check
+  },
+};

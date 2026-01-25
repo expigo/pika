@@ -3,7 +3,7 @@
  * Handles connect, disconnect, reconnect, heartbeat, and visibility changes
  */
 
-import { MESSAGE_TYPES } from "@pika/shared";
+import { MESSAGE_TYPES, logger } from "@pika/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { getWebSocketUrl } from "@/lib/api";
@@ -63,7 +63,7 @@ export function useWebSocketConnection({
     const wsUrl = getWebSocketUrl();
     const clientId = getOrCreateClientId();
 
-    console.log("[Connection] Creating WebSocket:", wsUrl);
+    logger.debug("[Connection] Creating WebSocket", { wsUrl });
 
     const socket = new ReconnectingWebSocket(wsUrl, [], {
       maxReconnectionDelay: 10000,
@@ -77,7 +77,7 @@ export function useWebSocketConnection({
 
     // Event handlers
     const handleOpen = () => {
-      console.log("[Connection] Connected to cloud");
+      logger.info("[Connection] Connected to cloud");
       setStatus("connected");
       lastPongRef.current = Date.now();
       setLastHeartbeat(Date.now());
@@ -104,14 +104,15 @@ export function useWebSocketConnection({
     };
 
     const handleClose = (event: CloseEvent) => {
-      console.log(
-        `[Connection] Disconnected from cloud (Code: ${event.code}, Reason: ${event.reason})`,
-      );
+      logger.info("[Connection] Disconnected from cloud", {
+        code: event.code,
+        reason: event.reason,
+      });
       setStatus("disconnected");
     };
 
     const handleError = (error: Event) => {
-      console.log("[Connection] WebSocket error:", error);
+      logger.error("[Connection] WebSocket error", error);
       setStatus("disconnected");
     };
 
@@ -148,19 +149,22 @@ export function useWebSocketConnection({
       // 🔋 11/10 Performance: Skip heartbeats if backgrounded
       if (isBackground) return;
 
+      const now = Date.now();
+
       // Send PING (using constant string to avoid GC churn)
       socket.send(PING_STR);
 
       // Check for stale connection
       if (hasReceivedPongRef.current) {
-        const elapsed = Date.now() - lastPongRef.current;
+        const elapsed = now - lastPongRef.current;
         // Higher threshold for background tabs to avoid aggressive kills
         const timeoutThreshold = isBackground ? 60000 : 30000;
 
         if (elapsed > timeoutThreshold) {
-          console.log(
-            `[Connection] Heartbeat timeout (${isBackground ? "BG" : "FG"}), reconnecting...`,
-          );
+          logger.warn("[Connection] Heartbeat timeout", {
+            mode: isBackground ? "BG" : "FG",
+            elapsed,
+          });
           setStatus("connecting");
           hasReceivedPongRef.current = false;
           socket.reconnect();
@@ -170,12 +174,12 @@ export function useWebSocketConnection({
 
     // Handle browser offline/online events
     const handleOffline = () => {
-      console.log("[Connection] Browser offline");
+      logger.info("[Connection] Browser offline");
       setStatus("disconnected");
     };
 
     const handleOnline = () => {
-      console.log("[Connection] Browser online, reconnecting...");
+      logger.info("[Connection] Browser online, reconnecting...");
       socket.reconnect();
     };
 
@@ -185,7 +189,7 @@ export function useWebSocketConnection({
       const currentStatus = statusRef.current;
 
       if (document.visibilityState === "visible") {
-        console.log("[Connection] Tab visible, checking connection...");
+        logger.debug("[Connection] Tab visible, checking connection");
 
         // Proactive sync for Safari
         if (readyState === WebSocket.OPEN && currentStatus !== "connected") {
@@ -201,7 +205,7 @@ export function useWebSocketConnection({
           currentStatus === "disconnected" ||
           isStale
         ) {
-          console.log("[Connection] Connection lost or stale, forcing reconnect...");
+          logger.info("[Connection] Connection lost or stale, forcing reconnect");
           setStatus("connecting");
           hasReceivedPongRef.current = false;
           socket.reconnect();
@@ -210,7 +214,7 @@ export function useWebSocketConnection({
 
         // Re-request current state if socket is open
         if (readyState === WebSocket.OPEN) {
-          console.log("[Connection] Re-syncing state...");
+          logger.debug("[Connection] Re-syncing state");
           lastPongRef.current = Date.now();
           setLastHeartbeat(Date.now());
 

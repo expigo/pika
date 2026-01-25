@@ -5,11 +5,12 @@
  */
 
 import { getTrackKey, MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
-import { get, set, del } from "idb-keyval";
+import { get, set, del, keys } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
 import { getStoredLikes, persistLikes } from "./storage";
+import { logger, LIMITS } from "@pika/shared";
 
 interface UseLikeQueueProps {
   sessionId: string | null;
@@ -42,7 +43,7 @@ async function loadPendingFromIDB(sessionId: string): Promise<PendingLike[]> {
     const stored = await get<PendingLike[]>(getPendingKey(sessionId));
     return stored || [];
   } catch (e) {
-    console.error("[Likes] Failed to load pending from IDB:", e);
+    logger.error("[Likes] Failed to load pending from IDB", e);
     return [];
   }
 }
@@ -58,7 +59,7 @@ async function savePendingToIDB(sessionId: string, pending: PendingLike[]): Prom
       await set(getPendingKey(sessionId), pending);
     }
   } catch (e) {
-    console.error("[Likes] Failed to save pending to IDB:", e);
+    logger.error("[Likes] Failed to save pending to IDB", e);
   }
 }
 
@@ -67,6 +68,8 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   const [pendingCount, setPendingCount] = useState(0);
   const pendingLikesRef = useRef<PendingLike[]>([]);
   const idbLoadedRef = useRef(false);
+  const lastLikeTimeRef = useRef<number>(0);
+  const consecutiveLikesRef = useRef<number>(0);
 
   // Load likes and pending from storage when session changes
   useEffect(() => {
@@ -84,7 +87,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
       idbLoadedRef.current = true;
 
       if (pending.length > 0) {
-        console.log(`[Likes] Loaded ${pending.length} pending likes from IndexedDB`);
+        logger.info("[Likes] Loaded pending likes from IndexedDB", { count: pending.length });
       }
     };
 
@@ -107,7 +110,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
     // Clear IndexedDB for this session
     if (sessionId) {
       del(getPendingKey(sessionId)).catch((e) => {
-        console.error("[Likes] Failed to clear pending from IDB:", e);
+        logger.error("[Likes] Failed to clear pending from IDB", e);
       });
     }
   }, [sessionId]);
@@ -130,39 +133,73 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
     const pending = [...pendingLikesRef.current];
     if (pending.length === 0) return;
 
-    console.log(`[Likes] Flushing ${pending.length} pending likes...`);
+    logger.info("[Likes] Flushing pending likes via batch", { count: pending.length });
 
-    const successfullyFlushed: number[] = [];
+    try {
+      socket.send(
+        JSON.stringify({
+          type: MESSAGE_TYPES.SEND_BULK_LIKE,
+          clientId: getOrCreateClientId(),
+          sessionId: sessionId,
+          payload: {
+            tracks: pending.map((p) => p.track),
+          },
+        }),
+      );
 
-    for (let i = 0; i < pending.length; i++) {
-      const like = pending[i];
-      try {
-        socket.send(
-          JSON.stringify({
-            type: MESSAGE_TYPES.SEND_LIKE,
-            clientId: getOrCreateClientId(),
-            sessionId: like.sessionId,
-            payload: { track: like.track },
-          }),
-        );
-        successfullyFlushed.push(i);
-        console.log("[Likes] Flushed pending like:", like.track.title);
-      } catch (e) {
-        console.error("[Likes] Failed to flush pending like:", e);
-        // Stop flushing on error - will retry on next reconnect
-        break;
-      }
-    }
+      logger.info("[Likes] Successfully sent batch of likes", { count: pending.length });
 
-    // Remove flushed items from pending
-    if (successfullyFlushed.length > 0) {
-      pendingLikesRef.current = pending.filter((_, i) => !successfullyFlushed.includes(i));
-      setPendingCount(pendingLikesRef.current.length);
-
-      // Persist updated pending list
-      await savePendingToIDB(sessionId, pendingLikesRef.current);
+      // Clear pending
+      pendingLikesRef.current = [];
+      setPendingCount(0);
+      await savePendingToIDB(sessionId, []);
+    } catch (e) {
+      logger.error("[Likes] Failed to flush pending likes batch", e);
     }
   }, [socketRef, sessionId]);
+
+  // M6: Comprehensive Cleanup for ALL sessions in IndexedDB
+  useEffect(() => {
+    const cleanupOrphanedSessions = async () => {
+      try {
+        const allKeys = await keys();
+        const now = Date.now();
+        const SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+        let cleanedCount = 0;
+
+        for (const key of allKeys) {
+          const keyStr = String(key);
+          if (keyStr.startsWith("pika_pending_likes_")) {
+            const pending = await get<PendingLike[]>(key);
+            if (!pending || pending.length === 0) {
+              // Delete empty keys
+              await del(key);
+              cleanedCount++;
+              continue;
+            }
+
+            // If the latest like in this bucket is > 7 days old, delete the whole bucket
+            const latestLike = Math.max(...pending.map((p) => p.timestamp));
+            if (now - latestLike > SEVEN_DAYS) {
+              logger.info("[Likes] Purging orphaned session from IDB", { key: keyStr });
+              await del(key);
+              cleanedCount++;
+            }
+          }
+        }
+
+        if (cleanedCount > 0) {
+          logger.info("[Likes] 🧹 Global IDB Cleanup removed orphaned session entries", {
+            count: cleanedCount,
+          });
+        }
+      } catch (e) {
+        logger.error("[Likes] Global cleanup error", e);
+      }
+    };
+
+    cleanupOrphanedSessions();
+  }, []); // Run once on mount
 
   // Send like for a track
   const sendLike = useCallback(
@@ -171,8 +208,25 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
 
       // Don't allow duplicate likes
       if (likedTracks.has(trackKey)) {
-        console.log("[Likes] Already liked:", track.title);
+        logger.debug("[Likes] Already liked track", { title: track.title });
         return false;
+      }
+
+      // L4: Client-side rate limiting
+      const now = Date.now();
+      const timeSinceLastLike = now - lastLikeTimeRef.current;
+
+      if (timeSinceLastLike < 60000) {
+        // Within a 1 minute window
+        consecutiveLikesRef.current++;
+        if (consecutiveLikesRef.current > LIMITS.LIKE_RATE_LIMIT_MAX) {
+          logger.warn("[Likes] Rate limit exceeded", { limit: LIMITS.LIKE_RATE_LIMIT_MAX });
+          return false;
+        }
+      } else {
+        // Reset window
+        lastLikeTimeRef.current = now;
+        consecutiveLikesRef.current = 1;
       }
 
       // Optimistically update UI
@@ -193,10 +247,10 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
             payload: { track },
           }),
         );
-        console.log("[Likes] Sent like for:", track.title);
+        logger.info("[Likes] Sent like", { title: track.title });
       } else if (sessionId) {
         // Offline - queue it with persistence!
-        console.log("[Likes] Offline, queuing like for:", track.title);
+        logger.info("[Likes] Offline, queuing like", { title: track.title });
 
         const newPending: PendingLike = {
           track,

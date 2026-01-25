@@ -3,7 +3,8 @@
 import { Activity, Check, Clock, Heart, Music2, Radio, Share2, Users, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { memo, useEffect, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { memo, useEffect, useRef, useState } from "react";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
 import { SocialSignalsLayer } from "./SocialSignalsLayer";
@@ -48,13 +49,23 @@ function PollCountdown({ endsAt }: { endsAt?: string | null }) {
     if (Number.isNaN(endTime)) return;
 
     const updateCountdown = () => {
-      const remaining = Math.max(0, endTime - Date.now());
+      const now = Date.now();
+      const remaining = Math.max(0, endTime - now);
       setTimeLeft(remaining);
+
+      // M2: Clear interval if countdown hits zero
+      if (remaining <= 0) {
+        clearInterval(intervalRef.current);
+      }
     };
 
     updateCountdown();
-    const interval = setInterval(updateCountdown, 1000);
-    return () => clearInterval(interval);
+    // Only start interval if still has time left
+    const intervalRef = { current: undefined as ReturnType<typeof setInterval> | undefined };
+    if (endTime > Date.now()) {
+      intervalRef.current = setInterval(updateCountdown, 1000);
+    }
+    return () => clearInterval(intervalRef.current);
   }, [endsAt]);
 
   if (!endsAt || timeLeft <= 0) {
@@ -75,8 +86,17 @@ interface HistoryListProps {
   tracks: HistoryTrack[];
 }
 
-// History list component - Memoized to prevent re-renders on heartbeat/animation
+// History list component - Now virtualized for large history sets (M4)
 const HistoryList = memo(function HistoryList({ tracks }: HistoryListProps) {
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: tracks.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 73, // Height of each row based on px-8 py-5
+    overscan: 5,
+  });
+
   if (tracks.length === 0) return null;
 
   return (
@@ -87,33 +107,47 @@ const HistoryList = memo(function HistoryList({ tracks }: HistoryListProps) {
           Pulse Stream
         </span>
       </div>
-      <ul className="divide-y divide-slate-800/30">
-        {tracks.map((track, index) => (
-          <li
-            key={`${track.artist}-${track.title}-${index}`}
-            className="flex items-center justify-between px-8 py-5 hover:bg-slate-900/50 transition-colors group"
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3">
-                <p className="text-sm text-slate-300 font-bold truncate group-hover:text-white transition-colors uppercase italic">
-                  {track.title}
-                </p>
-                {track.bpm && (
-                  <span className="flex-shrink-0 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded text-[9px] font-black text-purple-400 uppercase">
-                    {Math.round(track.bpm)}
-                  </span>
-                )}
-              </div>
-              <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mt-1">
-                {track.artist}
-              </p>
-            </div>
-            <span className="text-[9px] text-slate-700 font-black ml-4 flex-shrink-0 uppercase tracking-tighter">
-              {formatRelativeTime(track.playedAt)}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {/* M4: Fixed height container with overflow-auto for virtualization */}
+      <div
+        ref={parentRef}
+        className="max-h-[365px] overflow-auto scrollbar-hide divide-y divide-slate-800/30"
+        style={{ scrollbarWidth: "none" }}
+      >
+        <ul className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
+          {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            const track = tracks[virtualRow.index];
+            return (
+              <li
+                key={`${track.artist}-${track.title}-${virtualRow.index}`}
+                className="absolute top-0 left-0 w-full flex items-center justify-between px-8 py-5 hover:bg-slate-900/50 transition-colors group"
+                style={{
+                  height: `${virtualRow.size}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-3">
+                    <p className="text-sm text-slate-300 font-bold truncate group-hover:text-white transition-colors uppercase italic">
+                      {track.title}
+                    </p>
+                    {track.bpm && (
+                      <span className="flex-shrink-0 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded text-[9px] font-black text-purple-400 uppercase">
+                        {Math.round(track.bpm)}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mt-1">
+                    {track.artist}
+                  </p>
+                </div>
+                <span className="text-[9px] text-slate-700 font-black ml-4 flex-shrink-0 uppercase tracking-tighter">
+                  {formatRelativeTime(track.playedAt)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     </div>
   );
 });
@@ -225,7 +259,8 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
       <ConnectionStatusIndicator status={status} />
 
       {/* Social Signals Overlay (Canvas) */}
-      <SocialSignalsLayer onLikeReceived={onLikeReceived} />
+      {/* L5: Conditional SocialSignalsLayer */}
+      {isLive && isConnected && <SocialSignalsLayer onLikeReceived={onLikeReceived} />}
 
       {/* Stale Data Warning Banner (shows when disconnected for extended period) */}
       <StaleDataBanner
