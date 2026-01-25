@@ -7,6 +7,7 @@
 
 import { sendNack } from "../lib/protocol";
 import type { WSContext, MessageHandler } from "./ws-context";
+import { logger } from "@pika/shared";
 
 // Raw handler imports (private, unwrapped)
 import {
@@ -20,6 +21,7 @@ import {
 
 import {
   handleSendLike as _handleSendLike,
+  handleSendBulkLike as _handleSendBulkLike,
   handleSendReaction as _handleSendReaction,
   handleSendTempoRequest as _handleSendTempoRequest,
 } from "./dancer";
@@ -57,14 +59,14 @@ export function safeHandler(handler: MessageHandler): MessageHandler {
       await handler(ctx);
     } catch (error) {
       const handlerName = handler.name || "unknown";
-      console.error(`❌ Unhandled exception in ${handlerName}:`, error);
+      logger.error(`❌ Unhandled exception in ${handlerName}`, error);
 
       // Send NACK to client if messageId is available
       if (ctx.messageId) {
         try {
           sendNack(ctx.ws, ctx.messageId, "Internal server error");
         } catch (sendError) {
-          console.error(`❌ Failed to send NACK after handler error:`, sendError);
+          logger.error("❌ Failed to send NACK after handler error", sendError);
         }
       }
     }
@@ -85,6 +87,7 @@ export const handleCancelAnnouncement = safeHandler(_handleCancelAnnouncement);
 
 // Dancer Handlers
 export const handleSendLike = safeHandler(_handleSendLike);
+export const handleSendBulkLike = safeHandler(_handleSendBulkLike);
 export const handleSendReaction = safeHandler(_handleSendReaction);
 export const handleSendTempoRequest = safeHandler(_handleSendTempoRequest);
 

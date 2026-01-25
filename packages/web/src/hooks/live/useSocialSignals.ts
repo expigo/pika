@@ -4,7 +4,7 @@
  * Uses a subscription pattern so components (like Canvas) can listen directly.
  */
 
-import { MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
+import { MESSAGE_TYPES, logger, type TrackInfo } from "@pika/shared";
 import { useCallback, useRef, useMemo } from "react";
 import type { MessageHandlers, WebSocketMessage } from "./types";
 
@@ -60,7 +60,7 @@ export function useSocialSignals({ sessionId }: UseSocialSignalsProps): UseSocia
           try {
             callback(track, count);
           } catch (e) {
-            console.error("[SocialSignals] Error in subscriber:", e);
+            logger.error("[SocialSignals] Error in subscriber", e);
           }
         });
       },

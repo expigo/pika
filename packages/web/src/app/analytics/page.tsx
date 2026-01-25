@@ -4,6 +4,7 @@ import { Activity, Globe, Heart, PieChart, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface AnalyticsStats {
   totalSessions: number;
@@ -51,7 +52,7 @@ export default function AnalyticsPage() {
             ) || 0,
         });
       } catch (error) {
-        console.error("Failed to fetch analytics:", error);
+        logger.error("Failed to fetch analytics", error);
       } finally {
         setLoading(false);
       }

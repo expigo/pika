@@ -1,6 +1,7 @@
 /**
  * LocalStorage utilities for live session data persistence
  */
+import { logger } from "@pika/shared";
 
 // ============================================================================
 // Liked Tracks Storage (scoped by session)
@@ -23,7 +24,7 @@ export function getStoredLikes(sessionId: string | null): Set<string> {
 
     return Array.isArray(sessionLikes) ? new Set(sessionLikes) : new Set();
   } catch (e) {
-    console.error("Failed to load liked tracks:", e);
+    logger.error("Failed to load liked tracks", e);
     return new Set();
   }
 }
@@ -37,7 +38,7 @@ export function persistLikes(sessionId: string, tracks: Set<string>): void {
     data[sessionId] = [...tracks];
     localStorage.setItem(LIKED_TRACKS_KEY, JSON.stringify(data));
   } catch (e) {
-    console.error("Failed to save liked tracks:", e);
+    logger.error("Failed to save liked tracks", e);
   }
 }
 

@@ -13,6 +13,7 @@ import { eq } from "drizzle-orm";
 import type { TrackInfo } from "@pika/shared";
 import { db, schema } from "../../db";
 import { waitForSession, persistedSessions } from "./sessions";
+import { logger } from "@pika/shared";
 
 // ============================================================================
 // Operations
@@ -30,12 +31,12 @@ export async function createPollInDb(
   // Wait for session to be persisted (event-based, with timeout)
   const sessionReady = await waitForSession(sessionId, 3000);
   if (!sessionReady) {
-    console.error("❌ Session not ready in time, cannot create poll:", sessionId);
+    logger.error("❌ Session not ready in time, cannot create poll", { sessionId });
     return null;
   }
 
   if (!persistedSessions.has(sessionId)) {
-    console.error("❌ Session not persisted in DB after wait, cannot create poll:", sessionId);
+    logger.error("❌ Session not persisted in DB after wait, cannot create poll", { sessionId });
     return null;
   }
 
@@ -53,7 +54,7 @@ export async function createPollInDb(
       .returning({ id: schema.polls.id });
     return newPoll?.id ?? null;
   } catch (e) {
-    console.error("❌ Failed to create poll:", e);
+    logger.error("❌ Failed to create poll", e);
     return null;
   }
 }
@@ -68,7 +69,7 @@ export async function closePollInDb(pollId: number): Promise<void> {
       .set({ status: "closed", endedAt: new Date() })
       .where(eq(schema.polls.id, pollId));
   } catch (e) {
-    console.error("❌ Failed to close poll:", e);
+    logger.error("❌ Failed to close poll", e);
   }
 }
 
@@ -90,6 +91,6 @@ export async function recordPollVoteInDb(
       })
       .onConflictDoNothing();
   } catch (e) {
-    console.error("❌ Failed to persist vote:", e);
+    logger.error("❌ Failed to persist vote", e);
   }
 }

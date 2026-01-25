@@ -107,7 +107,7 @@ export const MAX_ANNOUNCEMENT_DURATION_SECONDS = TIMEOUTS.ANNOUNCEMENT_MAX_DURAT
 // =============================================================================
 
 /** Interval for periodic token revalidation (1 hour) */
-export const TOKEN_REVALIDATION_INTERVAL_MS = TIMEOUTS.HEARTBEAT_INTERVAL;
+export const TOKEN_REVALIDATION_INTERVAL_MS = TIMEOUTS.TOKEN_REVALIDATION_INTERVAL;
 
 /** Minimum time since last validation before revalidating on focus (5 minutes) */
 export const TOKEN_FOCUS_REVALIDATION_MIN_MS = 5 * 60 * 1000;

@@ -7,6 +7,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import * as schema from "../db/schema";
+import { logger } from "@pika/shared";
 
 /**
  * Generate secure random token
@@ -78,7 +79,7 @@ export async function validateToken(
 
     return user;
   } catch (e) {
-    console.error("Token validation error:", e);
+    logger.error("Token validation error", e);
     return null;
   }
 }

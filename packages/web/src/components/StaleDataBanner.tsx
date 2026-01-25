@@ -79,22 +79,37 @@ export function StaleDataBanner({
       setStaleSeconds(Math.floor(elapsed / 1000));
     }
 
-    // Check staleness every second
-    const interval = setInterval(() => {
+    // Check staleness only when relevant (M3)
+    // 🔋 11/10 Performance: No interval if connection is solid and data is fresh
+    let interval: ReturnType<typeof setInterval> | undefined;
+
+    const checkStaleness = () => {
       // Only show stale if we've been connected before
-      if (!hasEverConnectedRef.current && !hasData) {
-        return;
+      if (!hasEverConnectedRef.current && !hasData) return;
+
+      const elapsed = Date.now() - lastHeartbeat;
+      const stale = elapsed > staleThresholdMs;
+
+      // Update state if changed
+      if (stale !== isStale) {
+        setIsStale(stale);
       }
+      setStaleSeconds(Math.floor(elapsed / 1000));
+    };
 
-      const now = Date.now() - lastHeartbeat;
-      const stale = now > staleThresholdMs;
+    // Run once immediately
+    checkStaleness();
 
-      setIsStale(stale);
-      setStaleSeconds(Math.floor(now / 1000));
-    }, 1000);
+    // Only start timer if we are currently stale OR disconnected
+    // This stops the timer COMPLETELY once we are back in a healthy state
+    if (!isConnected || isStale) {
+      interval = setInterval(checkStaleness, 1000);
+    }
 
-    return () => clearInterval(interval);
-  }, [lastHeartbeat, staleThresholdMs, sessionEnded, hasData]);
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [lastHeartbeat, staleThresholdMs, sessionEnded, hasData, isConnected, isStale]);
 
   // Don't render if not stale
   if (!isStale) {

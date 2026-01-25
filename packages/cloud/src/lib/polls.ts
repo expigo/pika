@@ -12,6 +12,7 @@
  * FUTURE:
  * Can swap Map for Redis with pub/sub for distributed polling.
  */
+import { logger } from "@pika/shared";
 
 // ============================================================================
 // Types
@@ -72,7 +73,7 @@ export function cancelPollTimer(pollId: number): void {
   if (timer) {
     clearTimeout(timer);
     pollTimers.delete(pollId);
-    console.log(`⏰ Cleared auto-end timer for poll ${pollId}`);
+    logger.debug("⏰ Cleared auto-end timer", { pollId });
   }
 }
 
@@ -214,7 +215,7 @@ export function clearSessionPolls(sessionId: string): void {
     cancelPollTimer(pollId);
     activePolls.delete(pollId);
     sessionActivePoll.delete(sessionId);
-    console.log(`🧹 [M4] Cleared active poll for session ${sessionId}`);
+    logger.debug("🧹 Cleared active poll for session", { sessionId });
   }
 }
 

@@ -37,6 +37,7 @@ import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface TempoData {
   slower: number;
@@ -158,7 +159,7 @@ export default function AnalyticsPage({
         const data: SessionRecap = await response.json();
         setRecap(data);
       } catch (e) {
-        console.error("Failed to fetch recap:", e);
+        logger.error("Failed to fetch recap", e);
         setError("Failed to load analytics");
       } finally {
         setLoading(false);

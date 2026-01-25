@@ -3,7 +3,7 @@
  * Handles poll lifecycle, voting with optimistic updates, and server confirmations
  */
 
-import { MESSAGE_TYPES } from "@pika/shared";
+import { MESSAGE_TYPES, logger } from "@pika/shared";
 import { useCallback, useState, useRef, useMemo } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
@@ -75,7 +75,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
       setHasVotedOnPoll(true);
       hasVotedRef.current = true; // 🛡️ R7 Fix
 
-      console.log("[Poll] Voted:", activePoll.options[optionIndex]);
+      logger.debug("[Poll] Voted", { option: activePoll.options[optionIndex] });
       return true;
     },
     [activePoll, socketRef], // removed hasVotedOnPoll dependency
@@ -102,11 +102,10 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
           votedOptionIndex?: number;
         };
 
-        console.log(
-          "[Poll] Started:",
-          msg.question,
-          msg.totalVotes ? `(${msg.totalVotes} votes)` : "(new)",
-        );
+        logger.debug("[Poll] Started", {
+          question: msg.question,
+          hasVotes: !!msg.totalVotes,
+        });
 
         setActivePoll((current) => {
           const isNewPoll = !current || current.id !== msg.pollId;
@@ -149,7 +148,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
       },
 
       [MESSAGE_TYPES.POLL_ENDED]: () => {
-        console.log("[Poll] Ended - showing results for 10s");
+        logger.debug("[Poll] Ended - showing results for 10s");
         // Clear existing timer if any
         if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
 
@@ -160,7 +159,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
       },
 
       [MESSAGE_TYPES.CANCEL_POLL]: () => {
-        console.log("[Poll] Cancelled");
+        logger.debug("[Poll] Cancelled");
         resetPoll();
       },
 
@@ -172,7 +171,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
           totalVotes?: number;
         };
 
-        console.log("[Poll] Vote rejected:", msg.reason);
+        logger.debug("[Poll] Vote rejected", { reason: msg.reason });
 
         setActivePoll((prev) => {
           if (!prev || prev.id !== msg.pollId) return prev;
@@ -199,7 +198,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
           totalVotes: number;
         };
 
-        console.log("[Poll] Vote confirmed");
+        logger.debug("[Poll] Vote confirmed");
 
         setActivePoll((prev) => {
           if (!prev || prev.id !== msg.pollId) return prev;
@@ -218,7 +217,7 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
           newPollId: number;
         };
 
-        console.log("[Poll] ID updated:", msg.oldPollId, "->", msg.newPollId);
+        logger.debug("[Poll] ID updated", { old: msg.oldPollId, new: msg.newPollId });
 
         setActivePoll((prev) => {
           if (!prev || prev.id !== msg.oldPollId) return prev;

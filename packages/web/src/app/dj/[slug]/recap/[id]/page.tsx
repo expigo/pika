@@ -18,6 +18,7 @@ import { use, useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface RecapTrack {
   position: number;
@@ -128,7 +129,7 @@ export default function DjRecapPage({ params }: RecapPageProps) {
         const data = await response.json();
         setRecap(data);
       } catch (e) {
-        console.error("Failed to fetch recap:", e);
+        logger.error("Failed to fetch recap", e);
         setError("Failed to connect to server");
       } finally {
         setLoading(false);

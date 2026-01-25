@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
-import { slugify, LIMITS } from "@pika/shared";
+import { slugify, LIMITS, logger } from "@pika/shared";
 import { db } from "../db";
 import * as schema from "../db/schema";
 
@@ -98,7 +98,7 @@ async function validateToken(
 
     return user;
   } catch (e) {
-    console.error("Token validation error:", e);
+    logger.error("Token validation error", e);
     return null;
   }
 }
@@ -193,7 +193,7 @@ auth.post("/register", authLimiter, async (c) => {
       name: "Default",
     });
 
-    console.log(`✅ DJ registered: ${displayName} (${email})`);
+    logger.info("✅ DJ registered", { displayName, email });
 
     return c.json(
       {
@@ -209,7 +209,7 @@ auth.post("/register", authLimiter, async (c) => {
       201,
     );
   } catch (e) {
-    console.error("Registration error:", e);
+    logger.error("Registration error", e);
     return c.json({ error: "Registration failed" }, 500);
   }
 });
@@ -271,7 +271,7 @@ auth.post("/login", authLimiter, async (c) => {
       name: "Default",
     });
 
-    console.log(`✅ DJ logged in: ${user.displayName} (New token generated)`);
+    logger.info("✅ DJ logged in", { displayName: user.displayName, email: user.email });
 
     return c.json({
       success: true,
@@ -284,7 +284,7 @@ auth.post("/login", authLimiter, async (c) => {
       token,
     });
   } catch (e) {
-    console.error("Login error:", e);
+    logger.error("Login error", e);
     return c.json({ error: "Login failed" }, 500);
   }
 });
@@ -344,14 +344,14 @@ auth.post("/regenerate-token", authLimiter, async (c) => {
       name: "Default",
     });
 
-    console.log(`🔄 Token regenerated for: ${user.displayName}`);
+    logger.info("🔄 Token regenerated", { displayName: user.displayName });
 
     return c.json({
       success: true,
       token: newToken,
     });
   } catch (e) {
-    console.error("Token regeneration error:", e);
+    logger.error("Token regeneration error", e);
     return c.json({ error: "Failed to regenerate token" }, 500);
   }
 });

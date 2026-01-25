@@ -19,6 +19,7 @@ import { LivePlayer } from "@/components/LivePlayer";
 import { ProCard } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface ActiveSession {
   sessionId: string;
@@ -83,14 +84,18 @@ export default function LivePage() {
       fetch(`${apiUrl}/api/stats/top-tracks`)
         .then((res) => (res.ok ? res.json() : []))
         .then(setTopTracks)
-        .catch(() => console.warn("Top syncs unavailable"));
+        .catch(() => {
+          /* logger.debug("Top syncs unavailable") */
+        });
 
       fetch(`${apiUrl}/api/sessions/recent`)
         .then((res) => (res.ok ? res.json() : []))
         .then(setRecentSessions)
-        .catch(() => console.warn("Recent sets unavailable"));
+        .catch(() => {
+          /* logger.debug("Recent sets unavailable") */
+        });
     } catch (err) {
-      console.error("Failed to fetch data:", err);
+      logger.error("Failed to fetch data", err);
       setError("Failed to connect to the Pika! network.");
     } finally {
       setLoading(false);

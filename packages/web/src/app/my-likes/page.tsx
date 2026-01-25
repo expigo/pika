@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 // Get or create a stable client ID
 function getClientId(): string | null {
@@ -99,7 +100,7 @@ export default function MyLikesPage() {
         const data: LikesResponse = await response.json();
         setLikes(data);
       } catch (e) {
-        console.error("Failed to fetch likes:", e);
+        logger.error("Failed to fetch likes", e);
         setError("network_error");
       } finally {
         setLoading(false);

@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface RegisterResponse {
   success: boolean;
@@ -92,7 +93,7 @@ export default function RegisterPage() {
 
       setSuccess(data);
     } catch (e) {
-      console.error("Registration error:", e);
+      logger.error("Registration error", e);
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
@@ -106,11 +107,11 @@ export default function RegisterPage() {
         setTokenCopied(true);
         setTimeout(() => setTokenCopied(false), 2000);
       } catch (err) {
-        console.error("Failed to copy token:", err);
+        logger.error("Failed to copy token", err);
       }
     } else if (success?.token) {
       // Fallback for insecure contexts
-      console.warn("Clipboard API unavailable (likely insecure context)");
+      logger.warn("Clipboard API unavailable (likely insecure context)");
       alert(
         "Please copy the token manually from the screen. Automated copy is disabled on insecure connections.",
       );

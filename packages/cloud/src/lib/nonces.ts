@@ -12,6 +12,7 @@
  * FUTURE:
  * Can swap Map for Redis SETEX for distributed deduplication.
  */
+import { logger } from "@pika/shared";
 
 // ============================================================================
 // Types
@@ -49,9 +50,7 @@ export function checkAndRecordNonce(nonce: string | undefined, sessionId: string
 
   // S0.3.3 Fix: Atomic check-and-set pattern
   if (seenNonces.has(nonce)) {
-    console.log(
-      `🔄 Duplicate nonce detected: ${nonce.substring(0, 16)}... (session: ${sessionId})`,
-    );
+    logger.debug("🔄 Duplicate nonce detected", { nonce: nonce.substring(0, 16), sessionId });
     return false;
   }
 
@@ -82,7 +81,7 @@ export function cleanupExpiredNonces(): number {
   }
 
   if (cleaned > 0) {
-    console.log(`🧹 Cleaned ${cleaned} expired nonces (remaining: ${seenNonces.size})`);
+    logger.debug("🧹 Cleaned expired nonces", { count: cleaned, remaining: seenNonces.size });
   }
 
   return cleaned;

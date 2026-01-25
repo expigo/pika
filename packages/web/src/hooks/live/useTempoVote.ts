@@ -1,4 +1,4 @@
-import { MESSAGE_TYPES } from "@pika/shared";
+import { MESSAGE_TYPES, logger } from "@pika/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
@@ -54,13 +54,13 @@ export function useTempoVote({
   const sendTempoRequest = useCallback(
     (preference: TempoPreference): boolean => {
       if (!sessionId) {
-        console.log("[Tempo] Cannot send: no session");
+        logger.debug("[Tempo] Cannot send: no session");
         return false;
       }
 
       const socket = socketRef.current;
       if (!socket || socket.readyState !== WebSocket.OPEN) {
-        console.log("[Tempo] Cannot send: socket not open");
+        logger.debug("[Tempo] Cannot send: socket not open");
         return false;
       }
 
@@ -81,11 +81,11 @@ export function useTempoVote({
       if (isToggleOff) {
         setTempoVote(null);
         if (storageKey) localStorage.removeItem(storageKey);
-        console.log("[Tempo] Cleared vote");
+        logger.debug("[Tempo] Cleared vote");
       } else {
         setTempoVote(preference);
         if (storageKey) localStorage.setItem(storageKey, preference);
-        console.log("[Tempo] Sent request:", preference);
+        logger.debug("[Tempo] Sent request", { preference });
       }
 
       return true;
@@ -104,7 +104,7 @@ export function useTempoVote({
           return;
         }
 
-        console.log("[Tempo] Reset received");
+        logger.debug("[Tempo] Reset received");
         setTempoVote(null);
         // Note: We don't clear localStorage here because TEMPO_RESET usually
         // happens AFTER a track change, and our useEffect already handles track changes.

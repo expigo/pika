@@ -8,7 +8,7 @@
  */
 import { Hono } from "hono";
 import { count, desc, eq, inArray, isNull } from "drizzle-orm";
-import { slugify } from "@pika/shared";
+import { slugify, logger } from "@pika/shared";
 import { db, schema } from "../db";
 
 const dj = new Hono();
@@ -118,7 +118,7 @@ dj.get("/:slug", async (c) => {
       totalTracks,
     });
   } catch (error) {
-    console.error("Failed to fetch DJ profile:", error);
+    logger.error("Failed to fetch DJ profile", error);
     return c.json({ error: "Failed to fetch DJ profile" }, 500);
   }
 });

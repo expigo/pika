@@ -12,12 +12,13 @@
  * Extracted from index.ts for modularity.
  */
 import { Hono } from "hono";
-import { and, count, desc, eq, inArray, isNotNull } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull } from "drizzle-orm";
 import { db, schema } from "../db";
 import { getAllSessions } from "../lib/sessions";
 import { getListenerCount } from "../lib/listeners";
 import { withCache } from "../lib/cache";
 import { validateToken } from "../lib/auth";
+import { logger, LIMITS } from "@pika/shared";
 
 const sessions = new Hono();
 
@@ -76,7 +77,7 @@ sessions.get("/active", (c) => {
       sessions: activeSummary,
     });
   } catch (e) {
-    console.error("Failed to fetch active sessions:", e);
+    logger.error("Failed to fetch active sessions", e);
     return c.json({ error: "Internal Server Error" }, 500);
   }
 });
@@ -103,7 +104,7 @@ sessions.get("/recent", async (c) => {
 
     return c.json(recentSessions);
   } catch (e) {
-    console.error("Failed to fetch recent sessions:", e);
+    logger.error("Failed to fetch recent sessions", e);
     return c.json([], 500);
   }
 });
@@ -130,11 +131,11 @@ sessions.get("/:sessionId/history", async (c) => {
       .from(schema.playedTracks)
       .where(eq(schema.playedTracks.sessionId, sessionId))
       .orderBy(desc(schema.playedTracks.playedAt))
-      .limit(5);
+      .limit(LIMITS.MAX_HISTORY_ITEMS);
 
     return c.json(tracks);
   } catch (e) {
-    console.error("Failed to fetch history:", e);
+    logger.error("Failed to fetch history", e);
     return c.json([], 500);
   }
 });
@@ -180,10 +181,10 @@ sessions.get("/:sessionId/recap", async (c) => {
       .from(schema.playedTracks)
       .where(eq(schema.playedTracks.sessionId, sessionId))
       .orderBy(schema.playedTracks.playedAt)
-      .limit(500); // 🛡️ S1.1.4: Limit cap for safety
+      .limit(LIMITS.MAX_RECAP_ITEMS); // L7: Standardized cap
 
     if (!dbSession) {
-      console.log(`📭 Recap not found for session: ${sessionId} (session not in DB)`);
+      logger.info("Recap not found", { sessionId });
       return c.json({ error: "Session not found" }, 404);
     }
 
@@ -255,7 +256,7 @@ sessions.get("/:sessionId/recap", async (c) => {
     }
 
     // Get polls for this session (only if authenticated)
-    let pollsWithResults: any[] = [];
+    let pollsWithResults: unknown[] = [];
     if (isAuthenticated) {
       const pollsData = await db
         .select({
@@ -338,7 +339,7 @@ sessions.get("/:sessionId/recap", async (c) => {
     }
 
     // Response object
-    const response: any = {
+    const response: Record<string, unknown> = {
       sessionId,
       djName: dbSession?.djName || "DJ",
       startedAt: startTime?.toISOString(),
@@ -374,14 +375,17 @@ sessions.get("/:sessionId/recap", async (c) => {
 
     // Only include polls if authenticated
     if (isAuthenticated) {
-      response.polls = pollsWithResults;
-      response.totalPolls = pollsWithResults.length;
-      response.totalPollVotes = pollsWithResults.reduce((sum, p) => sum + p.totalVotes, 0);
+      response["polls"] = pollsWithResults;
+      response["totalPolls"] = pollsWithResults.length;
+      response["totalPollVotes"] = (pollsWithResults as { totalVotes: number }[]).reduce(
+        (sum, p) => sum + p.totalVotes,
+        0,
+      );
     }
 
     return c.json(response);
   } catch (e) {
-    console.error("Failed to fetch recap:", e);
+    logger.error("Failed to fetch recap", e, { sessionId });
     return c.json({ error: "Failed to fetch recap" }, 500);
   }
 });
@@ -416,7 +420,7 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
     return c.json({ error: "Invalid request: tracks array required" }, 400);
   }
 
-  console.log(`🔄 Syncing fingerprints for session ${sessionId}: ${body.tracks.length} tracks`);
+  logger.info("🔄 Syncing fingerprints for session", { sessionId, count: body.tracks.length });
 
   try {
     let updated = 0;
@@ -459,7 +463,11 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
       }
     }
 
-    console.log(`✅ Synced ${updated}/${body.tracks.length} tracks for session ${sessionId}`);
+    logger.info("✅ Synced tracks for session", {
+      sessionId,
+      synced: updated,
+      total: body.tracks.length,
+    });
 
     return c.json({
       synced: updated,
@@ -467,7 +475,7 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
       sessionId,
     });
   } catch (e) {
-    console.error("Failed to sync fingerprints:", e);
+    logger.error("Failed to sync fingerprints", e, { sessionId });
     return c.json({ error: "Failed to sync fingerprints" }, 500);
   }
 });

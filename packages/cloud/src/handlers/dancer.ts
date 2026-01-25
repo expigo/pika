@@ -13,6 +13,7 @@
 
 import {
   SendLikeSchema,
+  SendBulkLikeSchema,
   SendReactionSchema,
   SendTempoRequestSchema,
   LIMITS,
@@ -131,6 +132,53 @@ export async function handleSendLike(ctx: WSContext) {
         payload: { track },
       }),
     );
+  }
+
+  if (messageId) sendAck(ws, messageId);
+}
+
+/**
+ * SEND_BULK_LIKE: Dancer flushes multiple likes (after reconnect)
+ */
+export async function handleSendBulkLike(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const msg = parseMessage(SendBulkLikeSchema, message, ws, messageId);
+  if (!msg) return;
+
+  const tracks = msg.payload.tracks;
+  const likeSessionId = msg.sessionId || getSessionIds()[0];
+
+  if (!likeSessionId || !state.clientId) {
+    if (messageId) sendNack(ws, messageId, "Session or Client ID missing");
+    return;
+  }
+
+  logger.info(`📦 Bulk likes received (${tracks.length})`, {
+    clientId: state.clientId,
+    sessionId: likeSessionId,
+  });
+
+  // Small batch limit to prevent abuse (e.g., 100 tracks per batch)
+  const MAX_BATCH = 100;
+  const processingTracks = tracks.slice(0, MAX_BATCH);
+
+  for (const track of processingTracks) {
+    // Skip duplicates in batch
+    if (hasLikedTrack(likeSessionId, state.clientId, track)) continue;
+
+    recordLike(likeSessionId, state.clientId, track);
+    persistLike(track, likeSessionId, state.clientId).catch(() => {});
+
+    // Broadcast individually to DJ/Subscribers so regular animations/events fire
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "LIKE_RECEIVED",
+          payload: { track },
+        }),
+      );
+    }
   }
 
   if (messageId) sendAck(ws, messageId);

@@ -3,7 +3,7 @@
  * Handles display, auto-dismiss timer, and manual dismissal
  */
 
-import { MESSAGE_TYPES } from "@pika/shared";
+import { MESSAGE_TYPES, logger } from "@pika/shared";
 import { useCallback, useEffect, useState, useMemo } from "react";
 import type { Announcement, MessageHandlers, WebSocketMessage } from "./types";
 
@@ -60,13 +60,14 @@ export function useAnnouncement({ sessionId }: UseAnnouncementProps): UseAnnounc
 
         // Only accept announcements for our session
         if (msg.sessionId !== sessionId) {
-          console.log(
-            `[Announcement] Ignoring for different session: ${msg.sessionId} (ours: ${sessionId})`,
-          );
+          logger.debug("[Announcement] Ignoring for different session", {
+            msgSessionId: msg.sessionId,
+            ourSessionId: sessionId,
+          });
           return;
         }
 
-        console.log("[Announcement] Received:", msg.message);
+        logger.info("[Announcement] Received", { message: msg.message });
 
         // Vibrate if supported
         try {
@@ -91,7 +92,7 @@ export function useAnnouncement({ sessionId }: UseAnnouncementProps): UseAnnounc
           return;
         }
 
-        console.log("[Announcement] Cancelled");
+        logger.debug("[Announcement] Cancelled");
         setAnnouncement(null);
       },
     }),

@@ -2,7 +2,7 @@
  * Message routing factory for WebSocket message dispatch
  */
 
-import { parseWebSocketMessage } from "@pika/shared";
+import { parseWebSocketMessage, logger } from "@pika/shared";
 import type { MessageHandler, MessageHandlers } from "./types";
 
 /**
@@ -15,11 +15,11 @@ export function createMessageRouter(handlers: MessageHandlers) {
   return (event: MessageEvent) => {
     const message = parseWebSocketMessage(event.data);
     if (!message) {
-      console.error("[Router] Failed to parse message:", event.data);
+      logger.error("[Router] Failed to parse message", { data: event.data });
       return;
     }
 
-    console.log("[Router] Received:", message.type);
+    logger.debug("[Router] Received", { type: message.type });
 
     const handler = handlers[message.type] as MessageHandler | undefined;
     if (handler) {

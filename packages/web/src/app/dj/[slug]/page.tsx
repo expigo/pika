@@ -6,6 +6,7 @@ import { use, useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface DjSession {
   id: string;
@@ -83,7 +84,7 @@ export default function DjProfilePage({ params }: DjPageProps) {
         const data = await response.json();
         setProfile(data);
       } catch (e) {
-        console.error("Failed to fetch profile:", e);
+        logger.error("Failed to fetch profile", e);
         setError("Failed to connect to server");
       } finally {
         setLoading(false);

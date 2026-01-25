@@ -9,7 +9,13 @@
  */
 "use client";
 
-import { MESSAGE_TYPES, getTrackKey, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
+import {
+  MESSAGE_TYPES,
+  getTrackKey,
+  parseWebSocketMessage,
+  logger,
+  type TrackInfo,
+} from "@pika/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getOrCreateClientId } from "@/lib/client";
 import {
@@ -58,7 +64,7 @@ export function useLiveListener(targetSessionId?: string) {
     if (status === "connected") {
       // flushPendingLikes is now async but we fire-and-forget
       flushPendingLikes().catch((e) => {
-        console.error("[Live] Error flushing pending likes:", e);
+        logger.error("[Live] Error flushing pending likes", e);
       });
     }
   }, [status, flushPendingLikes]);
@@ -108,7 +114,7 @@ export function useLiveListener(targetSessionId?: string) {
             reaction,
           }),
         );
-        console.log("[Live] Sent reaction:", reaction);
+        logger.debug("[Live] Sent reaction", { reaction });
         return true;
       }
       return false;
@@ -143,11 +149,11 @@ export function useLiveListener(targetSessionId?: string) {
     const handleMessage = (event: MessageEvent) => {
       const message = parseWebSocketMessage(event.data);
       if (!message) {
-        console.error("[Live] Failed to parse message:", event.data);
+        logger.error("[Live] Failed to parse message", { data: event.data });
         return;
       }
 
-      console.log("[Live] Received:", message.type);
+      logger.debug("[Live] Received", { type: message.type });
 
       // Check for PONG (heartbeat) - no processing needed in this hook
       if ((message as { type: string }).type === "PONG") {
@@ -212,7 +218,7 @@ export function useLiveListener(targetSessionId?: string) {
           const msg = message as { sessionId: string; djName: string };
           if (targetSessionId && msg.sessionId !== targetSessionId) return;
 
-          console.log("[Live] Session started:", msg.sessionId);
+          logger.info("[Live] Session started", { sessionId: msg.sessionId });
           setSessionId(msg.sessionId);
           setDjName(msg.djName);
           setCurrentTrack(null);

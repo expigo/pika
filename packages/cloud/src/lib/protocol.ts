@@ -5,6 +5,7 @@
  */
 
 import { db, schema } from "../db";
+import { logger } from "@pika/shared";
 
 // ============================================================================
 // Types
@@ -38,7 +39,7 @@ export function sendAck(ws: { send: (data: string) => void }, messageId: string)
       }),
     );
   } catch {
-    console.warn("⚠️ Protocol: Failed to send ACK (client likely disconnected)");
+    logger.debug("⚠️ Protocol: Failed to send ACK (client likely disconnected)");
   }
 }
 
@@ -62,7 +63,7 @@ export function sendNack(
       }),
     );
   } catch {
-    console.warn("⚠️ Protocol: Failed to send NACK");
+    logger.debug("⚠️ Protocol: Failed to send NACK");
   }
 }
 
@@ -85,10 +86,10 @@ export async function logSessionEvent(
       eventType,
       metadata: metadata || null,
     });
-    console.log(`📊 Telemetry: ${eventType} for session ${sessionId.substring(0, 8)}...`);
+    logger.debug(`📊 Telemetry: ${eventType} logged`, { sessionId });
   } catch (e) {
     // Don't let telemetry errors affect main flow
-    console.error("⚠️ Telemetry log failed (non-blocking):", e);
+    logger.error("⚠️ Telemetry log failed (non-blocking)", e);
   }
 }
 
@@ -120,7 +121,10 @@ export function parseMessage<T extends z.ZodType>(
   const result = schema.safeParse(message);
   if (!result.success) {
     const issue = result.error.issues[0];
-    console.warn(`⚠️ Invalid message: ${issue?.path?.join(".")} - ${issue?.message}`);
+    logger.warn("⚠️ Invalid message received", {
+      path: issue?.path?.join("."),
+      message: issue?.message,
+    });
     if (messageId)
       sendNack(ws, messageId, `Invalid message: ${issue?.message || "validation failed"}`);
     return null;

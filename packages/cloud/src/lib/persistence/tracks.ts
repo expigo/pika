@@ -14,6 +14,7 @@ import type { TrackInfo } from "@pika/shared";
 import { db, schema } from "../../db";
 import { waitForSession, persistedSessions } from "./sessions";
 import { enqueuePersistence } from "./queue";
+import { logger } from "@pika/shared";
 
 // ============================================================================
 // State
@@ -39,12 +40,12 @@ export async function persistTrack(sessionId: string, track: TrackInfo): Promise
     // Wait for session to be persisted (event-based, with timeout)
     const sessionReady = await waitForSession(sessionId);
     if (!sessionReady) {
-      console.warn(`⚠️ Session ${sessionId} not ready in time, skipping track persistence`);
+      logger.warn("⚠️ Session not ready in time, skipping track persistence", { sessionId });
       return;
     }
 
     if (!persistedSessions.has(sessionId)) {
-      console.warn(`⚠️ Session ${sessionId} not found in DB, skipping track persistence`);
+      logger.warn("⚠️ Session not found in DB, skipping track persistence", { sessionId });
       return;
     }
 
@@ -55,7 +56,7 @@ export async function persistTrack(sessionId: string, track: TrackInfo): Promise
 
     try {
       if (process.env.NODE_ENV === "test") {
-        console.log(`🧪 TEST MODE: Mocking track persistence for ${track.title}`);
+        logger.debug("🧪 TEST MODE: Mocking track persistence", { title: track.title });
         return;
       }
 
@@ -79,13 +80,15 @@ export async function persistTrack(sessionId: string, track: TrackInfo): Promise
 
       if (inserted) {
         lastPersistedTrackKey.set(sessionId, trackKey);
-        const bpmInfo = track.bpm ? ` (${track.bpm} BPM)` : "";
-        console.log(
-          `💾 Track persisted: ${track.artist} - ${track.title} (ID: ${inserted.id})${bpmInfo}`,
-        );
+        logger.info("💾 Track persisted", {
+          artist: track.artist,
+          title: track.title,
+          id: inserted.id,
+          bpm: track.bpm,
+        });
       }
     } catch (e) {
-      console.error("❌ Failed to persist track:", e);
+      logger.error("❌ Failed to persist track", e);
     }
   });
 }
@@ -125,16 +128,16 @@ export async function persistLike(
           clientId: clientId ?? null,
           playedTrackId: playedTrack.id,
         });
-        console.log(`💾 Like persisted: ${track.title} (client: ${clientId?.substring(0, 8)})`);
+        logger.info("💾 Like persisted", {
+          title: track.title,
+          clientId: clientId?.substring(0, 8),
+        });
       } else {
-        // Fallback: This shouldn't happen often thanks to the queue,
-        // but could happen if persistTrack failed or track doesn't match exactly.
-        console.warn(
-          `⚠️ Like orphan (track not found): "${track.title}" - persistence queue failed to sync order?`,
-        );
+        // Summerizes persistence queue failure
+        logger.warn("⚠️ Like orphan (track not found)", { title: track.title, sessionId });
       }
     } catch (e) {
-      console.error("❌ Failed to persist like:", e);
+      logger.error("❌ Failed to persist like", e);
     }
   });
 }
@@ -163,11 +166,12 @@ export async function persistTempoVotes(
         perfectCount: votes.perfect,
         fasterCount: votes.faster,
       });
-      console.log(
-        `🎚️ Tempo votes persisted: ${track.title} (🐢${votes.slower} ✅${votes.perfect} 🐇${votes.faster})`,
-      );
+      logger.info("🎚️ Tempo votes persisted", {
+        title: track.title,
+        ...votes,
+      });
     } catch (e) {
-      console.error("❌ Failed to persist tempo votes:", e);
+      logger.error("❌ Failed to persist tempo votes", e);
     }
   });
 }

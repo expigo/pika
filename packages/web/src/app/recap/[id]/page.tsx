@@ -19,6 +19,7 @@ import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface RecapTrack {
   position: number;
@@ -96,7 +97,7 @@ export default function RecapPage() {
         const data = await response.json();
         setRecap(data);
       } catch (e) {
-        console.error("Failed to fetch recap:", e);
+        logger.error("Failed to fetch recap", e);
         setError("Failed to connect to server");
       } finally {
         setLoading(false);

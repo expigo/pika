@@ -9,6 +9,7 @@
  * Serializes persistence operations (tracks, likes) per session to prevent race conditions.
  * Ensures strict ordering: Track persistence -> Like persistence.
  */
+import { logger } from "@pika/shared";
 
 export type PersistenceTask = () => Promise<void>;
 
@@ -41,7 +42,7 @@ class SessionQueue {
           await task.execute();
           task.resolve();
         } catch (e) {
-          console.error("❌ Persistence task failed:", e);
+          logger.error("❌ Persistence task failed", e);
           task.reject(e);
         }
       }

@@ -11,6 +11,7 @@ import { Hono } from "hono";
 import { count, desc, eq } from "drizzle-orm";
 import { db, schema } from "../db";
 import { withCache } from "../lib/cache";
+import { logger } from "@pika/shared";
 
 const stats = new Hono();
 
@@ -37,7 +38,7 @@ stats.get("/top-tracks", async (c) => {
 
     return c.json(topTracks);
   } catch (e) {
-    console.error("Failed to fetch top tracks:", e);
+    logger.error("Failed to fetch top tracks", e);
     return c.json([], 500);
   }
 });
@@ -65,7 +66,7 @@ stats.get("/global", async (c) => {
 
     return c.json(globalStats);
   } catch (e) {
-    console.error("Failed to fetch global stats:", e);
+    logger.error("Failed to fetch global stats", e);
     return c.json({ totalSessions: 0, totalTracks: 0, totalLikes: 0 }, 500);
   }
 });

@@ -12,6 +12,7 @@
 
 import { eq } from "drizzle-orm";
 import { db, schema } from "../../db";
+import { logger } from "@pika/shared";
 
 // ============================================================================
 // State (shared with handlers during migration)
@@ -73,9 +74,10 @@ export async function waitForSession(sessionId: string, timeoutMs = 4000): Promi
 function signalSessionReady(sessionId: string, success: boolean): void {
   const waiters = sessionWaiters.get(sessionId);
   if (waiters && waiters.length > 0) {
-    console.log(
-      `📢 Signaling session ${success ? "ready" : "failed"} to ${waiters.length} waiters: ${sessionId.substring(0, 8)}...`,
-    );
+    logger.debug(`📢 Signaling session ${success ? "ready" : "failed"} to waiters`, {
+      sessionId,
+      waiterCount: waiters.length,
+    });
 
     // S0.3.1 Fix: Defensive copy to allow mutation during iteration
     const waitersCopy = [...waiters];
@@ -111,7 +113,7 @@ export async function ensureSessionPersisted(sessionId: string): Promise<boolean
       return true;
     }
   } catch (e) {
-    console.error("Failed to check session existence:", e);
+    logger.error("Failed to check session existence", e);
   }
   return false;
 }
@@ -140,14 +142,14 @@ export async function persistSession(
       })
       .onConflictDoNothing();
     persistedSessions.add(sessionId);
-    console.log(`💾 Session persisted: ${sessionId}${djUserId ? ` (DJ ID: ${djUserId})` : ""}`);
+    logger.info("💾 Session persisted", { sessionId, djUserId });
 
     // Signal all waiters that session is ready
     signalSessionReady(sessionId, true);
 
     return true;
   } catch (e) {
-    console.error("❌ Failed to persist session:", e);
+    logger.error("❌ Failed to persist session", e);
     // 🛡️ R5 Fix: Signal failure to waiters so they don't hang until timeout
     signalSessionReady(sessionId, false);
     return false;
@@ -164,8 +166,8 @@ export async function endSessionInDb(sessionId: string): Promise<void> {
       .set({ endedAt: new Date() })
       .where(eq(schema.sessions.id, sessionId));
     persistedSessions.delete(sessionId);
-    console.log(`💾 Session ended in DB: ${sessionId}`);
+    logger.info("💾 Session ended in DB", { sessionId });
   } catch (e) {
-    console.error("❌ Failed to end session in DB:", e);
+    logger.error("❌ Failed to end session in DB", e);
   }
 }

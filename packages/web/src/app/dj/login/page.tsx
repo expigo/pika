@@ -6,6 +6,7 @@ import { useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface LoginResponse {
   success: boolean;
@@ -53,7 +54,7 @@ export default function LoginPage() {
 
       setSuccess(data);
     } catch (e) {
-      console.error("Login error:", e);
+      logger.error("Login error", e);
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
@@ -67,11 +68,11 @@ export default function LoginPage() {
         setTokenCopied(true);
         setTimeout(() => setTokenCopied(false), 2000);
       } catch (err) {
-        console.error("Failed to copy token:", err);
+        logger.error("Failed to copy token", err);
       }
     } else if (success?.token) {
       // Fallback for insecure contexts
-      console.warn("Clipboard API unavailable (likely insecure context)");
+      logger.warn("Clipboard API unavailable (likely insecure context)");
       alert(
         "Please copy the token manually from the screen. Automated copy is disabled on insecure connections.",
       );

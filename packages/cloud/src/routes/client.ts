@@ -9,6 +9,7 @@
 import { Hono } from "hono";
 import { desc, eq, inArray } from "drizzle-orm";
 import { db, schema } from "../db";
+import { logger } from "@pika/shared";
 
 const client = new Hono();
 
@@ -29,7 +30,7 @@ client.get("/:clientId/likes", async (c) => {
   }
 
   try {
-    console.log(`🔍 Fetching likes for client: ${clientId}`);
+    logger.debug("🔍 Fetching likes for client", { clientId });
     // Get all likes for this client, ordered by most recent first
     const likes = await db
       .select({
@@ -49,10 +50,14 @@ client.get("/:clientId/likes", async (c) => {
     const sessionIds = [...new Set(likes.map((l) => l.sessionId).filter(Boolean))];
     const sessionsMap = new Map<string, { djName: string; startedAt: Date | null }>();
 
-    console.log(`📊 Found ${likes.length} likes, unique sessions: ${sessionIds.length}`);
+    logger.debug("📊 Client likes summary", {
+      clientId,
+      likeCount: likes.length,
+      sessionCount: sessionIds.length,
+    });
 
     if (sessionIds.length > 0) {
-      console.log(`📦 Batch fetching sessions: ${sessionIds.join(", ")}`);
+      logger.debug("📦 Batch fetching sessions", { count: sessionIds.length });
       const sessions = await db
         .select({
           id: schema.sessions.id,
@@ -65,7 +70,7 @@ client.get("/:clientId/likes", async (c) => {
       for (const session of sessions) {
         sessionsMap.set(session.id, session);
       }
-      console.log(`✅ Fetched ${sessions.length} session metadata records`);
+      logger.debug("✅ Fetched session metadata", { count: sessions.length });
     }
 
     // Enrich likes with session info
@@ -93,7 +98,7 @@ client.get("/:clientId/likes", async (c) => {
       likes: enrichedLikes,
     });
   } catch (error) {
-    console.error("Failed to fetch client likes:", error);
+    logger.error("Failed to fetch client likes", error);
     return c.json({ error: "Failed to fetch likes" }, 500);
   }
 });

@@ -12,6 +12,7 @@
  * FUTURE:
  * Interface allows swapping Map for Redis without handler changes.
  */
+import { logger } from "@pika/shared";
 
 import type { TrackInfo } from "@pika/shared";
 
@@ -49,9 +50,11 @@ const activeSessions = new Map<string, LiveSession>();
  */
 export function getSession(sessionId: string): LiveSession | undefined {
   const session = activeSessions.get(sessionId);
-  console.log(
-    `🔍 [SESSIONS] getSession(${sessionId}): ${session ? "FOUND" : "NOT FOUND"} (total: ${activeSessions.size})`,
-  );
+  logger.debug("🔍 [SESSIONS] getSession", {
+    sessionId,
+    found: !!session,
+    total: activeSessions.size,
+  });
   return session;
 }
 
@@ -65,9 +68,12 @@ export function setSession(sessionId: string, session: LiveSession): void {
     session.lastActivityAt = new Date().toISOString();
   }
   activeSessions.set(sessionId, session);
-  console.log(
-    `🔍 [SESSIONS] setSession(${sessionId}): ${wasNew ? "NEW" : "UPDATE"} - DJ: ${session.djName} (total: ${activeSessions.size})`,
-  );
+  logger.debug("🔍 [SESSIONS] setSession", {
+    sessionId,
+    wasNew,
+    djName: session.djName,
+    total: activeSessions.size,
+  });
 }
 
 /**
@@ -86,9 +92,11 @@ export function refreshSessionActivity(sessionId: string): void {
 export function deleteSession(sessionId: string): boolean {
   const existed = activeSessions.has(sessionId);
   const result = activeSessions.delete(sessionId);
-  console.log(
-    `🔍 [SESSIONS] deleteSession(${sessionId}): ${existed ? "DELETED" : "NOT FOUND"} (total: ${activeSessions.size})`,
-  );
+  logger.debug("🔍 [SESSIONS] deleteSession", {
+    sessionId,
+    existed,
+    total: activeSessions.size,
+  });
   return result;
 }
 
@@ -185,18 +193,22 @@ export function cleanupStaleSessions(
     const shouldCleanup = (idleTime > idleTimeoutMs && age > ageThresholdMs) || age > hardLimitMs;
 
     if (shouldCleanup) {
-      console.warn(
-        `🧹 [SESSIONS] Removing stale session: ${sessionId} (DJ: ${session.djName}, age: ${Math.round(age / 1000 / 60)}m, idle: ${Math.round(idleTime / 1000 / 60)}m)`,
-      );
+      logger.info("🧹 Removing stale session", {
+        sessionId,
+        djName: session.djName,
+        ageMinutes: Math.round(age / 1000 / 60),
+        idleMinutes: Math.round(idleTime / 1000 / 60),
+      });
       activeSessions.delete(sessionId);
       removed.push(sessionId);
     }
   }
 
   if (removed.length > 0) {
-    console.log(
-      `🧹 [SESSIONS] Cleaned up ${removed.length} stale session(s). Remaining: ${activeSessions.size}`,
-    );
+    logger.info("🧹 Stale sessions cleanup complete", {
+      count: removed.length,
+      remaining: activeSessions.size,
+    });
   }
 
   return removed;
