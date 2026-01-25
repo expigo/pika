@@ -107,6 +107,11 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **PII Privacy:** All telemetry is scrubbed of headers, cookies, and IP addresses before transmission.
     *   **Root Layout Recovery:** Next.js `global-error.tsx` catches and reports crashes in the root application shell.
     *   **Selective Sampling:** 10% traces sample rate to balance cloud costs with visibility.
+*   **Performance Hardening (v0.3.2):**
+    *   **Zero-Wakeup Battery:** Visibility-aware polling pauses network activity on hidden tabs.
+    *   **Yielding I/O:** Deferred `localStorage` access via yielding to the event loop.
+    *   **Intelligent Caching:** `SWR` integration for O(1) track history retrieval.
+    *   **Memoized Routing:** Stable WebSocket handler trees to prevent unnecessary React churn.
 
 ---
 

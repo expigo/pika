@@ -4,7 +4,7 @@
  */
 
 import { MESSAGE_TYPES } from "@pika/shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import type { Announcement, MessageHandlers, WebSocketMessage } from "./types";
 
 interface UseAnnouncementProps {
@@ -46,54 +46,57 @@ export function useAnnouncement({ sessionId }: UseAnnouncementProps): UseAnnounc
     return () => clearTimeout(timeout);
   }, [announcement?.endsAt]);
 
-  // Message handlers for announcement-related messages
-  const announcementHandlers: MessageHandlers = {
-    [MESSAGE_TYPES.ANNOUNCEMENT_RECEIVED]: (message: WebSocketMessage) => {
-      const msg = message as unknown as {
-        sessionId: string;
-        message: string;
-        djName?: string;
-        timestamp?: string;
-        endsAt?: string;
-      };
+  // Message handlers for announcement-related messages (memoized to prevent parent re-renders - H4)
+  const announcementHandlers: MessageHandlers = useMemo(
+    () => ({
+      [MESSAGE_TYPES.ANNOUNCEMENT_RECEIVED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          sessionId: string;
+          message: string;
+          djName?: string;
+          timestamp?: string;
+          endsAt?: string;
+        };
 
-      // Only accept announcements for our session
-      if (msg.sessionId !== sessionId) {
-        console.log(
-          `[Announcement] Ignoring for different session: ${msg.sessionId} (ours: ${sessionId})`,
-        );
-        return;
-      }
+        // Only accept announcements for our session
+        if (msg.sessionId !== sessionId) {
+          console.log(
+            `[Announcement] Ignoring for different session: ${msg.sessionId} (ours: ${sessionId})`,
+          );
+          return;
+        }
 
-      console.log("[Announcement] Received:", msg.message);
+        console.log("[Announcement] Received:", msg.message);
 
-      // Vibrate if supported
-      try {
-        navigator.vibrate?.(200);
-      } catch {
-        // Silently ignore - vibration blocked before user gesture
-      }
+        // Vibrate if supported
+        try {
+          navigator.vibrate?.(200);
+        } catch {
+          // Silently ignore - vibration blocked before user gesture
+        }
 
-      setAnnouncement({
-        message: msg.message,
-        djName: msg.djName,
-        timestamp: msg.timestamp,
-        endsAt: msg.endsAt,
-      });
-    },
+        setAnnouncement({
+          message: msg.message,
+          djName: msg.djName,
+          timestamp: msg.timestamp,
+          endsAt: msg.endsAt,
+        });
+      },
 
-    [MESSAGE_TYPES.ANNOUNCEMENT_CANCELLED]: (message: WebSocketMessage) => {
-      const msg = message as unknown as { sessionId: string };
+      [MESSAGE_TYPES.ANNOUNCEMENT_CANCELLED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as { sessionId: string };
 
-      // Only accept cancellations for our session
-      if (msg.sessionId !== sessionId) {
-        return;
-      }
+        // Only accept cancellations for our session
+        if (msg.sessionId !== sessionId) {
+          return;
+        }
 
-      console.log("[Announcement] Cancelled");
-      setAnnouncement(null);
-    },
-  };
+        console.log("[Announcement] Cancelled");
+        setAnnouncement(null);
+      },
+    }),
+    [sessionId],
+  );
 
   return {
     announcement,

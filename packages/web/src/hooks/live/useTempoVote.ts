@@ -1,5 +1,5 @@
 import { MESSAGE_TYPES } from "@pika/shared";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
 import type { MessageHandlers, TempoPreference, WebSocketMessage } from "./types";
@@ -24,20 +24,25 @@ export function useTempoVote({
 }: UseTempoVoteProps): UseTempoVoteReturn {
   const [tempoVote, setTempoVote] = useState<TempoPreference | null>(null);
 
-  // Restore from localStorage on mount or track change
+  // Restore from localStorage on mount or track change (H2: Deferred)
   useEffect(() => {
     if (!sessionId || !trackKey) {
       setTempoVote(null);
       return;
     }
 
-    const storageKey = `pika_tempo_${sessionId}_${trackKey}`;
-    const saved = localStorage.getItem(storageKey);
-    if (saved) {
-      setTempoVote(saved as TempoPreference);
-    } else {
-      setTempoVote(null);
-    }
+    // Defer the localStorage hit to prevent blocking the initial paint of track changes
+    const timeoutId = setTimeout(() => {
+      const storageKey = `pika_tempo_${sessionId}_${trackKey}`;
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        setTempoVote(saved as TempoPreference);
+      } else {
+        setTempoVote(null);
+      }
+    }, 0);
+
+    return () => clearTimeout(timeoutId);
   }, [sessionId, trackKey]);
 
   // Reset tempo vote (called on session end)
@@ -88,22 +93,25 @@ export function useTempoVote({
     [sessionId, socketRef, tempoVote, trackKey],
   );
 
-  // Message handlers
-  const tempoHandlers: MessageHandlers = {
-    [MESSAGE_TYPES.TEMPO_RESET]: (message: WebSocketMessage) => {
-      const msg = message as unknown as { sessionId: string };
+  // Message handlers (memoized to prevent parent re-renders - H4)
+  const tempoHandlers: MessageHandlers = useMemo(
+    () => ({
+      [MESSAGE_TYPES.TEMPO_RESET]: (message: WebSocketMessage) => {
+        const msg = message as unknown as { sessionId: string };
 
-      // Only reset if this is for our session
-      if (msg.sessionId !== sessionId) {
-        return;
-      }
+        // Only reset if this is for our session
+        if (msg.sessionId !== sessionId) {
+          return;
+        }
 
-      console.log("[Tempo] Reset received");
-      setTempoVote(null);
-      // Note: We don't clear localStorage here because TEMPO_RESET usually
-      // happens AFTER a track change, and our useEffect already handles track changes.
-    },
-  };
+        console.log("[Tempo] Reset received");
+        setTempoVote(null);
+        // Note: We don't clear localStorage here because TEMPO_RESET usually
+        // happens AFTER a track change, and our useEffect already handles track changes.
+      },
+    }),
+    [sessionId],
+  );
 
   return {
     tempoVote,

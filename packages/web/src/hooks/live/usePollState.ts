@@ -4,7 +4,7 @@
  */
 
 import { MESSAGE_TYPES } from "@pika/shared";
-import { useCallback, useState, useRef } from "react";
+import { useCallback, useState, useRef, useMemo } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
 import type { MessageHandlers, PollState, WebSocketMessage } from "./types";
@@ -81,150 +81,153 @@ export function usePollState({ socketRef }: UsePollStateProps): UsePollStateRetu
     [activePoll, socketRef], // removed hasVotedOnPoll dependency
   );
 
-  // Message handlers
-  const pollHandlers: MessageHandlers = {
-    [MESSAGE_TYPES.POLL_STARTED]: (message: WebSocketMessage) => {
-      // Clear any pending dismissal timer when a NEW poll starts
-      if (pollTimerRef.current) {
-        clearTimeout(pollTimerRef.current);
-        pollTimerRef.current = null;
-      }
+  // Message handlers (memoized to prevent parent re-renders - H4)
+  const pollHandlers: MessageHandlers = useMemo(
+    () => ({
+      [MESSAGE_TYPES.POLL_STARTED]: (message: WebSocketMessage) => {
+        // Clear any pending dismissal timer when a NEW poll starts
+        if (pollTimerRef.current) {
+          clearTimeout(pollTimerRef.current);
+          pollTimerRef.current = null;
+        }
 
-      const msg = message as unknown as {
-        pollId: number;
-        question: string;
-        options: string[];
-        endsAt?: string;
-        votes?: number[];
-        totalVotes?: number;
-        hasVoted?: boolean;
-        votedOptionIndex?: number;
-      };
-
-      console.log(
-        "[Poll] Started:",
-        msg.question,
-        msg.totalVotes ? `(${msg.totalVotes} votes)` : "(new)",
-      );
-
-      const isNewPoll = !activePoll || activePoll.id !== msg.pollId;
-      const votes =
-        msg.votes ||
-        (isNewPoll ? new Array(msg.options.length).fill(0) : (activePoll?.votes ?? []));
-      const totalVotes = msg.totalVotes ?? (isNewPoll ? 0 : (activePoll?.totalVotes ?? 0));
-      const hasVoted = msg.hasVoted ?? (isNewPoll ? false : hasVotedOnPoll);
-
-      setActivePoll({
-        id: msg.pollId,
-        question: msg.question,
-        options: msg.options,
-        votes,
-        totalVotes,
-        endsAt: msg.endsAt,
-        userChoice: msg.votedOptionIndex,
-      });
-      setHasVotedOnPoll(hasVoted);
-      hasVotedRef.current = hasVoted; // 🛡️ R7 Fix
-    },
-
-    [MESSAGE_TYPES.POLL_UPDATE]: (message: WebSocketMessage) => {
-      const msg = message as unknown as {
-        pollId: number;
-        votes: number[];
-        totalVotes: number;
-      };
-
-      setActivePoll((prev) => {
-        if (!prev || prev.id !== msg.pollId) return prev;
-        return {
-          ...prev,
-          votes: msg.votes,
-          totalVotes: msg.totalVotes,
+        const msg = message as unknown as {
+          pollId: number;
+          question: string;
+          options: string[];
+          endsAt?: string;
+          votes?: number[];
+          totalVotes?: number;
+          hasVoted?: boolean;
+          votedOptionIndex?: number;
         };
-      });
-    },
 
-    [MESSAGE_TYPES.POLL_ENDED]: () => {
-      console.log("[Poll] Ended - showing results for 10s");
-      // Clear existing timer if any
-      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+        console.log(
+          "[Poll] Started:",
+          msg.question,
+          msg.totalVotes ? `(${msg.totalVotes} votes)` : "(new)",
+        );
 
-      pollTimerRef.current = setTimeout(() => {
-        resetPoll();
-        pollTimerRef.current = null;
-      }, 10000);
+        setActivePoll((current) => {
+          const isNewPoll = !current || current.id !== msg.pollId;
+          const votes =
+            msg.votes ||
+            (isNewPoll ? new Array(msg.options.length).fill(0) : (current?.votes ?? []));
+          const totalVotes = msg.totalVotes ?? (isNewPoll ? 0 : (current?.totalVotes ?? 0));
+          const hasVoted = msg.hasVoted ?? (isNewPoll ? false : hasVotedRef.current);
 
-      // We should ideally track these timers to clear them if a NEW poll starts
-      // For now, resetPoll is enough if called by POLL_STARTED
-    },
+          setHasVotedOnPoll(hasVoted);
+          hasVotedRef.current = hasVoted;
 
-    [MESSAGE_TYPES.CANCEL_POLL]: () => {
-      console.log("[Poll] Cancelled");
-      resetPoll();
-    },
+          return {
+            id: msg.pollId,
+            question: msg.question,
+            options: msg.options,
+            votes,
+            totalVotes,
+            endsAt: msg.endsAt,
+            userChoice: msg.votedOptionIndex,
+          };
+        });
+      },
 
-    [MESSAGE_TYPES.VOTE_REJECTED]: (message: WebSocketMessage) => {
-      const msg = message as unknown as {
-        pollId: number;
-        reason: string;
-        votes?: number[];
-        totalVotes?: number;
-      };
+      [MESSAGE_TYPES.POLL_UPDATE]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          pollId: number;
+          votes: number[];
+          totalVotes: number;
+        };
 
-      console.log("[Poll] Vote rejected:", msg.reason);
-
-      setActivePoll((prev) => {
-        if (!prev || prev.id !== msg.pollId) return prev;
-        if (msg.votes) {
+        setActivePoll((prev) => {
+          if (!prev || prev.id !== msg.pollId) return prev;
           return {
             ...prev,
             votes: msg.votes,
-            totalVotes: msg.totalVotes ?? prev.totalVotes,
+            totalVotes: msg.totalVotes,
           };
-        }
-        return prev;
-      });
+        });
+      },
 
-      // If already voted, mark as such
-      if (msg.reason === "Already voted") {
-        setHasVotedOnPoll(true);
-      }
-    },
+      [MESSAGE_TYPES.POLL_ENDED]: () => {
+        console.log("[Poll] Ended - showing results for 10s");
+        // Clear existing timer if any
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
 
-    [MESSAGE_TYPES.VOTE_CONFIRMED]: (message: WebSocketMessage) => {
-      const msg = message as unknown as {
-        pollId: number;
-        votes: number[];
-        totalVotes: number;
-      };
+        pollTimerRef.current = setTimeout(() => {
+          resetPoll();
+          pollTimerRef.current = null;
+        }, 10000);
+      },
 
-      console.log("[Poll] Vote confirmed");
+      [MESSAGE_TYPES.CANCEL_POLL]: () => {
+        console.log("[Poll] Cancelled");
+        resetPoll();
+      },
 
-      setActivePoll((prev) => {
-        if (!prev || prev.id !== msg.pollId) return prev;
-        return {
-          ...prev,
-          votes: msg.votes,
-          totalVotes: msg.totalVotes,
+      [MESSAGE_TYPES.VOTE_REJECTED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          pollId: number;
+          reason: string;
+          votes?: number[];
+          totalVotes?: number;
         };
-      });
-      setHasVotedOnPoll(true);
-    },
 
-    [MESSAGE_TYPES.POLL_ID_UPDATED]: (message: WebSocketMessage) => {
-      const msg = message as unknown as {
-        oldPollId: number;
-        newPollId: number;
-      };
+        console.log("[Poll] Vote rejected:", msg.reason);
 
-      console.log("[Poll] ID updated:", msg.oldPollId, "->", msg.newPollId);
+        setActivePoll((prev) => {
+          if (!prev || prev.id !== msg.pollId) return prev;
+          if (msg.votes) {
+            return {
+              ...prev,
+              votes: msg.votes,
+              totalVotes: msg.totalVotes ?? prev.totalVotes,
+            };
+          }
+          return prev;
+        });
 
-      setActivePoll((prev) => {
-        if (!prev || prev.id !== msg.oldPollId) return prev;
-        return { ...prev, id: msg.newPollId };
-      });
-    },
-  };
+        // If already voted, mark as such
+        if (msg.reason === "Already voted") {
+          setHasVotedOnPoll(true);
+        }
+      },
+
+      [MESSAGE_TYPES.VOTE_CONFIRMED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          pollId: number;
+          votes: number[];
+          totalVotes: number;
+        };
+
+        console.log("[Poll] Vote confirmed");
+
+        setActivePoll((prev) => {
+          if (!prev || prev.id !== msg.pollId) return prev;
+          return {
+            ...prev,
+            votes: msg.votes,
+            totalVotes: msg.totalVotes,
+          };
+        });
+        setHasVotedOnPoll(true);
+      },
+
+      [MESSAGE_TYPES.POLL_ID_UPDATED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          oldPollId: number;
+          newPollId: number;
+        };
+
+        console.log("[Poll] ID updated:", msg.oldPollId, "->", msg.newPollId);
+
+        setActivePoll((prev) => {
+          if (!prev || prev.id !== msg.oldPollId) return prev;
+          return { ...prev, id: msg.newPollId };
+        });
+      },
+    }),
+    [resetPoll],
+  );
 
   return {
     activePoll,

@@ -98,9 +98,22 @@ export default function LivePage() {
   }, []);
 
   useEffect(() => {
+    const handlePoll = () => {
+      if (document.visibilityState === "visible") {
+        fetchAllData();
+      }
+    };
+
     fetchAllData();
-    const interval = setInterval(fetchAllData, 15000); // 15s polling
-    return () => clearInterval(interval);
+    const interval = setInterval(handlePoll, 15000); // 15s polling with visibility check
+
+    // Resume immediately when tab becomes visible
+    document.addEventListener("visibilitychange", handlePoll);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handlePoll);
+    };
   }, [fetchAllData]);
 
   if (selectedSessionId) {

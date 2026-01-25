@@ -119,21 +119,25 @@ export function useLiveListener(targetSessionId?: string) {
   // Explicitly track if the session was ended by the DJ
   const [sessionEnded, setSessionEnded] = useState(false);
 
+  // Combine all feature handlers (memoized to prevent redundant object creation - H4)
+  const featureHandlers = useMemo(
+    () =>
+      combineHandlers(
+        pollHandlers,
+        tempoHandlers,
+        announcementHandlers,
+        trackHandlers,
+        socialSignalHandlers,
+      ),
+    [pollHandlers, tempoHandlers, announcementHandlers, trackHandlers, socialSignalHandlers],
+  );
+
   // Session and message routing
   useEffect(() => {
     const socket = socketRef.current;
     if (!socket) return;
 
     const clientId = getOrCreateClientId();
-
-    // Combine all feature handlers
-    const featureHandlers = combineHandlers(
-      pollHandlers,
-      tempoHandlers,
-      announcementHandlers,
-      trackHandlers,
-      socialSignalHandlers,
-    );
 
     // Main message handler
     const handleMessage = (event: MessageEvent) => {
@@ -263,11 +267,7 @@ export function useLiveListener(targetSessionId?: string) {
     socketRef,
     targetSessionId,
     sessionId,
-    pollHandlers,
-    tempoHandlers,
-    announcementHandlers,
-    trackHandlers,
-    socialSignalHandlers,
+    featureHandlers,
     setSessionId,
     setDjName,
     setCurrentTrack,

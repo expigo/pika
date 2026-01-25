@@ -5,7 +5,7 @@
  */
 
 import { MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useMemo } from "react";
 import type { MessageHandlers, WebSocketMessage } from "./types";
 
 interface UseSocialSignalsProps {
@@ -35,35 +35,38 @@ export function useSocialSignals({ sessionId }: UseSocialSignalsProps): UseSocia
     };
   }, []);
 
-  // WebSocket message handlers
-  const socialSignalHandlers: MessageHandlers = {
-    [MESSAGE_TYPES.LIKE_RECEIVED]: (message: WebSocketMessage) => {
-      const msg = message as unknown as {
-        sessionId?: string; // Optional in some legacy paths, but usually present
-        payload: {
-          track: TrackInfo;
-          count?: number; // Server might send aggregated count
+  // WebSocket message handlers (memoized to prevent parent re-renders - H4)
+  const socialSignalHandlers: MessageHandlers = useMemo(
+    () => ({
+      [MESSAGE_TYPES.LIKE_RECEIVED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          sessionId?: string; // Optional in some legacy paths, but usually present
+          payload: {
+            track: TrackInfo;
+            count?: number; // Server might send aggregated count
+          };
         };
-      };
 
-      // Optimistic safety check: if message has a sessionId and it doesn't match, ignore.
-      // (Note: Shared types define payload structure clearly)
-      if (msg.sessionId && msg.sessionId !== sessionId) {
-        return;
-      }
-
-      const { track, count } = msg.payload;
-
-      // Notify all subscribers (e.g. the Canvas renderer)
-      subscribersRef.current.forEach((callback) => {
-        try {
-          callback(track, count);
-        } catch (e) {
-          console.error("[SocialSignals] Error in subscriber:", e);
+        // Optimistic safety check: if message has a sessionId and it doesn't match, ignore.
+        // (Note: Shared types define payload structure clearly)
+        if (msg.sessionId && msg.sessionId !== sessionId) {
+          return;
         }
-      });
-    },
-  };
+
+        const { track, count } = msg.payload;
+
+        // Notify all subscribers (e.g. the Canvas renderer)
+        subscribersRef.current.forEach((callback) => {
+          try {
+            callback(track, count);
+          } catch (e) {
+            console.error("[SocialSignals] Error in subscriber:", e);
+          }
+        });
+      },
+    }),
+    [sessionId],
+  );
 
   return {
     onLikeReceived,

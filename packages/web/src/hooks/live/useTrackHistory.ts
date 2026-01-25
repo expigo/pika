@@ -1,14 +1,13 @@
-/**
- * Hook for managing track history
- * Handles NOW_PLAYING, TRACK_STOPPED, and initial history fetch
- */
-
 import { MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import useSWR from "swr";
 import { getApiBaseUrl } from "@/lib/api";
 import type { HistoryTrack, MessageHandlers, WebSocketMessage } from "./types";
 
 const MAX_HISTORY = 5;
+
+// Fetcher for SWR
+const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
 interface UseTrackHistoryProps {
   sessionId: string | null;
@@ -21,59 +20,62 @@ interface UseTrackHistoryReturn {
   clearHistory: () => void;
   fetchHistory: (sessionId: string, force?: boolean) => Promise<void>;
   trackHandlers: MessageHandlers;
+  isLoading: boolean;
 }
 
 export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHistoryReturn {
   const [currentTrack, setCurrentTrack] = useState<TrackInfo | null>(null);
-  const [history, setHistory] = useState<HistoryTrack[]>([]);
-  const historyFetchedRef = useRef<string | null>(null);
+  const [localHistory, setLocalHistory] = useState<HistoryTrack[]>([]);
 
-  // Fetch history from REST API (with deduplication)
-  const fetchHistory = useCallback(async (targetSessionId: string, force = false) => {
-    if (!force && historyFetchedRef.current === targetSessionId) {
-      return; // Already fetched
-    }
+  // SWR for server-side history (H3: Caching & Deduplication)
+  const {
+    data: serverHistory,
+    mutate,
+    isLoading,
+  } = useSWR<HistoryTrack[]>(
+    sessionId ? `${getApiBaseUrl()}/api/session/${sessionId}/history` : null,
+    fetcher,
+    {
+      revalidateOnFocus: false,
+      dedupingInterval: 10000,
+    },
+  );
 
-    try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/session/${targetSessionId}/history`);
-      if (response.ok) {
-        const tracks: HistoryTrack[] = await response.json();
-        historyFetchedRef.current = targetSessionId;
+  // Combine SWR data with local history additions (immediate feedback)
+  const history = useMemo(() => {
+    const combined = [...localHistory, ...(serverHistory || [])];
+    const seen = new Set<string>();
+    const unique: HistoryTrack[] = [];
 
-        // Smarter filtering: history should only contain tracks that are NOT the current one
-        // Also deduplicate in case server has duplicate records
-        const uniqueTracks: HistoryTrack[] = [];
-        const seen = new Set<string>();
+    // Skip current track if it's the first in server history
+    const startIdx = combined.length > 0 && combined[0].playedAt ? 1 : 0;
 
-        // Skip index 0 (current track) and deduplicate the rest
-        for (const t of tracks.slice(1)) {
-          const key = `${t.artist}:${t.title}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            uniqueTracks.push(t);
-          }
-        }
-
-        setHistory(uniqueTracks.slice(0, MAX_HISTORY));
-        console.log("[History] Fetched and deduplicated:", uniqueTracks.length, "tracks");
+    for (const t of combined.slice(startIdx)) {
+      const key = `${t.artist}:${t.title}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        unique.push(t);
       }
-    } catch (e) {
-      console.error("[History] Failed to fetch:", e);
     }
-  }, []);
+    return unique.slice(0, MAX_HISTORY);
+  }, [localHistory, serverHistory]);
+
+  const fetchHistory = useCallback(async () => {
+    // SWR handles caching/deduping, but we can force a revalidation if needed
+    await mutate();
+  }, [mutate]);
 
   // Clear history (on session change)
   const clearHistory = useCallback(() => {
-    setHistory([]);
+    setLocalHistory([]);
     setCurrentTrack(null);
-    historyFetchedRef.current = null;
-  }, []);
+    mutate([], false); // Clear SWR cache for this key
+  }, [mutate]);
 
-  // Move current track to history
+  // Move current track to history locally (immediate UI feedback)
   const pushToHistory = useCallback((track: TrackInfo) => {
-    setHistory((prev) => {
-      // 1. Avoid exact same track being pushed twice (e.g. from rapid stop/start)
+    setLocalHistory((prev) => {
+      // Avoid exact same track being pushed twice
       if (prev.length > 0) {
         const last = prev[0];
         if (last.artist === track.artist && last.title === track.title) {
@@ -81,54 +83,53 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
         }
       }
 
-      // 2. Limit history size
       const newHistory = [{ ...track, playedAt: new Date().toISOString() }, ...prev];
       return newHistory.slice(0, MAX_HISTORY);
     });
   }, []);
 
-  // Message handlers
-  const trackHandlers: MessageHandlers = {
-    [MESSAGE_TYPES.NOW_PLAYING]: (message: WebSocketMessage) => {
-      const msg = message as unknown as {
-        sessionId: string;
-        track: TrackInfo;
-        djName?: string;
-      };
+  // Message handlers (memoized to prevent parent re-renders - H4)
+  const trackHandlers: MessageHandlers = useMemo(
+    () => ({
+      [MESSAGE_TYPES.NOW_PLAYING]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          sessionId: string;
+          track: TrackInfo;
+          djName?: string;
+        };
 
-      // Filter by session if needed
-      if (sessionId && msg.sessionId !== sessionId) {
-        return;
-      }
+        if (sessionId && msg.sessionId !== sessionId) {
+          return;
+        }
 
-      if (msg.track) {
-        // Push previous track to history if different
+        if (msg.track) {
+          // Push previous track to history if different
+          setCurrentTrack((prev) => {
+            if (prev && (prev.artist !== msg.track.artist || prev.title !== msg.track.title)) {
+              pushToHistory(prev);
+            }
+            return msg.track;
+          });
+        }
+      },
+
+      [MESSAGE_TYPES.TRACK_STOPPED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as { sessionId: string };
+
+        if (sessionId && msg.sessionId !== sessionId) {
+          return;
+        }
+
         setCurrentTrack((prev) => {
-          if (prev && (prev.artist !== msg.track.artist || prev.title !== msg.track.title)) {
+          if (prev) {
             pushToHistory(prev);
           }
-          return msg.track;
+          return null;
         });
-      }
-    },
-
-    [MESSAGE_TYPES.TRACK_STOPPED]: (message: WebSocketMessage) => {
-      const msg = message as unknown as { sessionId: string };
-
-      // Filter by session
-      if (sessionId && msg.sessionId !== sessionId) {
-        return;
-      }
-
-      // Move current track to history
-      setCurrentTrack((prev) => {
-        if (prev) {
-          pushToHistory(prev);
-        }
-        return null;
-      });
-    },
-  };
+      },
+    }),
+    [sessionId, pushToHistory],
+  );
 
   return {
     currentTrack,
@@ -137,5 +138,6 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
     clearHistory,
     fetchHistory,
     trackHandlers,
+    isLoading,
   };
 }

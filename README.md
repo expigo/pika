@@ -21,6 +21,7 @@ We maintain comprehensive documentation in the `docs/` directory:
 *   **[MVP Launch Plan](docs/projects/mvp-launch.md)** (Active Project)
 *   **[Deployment Guide](docs/architecture/deployment.md)**
 *   **[Operations Manual](docs/ops-manual.md)**
+*   **[Audit Recap (v0.3.2)](docs/AUDIT_RECAP.md)**
 
 ## 🏗️ System Architecture
 
@@ -123,6 +124,8 @@ See [Security Architecture](docs/architecture/security.md) for details.
 | Code Quality | 9.5/10 |
 | Documentation | 10/10 |
 | Security | 9.8/10 |
-| **Composite** | **9.7/10** |
+| Observability | 10/10 |
+| Performance | 9.5/10 |
+| **Composite** | **9.8/10** |
 
 *Last assessed: January 24, 2026*
