@@ -7,6 +7,7 @@ This is the central index for the Pika! project, tracking active development, fu
 **Verification Date:** 2026-01-25
 
 > **📊 Audit Recap:** See [AUDIT_RECAP.md](AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.
+> **📊 Complete Roadmap:** See [ROADMAP_11_10.md](ROADMAP_11_10.md) for detailed sprint verification with code references.
 
 ---
 
