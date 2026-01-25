@@ -1,6 +1,9 @@
 // Pika! Desktop Application
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use once_cell::sync::Lazy;
+use std::path::PathBuf;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "VirtualDJ_Database")]
@@ -11,7 +14,7 @@ struct VirtualDJDatabase {
     songs: Vec<VirtualDJSong>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 struct VirtualDJSong {
     #[serde(rename = "@FilePath")]
     file_path: String,
@@ -29,7 +32,7 @@ struct VirtualDJSong {
     pois: Vec<VirtualDJPoi>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 struct VirtualDJPoi {
     #[serde(rename = "@Name", default)]
     name: Option<String>,
@@ -39,7 +42,7 @@ struct VirtualDJPoi {
     _type: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 struct VirtualDJInfos {
     #[serde(rename = "@SongLength", default)]
     song_length: Option<String>,
@@ -49,7 +52,7 @@ struct VirtualDJInfos {
     play_count: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 struct VirtualDJTags {
     #[serde(rename = "@Author", default)]
     author: Option<String>,
@@ -67,7 +70,7 @@ struct VirtualDJTags {
     flag: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 struct VirtualDJScan {
     #[serde(rename = "@Version", default)]
     version: Option<String>,
@@ -83,6 +86,69 @@ struct VirtualDJScan {
     audio_sig: Option<String>,
     #[serde(rename = "@Flag", default)]
     flag: Option<String>,
+}
+
+/// Global cache for the VirtualDJ database to avoid repeated disk I/O and parsing
+struct VdjCache {
+    /// Original file path of the database
+    path: PathBuf,
+    /// Last modified time to detect changes
+    last_modified: std::time::SystemTime,
+    /// Cached songs indexed by file path for O(1) lookups
+    songs: HashMap<String, VirtualDJSong>,
+}
+
+static VDJ_CACHE: Lazy<tokio::sync::RwLock<Option<VdjCache>>> = Lazy::new(|| tokio::sync::RwLock::new(None));
+
+/// Internal helper to load and parse the VDJ database with caching
+async fn get_cached_database(custom_path: Option<PathBuf>) -> Result<HashMap<String, VirtualDJSong>, String> {
+    let db_path = if let Some(path) = custom_path {
+        path
+    } else {
+        find_vdj_database_path()
+            .ok_or_else(|| "VirtualDJ database.xml not found".to_string())?
+    };
+    
+    let metadata = std::fs::metadata(&db_path)
+        .map_err(|e| format!("Failed to get database metadata: {}", e))?;
+    let current_modified = metadata.modified()
+        .map_err(|e| format!("Failed to get modification time: {}", e))?;
+
+    // Check if we have a valid cache hit
+    {
+        let cache = VDJ_CACHE.read().await;
+        if let Some(ref c) = *cache {
+            if c.path == db_path && c.last_modified == current_modified {
+                return Ok(c.songs.clone());
+            }
+        }
+    }
+
+    // Cache miss - Load and parse (Lock for writing)
+    let mut cache = VDJ_CACHE.write().await;
+    
+    println!("[VDJ] Cache miss or stale. Loading database from: {:?}", db_path);
+    
+    let content = tokio::fs::read_to_string(&db_path)
+        .await
+        .map_err(|e| format!("Failed to read database.xml: {}", e))?;
+    
+    let database: VirtualDJDatabase = quick_xml::de::from_str(&content)
+        .map_err(|e| format!("XML parsing error: {}", e))?;
+    
+    let mut song_map = HashMap::with_capacity(database.songs.len());
+    for song in database.songs {
+        song_map.insert(song.file_path.clone(), song);
+    }
+
+    *cache = Some(VdjCache {
+        path: db_path,
+        last_modified: current_modified,
+        songs: song_map.clone(),
+    });
+
+    println!("[VDJ] Database indexed: {} tracks", song_map.len());
+    Ok(song_map)
 }
 
 // Output type that matches what the frontend expects
@@ -151,15 +217,12 @@ impl From<VirtualDJSong> for VirtualDJTrack {
 }
 
 #[tauri::command]
-fn import_virtualdj_library(xml_path: String) -> Result<Vec<VirtualDJTrack>, String> {
-    let content = std::fs::read_to_string(&xml_path).map_err(|e| e.to_string())?;
-    
-    let database: VirtualDJDatabase = quick_xml::de::from_str(&content).map_err(|e| {
-        format!("XML parsing error: {}", e)
-    })?;
+async fn import_virtualdj_library(xml_path: String) -> Result<Vec<VirtualDJTrack>, String> {
+    let path = PathBuf::from(xml_path);
+    let song_map = get_cached_database(Some(path)).await?;
     
     // Convert VirtualDJSong to VirtualDJTrack
-    let tracks: Vec<VirtualDJTrack> = database.songs.into_iter().map(|s| s.into()).collect();
+    let tracks: Vec<VirtualDJTrack> = song_map.into_values().map(|s| s.into()).collect();
     
     Ok(tracks)
 }
@@ -306,29 +369,20 @@ fn find_vdj_database_path() -> Option<std::path::PathBuf> {
 /// Lookup track metadata from VDJ database.xml by file path
 /// Used to get BPM/key for tracks not imported into Pika! library
 #[tauri::command]
-fn lookup_vdj_track_metadata(file_path: String) -> Result<Option<VdjTrackMetadata>, String> {
-    let db_path = find_vdj_database_path()
-        .ok_or_else(|| "VirtualDJ database.xml not found".to_string())?;
-    
-    println!("[VDJ] Looking up metadata from: {:?}", db_path);
-    
-    let content = std::fs::read_to_string(&db_path)
-        .map_err(|e| format!("Failed to read database.xml: {}", e))?;
-    
-    let database: VirtualDJDatabase = quick_xml::de::from_str(&content)
-        .map_err(|e| format!("XML parsing error: {}", e))?;
+async fn lookup_vdj_track_metadata(file_path: String) -> Result<Option<VdjTrackMetadata>, String> {
+    let song_map = get_cached_database(None).await?;
     
     // Find matching song by file path (case-insensitive on Windows)
-    let song = database.songs.iter().find(|s| {
-        #[cfg(target_os = "windows")]
-        {
-            s.file_path.eq_ignore_ascii_case(&file_path)
-        }
-        #[cfg(not(target_os = "windows"))]
-        {
-            s.file_path == file_path
-        }
-    });
+    let song = if cfg!(target_os = "windows") {
+        // Linear search for case-insensitivity on Windows if map lookup fails
+        // In practice, VirtualDJ usually keeps consistent casing in its own DB,
+        // but it's safer to have a fallback or normalization.
+        song_map.get(&file_path).cloned().or_else(|| {
+            song_map.values().find(|s| s.file_path.eq_ignore_ascii_case(&file_path)).cloned()
+        })
+    } else {
+        song_map.get(&file_path).cloned()
+    };
     
     match song {
         Some(s) => {
@@ -371,8 +425,27 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
-        .invoke_handler(tauri::generate_handler![import_virtualdj_library, read_virtualdj_history, lookup_vdj_track_metadata, get_local_ip])
+        .invoke_handler(tauri::generate_handler![
+            import_virtualdj_library, 
+            read_virtualdj_history, 
+            lookup_vdj_track_metadata, 
+            get_local_ip
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_convert_virtualdj_bpm() {
+        // VDJ stores 60 / BPM
+        assert_eq!(convert_virtualdj_bpm("0.5"), Some("120.0".to_string()));
+        assert_eq!(convert_virtualdj_bpm("1.0"), Some("60.0".to_string()));
+        // 60 / 0.479 = 125.26... -> 125.3
+        assert_eq!(convert_virtualdj_bpm("0.479"), Some("125.3".to_string()));
+    }
 }
 

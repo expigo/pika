@@ -3062,6 +3062,7 @@ version = "0.2.7"
 dependencies = [
  "chrono",
  "local-ip-address",
+ "once_cell",
  "quick-xml 0.37.5",
  "serde",
  "serde_json",
@@ -3073,6 +3074,7 @@ dependencies = [
  "tauri-plugin-opener",
  "tauri-plugin-shell",
  "tauri-plugin-sql",
+ "tokio",
 ]
 
 [[package]]
@@ -5107,6 +5109,7 @@ dependencies = [
  "bytes",
  "libc",
  "mio",
+ "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
  "socket2",
