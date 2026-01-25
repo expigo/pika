@@ -1,7 +1,24 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { BottomNav } from "@/components/BottomNav";
+import { WebVitals } from "@/components/WebVitals";
 import "./globals.css";
+import { logger } from "@pika/shared";
+import * as Sentry from "@sentry/nextjs";
+
+// Register Sentry as the reporter for the shared logger
+logger.setReporter((message, error, context) => {
+  if (error instanceof Error) {
+    Sentry.captureException(error, {
+      extra: { logMessage: message, ...context },
+    });
+  } else {
+    Sentry.captureMessage(message, {
+      level: "error",
+      extra: { error, ...context },
+    });
+  }
+});
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,7 +48,7 @@ export const metadata: Metadata = {
     description:
       "Connect with the DJ booth in real-time. Vote on tempo, like tracks, and view session recaps.",
     siteName: "Pika! Live",
-    images: [{ url: "/og-image.png", width: 1200, height: 630 }],
+    images: [{ url: "/og-image.jpg", width: 1024, height: 1024 }],
     locale: "en_US",
     type: "website",
   },
@@ -39,11 +56,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Pika! - Live DJ Feedback",
     description: "Real-time engagement for West Coast Swing events.",
-    images: ["/twitter-image.png"],
-  },
-  icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    images: ["/twitter-image.jpg"],
   },
 };
 
@@ -55,9 +68,10 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased selection:bg-purple-500/30`}
         suppressHydrationWarning
       >
+        <WebVitals />
         {/* Skip to content link for keyboard navigation */}
         <a
           href="#main-content"
