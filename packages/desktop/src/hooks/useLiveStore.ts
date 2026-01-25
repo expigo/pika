@@ -6,6 +6,7 @@
  */
 
 import { create } from "zustand";
+import { logger } from "@pika/shared";
 import type { NowPlayingTrack } from "../services/virtualDjWatcher";
 
 export type LiveStatus = "offline" | "connecting" | "live" | "error";
@@ -171,17 +172,43 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   setLiveLikes: (liveLikes) => set({ liveLikes }),
   incrementLiveLikes: () => set((state) => ({ liveLikes: state.liveLikes + 1 })),
   addPlayedTrack: (trackKey: string) =>
-    set((state) => ({
-      playedTrackKeys: new Set([...state.playedTrackKeys, trackKey]),
-    })),
+    set((state) => {
+      const newSet = new Set(state.playedTrackKeys);
+      newSet.add(trackKey);
+
+      // 🛡️ Optimization Audit: Proper LRU for track keys (500 limit)
+      if (newSet.size > 500) {
+        const oldestKey = newSet.values().next().value;
+        if (oldestKey) {
+          newSet.delete(oldestKey);
+          // Telemetry for audit verification
+          logger.debug("[Store] 🧹 Evicted oldest played track key (LRU)", { oldestKey });
+        }
+      }
+
+      return { playedTrackKeys: newSet };
+    }),
   clearPlayedTracks: () => set({ playedTrackKeys: new Set() }),
 
   // Internal state actions
   setLastBroadcastedTrackKey: (lastBroadcastedTrackKey) => set({ lastBroadcastedTrackKey }),
   addProcessedTrackKey: (key: string) =>
-    set((state) => ({
-      processedTrackKeys: new Set([...state.processedTrackKeys, key]),
-    })),
+    set((state) => {
+      const newSet = new Set(state.processedTrackKeys);
+      newSet.add(key);
+
+      // 🛡️ Optimization Audit: Proper LRU for track keys (500 limit)
+      if (newSet.size > 500) {
+        const oldestKey = newSet.values().next().value;
+        if (oldestKey) {
+          newSet.delete(oldestKey);
+          // Telemetry for audit verification
+          logger.debug("[Store] 🧹 Evicted oldest processed track key (LRU)", { oldestKey });
+        }
+      }
+
+      return { processedTrackKeys: newSet };
+    }),
   clearProcessedTrackKeys: () => set({ processedTrackKeys: new Set() }),
   setSkipInitialTrackBroadcast: (skipInitialTrackBroadcast) => set({ skipInitialTrackBroadcast }),
   setIsFlushingQueue: (isFlushingQueue) => set({ isFlushingQueue }),

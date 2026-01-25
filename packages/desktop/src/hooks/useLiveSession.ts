@@ -19,6 +19,7 @@ import {
   addToPendingLikes,
   broadcastTrack,
   clearPendingMessages,
+  clearReactionListeners,
   createDatabaseSession,
   flushQueue,
   generateSessionId,
@@ -49,6 +50,7 @@ import {
   MIN_RECONNECTION_DELAY_MS,
   OPTIMISTIC_POLL_ID,
   TRACK_DEDUP_WINDOW_MS,
+  FINGERPRINT_SYNC_TIMEOUT_MS,
 } from "./live/constants";
 import { type MessageRouterContext, messageRouter } from "./live/messageRouter";
 // Import state helpers for store-based state access
@@ -75,10 +77,28 @@ export { subscribeToReactions } from "./live";
 
 let socketInstance: ReconnectingWebSocket | null = null;
 
-// Like storage batching (H4 fix - prevents DB spam)
-// A2 fix: Track likes PER playId to prevent attribution to wrong track
+// Re-track likes PER playId to prevent attribution to wrong track
 const pendingLikesByPlayId = new Map<number, number>();
 let likeStorageTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * 🛡️ Singleton Watcher Subscription
+ *
+ * This module-level variable tracks the VirtualDJ watcher subscription across ALL
+ * instances of the useLiveSession hook. This prevents redundant recordPlay calls
+ * when multiple components (e.g., App shell and LiveControl) use the hook.
+ *
+ * It is initialized once per module load and persists until the app is closed.
+ */
+let watcherUnsubscribe: (() => void) | null = null;
+
+/**
+ * 🛡️ Hybrid Dedup: Track last play timestamp for each track in this session.
+ * This prevents 'Rolling Window' bypassing where a 3min track gets recorded
+ * multiple times if visibility toggles happen across 60s window boundaries.
+ */
+const sessionTrackTimestamps = new Map<string, number>();
+const MIN_REPLAY_INTERVAL_MS = 120000; // 2 minutes minimum between same track
 
 /**
  * Flush all pending likes to database (batched write per playId)
@@ -406,11 +426,31 @@ async function recordPlay(
   const dedupWindow = Math.floor(Date.now() / TRACK_DEDUP_WINDOW_MS);
   const trackKey = `${track.artist}-${track.title}-${dedupWindow}`;
 
+  // 🛡️ Layer 2: Absolute tracking for current session (Hybrid Dedup)
+  // This blocks the same track from being recorded twice within 2 mins,
+  // even if the 60s trackKey window above has rolled over.
+  const absoluteKey = `${track.artist}-${track.title}`.toLowerCase();
+  const lastPlayTime = sessionTrackTimestamps.get(absoluteKey);
+
+  if (lastPlayTime !== undefined) {
+    const timeSinceLastPlay = Date.now() - lastPlayTime;
+    if (timeSinceLastPlay < MIN_REPLAY_INTERVAL_MS) {
+      logger.debug("Live", "Track deduped (absolute interval)", {
+        title: track.title,
+        timeSinceLastPlayMs: timeSinceLastPlay,
+      });
+      return null;
+    }
+  }
+
+  // 🛡️ Fix: Check AND Add immediately before any awaits to prevent race conditions
+  // if multiple handleTrackChange calls happen in the same tick.
   if (hasProcessedTrackKey(trackKey)) {
-    logger.debug("Live", "Track already recorded recently", { title: track.title });
+    logger.debug("Live", "Track already recorded recently (window)", { title: track.title });
     return null;
   }
   addProcessedTrackKey(trackKey);
+  sessionTrackTimestamps.set(absoluteKey, Date.now());
 
   try {
     const dbSessionId = getStoreDbSessionId();
@@ -419,6 +459,8 @@ async function recordPlay(
       return null;
     }
 
+    // 🔋 11/10 Performance: findOrCreateTrack and addPlay are async,
+    // but the trackKey already blocks other concurrent calls.
     const dbTrack = await findOrCreateTrack(track.artist, track.title, track.filePath);
     const timestamp = Math.floor(Date.now() / 1000);
 
@@ -432,6 +474,8 @@ async function recordPlay(
     return { playId: play.id, trackInfo: dbTrack };
   } catch (error) {
     logger.error("Live", "Failed to record play", error);
+    // Note: We don't remove the processed key on error to avoid spamming the DB
+    // with failed retries for the same track in the same window.
     return null;
   }
 }
@@ -515,20 +559,30 @@ export function useLiveSession() {
         broadcastTrack(sessionId, toTrackInfo(enrichedTrack));
       }
     },
-    [setNowPlaying, setCurrentPlayId, setTempoFeedback],
+    [setNowPlaying, setTempoFeedback, setCurrentPlayId],
   );
 
-  // Set up track change listener ONCE
+  // Set up track change listener ONCE per module load
+  // 🛡️ Fix: Use a module-level variable to ensure only one listener is active
+  // even if multiple useLiveSession hooks are mounted.
   useEffect(() => {
     if (listenerSetupRef.current) return;
     listenerSetupRef.current = true;
 
-    logger.debug("Live", "Setting up track change listener");
-    const unsubscribe = virtualDjWatcher.onTrackChange(handleTrackChange);
+    // Use a shared module-level check for the actual subscription
+    if (watcherUnsubscribe) {
+      logger.debug("Live", "Internal listener already active, skipping re-attach");
+      return;
+    }
+
+    logger.debug("Live", "Setting up global track change listener");
+    watcherUnsubscribe = virtualDjWatcher.onTrackChange(handleTrackChange);
+
     return () => {
-      logger.debug("Live", "Removing track change listener");
-      listenerSetupRef.current = false;
-      unsubscribe();
+      // In a real production app we might keep this alive as long as ANY hook is mounted,
+      // but for Pika! we assume the app shell is always up.
+      // We don't delete on unmount unless we are sure we want to stop watching.
+      // Since App.tsx and LiveControl stay mounted, this is safe and prevents double-recording.
     };
   }, [handleTrackChange]);
 
@@ -589,50 +643,66 @@ export function useLiveSession() {
     // Stop watcher
     virtualDjWatcher.stopWatching();
 
+    // 🧹 Issue 22 Fix: Clear reaction listeners on session end
+    clearReactionListeners();
+
+    // 🛡️ Issue 14 Fix: Clear pending like timer
+    if (likeStorageTimer) {
+      clearTimeout(likeStorageTimer);
+      likeStorageTimer = null;
+    }
+
     // Sync fingerprint data to Cloud before ending (if enabled)
     const dbSessionIdToSync = getStoreDbSessionId();
     const sessionIdToSync = getStoreSessionId();
     if (dbSessionIdToSync && sessionIdToSync) {
       const syncEnabled = await settingsRepository.get("analysis.afterSession");
       if (syncEnabled) {
-        // Create AbortController for fetch timeout (prevents orphaned requests on fast endSet)
-        const abortController = new AbortController();
-        const timeoutId = setTimeout(() => abortController.abort(), FINGERPRINT_SYNC_TIMEOUT_MS); // 10s timeout
-
         try {
-          logger.info("Live", "Syncing fingerprints to Cloud");
           const tracks = await trackRepository.getSessionTracksWithFingerprints(dbSessionIdToSync);
-
           if (tracks.length > 0) {
             const { apiUrl } = getConfiguredUrls();
-            const response = await fetch(
-              `${apiUrl}/api/session/${sessionIdToSync}/sync-fingerprints`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ tracks }),
-                signal: abortController.signal,
-              },
-            );
+            const CHUNK_SIZE = 500; // 🛡️ Issue 16 Fix: Batch fingerprint sync
 
-            if (response.ok) {
-              const result = await response.json();
-              logger.info("Live", "Synced fingerprints", {
-                synced: result.synced,
-                total: result.total,
-              });
-            } else {
-              logger.error("Live", "Failed to sync fingerprints", { status: response.status });
+            for (let i = 0; i < tracks.length; i += CHUNK_SIZE) {
+              const chunk = tracks.slice(i, i + CHUNK_SIZE);
+              const abortController = new AbortController();
+              const timeoutId = setTimeout(
+                () => abortController.abort(),
+                FINGERPRINT_SYNC_TIMEOUT_MS,
+              );
+
+              try {
+                logger.info(
+                  "Live",
+                  `Syncing fingerprints (Batch ${Math.floor(i / CHUNK_SIZE) + 1})`,
+                );
+                const response = await fetch(
+                  `${apiUrl}/api/session/${sessionIdToSync}/sync-fingerprints`,
+                  {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tracks: chunk }),
+                    signal: abortController.signal,
+                  },
+                );
+
+                if (!response.ok) {
+                  logger.error("Live", "Batch sync failed", { status: response.status });
+                }
+              } catch (error) {
+                if (error instanceof Error && error.name === "AbortError") {
+                  logger.warn("Live", "Batch sync aborted (timeout)");
+                } else {
+                  logger.error("Live", "Error syncing batch", error);
+                }
+              } finally {
+                clearTimeout(timeoutId);
+              }
             }
           }
         } catch (error) {
-          if (error instanceof Error && error.name === "AbortError") {
-            logger.warn("Live", "Fingerprint sync aborted (timeout or cancelled)");
-          } else {
-            logger.error("Live", "Error syncing fingerprints", error);
-          }
-        } finally {
-          clearTimeout(timeoutId);
+          logger.error("Live", "Error prepared fingerprint sync", error);
         }
       }
     }
@@ -649,12 +719,15 @@ export function useLiveSession() {
     }
 
     // Reset state
+    // Clear session-specific tracking state
+    sessionTrackTimestamps.clear();
     reset();
     // Note: store is reset via reset() below
     // Note: reset() clears all these in the store
     clearProcessedTrackKeys();
     setLastBroadcastedTrackKey(null);
     clearPendingMessages(); // Clear any pending ACK messages
+    messageRouter.clearContext(); // 🛡️ Issue 3 Fix: Clear context to prevent stale callbacks
   }, [reset]);
 
   // Go live - connect to cloud and start watching
@@ -683,28 +756,14 @@ export function useLiveSession() {
         // Prepare initial track state based on user preference
         prepareInitialTrackState(initialTrack, includeCurrentTrack);
 
-        // If including current track, record it to database
-        let enrichedInitialTrack = initialTrack;
-
+        // 🛡️ R1 Fix: Removed redundant recordPlay(initialTrack) call.
+        // startVirtualDJWatcher calls virtualDjWatcher.startWatching(), which
+        // broadcasts the initial track to all listeners. handleTrackChange (the listener)
+        // will then call recordPlay(initialTrack) automatically if isInLiveMode is true.
+        // Calling it manually here caused double-counting on session start.
         if (initialTrack && includeCurrentTrack) {
           setNowPlaying(initialTrack);
-          const result = await recordPlay(initialTrack);
-          if (result) {
-            setStoreCurrentPlayId(result.playId);
-            setCurrentPlayId(result.playId);
-
-            // Enrich the initial track with DB data (BPM, Energy, etc)
-            enrichedInitialTrack = {
-              ...initialTrack,
-              bpm: result.trackInfo.bpm ?? undefined,
-              key: result.trackInfo.key ?? undefined,
-              energy: result.trackInfo.energy ?? undefined,
-              danceability: result.trackInfo.danceability ?? undefined,
-              brightness: result.trackInfo.brightness ?? undefined,
-              acousticness: result.trackInfo.acousticness ?? undefined,
-              groove: result.trackInfo.groove ?? undefined,
-            };
-          }
+          // Initial recording is handled by handleTrackChange listener
         }
 
         // Connect to cloud using ReconnectingWebSocket
@@ -752,14 +811,7 @@ export function useLiveSession() {
 
           // Send initial track if available AND user chose to include it
           if (!shouldSkipInitialTrackBroadcast()) {
-            // Use the ENRICHED track from the setup phase, not the raw one from watcher
-            if (enrichedInitialTrack) {
-              logger.info("Live", "Broadcasting initial track", {
-                title: enrichedInitialTrack.title,
-                bpm: enrichedInitialTrack.bpm,
-              });
-              broadcastTrack(newSessionId, toTrackInfo(enrichedInitialTrack));
-            }
+            logger.debug("Live", "Initial track broadcast is being handled by watcher listener");
           } else {
             logger.debug("Live", "Not broadcasting initial track (user skipped)");
           }
@@ -804,16 +856,7 @@ export function useLiveSession() {
         setError(error instanceof Error ? error.message : String(error));
       }
     },
-    [
-      status,
-      setStatus,
-      setError,
-      setSessionId,
-      setDbSessionId,
-      setNowPlaying,
-      setCurrentPlayId,
-      endSet,
-    ],
+    [status, setStatus, setError, setSessionId, setDbSessionId, setNowPlaying, endSet],
   );
 
   // Clear now playing
