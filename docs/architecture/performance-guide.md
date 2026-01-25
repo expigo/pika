@@ -154,21 +154,23 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 | **Hidden** | **Suspended** (No Pings) | **Stopped** | **Frozen** (0 FPS) | **Deep Sleep** |
 | **Resumed** | Auto-Reconnect | Immediate Fetch | Resume Loop | Awake |
 
-### 1. WebSocket Suspension
-- **Logic:** `useWebSocketConnection.ts` checks `document.visibilityState` inside the heartbeat loop.
-- **Action:** If hidden, it **skips** sending the `PING` frame.
-- **Benefit:** Prevents keeping the mobile radio/modem active (which consumes significant power).
-- **Recovery:** When the tab becomes visible, `reconnecting-websocket` + explicit visibility handlers immediately restore the connection.
+### 1. WebSocket & Polling Suspension (H1)
+- **Logic:** `useLiveListener.ts` and `page.tsx` use a visibility-aware polling strategy.
+- **Action:** Network activity (AJAX polling and heartbeats) is **stopped** when the tab is hidden.
+- **Benefit:** Eliminates 100% of background network noise, drastically extending mobile battery life.
 
-### 2. Desktop Hibernation
-- **Logic:** `useActivePlay.ts` checks `document.visibilityState` before firing the SQLite query hook.
-- **Action:** Returns early if window is minimized or hidden.
-- **Benefit:** Reduces CPU wakeups on the DJ's laptop during long sets.
+### 2. Yielding I/O & UI Fluidity (H2)
+- **Logic:** `useTempoVote.ts` defers synchronous `localStorage` hits via `setTimeout(0)`.
+- **Action:** Yields to the rendering engine before performing blocking I/O.
+- **Benefit:** Prevents frame drops during rapid track transitions by ensuring the initial UI paint is never blocked.
 
-### 3. Loop Termination
-- **Logic:** `SocialSignalsLayer.tsx` checks `document.hidden` inside the `requestAnimationFrame` callback.
-- **Action:** Sets `animationFrameRef.current = null` and **returns** from the function, effectively stopping the loop.
-- **Benefit:** Ensures 0% GPU/CPU usage for rendering when the tab is not visible, bypassing browser heuristics that might only throttle to 1fps.
+### 3. SWR Caching & Deduplication (H3)
+- **Logic:** `useTrackHistory.ts` uses the `SWR` hook for REST API retrieval.
+- **Benefit:** Automatic request deduplication across multiple renders and "stale-while-revalidate" caching for near-instant history viewing.
+
+### 4. stable Handler Trees (H4)
+- **Logic:** Full memoization of feature handler objects (`tempoHandlers`, `pollHandlers`, etc.).
+- **Benefit:** Prevents unnecessary React re-renders of the main composition tree, ensuring that only components actually receiving data updates are processed.
 
 ---
 
@@ -176,6 +178,7 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 
 | Date | Change |
 |------|--------|
+| 2026-01-25 | **Performance Hardening (v0.3.2)**: Visibility polling (H1), Yielding I/O (H2), SWR Caching (H3), Memoized Handlers (H4) |
 | 2026-01-24 | **Phase 2 Hardening (v0.3.0)**: O(1) Map optimizations, Atomic Transactions (Desktop), Queue Cleanup |
 | 2026-01-23 | **11/10 Battery Update**: Implemented Zero-Wakeup architecture (WS suspension, Poll freezing, Animation kill) |
 | 2026-01-17 | Library virtualization (`@tanstack/react-virtual`) and lazy component loading implemented |

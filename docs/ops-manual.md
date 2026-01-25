@@ -154,6 +154,22 @@ Since ports are bound to `127.0.0.1` for security, you MUST connect them via Clo
 
 ---
 
+## 🚨 Monitoring & Error Tracking (Sentry)
+
+Pika! utilizes **Sentry** for full-stack observability. 
+
+### 1. Dashboard Access
+- **URL:** [sentry.io](https://sentry.io)
+- **Organization:** `expigo` (or your private org)
+- **Projects:** `pika-cloud`, `pika-web`, `pika-desktop`
+
+### 2. Common Operations
+- **Filtering Noise:** Use the "Inbound Filters" in Sentry settings to ignore browser extension errors (already configured in code via `ignoreErrors`).
+- **Performance Baseline:** Check the "Performance" tab to see transaction durations for WebSocket `ON_MESSAGE` and REST API endpoints.
+- **Environment Scoping:** Use the `environment` tag to distinguish between `staging` and `production` errors.
+
+---
+
 ## 🔍 Database Operations (Production)
 
 ### 🚀 Drizzle Studio (The "Admin Panel")

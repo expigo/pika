@@ -19,13 +19,14 @@ This roadmap consolidates findings from deep code audits across all 4 packages (
 - **Medium Issues:** 56
 - **Low Issues:** 33+
 
-### Achieved State (2026-01-24) ✅
+### Achieved State (2026-01-25) ✅
 - **Composite Score:** 11/10 (Excellence)
 - **Critical Issues:** 0 ✅
 - **High Issues:** 0 ✅
 - **Medium Issues:** 0 (resolved or documented)
-- **Test Coverage:** 260 Unit Tests (+ E2E) ✅
-- **Resilience:** Backpressure + Persistence Queues (v0.3.0) ✅
+- **Test Coverage:** 612+ Unit Tests (+ E2E) ✅
+- **Observability:** Full-stack Sentry + PII scrubbing (v0.3.1) ✅
+- **Performance:** Zero-waste battery + SWR caching (v0.3.2) ✅
 
 ---
 
@@ -600,13 +601,16 @@ export const metadata: Metadata = {
 - [x] Performance benchmarks met (indexes, batch operations)
 - [x] Security audit passed (auth, rate limiting, input validation)
 
-### Phase 2 Hardening Complete When: ✅ VERIFIED (2026-01-24)
-- [x] Persistence Queues implemented (`cloud/src/lib/persistence/queue.ts`)
-- [x] Backpressure Protection active (`cloud/src/handlers/utility.ts`)
-- [x] Memory Cleanup (M1/M2) verified (`Map` + `queue` cleanup)
-- [x] Atomic Transactions in Desktop DB (`desktop/src/db/repositories/setRepository.ts`)
-- [x] 100% Test Pass Rate (260/260) verified
 - [x] Documentation fully updated (v0.3.0)
+
+### Phase 3 Hardening Complete When: ✅ VERIFIED (2026-01-25)
+- [x] Observability (v0.3.1): Full-stack Sentry reporting on all packages.
+- [x] Privacy: PII scrubbing (Cookies, Headers, IP) confirmed active.
+- [x] Battery (H1): Visibilitychange verified stopping poll/WS activity.
+- [x] Latency (H2): Deferred localStorage hits yielding to main thread.
+- [x] Caching (H3): SWR deduplication active on REST endpoints.
+- [x] Economy (H4): Stable WebSocket handler trees (100% memoization).
+- [x] Audit Recap: Created `docs/AUDIT_RECAP.md` and updated all secondary guides.
 
 ---
 

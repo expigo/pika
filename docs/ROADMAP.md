@@ -2,11 +2,11 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** ✅ PRODUCTION READY
-**Status:** Release v0.2.8 (All Sprints S0-S5 Complete)
-**Verification Date:** 2026-01-23
+**Current Focus:** ✅ PRODUCTION HARDENED
+**Status:** Release v0.3.2 (Monitoring & Performance Audit)
+**Verification Date:** 2026-01-25
 
-> **📊 Complete Roadmap:** See [ROADMAP_11_10.md](ROADMAP_11_10.md) for detailed sprint verification with code references.
+> **📊 Audit Recap:** See [AUDIT_RECAP.md](AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.
 
 ---
 
@@ -15,6 +15,15 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
+    *   **Recent Completions (Jan 25, 2026 - Performance Hardening v0.3.2):**
+        *   ✅ **H1 (Battery):** Visibility-aware polling in Live Lobby (pauses in background).
+        *   ✅ **H2 (Sync Blocking):** Deferred localStorage hits via event loop yielding.
+        *   ✅ **H3 (Caching):** Integrated SWR for O(1) track history deduplication.
+        *   ✅ **H4 (Economy):** Memoized stable handler trees for all feature hooks.
+    *   **Recent Completions (Jan 24, 2026 - Observability v0.3.1):**
+        *   ✅ **C1 (Monitoring):** Cloud, Web, and Desktop Sentry integration.
+        *   ✅ **Privacy (PII):** Mandatory scrubbing of cookies, headers, and IP addresses.
+        *   ✅ **Tracing:** 10% sampling rate implemented for transaction profiling.
     *   **Recent Completions (Jan 23, 2026 - Production Ready v0.2.8):**
         *   ✅ **Sprint 0 (Battery & Security):** Fixed continuous RAF loop (B1), verified CSRF (S1), confirmed Reduced Motion (B2)
         *   ✅ **Sprint S0-S5 Complete:** All 150+ issues resolved with code verification

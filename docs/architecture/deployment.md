@@ -79,10 +79,13 @@ Configuration is handled via Environment Variables.
 *   `DATABASE_URL`: Connection string for Postgres.
 *   `PORT`: Port to listen on (default 3001).
 *   `CORS_ORIGIN`: Allowed origins for WebSocket connection.
+*   `SENTRY_DSN`: Sentry project DSN for error tracking.
 
 **Web Application (`packages/web/.env`):**
 *   `NEXT_PUBLIC_CLOUD_WS_URL`: WebSocket endpoint (e.g. `wss://api.pika.dance/ws`).
 *   `NEXT_PUBLIC_CLOUD_API_URL`: REST API endpoint.
+*   `NEXT_PUBLIC_SENTRY_DSN`: Public DSN for client-side errors.
+*   `SENTRY_AUTH_TOKEN`: (Build time only) For source map upload.
 
 ## 6. CI/CD (GitHub Actions)
 

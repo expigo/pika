@@ -60,6 +60,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
     *   [x] **Data Sync**: Late-joiner sync via WebSocket SUBSCRIBE handler.
     *   [x] **Wake-Up Sync (Web)**: **DONE.** Native `visibilitychange` listener forces re-sync on mobile phone wake-up.
+    *   [x] **Observability (v0.3.1)**: Full-stack Sentry integration with PII scrubbing.
+    *   [x] **Performance Hardening (v0.3.2)**: Visibility-aware polling & SWR caching.
     *   [x] **Safari/iOS Bulletproofing (v0.2.5)**: pageshow listener, statusRef, addEventListener pattern.
     *   [x] **Offline Queue (Web)**: Likes persisted to IndexedDB, survives page refresh.
     *   [x] **Offline Queue (Desktop)**: **DONE.** Offline SQLite queue implemented (`OfflineQueueRepository`). Persists across restarts.

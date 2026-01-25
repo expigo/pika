@@ -20,6 +20,7 @@ This document outlines the security architecture of Pika!, including implemented
 | API Tokens | Token theft, replay attacks | SHA-256 hashed storage, HTTPS only |
 | Session Data | Session hijacking | Token validation, ownership tracking ✅ |
 | User Privacy | Data exposure | No PII stored for dancers, localStorage-based identity |
+| Telemetry | Data leak via monitoring | Mandatory Sentry PII scrubbing (cookies/headers/IP) ✅ |
 | Infrastructure | DDoS, origin exposure | Cloudflare Tunnel, hidden origin IP |
 
 ### Security Perimeter
