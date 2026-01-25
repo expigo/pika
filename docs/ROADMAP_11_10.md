@@ -27,6 +27,7 @@ This roadmap consolidates findings from deep code audits across all 4 packages (
 - **Test Coverage:** 612+ Unit Tests (+ E2E) ✅
 - **Observability:** Full-stack Sentry + PII scrubbing (v0.3.1) ✅
 - **Performance:** Zero-waste battery + SWR caching (v0.3.2) ✅
+- **Resilience:** Backpressure + Persistence Queues (v0.3.0) ✅
 
 ---
 

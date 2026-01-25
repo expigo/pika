@@ -159,6 +159,18 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 - **Action:** Network activity (AJAX polling and heartbeats) is **stopped** when the tab is hidden.
 - **Benefit:** Eliminates 100% of background network noise, drastically extending mobile battery life.
 
+#### Behavior Protocol
+| Condition | WebSocket | Polling (API) | Animations (GPU) | Power State |
+|-----------|-----------|---------------|------------------|-------------|
+| **Active** | Connected (Ping/Pong) | 30s Interval | 60 FPS | Normal |
+| **Hidden** | **Suspended** (No Pings) | **Stopped** | **Frozen** (0 FPS) | **Deep Sleep** |
+| **Resumed** | Auto-Reconnect | Immediate Fetch | Resume Loop | Awake |
+
+#### Technical Implementation Details
+*   **WebSocket Suspension:** `useWebSocketConnection.ts` checks `document.visibilityState` inside its heartbeat loop and skips `PING` frames if hidden to keep the mobile radio dormant.
+*   **Desktop Hibernation:** `useActivePlay.ts` returns early if `document.visibilityState` is hidden, reducing SQLite query overhead on the DJ's station.
+*   **Loop Termination:** `SocialSignalsLayer.tsx` kills the `requestAnimationFrame` loop entirely when the tab is backgrounded to ensure 0% GPU/CPU usage.
+
 ### 2. Yielding I/O & UI Fluidity (H2)
 - **Logic:** `useTempoVote.ts` defers synchronous `localStorage` hits via `setTimeout(0)`.
 - **Action:** Yields to the rendering engine before performing blocking I/O.
