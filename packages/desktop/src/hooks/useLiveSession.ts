@@ -597,15 +597,22 @@ export function useLiveSession() {
     };
   }, []);
 
-  // 💓 Session Sanity Check (Heartbeat)
-  // Periodically validates that the session is still active on the server
+  // 💓 Session Heartbeat & Sanity Check
   useEffect(() => {
     if (status !== "live" || !sessionId) return;
 
+    // 🛡️ Issue 34 Fix: Frequent PING (30s) to keep connection alive
+    const pingInterval = setInterval(() => {
+      if (socketInstance?.readyState === WebSocket.OPEN) {
+        sendMessage({ type: MESSAGE_TYPES.PING });
+      }
+    }, 30000);
+
+    // Hourly sanity check (business logic validation)
     logger.debug("Live", "Setting up hourly sanity check");
-    const intervalId = setInterval(
+    const sanityInterval = setInterval(
       () => {
-        if (status === "live" && sessionId && socketInstance?.readyState === WebSocket.OPEN) {
+        if (socketInstance?.readyState === WebSocket.OPEN) {
           logger.debug("Live", "Running hourly session validation");
           sendMessage({
             type: MESSAGE_TYPES.VALIDATE_SESSION,
@@ -616,7 +623,10 @@ export function useLiveSession() {
       60 * 60 * 1000,
     ); // 1 hour
 
-    return () => clearInterval(intervalId);
+    return () => {
+      clearInterval(pingInterval);
+      clearInterval(sanityInterval);
+    };
   }, [status, sessionId]);
 
   // End set - disconnect and stop watching
@@ -838,6 +848,26 @@ export function useLiveSession() {
             reason: event.reason,
           });
 
+          // 🛡️ Issue 32 Fix: Clear pending messages on disconnect to prevent stuck promises
+          clearPendingMessages();
+
+          // 🛡️ Issue 41 Fix: Don't reconnect on fatal errors (4000-4999) or normal closure (1000)
+          const isFatalClose = event.code === 1000 || (event.code >= 4000 && event.code < 5000);
+
+          if (isFatalClose) {
+            logger.warn("Live", "Session ended by server (fatal close code)", {
+              code: event.code,
+              reason: event.reason,
+            });
+            // Stop reconnection attempts properly
+            socket.close(); // Ensure closure
+            setStatus("offline");
+            if (isInLiveMode()) {
+              void endSet();
+            }
+            return;
+          }
+
           if (isInLiveMode()) {
             setStatus("connecting");
             setError("Reconnecting...");
@@ -846,12 +876,18 @@ export function useLiveSession() {
 
         socket.onerror = () => {
           logger.error("Live", "Connection error");
+          // 🛡️ Issue 32 Fix: Clear pending messages on error
+          clearPendingMessages();
           if (isInLiveMode()) {
             setError("Connection error - retrying...");
           }
         };
       } catch (error) {
         logger.error("Live", "Failed to go live", error);
+
+        // 🛡️ Issue 35 Fix: Ensure watcher stops if connection/setup fails
+        virtualDjWatcher.stopWatching();
+
         setStatus("error");
         setError(error instanceof Error ? error.message : String(error));
       }

@@ -123,7 +123,17 @@ export const sessionRepository = {
   async getSession(sessionId: number): Promise<Session | null> {
     const sqlite = await getSqlite();
     const result = await sqlite.select<Record<string, unknown>[]>(
-      `SELECT * FROM sessions WHERE id = ? LIMIT 1`,
+      `SELECT 
+         id, 
+         uuid, 
+         cloud_session_id, 
+         dj_identity, 
+         name, 
+         started_at, 
+         ended_at 
+       FROM sessions 
+       WHERE id = ? 
+       LIMIT 1`,
       [sessionId],
     );
 
@@ -147,7 +157,18 @@ export const sessionRepository = {
   async getActiveSession(): Promise<Session | null> {
     const sqlite = await getSqlite();
     const result = await sqlite.select<Record<string, unknown>[]>(
-      "SELECT * FROM sessions WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1",
+      `SELECT 
+         id, 
+         uuid, 
+         cloud_session_id, 
+         dj_identity, 
+         name, 
+         started_at, 
+         ended_at 
+       FROM sessions 
+       WHERE ended_at IS NULL 
+       ORDER BY started_at DESC 
+       LIMIT 1`,
     );
 
     if (result.length === 0) return null;
@@ -171,7 +192,17 @@ export const sessionRepository = {
   async getAllSessions(limit = 50): Promise<Session[]> {
     const sqlite = await getSqlite();
     const result = await sqlite.select<Record<string, unknown>[]>(
-      `SELECT * FROM sessions ORDER BY started_at DESC LIMIT ?`,
+      `SELECT 
+         id, 
+         uuid, 
+         cloud_session_id, 
+         dj_identity, 
+         name, 
+         started_at, 
+         ended_at 
+       FROM sessions 
+       ORDER BY started_at DESC 
+       LIMIT ?`,
       [limit],
     );
 
@@ -364,111 +395,118 @@ export const sessionRepository = {
   async getAllSessionsSummary(): Promise<AllSessionsSummary> {
     const sqlite = await getSqlite();
 
-    // Get session count
-    const sessionCountResult = await sqlite.select<{ count: number }[]>(
-      `SELECT COUNT(*) as count FROM sessions`,
-    );
+    // 🛡️ Issue 31 Fix: Execute independent aggregate queries in parallel
+    const [
+      sessionCountResult,
+      playStatsResult,
+      durationResult,
+      uniqueTracksResult,
+      topLikedResult,
+      topPeakedResult,
+      topSessionsResult,
+    ] = await Promise.all([
+      // 1. Session Count
+      sqlite.select<{ count: number }[]>(`SELECT COUNT(*) as count FROM sessions`),
+
+      // 2. Play Stats (Peaks, Bricks, Duration, Likes, Total Plays)
+      sqlite.select<
+        {
+          total_plays: number;
+          total_peaks: number;
+          total_bricks: number;
+          total_duration: number;
+          total_likes: number;
+        }[]
+      >(`
+        SELECT 
+            COUNT(*) as total_plays,
+            SUM(CASE WHEN reaction = 'peak' THEN 1 ELSE 0 END) as total_peaks,
+            SUM(CASE WHEN reaction = 'brick' THEN 1 ELSE 0 END) as total_bricks,
+            COALESCE(SUM(duration), 0) as total_duration,
+            COALESCE(SUM(dancer_likes), 0) as total_likes
+        FROM plays
+      `),
+
+      // 3. Total Duration from Sessions (more accurate)
+      sqlite.select<{ total: number }[]>(`
+        SELECT COALESCE(SUM(ended_at - started_at), 0) as total
+        FROM sessions
+        WHERE ended_at IS NOT NULL
+      `),
+
+      // 4. Unique Tracks
+      sqlite.select<{ count: number }[]>(`SELECT COUNT(DISTINCT track_id) as count FROM plays`),
+
+      // 5. Top Liked Tracks
+      sqlite.select<
+        {
+          track_id: number;
+          artist: string | null;
+          title: string | null;
+          total_likes: number;
+        }[]
+      >(`
+        SELECT 
+            p.track_id,
+            t.artist,
+            t.title,
+            SUM(p.dancer_likes) as total_likes
+        FROM plays p
+        JOIN tracks t ON p.track_id = t.id
+        WHERE p.dancer_likes > 0
+        GROUP BY p.track_id
+        ORDER BY total_likes DESC
+        LIMIT 5
+      `),
+
+      // 6. Top Peaked Tracks
+      sqlite.select<
+        {
+          track_id: number;
+          artist: string | null;
+          title: string | null;
+          peak_count: number;
+        }[]
+      >(`
+        SELECT 
+            p.track_id,
+            t.artist,
+            t.title,
+            COUNT(*) as peak_count
+        FROM plays p
+        JOIN tracks t ON p.track_id = t.id
+        WHERE p.reaction = 'peak'
+        GROUP BY p.track_id
+        ORDER BY peak_count DESC
+        LIMIT 5
+      `),
+
+      // 7. Best Sessions
+      sqlite.select<
+        {
+          session_id: number;
+          session_name: string | null;
+          peak_count: number;
+          track_count: number;
+        }[]
+      >(`
+        SELECT 
+            s.id as session_id,
+            s.name as session_name,
+            SUM(CASE WHEN p.reaction = 'peak' THEN 1 ELSE 0 END) as peak_count,
+            COUNT(*) as track_count
+        FROM sessions s
+        JOIN plays p ON s.id = p.session_id
+        GROUP BY s.id
+        ORDER BY peak_count DESC
+        LIMIT 5
+      `),
+    ]);
+
     const totalSessions = sessionCountResult[0]?.count || 0;
-
-    // Get play stats
-    const playStatsResult = await sqlite.select<
-      {
-        total_plays: number;
-        total_peaks: number;
-        total_bricks: number;
-        total_duration: number;
-        total_likes: number;
-      }[]
-    >(`
-            SELECT 
-                COUNT(*) as total_plays,
-                SUM(CASE WHEN reaction = 'peak' THEN 1 ELSE 0 END) as total_peaks,
-                SUM(CASE WHEN reaction = 'brick' THEN 1 ELSE 0 END) as total_bricks,
-                COALESCE(SUM(duration), 0) as total_duration,
-                COALESCE(SUM(dancer_likes), 0) as total_likes
-            FROM plays
-        `);
-
     const stats = playStatsResult[0];
-
-    // Get total duration from sessions (more accurate)
-    const durationResult = await sqlite.select<{ total: number }[]>(`
-            SELECT COALESCE(SUM(ended_at - started_at), 0) as total
-            FROM sessions
-            WHERE ended_at IS NOT NULL
-        `);
     const totalDuration = durationResult[0]?.total || 0;
-
-    // Get unique tracks count
-    const uniqueTracksResult = await sqlite.select<{ count: number }[]>(`
-            SELECT COUNT(DISTINCT track_id) as count FROM plays
-        `);
     const uniqueTracks = uniqueTracksResult[0]?.count || 0;
-
-    // Get top liked tracks (aggregated across all sessions)
-    const topLikedResult = await sqlite.select<
-      {
-        track_id: number;
-        artist: string | null;
-        title: string | null;
-        total_likes: number;
-      }[]
-    >(`
-            SELECT 
-                p.track_id,
-                t.artist,
-                t.title,
-                SUM(p.dancer_likes) as total_likes
-            FROM plays p
-            JOIN tracks t ON p.track_id = t.id
-            WHERE p.dancer_likes > 0
-            GROUP BY p.track_id
-            ORDER BY total_likes DESC
-            LIMIT 5
-        `);
-
-    // Get most peaked tracks
-    const topPeakedResult = await sqlite.select<
-      {
-        track_id: number;
-        artist: string | null;
-        title: string | null;
-        peak_count: number;
-      }[]
-    >(`
-            SELECT 
-                p.track_id,
-                t.artist,
-                t.title,
-                COUNT(*) as peak_count
-            FROM plays p
-            JOIN tracks t ON p.track_id = t.id
-            WHERE p.reaction = 'peak'
-            GROUP BY p.track_id
-            ORDER BY peak_count DESC
-            LIMIT 5
-        `);
-
-    // Get best sessions by peak ratio
-    const topSessionsResult = await sqlite.select<
-      {
-        session_id: number;
-        session_name: string | null;
-        peak_count: number;
-        track_count: number;
-      }[]
-    >(`
-            SELECT 
-                s.id as session_id,
-                s.name as session_name,
-                SUM(CASE WHEN p.reaction = 'peak' THEN 1 ELSE 0 END) as peak_count,
-                COUNT(*) as track_count
-            FROM sessions s
-            JOIN plays p ON s.id = p.session_id
-            GROUP BY s.id
-            ORDER BY peak_count DESC
-            LIMIT 5
-        `);
 
     return {
       totalSessions,
@@ -480,19 +518,19 @@ export const sessionRepository = {
       totalLikes: stats?.total_likes || 0,
       topLikedTracks: topLikedResult.map((t) => ({
         trackId: t.track_id,
-        artist: t.artist,
-        title: t.title,
+        artist: t.artist ?? "Unknown",
+        title: t.title ?? "Unknown",
         totalLikes: t.total_likes,
       })),
       topPeakedTracks: topPeakedResult.map((t) => ({
         trackId: t.track_id,
-        artist: t.artist,
-        title: t.title,
+        artist: t.artist ?? "Unknown",
+        title: t.title ?? "Unknown",
         peakCount: t.peak_count,
       })),
       topSessions: topSessionsResult.map((s) => ({
         sessionId: s.session_id,
-        sessionName: s.session_name,
+        sessionName: s.session_name ?? `Session #${s.session_id}`,
         peakCount: s.peak_count,
         trackCount: s.track_count,
       })),

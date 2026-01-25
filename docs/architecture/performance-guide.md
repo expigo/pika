@@ -59,6 +59,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **JSON Optimization** | `json_each` for O(N) tag aggregation | ✅ Done (v0.3.2) |
 | **Cloud DB indexes** | 12 indexes on hot query paths | ✅ Done |
 | **Atomic Transactions** | `BEGIN TRANSACTION` on critical writes | ✅ Done |
+| **Explicit Columns** | No `SELECT *` in repositories | ✅ Done (v0.3.3) |
 
 ---
 
@@ -83,6 +84,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Debounced Broadcasts** | 2-second heartbeat for listener counts | ✅ Done |
 | **TTL Caching** | 5-minute cache for `/stats/top-tracks` | ✅ Done |
 | **Sticky Participants** | 5-minute window for pocketed phones | ✅ Done |
+| **Fatal Error Checks** | Stop reconnect on 4000+ codes | ✅ Done (v0.3.3) |
 
 ---
 
@@ -104,6 +106,9 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Debounced search** | 200ms delay on keystrokes | ✅ Done |
 | **Progress indicators** | Analysis shows current track | ✅ Done |
 | **Pause/Resume** | Analyzer can be paused mid-batch | ✅ Done |
+| **Smart Animations** | `requestAnimationFrame` pauses when hidden | ✅ Done (v0.3.3) |
+| **Hydration Stability** | `useVisibility` hook initializes to server-safe defaults | ✅ Done (v0.3.3) |
+| **IPC Timeouts** | `invokeWithTimeout` prevents hanging Rust calls | ✅ Done (v0.3.3) |
 
 ---
 
@@ -190,7 +195,8 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 
 | Date | Change |
 |------|--------|
-| 2026-01-25 | **Reliability & Robustness Hardening (v0.3.3)**: Mandatory API limits, Adaptive 3s background polling, 1,000 message reliability buffer, Store LRU eviction, ID-based queue concurrency |
+| 2026-01-25 | **Performance Batch 3 (v0.3.3)**: Fatal Error Protection (Issue 41), Explicit Column Selection (Issue 40), Rust File Scan Opt (Issue 42), Reduced Cache Latency (Issue 47) |
+| 2026-01-25 | **Reliability & Robustness Hardening (v0.3.3)**: Mandatory API limits, Adaptive 3s background polling, 1,000 message reliability buffer, Store LRU eviction, ID-based queue concurrency, Hybrid Deduplication (Window + Absolute) |
 | 2026-01-25 | **Performance Hardening (v0.3.2)**: Visibility polling (H1), Yielding I/O (H2), SWR Caching (H3), Memoized Handlers (H4) |
 | 2026-01-24 | **Phase 2 Hardening (v0.3.0)**: O(1) Map optimizations, Atomic Transactions (Desktop), Queue Cleanup |
 | 2026-01-23 | **11/10 Battery Update**: Implemented Zero-Wakeup architecture (WS suspension, Poll freezing, Animation kill) |

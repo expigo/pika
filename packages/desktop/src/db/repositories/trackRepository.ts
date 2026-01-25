@@ -567,7 +567,11 @@ function remapTrack(row: TrackRow): Track {
   if (row.tags) {
     try {
       tags = JSON.parse(row.tags);
-    } catch {
+    } catch (e) {
+      logger.debug(`[remapTrack] Failed to parse tags for track ${row.id}`, {
+        tags: row.tags,
+        error: e,
+      });
       tags = [];
     }
   }

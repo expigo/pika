@@ -2,6 +2,16 @@ import type { TrackInfo } from "@pika/shared";
 import { invoke } from "@tauri-apps/api/core";
 import { settingsRepository } from "../db/repositories/settingsRepository";
 
+const IPC_TIMEOUT_MS = 5000;
+
+// 🛡️ Issue 27 Fix: Timeout wrapper for IPC calls
+async function invokeWithTimeout<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`IPC Timeout: ${cmd}`)), IPC_TIMEOUT_MS),
+  );
+  return Promise.race([invoke<T>(cmd, args), timeout]);
+}
+
 /**
  * Extended track info from VirtualDJ with additional metadata.
  * When sending to Cloud, map to TrackInfo.
@@ -71,7 +81,7 @@ class VirtualDJWatcher {
       // Get custom VDJ path from settings (may be "auto" or a file path)
       const customPath = await settingsRepository.get("library.vdjPath");
 
-      const result = await invoke<HistoryTrack | null>("read_virtualdj_history", {
+      const result = await invokeWithTimeout<HistoryTrack | null>("read_virtualdj_history", {
         customPath: customPath,
       });
 
@@ -85,7 +95,7 @@ class VirtualDJWatcher {
 
       if ((!bpm || !key) && result.file_path && !result.file_path.startsWith("unknown")) {
         try {
-          const metadata = await invoke<{
+          const metadata = await invokeWithTimeout<{
             bpm: number | null;
             key: string | null;
             energy: number | null;

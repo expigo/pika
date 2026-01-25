@@ -35,6 +35,10 @@ export function useLayoutResizer(): LayoutResizer {
     [topSplitOffset],
   );
 
+  // 🛡️ Issue 26 Fix: Stable listeners using refs to prevent churn
+  // Each effect below only runs when resizing starts/stops, not during mouse movement.
+
+  // Top Horizontal Resizer (X-Ray vs Stats)
   useEffect(() => {
     if (!isResizingTopH) return;
 

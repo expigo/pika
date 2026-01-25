@@ -32,6 +32,8 @@ import {
 } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
 import { getConfiguredUrls } from "../hooks/useDjSettings";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRef } from "react";
 
 // ============================================================================
 // Helper Functions
@@ -209,6 +211,15 @@ export function Logbook() {
     }
     loadDetails();
   }, [selectedSessionId, showSummary]);
+
+  // 🛡️ Issue 30 Fix: Virtualization for large tracklists
+  const parentRef = useRef<HTMLDivElement>(null);
+  const rowVirtualizer = useVirtualizer({
+    count: sessionDetails?.plays.length ?? 0,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 56, // Approx row height
+    overscan: 5,
+  });
 
   const handleExportCsv = useCallback(() => {
     if (!sessionDetails) return;
@@ -605,63 +616,86 @@ export function Logbook() {
               </div>
             </div>
 
-            {/* Tracklist */}
-            <div style={styles.tracklistContainer}>
-              <table style={styles.tracklist}>
-                <thead>
-                  <tr>
-                    <th style={styles.th}>#</th>
-                    <th style={styles.th}>Time</th>
-                    <th style={{ ...styles.th, textAlign: "left" }}>Track</th>
-                    <th style={styles.th}>BPM</th>
-                    <th style={styles.th}>Key</th>
-                    <th style={styles.th}>Reaction</th>
-                    <th style={styles.th}>Likes</th>
-                    <th style={{ ...styles.th, textAlign: "left" }}>Notes</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sessionDetails.plays.map((play, index) => (
-                    <tr
-                      key={play.id}
-                      style={{
-                        ...styles.tr,
-                        ...(play.reaction === "peak" ? styles.peakRow : {}),
-                        ...(play.reaction === "brick" ? styles.brickRow : {}),
-                      }}
-                    >
-                      <td style={styles.td}>{index + 1}</td>
-                      <td style={styles.td}>{formatTime(play.playedAt)}</td>
-                      <td style={styles.tdTrack}>
-                        <span style={styles.trackTitle}>{play.title || "Unknown"}</span>
-                        <span style={styles.trackArtist}>{play.artist || "Unknown Artist"}</span>
-                      </td>
-                      <td style={styles.td}>{play.bpm ? Math.round(play.bpm) : "-"}</td>
-                      <td style={styles.td}>{play.key || "-"}</td>
-                      <td style={styles.td}>
-                        {play.reaction === "peak" && <Flame size={16} color="#f97316" />}
-                        {play.reaction === "brick" && <BrickWall size={16} color="#64748b" />}
-                      </td>
-                      <td style={styles.td}>
-                        {play.dancerLikes > 0 && (
-                          <span style={styles.likes}>
-                            <Heart size={12} fill="#ef4444" color="#ef4444" />
-                            {play.dancerLikes}
-                          </span>
-                        )}
-                      </td>
-                      <td style={styles.tdNotes}>
-                        {play.notes && (
-                          <span style={styles.noteText}>
-                            <FileText size={12} />
-                            {play.notes}
-                          </span>
-                        )}
-                      </td>
+            {/* Tracklist - Virtualized */}
+            <div style={styles.tracklistContainer} ref={parentRef}>
+              <div
+                style={{
+                  height: `${rowVirtualizer.getTotalSize()}px`,
+                  width: "100%",
+                  position: "relative",
+                }}
+              >
+                <table
+                  style={{
+                    ...styles.tracklist,
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    width: "100%",
+                    transform: `translateY(${rowVirtualizer.getVirtualItems()[0]?.start ?? 0}px)`,
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>#</th>
+                      <th style={styles.th}>Time</th>
+                      <th style={{ ...styles.th, textAlign: "left" }}>Track</th>
+                      <th style={styles.th}>BPM</th>
+                      <th style={styles.th}>Key</th>
+                      <th style={styles.th}>Reaction</th>
+                      <th style={styles.th}>Likes</th>
+                      <th style={{ ...styles.th, textAlign: "left" }}>Notes</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const play = sessionDetails.plays[virtualRow.index];
+                      return (
+                        <tr
+                          key={play.id}
+                          style={{
+                            ...styles.tr,
+                            height: `${virtualRow.size}px`, // Enforce row height
+                            ...(play.reaction === "peak" ? styles.peakRow : {}),
+                            ...(play.reaction === "brick" ? styles.brickRow : {}),
+                          }}
+                        >
+                          <td style={styles.td}>{virtualRow.index + 1}</td>
+                          <td style={styles.td}>{formatTime(play.playedAt)}</td>
+                          <td style={styles.tdTrack}>
+                            <span style={styles.trackTitle}>{play.title || "Unknown"}</span>
+                            <span style={styles.trackArtist}>
+                              {play.artist || "Unknown Artist"}
+                            </span>
+                          </td>
+                          <td style={styles.td}>{play.bpm ? Math.round(play.bpm) : "-"}</td>
+                          <td style={styles.td}>{play.key || "-"}</td>
+                          <td style={styles.td}>
+                            {play.reaction === "peak" && <Flame size={16} color="#f97316" />}
+                            {play.reaction === "brick" && <BrickWall size={16} color="#64748b" />}
+                          </td>
+                          <td style={styles.td}>
+                            {play.dancerLikes > 0 && (
+                              <span style={styles.likes}>
+                                <Heart size={12} fill="#ef4444" color="#ef4444" />
+                                {play.dancerLikes}
+                              </span>
+                            )}
+                          </td>
+                          <td style={styles.tdNotes}>
+                            {play.notes && (
+                              <span style={styles.noteText}>
+                                <FileText size={12} />
+                                {play.notes}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         ) : (

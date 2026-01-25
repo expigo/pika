@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Track } from "../db/repositories/trackRepository";
 
 /**
@@ -54,9 +54,18 @@ export function useTrackSelection(visibleTracks: Track[]) {
     [visibleTracks, lastSelectedIndex],
   );
 
+  // Stable refs for event handlers to avoid re-registering listeners
+  const stateRef = useRef({ visibleTracks, selectedTrackIds });
+  useEffect(() => {
+    stateRef.current = { visibleTracks, selectedTrackIds };
+  }, [visibleTracks, selectedTrackIds]);
+
   // Keyboard shortcuts (Select All, Escape)
+  // 🛡️ Issue 46 Fix: Use stable callback refs to prevent listener re-registration on filter change
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const { visibleTracks, selectedTrackIds } = stateRef.current;
+
       // Escape: Clear selection
       if (e.key === "Escape" && selectedTrackIds.size > 0) {
         clearSelection();
@@ -74,7 +83,7 @@ export function useTrackSelection(visibleTracks: Track[]) {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedTrackIds.size, visibleTracks, clearSelection]);
+  }, [clearSelection]);
 
   return {
     selectedTrackIds,

@@ -125,7 +125,7 @@ export function LivePerformanceMode({
   }, [endedPoll]);
 
   // Confetti state refs
-  const confettiIntervalRef = useRef(null as unknown as ReturnType<typeof setInterval> | null);
+  // raf ref not needed as we just let it run/stop naturally based on time
   const confettiEndTimeRef = useRef(0); // Track when the current rain should stop
   const reactionTimestampsRef = useRef<number[]>([]); // Track reaction times for velocity
 
@@ -166,7 +166,7 @@ export function LivePerformanceMode({
     });
   }, []);
 
-  // Gentle rain effect (continuous from top)
+  // Gentle rain effect (continuous from top) - Optimized
   const ensureRainLoop = useCallback((rainDuration: number) => {
     const now = Date.now();
 
@@ -182,43 +182,52 @@ export function LivePerformanceMode({
     const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 99999 };
     const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
-    // Clear any existing interval just in case
-    if (confettiIntervalRef.current) clearInterval(confettiIntervalRef.current);
+    const frame = () => {
+      // 🛡️ Issue 25 Fix: Visibility check to pause animation
+      if (document.hidden) {
+        // If hidden, just check if we should stop purely based on time,
+        // but don't render. Next visible frame will resume or stop.
+        if (Date.now() > confettiEndTimeRef.current) return;
+        requestAnimationFrame(frame);
+        return;
+      }
 
-    confettiIntervalRef.current = setInterval(() => {
       const timeLeft = confettiEndTimeRef.current - Date.now();
 
       if (timeLeft <= 0) {
-        if (confettiIntervalRef.current) {
-          clearInterval(confettiIntervalRef.current);
-          confettiIntervalRef.current = null;
-        }
         return;
       }
 
       const particleCount = 40 * (timeLeft / rainDuration);
 
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
-        colors: ["#a78bfa", "#f472b6", "#fbbf24"],
-      });
-      confetti({
-        ...defaults,
-        particleCount,
-        origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
-        colors: ["#a78bfa", "#f472b6", "#fbbf24"],
-      });
-    }, 250);
+      // Throttling: only fire if particleCount > 0 to avoid wasted calls
+      if (particleCount > 0.5) {
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+          colors: ["#a78bfa", "#f472b6", "#fbbf24"],
+        });
+        confetti({
+          ...defaults,
+          particleCount,
+          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+          colors: ["#a78bfa", "#f472b6", "#fbbf24"],
+        });
+      }
+
+      requestAnimationFrame(frame);
+    };
+
+    requestAnimationFrame(frame);
   }, []);
 
-  // S0.2.4 Fix: Clean up confetti interval on unmount
+  // S0.2.4 Fix: Clean up is implicit with RAF (checking time)
+  // but we can ensure no lingering state if needed.
   useEffect(() => {
     return () => {
-      if (confettiIntervalRef.current) {
-        clearInterval(confettiIntervalRef.current);
-      }
+      // Reset end time to stop the RAF loop on next frame
+      confettiEndTimeRef.current = 0;
     };
   }, []);
 

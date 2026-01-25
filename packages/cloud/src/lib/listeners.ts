@@ -20,12 +20,19 @@ const PARTICIPANT_TTL = 5 * 60 * 1000;
  * Get the current listener count for a session
  * M8: Uses a cached value if calculated within the last 1s
  */
+// Map: sessionId -> Set<clientId> of potentially stale listeners (count = 0)
+const staleCandidates = new Map<string, Set<string>>();
+
+/**
+ * Get the current listener count for a session
+ * M8: Uses a cached value if calculated within the last 1s
+ */
 export function getListenerCount(sessionId: string): number {
   const cache = listenerCountCache.get(sessionId);
   const now = Date.now();
 
-  // If cache is fresh (1s), return it
-  if (cache && now - cache.lastCalculated < 1000) {
+  // If cache is fresh (100ms), return it
+  if (cache && now - cache.lastCalculated < 100) {
     return cache.count;
   }
 
@@ -65,6 +72,13 @@ export function addListener(sessionId: string, clientId: string): boolean {
   client.lastSeen = now;
   clients.set(clientId, client);
 
+  // Remove from stale candidates if present (reconnected)
+  const sessionStale = staleCandidates.get(sessionId);
+  if (sessionStale) {
+    sessionStale.delete(clientId);
+    if (sessionStale.size === 0) staleCandidates.delete(sessionId);
+  }
+
   // M8: Invalidate cache
   listenerCountCache.delete(sessionId);
 
@@ -93,6 +107,14 @@ export function removeListener(sessionId: string, clientId: string): boolean {
   client.count = Math.max(0, client.count - 1);
   client.lastSeen = Date.now();
 
+  // If count is 0, mark as potentially stale
+  if (client.count === 0) {
+    if (!staleCandidates.has(sessionId)) {
+      staleCandidates.set(sessionId, new Set());
+    }
+    staleCandidates.get(sessionId)!.add(clientId);
+  }
+
   // M8: Invalidate cache
   listenerCountCache.delete(sessionId);
 
@@ -111,26 +133,55 @@ export function removeListener(sessionId: string, clientId: string): boolean {
 export function clearListeners(sessionId: string): void {
   sessionListeners.delete(sessionId);
   listenerCountCache.delete(sessionId);
+  staleCandidates.delete(sessionId);
 }
 
 /**
  * Cleanup function for stale participants (disconnected > 1 hour)
  * Should be called periodically
+ *
+ * 🛡️ Issue 38 Fix: O(Disconnected) complexity instead of O(N*M)
+ * Uses staleCandidates index to only check clients that are explicitly disconnected.
  */
 export function cleanupStaleListeners(): void {
   const now = Date.now();
   const CLEANUP_THRESHOLD = 60 * 60 * 1000; // 1 hour
 
-  for (const [sessionId, clients] of sessionListeners.entries()) {
+  for (const [sessionId, clientIds] of staleCandidates.entries()) {
+    const clients = sessionListeners.get(sessionId);
+
+    // If session is gone, just cleanup invalid candidate entry
+    if (!clients) {
+      staleCandidates.delete(sessionId);
+      continue;
+    }
+
     let hasDeleted = false;
-    for (const [clientId, data] of clients.entries()) {
-      if (data.count === 0 && now - data.lastSeen > CLEANUP_THRESHOLD) {
+
+    // Check only candidates
+    for (const clientId of clientIds) {
+      const data = clients.get(clientId);
+
+      // If client reconnected (count > 0) or is missing, remove from candidates
+      if (!data || data.count > 0) {
+        clientIds.delete(clientId);
+        continue;
+      }
+
+      // If stale check passes, delete for real
+      if (now - data.lastSeen > CLEANUP_THRESHOLD) {
         clients.delete(clientId);
+        clientIds.delete(clientId); // Remove from candidates too
         hasDeleted = true;
       }
     }
 
-    // M8: Re-calculate count after cleanup
+    // Clean up empty candidate sets
+    if (clientIds.size === 0) {
+      staleCandidates.delete(sessionId);
+    }
+
+    // M8: Re-calculate count cache if we modified subscribers
     if (hasDeleted) {
       listenerCountCache.delete(sessionId);
     }
@@ -139,6 +190,8 @@ export function cleanupStaleListeners(): void {
     if (clients.size === 0) {
       sessionListeners.delete(sessionId);
       listenerCountCache.delete(sessionId);
+      // Also ensure candidates are gone (should be handled above but for safety)
+      staleCandidates.delete(sessionId);
       logger.debug("🧹 Removed empty listener map", { sessionId });
     }
   }

@@ -20,7 +20,48 @@ import { PikaEnvironment, URLS } from "@pika/shared";
 const STORAGE_KEY = "pika_dj_settings";
 
 // 🛡️ R2 Fix: Module-level lock to prevent cross-instance validation races
-let globalValidatingLock = false;
+// 🛡️ Issue 29 Fix: Deduplicate in-flight validation requests
+class TokenValidationManager {
+  private static instance: TokenValidationManager;
+  private isGlobalValidating = false;
+  private pendingRequests = new Map<string, Promise<DjInfo | null>>();
+
+  private constructor() {}
+
+  static getInstance(): TokenValidationManager {
+    if (!TokenValidationManager.instance) {
+      TokenValidationManager.instance = new TokenValidationManager();
+    }
+    return TokenValidationManager.instance;
+  }
+
+  isValidating(): boolean {
+    return this.isGlobalValidating;
+  }
+
+  setValidating(validating: boolean) {
+    this.isGlobalValidating = validating;
+  }
+
+  async validate(
+    token: string,
+    validator: (t: string) => Promise<DjInfo | null>,
+  ): Promise<DjInfo | null> {
+    if (this.pendingRequests.has(token)) {
+      // Return existing promise (Deduplication)
+      return this.pendingRequests.get(token)!;
+    }
+
+    const promise = validator(token).finally(() => {
+      this.pendingRequests.delete(token);
+    });
+
+    this.pendingRequests.set(token, promise);
+    return promise;
+  }
+}
+
+const validationManager = TokenValidationManager.getInstance();
 
 export type ServerEnv = "dev" | "prod" | "staging";
 
@@ -194,15 +235,23 @@ export function useDjSettings() {
    */
   const revalidateToken = useCallback(async (): Promise<{ valid: boolean; skipped?: boolean }> => {
     const currentSettings = loadSettings();
-    if (!currentSettings.authToken || isRevalidatingRef.current || globalValidatingLock) {
+    if (
+      !currentSettings.authToken ||
+      isRevalidatingRef.current ||
+      validationManager.isValidating()
+    ) {
       return { valid: true, skipped: true }; // No token, already local revalidating, or global revalidating
     }
 
     isRevalidatingRef.current = true;
-    globalValidatingLock = true;
+    validationManager.setValidating(true);
 
     try {
-      const djInfo = await validateTokenWithServer(currentSettings.authToken);
+      // Issue 29 Fix: Deduplicate calls
+      const djInfo = await validationManager.validate(
+        currentSettings.authToken,
+        validateTokenWithServer,
+      );
 
       if (djInfo) {
         // Token still valid - update validation timestamp
@@ -235,7 +284,7 @@ export function useDjSettings() {
       return { valid: true, skipped: true }; // Assume valid on network error (skipped validation)
     } finally {
       isRevalidatingRef.current = false;
-      globalValidatingLock = false;
+      validationManager.setValidating(false);
     }
   }, []);
 
@@ -317,7 +366,7 @@ export function useDjSettings() {
     setIsValidating(true);
 
     try {
-      const djInfo = await validateTokenWithServer(authToken);
+      const djInfo = await validationManager.validate(authToken, validateTokenWithServer);
 
       if (djInfo) {
         // Token valid! Auto-sync DJ name and record validation time

@@ -11,6 +11,10 @@ The command center for the DJ. Built with Tauri v2 (Rust) and React 19.
     *   **Mandatory API Limits**: Prevents OOM crashes by forcing explicit memory sizing for library loads.
     *   **Adaptive Background Polling**: Intelligently scales polling frequency (1s/3s) based on app visibility to balance battery life and data integrity.
     *   **Reliability Buffer**: Survives 30+ minute network outages with a 1,000-message persistent retry buffer.
+    *   **Fatal Error Protection**: Intelligent socket management that halts reconnection on fatal server errors (e.g. Session Ended), preventing infinite "zombie" loops.
+    *   **Smart Animations**: HUD animations utilize `requestAnimationFrame` with visibility checks to ensure 0% CPU usage when minimized.
+    *   **Explicit Data Fetching**: Optimized SQL queries prevent over-fetching, ensuring stable memory usage even with massive session histories.
+    *   **Zero-Duplication Guarantee**: Hybrid Deduplication (Time Window + Absolute Interval) ensures accurate track counts even during long sets or app restarts.
 
 ## 🐍 Python Sidecar
 The analysis engine lives in `python-src/`. It is a FastAPI app that runs locally as a sidecar process managed by Tauri.

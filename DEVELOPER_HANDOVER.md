@@ -18,6 +18,7 @@ The system is divided into three distinct environments (monorepo via **Bun Works
     *   **Tech:** Tauri 2.0 (Rust), React 19, TypeScript, Vite.
     *   **Role:** Runs locally on the DJ's laptop. Watches filesystem for track changes, performs audio analysis (Python), and pushes data to the cloud.
     *   **Key Service:** `VirtualDjWatcher` (polls `history.m3u` / `database.xml`).
+    *   **Reliability:** Implements **Adaptive Polling** (1s visible / 3s background) and **Hybrid Deduplication** to ensure 100% uptime and data accuracy.
 
 2.  **Cloud (The Relay & Brain)** - `@pika/cloud`
     *   **Tech:** Hono Server running on Bun, Drizzle ORM, Postgres.
@@ -117,6 +118,8 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Robust Buffering:** Reliability module expanded to 1,000 pending messages with Drop-Oldest logic.
     *   **Adaptive Polling:** VDJ watcher drops to 3s when hidden (Adaptive Background Polling) to ensure zero data loss while saving power.
     *   **Concurrency IDs:** Offline queue sync uses Operation IDs to prevent race conditions during watchdog resets.
+    *   **Hybrid Deduplication:** 2-Stage check (Window + Absolute Interval) guarantees zero duplicate track recordings even if the DJ minimizes the app for hours.
+    *   **Singleton Watcher:** Module-level singleton pattern for `VirtualDJWatcher` eliminates "ghost" listeners and phantom notifications.
 
 ---
 

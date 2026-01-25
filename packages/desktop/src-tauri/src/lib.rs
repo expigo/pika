@@ -26,8 +26,8 @@ struct VirtualDJSong {
     scan: Option<VirtualDJScan>,
     #[serde(rename = "Infos", default)]
     infos: Option<VirtualDJInfos>,
-    #[serde(rename = "Comment", default)]
-    _comment: Option<serde::de::IgnoredAny>,
+    // 🛡️ Issue 43 Fix: IgnoredAny wastes deserialization. 
+    // Removed _comment field entirely (Serde ignores unknown fields by default).
     #[serde(rename = "Poi", default)]
     pois: Vec<VirtualDJPoi>,
 }
@@ -165,8 +165,16 @@ pub struct VirtualDJTrack {
 /// Convert VirtualDJ BPM format to actual BPM
 /// VirtualDJ stores BPM as beat period in seconds (seconds per beat)
 /// Formula: actual_bpm = 60 / stored_value
+/// Convert VirtualDJ BPM format to actual BPM
+/// VirtualDJ stores BPM as beat period in seconds (seconds per beat)
+/// Formula: actual_bpm = 60 / stored_value
 fn convert_virtualdj_bpm(bpm_str: &str) -> Option<String> {
     let beat_period: f64 = bpm_str.parse().ok()?;
+    convert_virtualdj_bpm_f64(beat_period)
+}
+
+/// 🛡️ Issue 44 Fix: Extracted common logic for f64 input
+fn convert_virtualdj_bpm_f64(beat_period: f64) -> Option<String> {
     if beat_period <= 0.0 {
         return None;
     }
@@ -265,31 +273,39 @@ fn read_virtualdj_history(custom_path: Option<String>) -> Result<Option<HistoryT
         }
     };
     
-    // Parse the last entry
-    let lines: Vec<&str> = content.trim().lines().collect();
-    if lines.len() < 2 {
-        return Ok(None);
-    }
+    // Parse the last entry using reverse iterator to avoid collecting all lines
+    // 🛡️ Issue 37 Fix: Use iterator methods instead of collecting lines
+    let mut lines_iter = content.trim().lines().rev();
     
-    let file_path = lines[lines.len() - 1].to_string();
-    let ext_line = lines[lines.len() - 2];
+    let file_path_line = match lines_iter.next() {
+        Some(l) => l,
+        None => return Ok(None),
+    };
+    
+    // Check if it looks like a file path (basic heuristic) or if we just have one line
+    // VDJ history usually has 2 lines per entry: #EXTVDJ:... then the path
+    let ext_line = match lines_iter.next() {
+        Some(l) => l,
+        None => return Ok(None),
+    };
     
     if !ext_line.starts_with("#EXTVDJ:") {
         return Ok(None);
     }
+
+    let file_path = file_path_line.to_string();
     
-    // Parse the EXTVDJ line - extract artist, title, lastplaytime
-    let extract_tag = |content: &str, tag: &str| -> Option<String> {
-        let start = format!("<{}>", tag);
-        let end = format!("</{}>", tag);
-        let start_idx = content.find(&start)? + start.len();
-        let end_idx = content.find(&end)?;
+    // 🛡️ Issue 36 Fix: Avoid format! allocations for known tags
+    let extract_tag = |content: &str, start_tag: &str, end_tag: &str| -> Option<String> {
+        let start_idx = content.find(start_tag)? + start_tag.len();
+        let end_idx = content.find(end_tag)?;
+        if start_idx >= end_idx { return None; }
         Some(content[start_idx..end_idx].to_string())
     };
     
-    let artist = extract_tag(ext_line, "artist").unwrap_or_else(|| "Unknown".to_string());
-    let title = extract_tag(ext_line, "title").unwrap_or_else(|| "Unknown".to_string());
-    let timestamp: u64 = extract_tag(ext_line, "lastplaytime")
+    let artist = extract_tag(ext_line, "<artist>", "</artist>").unwrap_or_else(|| "Unknown".to_string());
+    let title = extract_tag(ext_line, "<title>", "</title>").unwrap_or_else(|| "Unknown".to_string());
+    let timestamp: u64 = extract_tag(ext_line, "<lastplaytime>", "</lastplaytime>")
         .and_then(|s| s.parse().ok())
         .unwrap_or(0);
     
@@ -327,12 +343,17 @@ fn find_latest_history_file() -> Result<std::path::PathBuf, String> {
     println!("[VDJ] Reading history from: {:?}", history_dir);
     
     // Find the most recently modified .m3u file
+    // Find the most recently modified .m3u file
+    // 🛡️ Issue 42 Fix: Use DirEntry::metadata() to avoid re-stating every file
     let history_path = std::fs::read_dir(&history_dir)
         .map_err(|e| format!("Failed to read history directory: {}", e))?
         .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            let path = entry.path();
+            path.is_file() && path.extension().map_or(false, |ext| ext == "m3u")
+        })
+        .max_by_key(|entry| entry.metadata().and_then(|m| m.modified()).ok())
         .map(|entry| entry.path())
-        .filter(|path| path.is_file() && path.extension().map_or(false, |ext| ext == "m3u"))
-        .max_by_key(|path| std::fs::metadata(path).and_then(|m| m.modified()).ok())
         .ok_or_else(|| "No history files found".to_string())?;
     
     Ok(history_path)
@@ -389,7 +410,8 @@ async fn lookup_vdj_track_metadata(file_path: String) -> Result<Option<VdjTrackM
             let bpm = s.scan.as_ref()
                 .and_then(|scan| scan.bpm.as_ref())
                 .and_then(|b| b.parse::<f64>().ok())
-                .map(|beat_period| if beat_period > 0.0 { 60.0 / beat_period } else { 0.0 });
+                .and_then(|bp| convert_virtualdj_bpm_f64(bp))
+                .and_then(|bpm_str| bpm_str.parse::<f64>().ok());
             
             let key = s.scan.as_ref()
                 .and_then(|scan| scan.key.clone());

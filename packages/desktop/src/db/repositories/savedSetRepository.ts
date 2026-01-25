@@ -140,7 +140,13 @@ export const savedSetRepository = {
       await sqlite.execute("COMMIT");
       return setId;
     } catch (e) {
-      await sqlite.execute("ROLLBACK");
+      // 🛡️ Issue 33 Fix: Robust rollback handling
+      // Checking for transaction state isn't easy with basic plugin, so we attempt rollback on any error
+      try {
+        await sqlite.execute("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Rollback failed:", rollbackError);
+      }
       console.error("Failed to save set:", e);
       throw e;
     }
@@ -183,7 +189,11 @@ export const savedSetRepository = {
       await sqlite.execute(`UPDATE saved_sets SET updated_at = ? WHERE id = ?`, [now, setId]);
       await sqlite.execute("COMMIT");
     } catch (e) {
-      await sqlite.execute("ROLLBACK");
+      try {
+        await sqlite.execute("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Rollback failed:", rollbackError);
+      }
       console.error(`Failed to update set ${setId}:`, e);
       throw e;
     }
@@ -218,7 +228,11 @@ export const savedSetRepository = {
       await sqlite.execute(`DELETE FROM saved_sets WHERE id = ?`, [setId]);
       await sqlite.execute("COMMIT");
     } catch (e) {
-      await sqlite.execute("ROLLBACK");
+      try {
+        await sqlite.execute("ROLLBACK");
+      } catch (rollbackError) {
+        console.error("Rollback failed:", rollbackError);
+      }
       console.error(`Failed to delete set ${setId}:`, e);
       throw e;
     }

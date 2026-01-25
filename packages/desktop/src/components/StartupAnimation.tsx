@@ -5,11 +5,17 @@ export function StartupAnimation() {
   const [visible, setVisible] = useState(() => {
     // Check constraints synchronously to prevent "blink"
     if (typeof window !== "undefined") {
-      const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
-      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      try {
+        const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
+        const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-      if (prefersReducedMotion) return false;
-      if (hasSeenIntro) return false;
+        if (prefersReducedMotion) return false;
+        if (hasSeenIntro) return false;
+      } catch (e) {
+        // 🛡️ Issue 39 Fix: Handle restricted storage access (e.g. Incognito)
+        console.warn("Storage access restrictions prevented startup checks", e);
+        return true; // Use safe default
+      }
     }
     return true;
   });
@@ -20,7 +26,11 @@ export function StartupAnimation() {
     if (!visible) return;
 
     // Start sequence
-    sessionStorage.setItem("pika_intro_shown", "true");
+    try {
+      sessionStorage.setItem("pika_intro_shown", "true");
+    } catch (_) {
+      // Ignore storage errors on write
+    }
 
     const exitTimer = setTimeout(() => {
       setPhase("exit");
