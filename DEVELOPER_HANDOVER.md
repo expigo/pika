@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** January 24, 2026
-**Version:** 0.3.0 (Hardened Production Release)
+**Date:** January 25, 2026
+**Version:** 0.3.3 (Reliability Hardened Release)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -112,6 +112,11 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Yielding I/O:** Deferred `localStorage` access via yielding to the event loop.
     *   **Intelligent Caching:** `SWR` integration for O(1) track history retrieval.
     *   **Memoized Routing:** Stable WebSocket handler trees to prevent unnecessary React churn.
+*   **Reliability & Data Integrity (v0.3.3):**
+    *   **Mandatory API Limits:** `getTracks(limit)` replaces `getAllTracks()` to prevent OOM on large libraries.
+    *   **Robust Buffering:** Reliability module expanded to 1,000 pending messages with Drop-Oldest logic.
+    *   **Adaptive Polling:** VDJ watcher drops to 3s when hidden (Adaptive Background Polling) to ensure zero data loss while saving power.
+    *   **Concurrency IDs:** Offline queue sync uses Operation IDs to prevent race conditions during watchdog resets.
 
 ---
 
@@ -137,9 +142,11 @@ The "Save/Load" functionality was moved from a standalone modal into an integrat
 ### D. Zero-Wakeup Battery Architecture (v0.2.8)
 To protect user battery life (both DJ laptops and dancer phones), we implemented aggressive resource suspension:
 1.  **WebSocket:** Heartbeats (PINGs) are **suspended** when the tab/window is hidden. This allows the mobile radio to sleep.
-2.  **Polling:** All API polling (active sessions, current track) is **paused** when the document is hidden.
-3.  **Animations:** The particle rendering loop (`requestAnimationFrame`) is **hard-stopped** (not just throttled) when backgrounded.
-4.  **Instant Resume:** Event listeners on `visibilitychange` trigger an immediate data refresh and connection check upon return.
+2.  **Polling (Cloud):** All API polling (active sessions, current track) is **paused** when the document is hidden.
+3.  **VDJ Watcher (Desktop):** Polling frequency **drops to 3 seconds** when backgrounded. It does NOT stop, ensuring every song transition is recorded even if the app is hidden.
+4.  **Animations:** The particle rendering loop (`requestAnimationFrame`) is **hard-stopped** (not just throttled) when backgrounded.
+5.  **Listener Hygiene:** `VirtualDjWatcher` uses a `visibilityListenerAdded` flag to prevent memory leaks from recursive listener registration during focus shifts.
+6.  **Instant Resume:** Event listeners on `visibilitychange` trigger an immediate data refresh and connection check upon return.
 
 ### E. System Hardening (v0.3.0)
 To ensure production-grade stability under high load, we implemented:
@@ -243,4 +250,4 @@ Early in development, Tauri's HMR would spawn multiple Python sidecars, leading 
 
 ---
 
-*Last Updated: January 24, 2026 (v0.3.0 - Phase 2 Hardening)*
+*Last Updated: January 25, 2026 (v0.3.3 - Reliability & Robustness Hardening)*

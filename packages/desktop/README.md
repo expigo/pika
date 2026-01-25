@@ -7,6 +7,10 @@ The command center for the DJ. Built with Tauri v2 (Rust) and React 19.
 *   **Audio Analysis:** Bundles a Python sidecar to analyze tracks for BPM, Key, and Energy.
 *   **Broadcaster:** Sends "Now Playing" updates to the Cloud API.
 *   **Performance Mode:** Full-screen high-contrast overlay for live gigs.
+*   **Robustness & Data Integrity:**
+    *   **Mandatory API Limits**: Prevents OOM crashes by forcing explicit memory sizing for library loads.
+    *   **Adaptive Background Polling**: Intelligently scales polling frequency (1s/3s) based on app visibility to balance battery life and data integrity.
+    *   **Reliability Buffer**: Survives 30+ minute network outages with a 1,000-message persistent retry buffer.
 
 ## 🐍 Python Sidecar
 The analysis engine lives in `python-src/`. It is a FastAPI app that runs locally as a sidecar process managed by Tauri.

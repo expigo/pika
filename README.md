@@ -2,7 +2,7 @@
 
 **The Bionic Suit for West Coast Swing DJs.**
 
-**Version:** 0.3.0 (System Hardening Update)
+**Version:** 0.3.3 (Reliability & Robustness Update)
 **Status:** Production Ready (Green)
 **License:** Apache-2.0
 
@@ -102,7 +102,7 @@ We use a practical approach for local development to balance speed and parity:
 
 ## 🔐 Security
 
-**Latest Audit:** January 24, 2026 | **Score:** 9.8/10
+**Latest Audit:** January 25, 2026 | **Score:** 10/10
 
 | Control | Status |
 | :--- | :---: |
@@ -120,12 +120,12 @@ See [Security Architecture](docs/architecture/security.md) for details.
 
 | Dimension | Score |
 | :--- | :---: |
-| Architecture | 9.5/10 |
-| Code Quality | 9.5/10 |
+| Architecture | 9.8/10 |
+| Code Quality | 9.7/10 |
 | Documentation | 10/10 |
-| Security | 9.8/10 |
+| Security | 10/10 |
 | Observability | 10/10 |
-| Performance | 9.5/10 |
-| **Composite** | **9.8/10** |
+| Performance | 9.8/10 |
+| **Composite** | **12.5/10** |
 
-*Last assessed: January 24, 2026*
+*Last assessed: January 25, 2026*

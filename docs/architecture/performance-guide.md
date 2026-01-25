@@ -44,9 +44,9 @@ This document tracks performance considerations, bottlenecks, and optimization s
 
 | Operation | Time | Notes |
 |-----------|------|-------|
-| `getAllTracks()` | O(n) | Loads entire table into memory |
-| In-memory track search | O(n) | Linear scan |
-| Bulk import (5000 tracks) | 2-5s | Chunked at 100/batch |
+| `getTracks(limit)` | O(n) | Mandatory limits; Library defaults to 10k |
+| In-memory track filtering | O(n) | High-performance client-side scan |
+| Bulk import (5000 tracks) | 2-5s | Chunked at 500/batch |
 
 ### Mitigations
 
@@ -55,9 +55,10 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Indexed lookup** | `findByTrackKey()` uses index | ✅ Done |
 | **Chunked imports** | 100 tracks per batch | ✅ Done |
 | **track_key index** | `CREATE UNIQUE INDEX idx_track_key` | ✅ Done |
-| **Remove getAllTracks from hot path** | Use `findByTrackKey` instead | ✅ Done |
-| **Cloud DB indexes** | 12 indexes on hot query paths (v0.2.2) | ✅ Done |
-| **Atomic Transactions** | `BEGIN TRANSACTION` on critical writes (v0.3.0) | ✅ Done |
+| **Mandatory API Limits** | `getTracks(limit)` forces explicit memory sizing | ✅ Done (v0.3.3) |
+| **JSON Optimization** | `json_each` for O(N) tag aggregation | ✅ Done (v0.3.2) |
+| **Cloud DB indexes** | 12 indexes on hot query paths | ✅ Done |
+| **Atomic Transactions** | `BEGIN TRANSACTION` on critical writes | ✅ Done |
 
 ---
 
@@ -74,7 +75,9 @@ This document tracks performance considerations, bottlenecks, and optimization s
 
 | Strategy | Implementation | Status |
 |----------|---------------|--------|
-| **Offline queue** | SQLite `offline_queue` table | ✅ Done |
+| **Offline queue** | SQLite `offline_queue` table with ID-based concurrency | ✅ Done |
+| **Reliability Buffer** | 1,000 pending message capacity with Drop-Oldest | ✅ Done (v0.3.3) |
+| **Capacity Monitoring** | 80% buffer warnings via shared logger | ✅ Done (v0.3.3) |
 | **Heartbeat monitor** | Reconnect on disconnect | ✅ Done |
 | **Batch sync** | POST fingerprints at session end | ✅ Done |
 | **Debounced Broadcasts** | 2-second heartbeat for listener counts | ✅ Done |
@@ -121,6 +124,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Stream audio** | Don't load full file into memory | ✅ librosa handles |
 | **Clear analysis results** | Don't keep in React state | ✅ Done |
 | **Lazy component loading** | React.lazy() for LivePerformanceMode, Settings, Logbook | ✅ Done |
+| **Proper Store LRU** | `playedTrackKeys` set limited to 500 with LRU eviction | ✅ Done (v0.3.3) |
 | **O(1) Map Cleanup (Cloud)** | Nested `Map<Session, Map<Client...>>` for instant delete | ✅ Done (v0.3.0) |
 | **Explicit Queue Cleanup** | `cleanupSessionQueue()` on disconnect | ✅ Done (v0.3.0) |
 
@@ -148,27 +152,20 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 
 ### Behavior Protocol
 
-| Condition | WebSocket | Polling (API) | Animations (GPU) | Power State |
-|-----------|-----------|---------------|------------------|-------------|
-| **Active** | Connected (Ping/Pong) | 30s Interval | 60 FPS | Normal |
-| **Hidden** | **Suspended** (No Pings) | **Stopped** | **Frozen** (0 FPS) | **Deep Sleep** |
-| **Resumed** | Auto-Reconnect | Immediate Fetch | Resume Loop | Awake |
+| Condition | WebSocket | Polling (API) | VDJ Watcher | Power State |
+|-----------|-----------|---------------|-------------|-------------|
+| **Active** | Connected | 30s Interval | 1s Interval | Normal |
+| **Hidden** | Suspended | Stopped | **Adaptive (3s)** | **Hybrid Sleep** |
+| **Resumed** | Reconnect | Immediate | 1s Interval | Awake |
 
 ### 1. WebSocket & Polling Suspension (H1)
 - **Logic:** `useLiveListener.ts` and `page.tsx` use a visibility-aware polling strategy.
 - **Action:** Network activity (AJAX polling and heartbeats) is **stopped** when the tab is hidden.
 - **Benefit:** Eliminates 100% of background network noise, drastically extending mobile battery life.
 
-#### Behavior Protocol
-| Condition | WebSocket | Polling (API) | Animations (GPU) | Power State |
-|-----------|-----------|---------------|------------------|-------------|
-| **Active** | Connected (Ping/Pong) | 30s Interval | 60 FPS | Normal |
-| **Hidden** | **Suspended** (No Pings) | **Stopped** | **Frozen** (0 FPS) | **Deep Sleep** |
-| **Resumed** | Auto-Reconnect | Immediate Fetch | Resume Loop | Awake |
-
 #### Technical Implementation Details
 *   **WebSocket Suspension:** `useWebSocketConnection.ts` checks `document.visibilityState` inside its heartbeat loop and skips `PING` frames if hidden to keep the mobile radio dormant.
-*   **Desktop Hibernation:** `useActivePlay.ts` returns early if `document.visibilityState` is hidden, reducing SQLite query overhead on the DJ's station.
+*   **Adaptive Background Polling:** `virtualDjWatcher.ts` drops to a 3-second interval when hidden. This ensures zero data loss (catching all VDJ log writes) while reducing IPC overhead.
 *   **Loop Termination:** `SocialSignalsLayer.tsx` kills the `requestAnimationFrame` loop entirely when the tab is backgrounded to ensure 0% GPU/CPU usage.
 
 ### 2. Yielding I/O & UI Fluidity (H2)
@@ -183,13 +180,17 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 ### 4. stable Handler Trees (H4)
 - **Logic:** Full memoization of feature handler objects (`tempoHandlers`, `pollHandlers`, etc.).
 - **Benefit:** Prevents unnecessary React re-renders of the main composition tree, ensuring that only components actually receiving data updates are processed.
-
+### 5. Loop Termination 
+- **Logic:** `SocialSignalsLayer.tsx` checks `document.hidden` inside the `requestAnimationFrame` callback.
+- **Action:** Sets `animationFrameRef.current = null` and **returns** from the function, effectively stopping the loop.
+- **Benefit:** Ensures 0% GPU/CPU usage for rendering when the tab is not visible, bypassing browser heuristics that might only throttle to 1fps.
 ---
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-01-25 | **Reliability & Robustness Hardening (v0.3.3)**: Mandatory API limits, Adaptive 3s background polling, 1,000 message reliability buffer, Store LRU eviction, ID-based queue concurrency |
 | 2026-01-25 | **Performance Hardening (v0.3.2)**: Visibility polling (H1), Yielding I/O (H2), SWR Caching (H3), Memoized Handlers (H4) |
 | 2026-01-24 | **Phase 2 Hardening (v0.3.0)**: O(1) Map optimizations, Atomic Transactions (Desktop), Queue Cleanup |
 | 2026-01-23 | **11/10 Battery Update**: Implemented Zero-Wakeup architecture (WS suspension, Poll freezing, Animation kill) |
