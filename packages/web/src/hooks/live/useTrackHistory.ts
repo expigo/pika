@@ -1,10 +1,8 @@
-import { MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
+import { MESSAGE_TYPES, LIMITS, type TrackInfo } from "@pika/shared";
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { getApiBaseUrl } from "@/lib/api";
 import type { HistoryTrack, MessageHandlers, WebSocketMessage } from "./types";
-
-const MAX_HISTORY = 5;
 
 // Fetcher for SWR
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
@@ -57,7 +55,7 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
         unique.push(t);
       }
     }
-    return unique.slice(0, MAX_HISTORY);
+    return unique.slice(0, LIMITS.MAX_HISTORY_ITEMS);
   }, [localHistory, serverHistory]);
 
   const fetchHistory = useCallback(async () => {
@@ -84,7 +82,7 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
       }
 
       const newHistory = [{ ...track, playedAt: new Date().toISOString() }, ...prev];
-      return newHistory.slice(0, MAX_HISTORY);
+      return newHistory.slice(0, LIMITS.MAX_HISTORY_ITEMS);
     });
   }, []);
 

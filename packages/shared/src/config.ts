@@ -15,7 +15,7 @@ export const TIMEOUTS = {
   SOCKET_RECONNECT_MIN: 1000,
   SOCKET_RECONNECT_MAX: 30000,
   ACK_TIMEOUT: 5000,
-  HEARTBEAT_INTERVAL: 60 * 60 * 1000, // 1 hour
+  TOKEN_REVALIDATION_INTERVAL: 60 * 60 * 1000, // 1 hour (L1)
 
   // Data Processing
   LIKE_STORAGE_DEBOUNCE: 1000,
@@ -58,6 +58,8 @@ export const LIMITS = {
   MAX_POLL_OPTIONS: 10,
   MIN_POLL_OPTIONS: 2,
   MAX_ANNOUNCEMENT_LENGTH: 140, // characters
+  MAX_HISTORY_ITEMS: 50, // L7
+  MAX_RECAP_ITEMS: 500, // L7
 } as const;
 
 // ============================================================================

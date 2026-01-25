@@ -23,6 +23,7 @@ export {
   // WebSocket message schemas
   RegisterSessionSchema,
   SendLikeSchema,
+  SendBulkLikeSchema,
   type ServerMessage,
   ServerMessageSchema,
   SessionEndedSchema,
