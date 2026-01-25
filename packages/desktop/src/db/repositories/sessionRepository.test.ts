@@ -367,8 +367,8 @@ describe("sessionRepository", () => {
 
       const play = await sessionRepository.addPlay(1, 42, customTime);
 
-      expect(mockExecute).toHaveBeenCalledWith(
-        expect.any(String),
+      expect(mockSelect).toHaveBeenCalledWith(
+        expect.stringContaining("INSERT INTO plays"),
         expect.arrayContaining([1, 42, customTime]),
       );
       expect(play.playedAt).toBe(customTime);

@@ -306,7 +306,7 @@ describe("trackRepository", () => {
   // 4. Track Queries
   // ==========================================================================
 
-  describe("getAllTracks", () => {
+  describe("getTracks", () => {
     it("should return tracks ordered by artist", async () => {
       mockSelect.mockResolvedValueOnce([
         {
@@ -330,7 +330,7 @@ describe("trackRepository", () => {
         },
       ]);
 
-      const tracks = await trackRepository.getAllTracks();
+      const tracks = await trackRepository.getTracks(100);
 
       expect(tracks).toHaveLength(1);
       expect(tracks[0].artist).toBe("Alpha");
@@ -360,7 +360,7 @@ describe("trackRepository", () => {
         },
       ]);
 
-      const tracks = await trackRepository.getAllTracks();
+      const tracks = await trackRepository.getTracks(100);
 
       expect(tracks[0].tags).toEqual(["peak", "opener", "closer"]);
     });
@@ -389,7 +389,7 @@ describe("trackRepository", () => {
         },
       ]);
 
-      const tracks = await trackRepository.getAllTracks();
+      const tracks = await trackRepository.getTracks(100);
 
       expect(tracks[0].tags).toEqual([]);
     });
@@ -417,7 +417,7 @@ describe("trackRepository", () => {
         },
       ]);
 
-      const tracks = await trackRepository.getAllTracks();
+      const tracks = await trackRepository.getTracks(100);
 
       expect(tracks[0].tags).toEqual([]);
     });
@@ -621,9 +621,10 @@ describe("trackRepository", () => {
   describe("getAllTags", () => {
     it("should aggregate unique tags across all tracks", async () => {
       mockSelect.mockResolvedValueOnce([
-        { tags: '["peak","opener"]' },
-        { tags: '["peak","closer"]' },
-        { tags: '["bangers"]' },
+        { tag: "bangers" },
+        { tag: "closer" },
+        { tag: "opener" },
+        { tag: "peak" },
       ]);
 
       const tags = await trackRepository.getAllTags();
@@ -637,7 +638,7 @@ describe("trackRepository", () => {
     });
 
     it("should handle invalid JSON in tags", async () => {
-      mockSelect.mockResolvedValueOnce([{ tags: '["valid"]' }, { tags: "invalid json" }]);
+      mockSelect.mockResolvedValueOnce([{ tag: "valid" }]);
 
       const tags = await trackRepository.getAllTags();
 

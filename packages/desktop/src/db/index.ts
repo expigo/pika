@@ -104,14 +104,41 @@ async function initializeDb(): Promise<void> {
         console.log(`Migration: Backfilling track_key for ${tracksWithoutKey.length} tracks...`);
         const { getTrackKey } = await import("@pika/shared");
 
-        for (const track of tracksWithoutKey) {
-          const key = getTrackKey(track.artist ?? "", track.title ?? "");
-          await sqliteInstance.execute(`UPDATE tracks SET track_key = ? WHERE id = ?`, [
-            key,
-            track.id,
-          ]);
+        const chunkSize = 50;
+        await sqliteInstance.execute("BEGIN TRANSACTION;");
+        try {
+          for (let i = 0; i < tracksWithoutKey.length; i += chunkSize) {
+            const chunk = tracksWithoutKey.slice(i, i + chunkSize);
+            const whenClauses: string[] = [];
+            const ids: number[] = [];
+            const values: string[] = [];
+
+            for (const track of chunk) {
+              const key = getTrackKey(track.artist ?? "", track.title ?? "");
+              whenClauses.push(`WHEN id = ? THEN ?`);
+              ids.push(track.id);
+              values.push(key);
+            }
+
+            // Build query: UPDATE tracks SET track_key = CASE WHEN id = ? THEN ? ... END WHERE id IN (?, ?, ...)
+            // Parameters are interleaved [id1, key1, id2, key2, ...] followed by [id1, id2, ...]
+            const params: (string | number)[] = [];
+            for (let j = 0; j < chunk.length; j++) {
+              params.push(ids[j], values[j]);
+            }
+            params.push(...ids);
+
+            const placeholders = chunk.map(() => "?").join(",");
+            const sql = `UPDATE tracks SET track_key = CASE ${whenClauses.join(" ")} END WHERE id IN (${placeholders})`;
+
+            await sqliteInstance.execute(sql, params);
+          }
+          await sqliteInstance.execute("COMMIT;");
+          console.log("Migration: track_key backfill complete");
+        } catch (e) {
+          await sqliteInstance.execute("ROLLBACK;");
+          throw e;
         }
-        console.log("Migration: track_key backfill complete");
       }
     } catch (e) {
       console.warn("Migration: track_key backfill skipped:", e);
@@ -123,6 +150,16 @@ async function initializeDb(): Promise<void> {
       console.log("Migration: Created unique index on track_key");
     } catch {
       // Index already exists
+    }
+
+    // 🛡️ Issue 18 Fix: Composite index for high-performance track history lookups
+    try {
+      await sqliteInstance.execute(
+        `CREATE INDEX IF NOT EXISTS idx_plays_track_played ON plays(track_id, played_at DESC);`,
+      );
+      console.log("Migration: Created composite index idx_plays_track_played");
+    } catch (e) {
+      console.error("❌ Migration Failed (idx_plays_track_played):", e);
     }
 
     // Migration: Add tags column for custom tagging feature (Phase 2)
@@ -279,6 +316,7 @@ async function initializeDb(): Promise<void> {
         // Session sorting/filtering
         "CREATE INDEX IF NOT EXISTS idx_sessions_ended_at ON sessions(ended_at);",
         "CREATE INDEX IF NOT EXISTS idx_sessions_started_at ON sessions(started_at);",
+        "CREATE INDEX IF NOT EXISTS idx_sessions_active ON sessions(started_at DESC) WHERE ended_at IS NULL;",
 
         // Track analysis queue
         "CREATE INDEX IF NOT EXISTS idx_tracks_analyzed ON tracks(analyzed);",

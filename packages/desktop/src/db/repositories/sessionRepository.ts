@@ -197,16 +197,12 @@ export const sessionRepository = {
     const timestamp = playedAt ?? now();
     const sqlite = await getSqlite();
 
-    // Insert the new play
-    await sqlite.execute(
-      `INSERT INTO plays (session_id, track_id, played_at, duration, reaction, notes, dancer_likes) 
-             VALUES (?, ?, ?, NULL, 'neutral', NULL, 0)`,
-      [sessionId, trackId, timestamp],
-    );
-
-    // Get the last inserted play
+    // 🛡️ Issue 7 Fix: Use RETURNING * for atomic insert and retrieval
+    // This avoids the TOCTOU race condition where multiple plays share the same timestamp.
     const result = await sqlite.select<Record<string, unknown>[]>(
-      `SELECT * FROM plays WHERE session_id = ? AND track_id = ? AND played_at = ? ORDER BY id DESC LIMIT 1`,
+      `INSERT INTO plays (session_id, track_id, played_at, duration, reaction, notes, dancer_likes) 
+             VALUES (?, ?, ?, NULL, 'neutral', NULL, 0)
+             RETURNING *`,
       [sessionId, trackId, timestamp],
     );
 

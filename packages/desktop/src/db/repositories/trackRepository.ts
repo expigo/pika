@@ -1,4 +1,4 @@
-import type { AnalysisResult } from "@pika/shared";
+import { type AnalysisResult, logger } from "@pika/shared";
 import { eq, type InferInsertModel, sql } from "drizzle-orm";
 import { db, getSqlite } from "../index";
 import { tracks } from "../schema";
@@ -141,9 +141,22 @@ export const trackRepository = {
     return true;
   },
 
-  async getAllTracks(): Promise<Track[]> {
+  async getTracks(limit: number, offset = 0): Promise<Track[]> {
     const sqlite = await getSqlite();
-    const result = await sqlite.select<TrackRow[]>(`${TRACK_SELECT_SQL} ORDER BY artist ASC`);
+    const result = await sqlite.select<TrackRow[]>(
+      `${TRACK_SELECT_SQL} ORDER BY artist ASC LIMIT ? OFFSET ?`,
+      [limit, offset],
+    );
+
+    if (result.length > 4000) {
+      logger.info(
+        "[Repository] Large track list returned. Redesign to explicit pagination recommended.",
+        {
+          count: result.length,
+        },
+      );
+    }
+
     return result.map(remapTrack);
   },
 
@@ -319,7 +332,7 @@ export const trackRepository = {
       const result = await sqlite.execute(`DELETE FROM tracks WHERE id IN (${placeholders})`, ids);
 
       console.log(`Batch deleted ${ids.length} tracks`);
-      return (result as any).rowsAffected ?? 0;
+      return (result as { rowsAffected?: number }).rowsAffected ?? 0;
     } catch (e) {
       console.error("Failed to batch delete tracks:", e);
       return 0;
@@ -402,21 +415,15 @@ export const trackRepository = {
   async getAllTags(): Promise<string[]> {
     try {
       const sqlite = await getSqlite();
-      const result = await sqlite.select<{ tags: string }[]>(
-        `SELECT DISTINCT tags FROM tracks WHERE tags IS NOT NULL AND tags != '[]'`,
+      // 🛡️ Issue 17 Fix: Use SQLite JSON functions for O(N) efficiency
+      // This avoids loading all rows and parsing JSON in JavaScript
+      const result = await sqlite.select<{ tag: string }[]>(
+        `SELECT DISTINCT json_each.value as tag 
+         FROM tracks, json_each(tracks.tags) 
+         WHERE tracks.tags IS NOT NULL AND tracks.tags != '[]'
+         ORDER BY tag ASC`,
       );
-      const allTags = new Set<string>();
-      for (const row of result) {
-        try {
-          const parsed = JSON.parse(row.tags) as string[];
-          for (const tag of parsed) {
-            allTags.add(tag);
-          }
-        } catch {
-          // Ignore invalid JSON
-        }
-      }
-      return Array.from(allTags).sort();
+      return result.map((r) => r.tag);
     } catch (e) {
       console.error("Failed to get all tags:", e);
       return [];

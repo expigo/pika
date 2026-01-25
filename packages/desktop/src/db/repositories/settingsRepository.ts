@@ -92,7 +92,7 @@ export const settingsRepository = {
         const validation = fieldSchema.safeParse(parsed);
 
         if (validation.success) {
-          loaded[key] = validation.data as any; // Safe cast after validation
+          loaded[key] = validation.data as AppSettings[SettingKey]; // Safe cast after validation
         } else {
           console.warn(`Settings validation failed for ${key} in getAll:`, validation.error);
         }
@@ -113,22 +113,26 @@ export const settingsRepository = {
   async setMany(updates: Partial<AppSettings>): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
 
-    for (const [key, value] of Object.entries(updates)) {
-      await db
-        .insert(settings)
-        .values({
-          key,
-          value: JSON.stringify(value),
-          updatedAt: now,
-        })
-        .onConflictDoUpdate({
-          target: settings.key,
-          set: {
+    // 🛡️ Issue 19 Fix: Wrap batch updates in a transaction
+    // This reduces overhead and ensures atomicity for multi-setting changes
+    await db.transaction(async (tx) => {
+      for (const [key, value] of Object.entries(updates)) {
+        await tx
+          .insert(settings)
+          .values({
+            key,
             value: JSON.stringify(value),
             updatedAt: now,
-          },
-        });
-    }
+          })
+          .onConflictDoUpdate({
+            target: settings.key,
+            set: {
+              value: JSON.stringify(value),
+              updatedAt: now,
+            },
+          });
+      }
+    });
   },
 
   /**
