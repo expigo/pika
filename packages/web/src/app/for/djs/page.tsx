@@ -216,7 +216,7 @@ export default function ForDJs() {
             <div className="relative aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/9] w-full overflow-hidden rounded-[2.4rem] sm:rounded-[2.9rem] bg-slate-950">
               <Image
                 src="/screenshots/dj/vdj-sync.png"
-                alt="VirtualDJ Live Integration Proof"
+                alt="Detailed view of the Pika! native bridge correctly mirroring VirtualDJ stems and deck states."
                 fill
                 priority
                 sizes="(max-width: 1280px) 100vw, 1280px"
@@ -306,7 +306,7 @@ export default function ForDJs() {
                   <div className="absolute inset-0 bg-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 z-10" />
                   <Image
                     src="/screenshots/dj/track-inspector.png"
-                    alt="Track Visual Fingerprint"
+                    alt="Pika! Track Inspector Dashboard showing spectral energy, brightness, and groove metrics."
                     fill
                     sizes="(max-width: 768px) 100vw, 800px"
                     className="object-cover object-top transition-transform duration-1000 group-hover:scale-105 group-hover:rotate-1"
@@ -337,7 +337,7 @@ export default function ForDJs() {
                   <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 z-10" />
                   <Image
                     src="/screenshots/dj/crate-intelligence.png"
-                    alt="Crate Intelligence Dashboard"
+                    alt="Crate Intelligence view displaying historical energy trends and library-wide performance data."
                     fill
                     sizes="(max-width: 768px) 100vw, 800px"
                     className="object-cover object-top transition-transform duration-1000 group-hover:scale-105 group-hover:-rotate-1"
@@ -367,7 +367,7 @@ export default function ForDJs() {
               <div className="absolute inset-0 bg-pink-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 z-10" />
               <Image
                 src="/screenshots/dj/governance-view.png"
-                alt="Live Vibe Governance Dashboard"
+                alt="Real-time Vibe Governance Dashboard showing live crowd feedback and tempo polling results."
                 fill
                 sizes="(max-width: 640px) 100vw, 640px"
                 className="object-cover transition-transform duration-1000 group-hover:scale-105 group-hover:rotate-1"
@@ -445,7 +445,7 @@ export default function ForDJs() {
                   <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 z-10" />
                   <Image
                     src="/screenshots/dj/cpu-audit.png"
-                    alt="System Activity Monitor Audit"
+                    alt="macOS Activity Monitor proving Pika!'s minimal CPU and memory footprint during a live set."
                     fill
                     sizes="(max-width: 640px) 100vw, 640px"
                     className="object-cover object-left-top transition-transform duration-1000 group-hover:scale-110 group-hover:-rotate-1"

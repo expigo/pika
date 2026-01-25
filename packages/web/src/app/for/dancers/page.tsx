@@ -140,7 +140,7 @@ export default function ForDancers() {
                   <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-slate-950 relative">
                     <Image
                       src="/screenshots/dancer/live-id.png"
-                      alt="Pika! Live Interface"
+                      alt="Dancer Mobile Interface showing the live Now Playing screen with heart pulse animation and BPM sync."
                       fill
                       priority
                       className="object-contain object-top transition-transform duration-1000 group-hover:scale-105"
@@ -178,7 +178,7 @@ export default function ForDancers() {
                   <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-slate-950 relative">
                     <Image
                       src="/screenshots/dancer/my-likes.png"
-                      alt="Pika! Journal"
+                      alt="The Pika! Personal Journal showing a history of liked tracks grouped by session and date."
                       fill
                       className="object-contain object-top transition-transform duration-1000 group-hover:scale-105"
                     />
@@ -213,7 +213,7 @@ export default function ForDancers() {
                   <div className="w-full h-full rounded-[2.4rem] overflow-hidden bg-slate-950 relative">
                     <Image
                       src="/screenshots/dancer/vibe-vote.png"
-                      alt="Pika! Governance"
+                      alt="Live Floor Governance screen where dancers can anonymously vote on current track energy and tempo."
                       fill
                       className="object-contain object-top transition-transform duration-1000 group-hover:scale-105"
                     />

@@ -14,8 +14,10 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { useVisibility } from "@/hooks/ui/useVisibility";
 import { ProCard } from "@/components/ui/ProCard";
 import { getApiBaseUrl } from "@/lib/api";
+import { logger } from "@pika/shared";
 
 interface ActiveSession {
   sessionId: string;
@@ -35,6 +37,7 @@ interface ActiveSessionsResponse {
 }
 
 export default function LandingPage() {
+  const isVisible = useVisibility();
   const [liveData, setLiveData] = useState<ActiveSessionsResponse | null>(null);
   const [_isLoading, setIsLoading] = useState(true);
 
@@ -51,7 +54,7 @@ export default function LandingPage() {
           setLiveData(data);
         }
       } catch (e) {
-        console.error("Failed to check live sessions:", e);
+        logger.error("Failed to check live sessions", e);
       } finally {
         setIsLoading(false);
       }
@@ -112,9 +115,15 @@ export default function LandingPage() {
       <header className="group relative min-h-screen pt-32 sm:pt-48 pb-48 px-4 sm:px-6 text-center z-10 overflow-hidden flex flex-col justify-center">
         {/* Animated Background Gradients - Softened */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[1200px] bg-gradient-to-b from-purple-600/15 via-transparent to-transparent blur-[160px] animate-[atmos-pulse_8s_ease-in-out_infinite]" />
-          <div className="absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[140px] animate-[flicker_10s_linear_infinite]" />
-          <div className="absolute top-[10%] -right-[10%] w-[40%] h-[40%] bg-pink-600/10 rounded-full blur-[120px] animate-[flicker_12s_linear_infinite]" />
+          <div
+            className={`absolute top-0 left-1/2 -translate-x-1/2 w-full h-[1200px] bg-gradient-to-b from-purple-600/15 via-transparent to-transparent blur-[160px] ${isVisible ? "animate-[atmos-pulse_8s_ease-in-out_infinite]" : ""}`}
+          />
+          <div
+            className={`absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[140px] ${isVisible ? "animate-[flicker_10s_linear_infinite]" : ""}`}
+          />
+          <div
+            className={`absolute top-[10%] -right-[10%] w-[40%] h-[40%] bg-pink-600/10 rounded-full blur-[120px] ${isVisible ? "animate-[flicker_12s_linear_infinite]" : ""}`}
+          />
 
           {/* Minimalist Grid Overlay */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808015_1px,transparent_1px),linear-gradient(to_bottom,#80808015_1px,transparent_1px)] bg-[size:80px_80px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
@@ -206,8 +215,13 @@ export default function LandingPage() {
                 <div className="absolute inset-0 w-px bg-gradient-to-b from-purple-500 via-purple-500/40 to-transparent" />
 
                 {/* ⚡ KINETIC DATA PULSES: Traveling energy packets */}
-                <div className="absolute top-0 left-[-1px] w-[3px] h-32 bg-gradient-to-b from-transparent via-white/40 to-transparent animate-[pulse-down_4s_linear_infinite]" />
-                <div className="absolute top-0 left-[-1px] w-[3px] h-32 bg-gradient-to-b from-transparent via-purple-400/30 to-transparent animate-[pulse-down_4s_linear_infinite_1.5s]" />
+                {/* M7: Pause animations if tab is hidden to save GPU/CPU */}
+                <div
+                  className={`absolute top-0 left-[-1px] w-[3px] h-32 bg-gradient-to-b from-transparent via-white/40 to-transparent ${isVisible ? "animate-[pulse-down_4s_linear_infinite]" : ""}`}
+                />
+                <div
+                  className={`absolute top-0 left-[-1px] w-[3px] h-32 bg-gradient-to-b from-transparent via-purple-400/30 to-transparent ${isVisible ? "animate-[pulse-down_4s_linear_infinite_1.5s]" : ""}`}
+                />
               </div>
             </div>
           </div>
@@ -228,7 +242,7 @@ export default function LandingPage() {
 
                   <Image
                     src="/screenshots/dj/vdj-sync.png"
-                    alt="DJ Booth Integration"
+                    alt="High-fidelity integration proof showing Pika! syncing with VirtualDJ hardware state in real-time."
                     fill
                     sizes="(max-width: 1000px) 100vw, 1000px"
                     priority
@@ -256,7 +270,7 @@ export default function LandingPage() {
                   <div className="w-full h-full rounded-[2.2rem] sm:rounded-[3rem] overflow-hidden bg-slate-950 relative">
                     <Image
                       src="/screenshots/dancer/live-id.png"
-                      alt="Dancer Mobile View"
+                      alt="Dancer Mobile Interface displaying real-time track identification and voting capabilities."
                       fill
                       sizes="(max-width: 640px) 130px, 260px"
                       priority
@@ -289,7 +303,10 @@ export default function LandingPage() {
                   <div className="h-0.5 w-32 bg-white/5 rounded-full overflow-hidden text-left relative">
                     <div className="h-full w-0 group-hover:w-full bg-purple-500/60 relative transition-all duration-1000 ease-out delay-200" />
                     {/* ⚡ ENERGY PACKET (Full Width Transit) */}
-                    <div className="absolute top-0 left-0 h-full w-24 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:animate-[sweep_10s_linear_infinite] delay-1000" />
+                    {/* M7: Pause animations if tab is hidden */}
+                    <div
+                      className={`absolute top-0 left-0 h-full w-24 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] ${isVisible ? "group-hover:animate-[sweep_10s_linear_infinite]" : ""} delay-1000`}
+                    />
                   </div>
                 </div>
                 <div>
@@ -300,7 +317,9 @@ export default function LandingPage() {
                   <div className="h-0.5 w-24 bg-white/5 rounded-full overflow-hidden text-left relative">
                     <div className="h-full w-0 group-hover:w-full bg-pink-500/60 relative transition-all duration-1000 ease-out delay-500" />
                     {/* ⚡ ENERGY PACKET (Full Width Transit) */}
-                    <div className="absolute top-0 left-0 h-full w-20 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] group-hover:animate-[sweep_12s_linear_infinite] delay-1500" />
+                    <div
+                      className={`absolute top-0 left-0 h-full w-20 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-[200%] ${isVisible ? "group-hover:animate-[sweep_12s_linear_infinite]" : ""} delay-1500`}
+                    />
                   </div>
                 </div>
               </div>
@@ -314,7 +333,7 @@ export default function LandingPage() {
 
               <Image
                 src="/screenshots/dj/track-inspector.png"
-                alt="Pika! Track Inspector"
+                alt="Pika! Track Intelligence HUD showing detailed acoustic fingerprinting and energy analysis."
                 fill
                 sizes="360px"
                 className="object-cover scale-110 group-hover/handshake:scale-100 transition-transform duration-[3s] ease-out opacity-90 group-hover/handshake:opacity-100"
@@ -377,7 +396,7 @@ export default function LandingPage() {
               className="p-12 flex flex-col items-start h-full group/card transition-all duration-1000 bg-slate-950/40 border-white/5"
               glow
               glowColor="purple-500"
-              bgImage="/textures/dj.png"
+              bgImage="/textures/dj.jpg"
               variant="hero"
             >
               <div className="w-16 h-16 bg-purple-500/5 border border-purple-500/10 rounded-[1.5rem] flex items-center justify-center mb-10 group-hover:bg-purple-500/20 group-hover:border-purple-500/30 transition-all duration-700 shadow-[0_0_20px_rgba(168,85,247,0.05)]">
@@ -428,7 +447,7 @@ export default function LandingPage() {
               className="p-12 flex flex-col items-start h-full group/card transition-all duration-1000 bg-slate-950/40 border-white/5"
               glow
               glowColor="pink-500"
-              bgImage="/textures/dancer.png"
+              bgImage="/textures/dancer.jpg"
               variant="hero"
             >
               <div className="w-16 h-16 bg-pink-500/5 border border-pink-500/10 rounded-[1.5rem] flex items-center justify-center mb-10 group-hover:bg-pink-500/20 group-hover:border-pink-500/30 transition-all duration-700 shadow-[0_0_20px_rgba(236,72,153,0.05)]">
@@ -479,7 +498,7 @@ export default function LandingPage() {
               className="p-12 flex flex-col items-start h-full group/card transition-all duration-1000 bg-slate-950/40 border-white/5"
               glow
               glowColor="emerald-500"
-              bgImage="/textures/organizer.png"
+              bgImage="/textures/organizer.jpg"
               variant="hero"
             >
               <div className="w-16 h-16 bg-emerald-500/5 border border-emerald-500/10 rounded-[1.5rem] flex items-center justify-center mb-10 group-hover:bg-emerald-500/20 group-hover:border-emerald-500/30 transition-all duration-700 shadow-[0_0_20px_rgba(16,185,129,0.05)]">
@@ -536,7 +555,7 @@ export default function LandingPage() {
 
       <section className="pt-24 sm:pt-32 pb-48 sm:pb-64 bg-black overflow-hidden relative">
         {/* 📐 BLUEPRINT GROUNDING: Transitioning for Architecture to Intuition */}
-        <div className="absolute inset-x-0 top-0 h-96 bg-[url('/textures/schematic.png')] bg-repeat opacity-[0.05] grayscale pointer-events-none" />
+        <div className="absolute inset-x-0 top-0 h-96 bg-[url('/textures/schematic.jpg')] bg-repeat opacity-[0.05] grayscale pointer-events-none" />
         <div className="absolute inset-x-0 top-0 h-96 bg-gradient-to-b from-slate-950 via-transparent to-transparent pointer-events-none" />
 
         {/* ⚡ ENTRY PULSE: Consistent Handover (Stays above the Pill) */}
@@ -649,7 +668,7 @@ export default function LandingPage() {
       {/* ⚡ THE HANDSHAKE */}
       <section className="pt-32 sm:pt-48 pb-48 sm:pb-80 px-6 bg-slate-950 relative overflow-hidden">
         {/* 📐 BLUEPRINT GROUNDING */}
-        <div className="absolute inset-0 bg-[url('/textures/schematic.png')] bg-repeat opacity-[0.03] grayscale pointer-events-none" />
+        <div className="absolute inset-0 bg-[url('/textures/schematic.jpg')] bg-repeat opacity-[0.03] grayscale pointer-events-none" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,transparent_0%,#020617_100%)] pointer-events-none" />
 
         {/* ⚡ ENTRY PULSE: Handshake (DJ Initiative) */}

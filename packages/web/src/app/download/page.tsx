@@ -41,7 +41,7 @@ export default function DownloadPage() {
           <ProCard
             className="p-10 flex flex-col items-center text-center bg-slate-950/80 border-purple-500/30"
             glow
-            bgImage="/textures/dj.png"
+            bgImage="/textures/dj.jpg"
           >
             <div className="w-20 h-20 rounded-3xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center mb-8 shadow-2xl shadow-purple-500/20">
               <Apple className="w-10 h-10 text-purple-400" />
