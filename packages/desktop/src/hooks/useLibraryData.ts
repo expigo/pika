@@ -25,7 +25,7 @@ export function useLibraryData() {
     setError(null);
     try {
       const [allTracks, allTags] = await Promise.all([
-        trackRepository.getAllTracks(),
+        trackRepository.getTracks(10000),
         trackRepository.getAllTags(),
       ]);
       setTracks(allTracks as Track[]);

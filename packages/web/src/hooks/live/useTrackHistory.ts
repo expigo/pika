@@ -45,18 +45,29 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
     const seen = new Set<string>();
     const unique: HistoryTrack[] = [];
 
-    // Skip current track if it's the first in server history
-    const startIdx = combined.length > 0 && combined[0].playedAt ? 1 : 0;
+    for (const t of combined) {
+      if (!t.artist || !t.title) continue;
 
-    for (const t of combined.slice(startIdx)) {
-      const key = `${t.artist}:${t.title}`;
+      // 🛡️ ENFORCEMENT: Never show the current track in the history list (Audit Item 2)
+      // Case-insensitive comparison (Audit 10/10 Fix)
+      const isCurrent =
+        currentTrack &&
+        t.artist.toLowerCase() === currentTrack.artist?.toLowerCase() &&
+        t.title.toLowerCase() === currentTrack.title?.toLowerCase();
+
+      if (isCurrent) {
+        continue;
+      }
+
+      // Case-insensitive duplicate detection
+      const key = `${t.artist.toLowerCase()}:${t.title.toLowerCase()}`;
       if (!seen.has(key)) {
         seen.add(key);
         unique.push(t);
       }
     }
     return unique.slice(0, LIMITS.MAX_HISTORY_ITEMS);
-  }, [localHistory, serverHistory]);
+  }, [localHistory, serverHistory, currentTrack]);
 
   const fetchHistory = useCallback(async () => {
     // SWR handles caching/deduping, but we can force a revalidation if needed
@@ -73,10 +84,13 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
   // Move current track to history locally (immediate UI feedback)
   const pushToHistory = useCallback((track: TrackInfo) => {
     setLocalHistory((prev) => {
-      // Avoid exact same track being pushed twice
+      // Avoid exact same track being pushed twice (Case-insensitive)
       if (prev.length > 0) {
         const last = prev[0];
-        if (last.artist === track.artist && last.title === track.title) {
+        if (
+          last.artist?.toLowerCase() === track.artist?.toLowerCase() &&
+          last.title?.toLowerCase() === track.title?.toLowerCase()
+        ) {
           return prev;
         }
       }
@@ -101,9 +115,13 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
         }
 
         if (msg.track) {
-          // Push previous track to history if different
+          // Push previous track to history if different (Case-insensitive)
           setCurrentTrack((prev) => {
-            if (prev && (prev.artist !== msg.track.artist || prev.title !== msg.track.title)) {
+            if (
+              prev &&
+              (prev.artist?.toLowerCase() !== msg.track.artist?.toLowerCase() ||
+                prev.title?.toLowerCase() !== msg.track.title?.toLowerCase())
+            ) {
               pushToHistory(prev);
             }
             return msg.track;
