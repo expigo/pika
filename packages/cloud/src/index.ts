@@ -73,8 +73,19 @@ import * as handlers from "./handlers";
 
 // WS type alias removed (unused)
 
-// Capture a reference to any active WebSocket to use for global broadcasts
-let activeBroadcaster: ServerWebSocket<unknown> | null = null;
+// Connection Registry for reliable global broadcasts
+const activeConnections = new Set<ServerWebSocket>();
+
+/**
+ * Returns an open WebSocket to use for broadcasting.
+ * Prefers DJ connections if available, as they are usually more stable.
+ */
+function getBroadcaster(): ServerWebSocket | null {
+  for (const ws of activeConnections) {
+    if (ws.readyState === 1) return ws; // 1 = OPEN
+  }
+  return null;
+}
 
 // 🧹 M3 & M5 Fix: Global Cleanup Intervals
 // Run every 5 minutes to remove stale listeners and orphaned sessions
@@ -82,13 +93,15 @@ setInterval(() => {
   const now = new Date().toISOString();
   logger.debug("🧹 [CLEANUP] Running scheduled cleanup", { timestamp: now });
   cleanupStaleListeners();
+  handlers.cleanupRateLimits(); // 🛡️ Issue 21 Fix: Clear stale rate-limit entries
 
   const removedIds = cleanupStaleSessions(); // Default thresholds: Idle 4h, Age 8h, Hard 24h
-  if (removedIds.length > 0 && activeBroadcaster) {
+  const broadcaster = getBroadcaster();
+  if (removedIds.length > 0 && broadcaster) {
     for (const sessionId of removedIds) {
       try {
         // 1. Notify Dancers
-        activeBroadcaster.publish(
+        broadcaster.publish(
           "live-session",
           JSON.stringify({
             type: "SESSION_ENDED",
@@ -98,7 +111,7 @@ setInterval(() => {
 
         // 2. Notify DJ (Broadcast to the specific session topic)
         // DJs also subscribe to live-session, but they might need a specific message
-        activeBroadcaster.publish(
+        broadcaster.publish(
           "live-session",
           JSON.stringify({
             type: "SESSION_EXPIRED",
@@ -225,8 +238,9 @@ app.get(
       onOpen(_event, ws) {
         // L9: Clear connection attempts on success
         wsConnectionAttempts.delete(ip);
-        activeBroadcaster = ws.raw as ServerWebSocket;
-        handlers.handleOpen(ws.raw as ServerWebSocket);
+        const rawWs = ws.raw as ServerWebSocket;
+        activeConnections.add(rawWs);
+        handlers.handleOpen(rawWs);
       },
 
       async onMessage(event, ws) {
@@ -267,8 +281,6 @@ app.get(
               // Do NOT update state.clientId
             }
           }
-
-          if (state.djSessionId) activeBroadcaster = rawWs;
 
           const ctx: handlers.WSContext = { message, ws, rawWs, state, messageId };
 
@@ -337,7 +349,9 @@ app.get(
       },
 
       onClose(_event, ws) {
-        handlers.handleClose({ raw: (ws as any).raw as ServerWebSocket }, state);
+        const rawWs = (ws as any).raw as ServerWebSocket;
+        activeConnections.delete(rawWs);
+        handlers.handleClose({ raw: rawWs }, state);
       },
       onError(_event, _ws) {
         const error = (_event as any).error || _event;
@@ -437,7 +451,7 @@ logger.info(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "loca
  * Only broadcasts for a session if the count has actually changed.
  */
 setInterval(() => {
-  const broadcaster = activeBroadcaster;
+  const broadcaster = getBroadcaster();
   if (!broadcaster) return;
 
   for (const sessionId of getSessionIds()) {
@@ -485,9 +499,10 @@ async function gracefulShutdown(signal: string) {
 
   try {
     // Broadcast shutdown message to all connected clients
-    if (activeBroadcaster) {
+    const broadcaster = getBroadcaster();
+    if (broadcaster) {
       try {
-        activeBroadcaster.publish(
+        broadcaster.publish(
           "live-session",
           JSON.stringify({
             type: "SERVER_SHUTDOWN",

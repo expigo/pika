@@ -54,6 +54,27 @@ const MAX_CONCURRENT_SESSIONS = Number(process.env["MAX_SESSIONS"] ?? 1000);
 export const lastBroadcastTime = new Map<string, number>();
 
 /**
+ * 🛡️ Issue 21 Fix: TTL Cleanup for rate-limit map
+ * Removes entries older than 1 hour to prevent unbounded memory growth
+ */
+export function cleanupRateLimits() {
+  const now = Date.now();
+  const TTL = 60 * 60 * 1000; // 1 hour
+  let count = 0;
+
+  for (const [sessionId, lastTime] of lastBroadcastTime.entries()) {
+    if (now - lastTime > TTL) {
+      lastBroadcastTime.delete(sessionId);
+      count++;
+    }
+  }
+
+  if (count > 0) {
+    logger.debug(`🧹 [CLEANUP] Removed ${count} stale rate-limit entries`);
+  }
+}
+
+/**
  * REGISTER_SESSION: DJ starts a new live session
  */
 export async function handleRegisterSession(ctx: WSContext) {

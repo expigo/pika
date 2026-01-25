@@ -108,3 +108,4 @@ export const handleValidateSession = safeHandler(_handleValidateSession);
 // Re-export types and lifecycle handlers (no wrapping needed for lifecycle)
 export * from "./ws-context";
 export * from "./lifecycle";
+export { cleanupRateLimits } from "./dj";
