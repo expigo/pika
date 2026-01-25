@@ -59,8 +59,9 @@ type TrackChangeCallback = (track: NowPlayingTrack) => void;
 class VirtualDJWatcher {
   private pollingInterval: ReturnType<typeof setInterval> | null = null;
   private lastTrack: NowPlayingTrack | null = null;
-  private lastTimestamp: number = 0;
+  private lastTimestamp = 0;
   private listeners: TrackChangeCallback[] = [];
+  private visibilityListenerAdded = false;
 
   /**
    * Read and parse the latest track from history using Rust
@@ -129,25 +130,59 @@ class VirtualDJWatcher {
   /**
    * Start watching for track changes
    */
-  async startWatching(intervalMs: number = 1000): Promise<void> {
+  async startWatching(): Promise<void> {
     if (this.pollingInterval) {
-      console.log("[VDJ Watcher] Already watching");
       return;
     }
 
-    console.log("[VDJ Watcher] Starting to watch for track changes...");
+    const getInterval = () => {
+      // 🛡️ Reliability Audit: Adaptive polling (1s visible, 3s hidden)
+      // Never stop polling to avoid missing tracks in background
+      return typeof document !== "undefined" && document.visibilityState === "hidden" ? 3000 : 1000;
+    };
+
+    console.log(`[VDJ Watcher] Starting to watch (Adaptive: ${getInterval()}ms)...`);
 
     // Initial read
     const initial = await this.readLatestTrack();
     if (initial) {
-      console.log("[VDJ Watcher] Initial track:", initial.artist, "-", initial.title);
+      // 🛡️ FIX: Only notify if track actually changed from last known state
+      // (This prevents phantom recordings on app visibility toggle)
+      const changed = this.hasTrackChanged(initial);
       this.lastTrack = initial;
       this.lastTimestamp = initial.rawTimestamp ?? 0;
-      // Notify listeners of initial track
-      this.notifyListeners(initial);
+
+      if (changed) {
+        console.log(
+          "[VDJ Watcher] Initial track change detected:",
+          initial.artist,
+          "-",
+          initial.title,
+        );
+        this.notifyListeners(initial);
+      } else {
+        console.debug("[VDJ Watcher] Track unchanged on start, skipping notify");
+      }
     }
 
-    // Start polling
+    // Start polling with current visibility-based interval
+    this.restartPolling(getInterval());
+
+    // 🛡️ Fix: Build-up of event listeners
+    if (typeof document !== "undefined" && !this.visibilityListenerAdded) {
+      document.addEventListener("visibilitychange", this.handleVisibilityChange);
+      this.visibilityListenerAdded = true;
+    }
+  }
+
+  /**
+   * Internal helper to start/restart polling with specific interval
+   */
+  private restartPolling(interval: number): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+    }
+
     this.pollingInterval = setInterval(async () => {
       try {
         const track = await this.readLatestTrack();
@@ -160,8 +195,22 @@ class VirtualDJWatcher {
       } catch (e) {
         console.error("[VDJ Watcher] Polling error:", e);
       }
-    }, intervalMs);
+    }, interval);
   }
+
+  /**
+   * Handle visibility change to refresh polling interval
+   */
+  private handleVisibilityChange = () => {
+    if (this.pollingInterval) {
+      const interval =
+        typeof document !== "undefined" && document.visibilityState === "hidden" ? 3000 : 1000;
+      console.log(`[VDJ Watcher] Visibility changed, adjusting interval to ${interval}ms`);
+      // 🛡️ FIX: We only restart the INTERVAL, not the whole startWatching() flow.
+      // This avoids the 'initial read' logical branch which was prone to phantom notifies.
+      this.restartPolling(interval);
+    }
+  };
 
   /**
    * Stop watching
@@ -172,6 +221,11 @@ class VirtualDJWatcher {
       this.pollingInterval = null;
       this.lastTimestamp = 0;
       console.log("[VDJ Watcher] Stopped watching");
+    }
+
+    if (typeof document !== "undefined" && this.visibilityListenerAdded) {
+      document.removeEventListener("visibilitychange", this.handleVisibilityChange);
+      this.visibilityListenerAdded = false;
     }
   }
 
