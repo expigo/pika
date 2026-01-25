@@ -28,7 +28,11 @@ export function NetworkHealthIndicator({
     const checkLatency = async () => {
       const start = performance.now();
       try {
-        await fetch(pingEndpoint, { method: "GET", cache: "no-store" });
+        await fetch(pingEndpoint, {
+          method: "GET",
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000), // 🛡️ Issue 15 Fix: Prevent hanging requests
+        });
         const end = performance.now();
         setMeasuredLatency(Math.round(end - start));
       } catch {

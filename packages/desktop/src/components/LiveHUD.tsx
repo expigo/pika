@@ -59,6 +59,9 @@ export function LiveHUD({
 
   useEffect(() => {
     const timer = setInterval(() => {
+      // 🛡️ Issue 23 Fix: Pause secondary UI timers when app is backgrounded
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+
       setTime(new Date());
       if (currentPlay?.playedAt) {
         setElapsed(Math.max(0, Math.floor(Date.now() / 1000) - currentPlay.playedAt));
@@ -68,14 +71,18 @@ export function LiveHUD({
   }, [currentPlay?.playedAt]);
 
   useEffect(() => {
+    let battManager: BatteryManager | null = null;
+    let updateFn: (() => void) | null = null;
+
     if (typeof navigator !== "undefined" && "getBattery" in navigator) {
       navigator
         .getBattery()
         .then((batt) => {
-          const update = () => setBattery({ level: batt.level, charging: batt.charging });
-          update();
-          batt.onlevelchange = update;
-          batt.onchargingchange = update;
+          battManager = batt;
+          updateFn = () => setBattery({ level: batt.level, charging: batt.charging });
+          updateFn();
+          batt.onlevelchange = updateFn;
+          batt.onchargingchange = updateFn;
         })
         .catch(() => {
           setBattery(null);
@@ -83,6 +90,13 @@ export function LiveHUD({
     } else {
       setBattery(null);
     }
+
+    return () => {
+      if (battManager) {
+        battManager.onlevelchange = null;
+        battManager.onchargingchange = null;
+      }
+    };
   }, []);
 
   const formatElapsed = (seconds: number) => {

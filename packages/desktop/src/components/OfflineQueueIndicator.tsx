@@ -20,6 +20,9 @@ export function OfflineQueueIndicator() {
     }
 
     const fetchCount = async () => {
+      // 🛡️ Issue 24 Fix: Pause secondary UI polling when app is backgrounded
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+
       try {
         const count = await offlineQueueRepository.count();
         setPendingCount(count);
