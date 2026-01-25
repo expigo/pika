@@ -116,13 +116,13 @@ export default function LandingPage() {
         {/* Animated Background Gradients - Softened */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div
-            className={`absolute top-0 left-1/2 -translate-x-1/2 w-full h-[1200px] bg-gradient-to-b from-purple-600/15 via-transparent to-transparent blur-[160px] ${isVisible ? "animate-[atmos-pulse_8s_ease-in-out_infinite]" : ""}`}
+            className={`absolute top-0 left-1/2 -translate-x-1/2 w-full h-[1200px] bg-gradient-to-b from-purple-600/15 via-transparent to-transparent blur-[160px] ${isVisible ? "animate-[atmos-pulse_8s_ease-in-out_infinite]" : ""}`.trim()}
           />
           <div
-            className={`absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[140px] ${isVisible ? "animate-[flicker_10s_linear_infinite]" : ""}`}
+            className={`absolute -top-[10%] -left-[10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[140px] ${isVisible ? "animate-[flicker_10s_linear_infinite]" : ""}`.trim()}
           />
           <div
-            className={`absolute top-[10%] -right-[10%] w-[40%] h-[40%] bg-pink-600/10 rounded-full blur-[120px] ${isVisible ? "animate-[flicker_12s_linear_infinite]" : ""}`}
+            className={`absolute top-[10%] -right-[10%] w-[40%] h-[40%] bg-pink-600/10 rounded-full blur-[120px] ${isVisible ? "animate-[flicker_12s_linear_infinite]" : ""}`.trim()}
           />
 
           {/* Minimalist Grid Overlay */}
