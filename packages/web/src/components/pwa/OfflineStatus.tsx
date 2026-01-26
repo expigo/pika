@@ -6,13 +6,14 @@ import { useEffect, useState } from "react";
 
 interface OfflineStatusProps {
   pendingCount: number;
+  isSaving?: boolean;
 }
 
 /**
  * 11/10 UI: Subtle, non-intrusive offline status indicator
  * Shows when navigator is offline or when there are pending actions in the queue.
  */
-export function OfflineStatus({ pendingCount }: OfflineStatusProps) {
+export function OfflineStatus({ pendingCount, isSaving }: OfflineStatusProps) {
   const isOnline = useOnlineStatus();
   const [showSyncing, setShowSyncing] = useState(false);
 
@@ -25,7 +26,7 @@ export function OfflineStatus({ pendingCount }: OfflineStatusProps) {
     }
   }, [isOnline, pendingCount]);
 
-  if (isOnline && pendingCount === 0 && !showSyncing) return null;
+  if (isOnline && pendingCount === 0 && !showSyncing && !isSaving) return null;
 
   return (
     <div
@@ -34,7 +35,9 @@ export function OfflineStatus({ pendingCount }: OfflineStatusProps) {
           ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
           : showSyncing
             ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
-            : "bg-slate-900/90 border-slate-800 text-slate-400"
+            : isSaving
+              ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
+              : "bg-slate-900/90 border-slate-800 text-slate-400"
       }`}
     >
       {!isOnline ? (
@@ -50,6 +53,11 @@ export function OfflineStatus({ pendingCount }: OfflineStatusProps) {
           <span className="text-[10px] font-black uppercase tracking-widest italic">
             Syncing likes...
           </span>
+        </>
+      ) : isSaving ? (
+        <>
+          <div className="w-1 h-1 bg-purple-400 rounded-full animate-ping" />
+          <span className="text-[10px] font-black uppercase tracking-widest italic">Saving...</span>
         </>
       ) : (
         <>

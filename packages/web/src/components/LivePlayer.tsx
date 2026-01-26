@@ -219,6 +219,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     sessionEnded,
     lastHeartbeat,
     pendingCount,
+    isSaving,
   } = useLiveListener(targetSessionId);
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -312,7 +313,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
       {/* L5: Conditional SocialSignalsLayer */}
       {isLive && isConnected && <SocialSignalsLayer onLikeReceived={onLikeReceived} />}
 
-      <OfflineStatus pendingCount={pendingCount} />
+      <OfflineStatus pendingCount={pendingCount} isSaving={isSaving} />
 
       {/* Stale Data Warning Banner (shows when disconnected for extended period) */}
       <StaleDataBanner

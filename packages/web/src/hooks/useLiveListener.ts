@@ -66,6 +66,7 @@ export function useLiveListener(targetSessionId?: string) {
     flushPendingLikes,
     resetLikes,
     pendingCount,
+    isSaving,
   } = useLikeQueue({
     sessionId,
     socketRef,
@@ -321,6 +322,7 @@ export function useLiveListener(targetSessionId?: string) {
     sessionEnded,
     lastHeartbeat,
     pendingCount, // Number of likes queued for offline sync
+    isSaving, // True during IndexedDB debounce window
     forceReconnect,
   };
 }

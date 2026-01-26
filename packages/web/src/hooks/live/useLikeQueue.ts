@@ -25,6 +25,7 @@ interface UseLikeQueueReturn {
   flushPendingLikes: () => Promise<void>;
   resetLikes: () => void;
   pendingCount: number;
+  isSaving: boolean;
 }
 
 interface PendingLike {
@@ -68,6 +69,7 @@ async function savePendingToIDB(sessionId: string, pending: PendingLike[]): Prom
 export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLikeQueueReturn {
   const [likedTracks, setLikedTracks] = useState<Set<string>>(() => getStoredLikes(sessionId));
   const [pendingCount, setPendingCount] = useState(0);
+  const [isSaving, setIsSaving] = useState(false);
   const pendingLikesRef = useRef<PendingLike[]>([]);
   const idbLoadedRef = useRef(false);
   const lastLikeTimeRef = useRef<number>(0);
@@ -80,6 +82,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   const debouncedSavePending = useCallback((sessionId: string, pending: PendingLike[]) => {
     if (idbSaveTimeoutRef.current) clearTimeout(idbSaveTimeoutRef.current);
 
+    setIsSaving(true);
     idbSaveTimeoutRef.current = setTimeout(async () => {
       try {
         const key = getPendingKey(sessionId);
@@ -89,8 +92,10 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
           await set(key, pending);
         }
         idbSaveTimeoutRef.current = null;
+        setIsSaving(false);
       } catch (e) {
         logger.error("[Likes] Failed to save pending to IDB (debounced)", e);
+        setIsSaving(false);
       }
     }, 2000); // 2 second debounce per Principal recommendations
   }, []);
@@ -139,6 +144,24 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
       persistLikes(sessionId, likedTracks);
     }
   }, [likedTracks, sessionId]);
+
+  /**
+   * 11/10 Analytics: Periodic session summary logging
+   * Reduces log spam while maintaining operational visibility
+   */
+  useEffect(() => {
+    if (!sessionId || likedTracks.size === 0) return;
+
+    const interval = setInterval(() => {
+      logger.info("[Likes] Session summary", {
+        sessionId: sessionId.substring(0, 8),
+        totalLiked: likedTracks.size,
+        pendingOffline: pendingCount,
+      });
+    }, 300000); // Pulse every 5 minutes
+
+    return () => clearInterval(interval);
+  }, [sessionId, likedTracks.size, pendingCount]);
 
   // Reset likes (on session end)
   const resetLikes = useCallback(() => {
@@ -291,10 +314,10 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
             payload: { track },
           }),
         );
-        logger.info("[Likes] Sent like", { title: track.title });
+        logger.debug("[Likes] Sent like", { title: track.title });
       } else if (sessionId) {
         // Offline - queue it with persistence!
-        logger.info("[Likes] Offline, queuing like", { title: track.title });
+        logger.debug("[Likes] Offline, queuing like", { title: track.title });
 
         const newPending: PendingLike = {
           track,
@@ -337,10 +360,10 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
         if (sessionId) {
           debouncedSavePending(sessionId, pendingLikesRef.current);
         }
-        logger.info("[Likes] Removed like from pending queue", { title: track.title });
+        logger.debug("[Likes] Removed like from pending queue", { title: track.title });
       }
 
-      logger.info("[Likes] Local like removed", { title: track.title });
+      logger.debug("[Likes] Local like removed", { title: track.title });
 
       // 11/10: Send "REMOVE_LIKE" to the server when online
       const socket = socketRef.current;
@@ -353,7 +376,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
             payload: { track },
           }),
         );
-        logger.info("[Likes] Sent unlike notification to server", { title: track.title });
+        logger.debug("[Likes] Sent unlike notification to server", { title: track.title });
       }
     },
     [sessionId, socketRef, debouncedSavePending],
@@ -367,5 +390,6 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
     flushPendingLikes,
     resetLikes,
     pendingCount,
+    isSaving,
   };
 }
