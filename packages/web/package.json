@@ -6,14 +6,19 @@
     "dev": "next dev --port 3002 --hostname 0.0.0.0",
     "dev:local": "next dev --port 3002",
     "build": "next build",
-    "start": "next start",
+    "postbuild": "bun run scripts/generate-precache-manifest.ts && bun run scripts/build-sw.ts",
+    "start": "next start --port 3002 --hostname 0.0.0.0",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "generate-icons": "bun run scripts/generate-icons.ts"
   },
   "dependencies": {
     "@pika/shared": "workspace:*",
     "@sentry/nextjs": "^10.36.0",
+    "@serwist/next": "^9.5.0",
+    "@serwist/precaching": "^9.5.0",
+    "@serwist/sw": "^9.5.0",
     "@tanstack/react-virtual": "^3.13.18",
     "idb-keyval": "^6.2.2",
     "lucide-react": "^0.468.0",
@@ -27,9 +32,12 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
+    "@types/node": "^25.0.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "esbuild": "^0.27.2",
+    "serwist": "^9.5.0",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

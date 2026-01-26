@@ -1,5 +1,8 @@
-import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import type { NextConfig } from "next";
+
+// Serwist config removed due to incompatibility with Next 16 + Sentry.
+// We build SW manually via scripts/build-sw.ts
 
 const nextConfig: NextConfig = {
   /* config options here */

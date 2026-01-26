@@ -30,7 +30,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+import { InstallPrompt } from "@/components/pwa/InstallPrompt";
+import { RegisterPWA } from "@/components/pwa/RegisterPWA";
+
+// ... existing imports
+
 export const viewport: Viewport = {
+  themeColor: "#0a0a0a",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
@@ -38,9 +44,19 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://pika.stream"),
+  manifest: "/manifest.json",
   title: "Pika! - Real-time DJ Feedback for WCS",
   description:
     "The intelligent companion for West Coast Swing DJs and Dancers. Real-time track info, tempo voting, and analytics.",
+  applicationName: "Pika!",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Pika!",
+  },
+  formatDetection: {
+    telephone: false,
+  },
   keywords: "WCS, West Coast Swing, DJ, live, real-time, feedback, dance, music analytics",
   robots: "index, follow",
   openGraph: {
@@ -82,6 +98,8 @@ export default function RootLayout({
         <main id="main-content" className="pb-20 sm:pb-0">
           {children}
         </main>
+        <RegisterPWA />
+        <InstallPrompt />
         <BottomNav />
       </body>
     </html>

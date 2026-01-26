@@ -1,0 +1,57 @@
+{
+  "name": "Pika!",
+  "short_name": "Pika!",
+  "description": "Real-time Dance Event Companion",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0a0a0a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "categories": ["music", "lifestyle", "social"],
+  "shortcuts": [
+    {
+      "name": "Live Schedule",
+      "url": "/live",
+      "description": "See what's playing now"
+    },
+    {
+      "name": "My Journal",
+      "url": "/my-likes",
+      "description": "View your liked songs"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/dancer/live-id.png",
+      "sizes": "1170x2532",
+      "type": "image/png",
+      "label": "Real-time track ID and voting"
+    },
+    {
+      "src": "/screenshots/dancer/my-likes.png",
+      "sizes": "1170x2532",
+      "type": "image/png",
+      "label": "Your personal dance journal"
+    }
+  ]
+}
