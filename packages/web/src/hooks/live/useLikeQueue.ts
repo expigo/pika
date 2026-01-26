@@ -85,7 +85,15 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
       setPendingCount(pending.length);
       idbLoadedRef.current = true;
 
+      // 11/10 Conflict Resolution: Mark pending tracks as already liked in UI
       if (pending.length > 0) {
+        setLikedTracks((prev) => {
+          const next = new Set(prev);
+          for (const p of pending) {
+            next.add(getTrackKey(p.track));
+          }
+          return next;
+        });
         logger.info("[Likes] Loaded pending likes from IndexedDB", { count: pending.length });
       }
     };

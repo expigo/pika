@@ -33,7 +33,6 @@ const geistMono = Geist_Mono({
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { RegisterPWA } from "@/components/pwa/RegisterPWA";
 import { Toaster } from "sonner";
-
 // ... existing imports
 
 export const viewport: Viewport = {
@@ -77,7 +76,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;

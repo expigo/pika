@@ -5,18 +5,17 @@ import { NextResponse } from "next/server";
  * Next.js Middleware for Security Headers
  * Adds Content-Security-Policy and other security headers to all responses.
  */
-export function middleware(_request: NextRequest) {
-  const response = NextResponse.next();
+export function middleware(request: NextRequest) {
+  // 11/10 Security: Generate dynamic nonce for CSP
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
   // Content Security Policy
-  // - 'self' allows resources from same origin
-  // - 'unsafe-inline' needed for React/Next.js hydration and styled-jsx
-  // - 'unsafe-eval' needed for development mode and some libraries
-  // - blob: and data: needed for images and fonts
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-    "style-src 'self' 'unsafe-inline'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${
+      process.env.NODE_ENV === "development" ? "'unsafe-eval'" : ""
+    }`,
+    "style-src 'self' 'unsafe-inline'", // Needed for styled-jsx and Tailwind
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",
     "connect-src 'self' https://api.github.com https://*.github.com https://*.githubusercontent.com wss://api.pika.stream https://api.pika.stream wss://staging-api.pika.stream https://staging-api.pika.stream ws://localhost:* http://localhost:*",
@@ -25,7 +24,13 @@ export function middleware(_request: NextRequest) {
     "base-uri 'self'",
   ].join("; ");
 
+  const response = NextResponse.next();
+
+  // Set CSP Header
   response.headers.set("Content-Security-Policy", csp);
+
+  // Set Nonce for Next.js to use in components
+  response.headers.set("x-nonce", nonce);
 
   // Additional security headers
   response.headers.set("X-Content-Type-Options", "nosniff");

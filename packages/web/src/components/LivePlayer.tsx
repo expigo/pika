@@ -11,6 +11,7 @@ import { ConnectionStatusIndicator } from "./ConnectionStatus";
 import { SocialSignalsLayer } from "./SocialSignalsLayer";
 import { StaleDataBanner } from "./StaleDataBanner";
 import { ProCard } from "./ui/ProCard";
+import { OfflineStatus } from "./pwa/OfflineStatus";
 
 // Dynamic import for QR code (only loaded when sharing)
 const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), {
@@ -176,6 +177,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     onLikeReceived,
     sessionEnded,
     lastHeartbeat,
+    pendingCount,
   } = useLiveListener(targetSessionId);
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [showQR, setShowQR] = useState(false);
@@ -261,6 +263,8 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
       {/* Social Signals Overlay (Canvas) */}
       {/* L5: Conditional SocialSignalsLayer */}
       {isLive && isConnected && <SocialSignalsLayer onLikeReceived={onLikeReceived} />}
+
+      <OfflineStatus pendingCount={pendingCount} />
 
       {/* Stale Data Warning Banner (shows when disconnected for extended period) */}
       <StaleDataBanner

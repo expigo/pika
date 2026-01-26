@@ -15,7 +15,7 @@ Pika! utilizes a "Native-Lite" PWA architecture designed for intermittent connec
 | :--- | :--- | :--- |
 | **Installable** | Web App Manifest + iOS Polyfills | Home screen presence, standalone mode. |
 | **Offline-First** | Service Worker (Serwist) | Instant load, 0.3s repeat visits. |
-| **Push Notifications** | Web Push API (VAPID) | Re-engagement for polls/announcements. |
+| **Push Notifications** | Web Push API (VAPID) + SW Listeners | ✅ Functional: Re-engagement for polls/announcements. |
 | **Resilient Sync** | IndexedDB + Wake-Lock | Queues actions when offline. |
 | **Battery Aware** | Wake-Up Heuristics | Pauses websocket when backgrounded. |
 
