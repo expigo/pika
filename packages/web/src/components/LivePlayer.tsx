@@ -14,6 +14,7 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { memo, useEffect, useRef, useState } from "react";
@@ -24,6 +25,7 @@ import { StaleDataBanner } from "./StaleDataBanner";
 import { ProCard } from "./ui/ProCard";
 import { NotificationToggle } from "./pwa/NotificationToggle";
 import { OfflineStatus } from "./pwa/OfflineStatus";
+import { usePushNotifications } from "@/hooks/live";
 
 // Dynamic import for QR code (only loaded when sharing)
 const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), {
@@ -227,6 +229,9 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
   const [thanksText, setThanksText] = useState("SEND THANKS 🦄");
   const [signalLost, setSignalLost] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const { permissionState } = usePushNotifications();
+  const notificationsEnabled = permissionState === "granted";
+  const notificationsBlocked = permissionState === "denied";
 
   // Haptic Feedback Utility
   const triggerHaptic = (pattern: number | number[] = 10) => {
@@ -272,6 +277,11 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     if (isLiked) {
       removeLike(currentTrack);
       triggerHaptic(5); // Soft single tap for "unlike"
+      toast.success("Removed from Journal 💔", {
+        id: "unlike-confirm",
+        duration: 2000,
+        icon: "💔",
+      });
       return;
     }
 
@@ -433,12 +443,19 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                   <button
                     onClick={() => setShowSettings(!showSettings)}
                     aria-label="Booth Settings"
-                    className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all shadow-xl ${
+                    className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all shadow-xl relative group ${
                       showSettings
                         ? "bg-purple-500 border-purple-400 text-white"
                         : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
                     }`}
                   >
+                    {/* 11/10 Discoverability: Pulsing dot if notifications not enabled */}
+                    {!notificationsEnabled && !notificationsBlocked && (
+                      <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
+                        <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500 border-2 border-slate-950" />
+                      </span>
+                    )}
                     <Settings className={`w-4 h-4 ${showSettings ? "animate-spin-slow" : ""}`} />
                   </button>
                   <button
@@ -768,6 +785,10 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
             onUnlike={(track) => {
               removeLike(track);
               triggerHaptic(5);
+              toast.success("Removed from Journal 💔", {
+                id: "unlike-confirm",
+                duration: 2000,
+              });
             }}
           />
 

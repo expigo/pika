@@ -23,7 +23,7 @@ import {
 } from "@pika/shared";
 import { getSessionIds, hasSession } from "../lib/sessions";
 import { hasLikedTrack, recordLike, removeLike } from "../lib/likes";
-import { persistLike } from "../lib/persistence/tracks";
+import { persistLike, deletePersistedLike } from "../lib/persistence/tracks";
 import { recordTempoVote, getTempoFeedback } from "../lib/tempo";
 import { sendAck, sendNack, parseMessage } from "../lib/protocol";
 import { checkBackpressure } from "./utility";
@@ -164,9 +164,10 @@ export async function handleRemoveLike(ctx: WSContext) {
     sessionId,
   });
 
-  // Note: We don't delete from persistLike (DB) yet to maintain historical audit,
-  // but the live consensus won't count it anymore if the DJ re-fetches.
-  // We COULD broadcast REMOVE_LIKE if the DJ UI supported live pulse decrementing.
+  // 💾 Sync with database
+  deletePersistedLike(track, sessionId, state.clientId).catch((e) =>
+    logger.error("❌ Failed to delete persisted like", e),
+  );
 
   if (messageId) sendAck(ws, messageId);
 }

@@ -143,6 +143,54 @@ export async function persistLike(
 }
 
 /**
+ * Remove persisted like from database
+ */
+export async function deletePersistedLike(
+  track: TrackInfo,
+  sessionId?: string,
+  clientId?: string,
+): Promise<void> {
+  if (!sessionId || !clientId) return;
+
+  return enqueuePersistence(sessionId, async () => {
+    try {
+      // 1. Find the played track ID
+      const [playedTrack] = await db
+        .select({ id: schema.playedTracks.id })
+        .from(schema.playedTracks)
+        .where(
+          and(
+            eq(schema.playedTracks.sessionId, sessionId),
+            eq(schema.playedTracks.artist, track.artist),
+            eq(schema.playedTracks.title, track.title),
+          ),
+        )
+        .orderBy(desc(schema.playedTracks.playedAt))
+        .limit(1);
+
+      if (playedTrack) {
+        // 2. Delete the like entry
+        await db
+          .delete(schema.likes)
+          .where(
+            and(
+              eq(schema.likes.sessionId, sessionId),
+              eq(schema.likes.clientId, clientId),
+              eq(schema.likes.playedTrackId, playedTrack.id),
+            ),
+          );
+        logger.info("💾 Like removed from database", {
+          title: track.title,
+          clientId: clientId.substring(0, 8),
+        });
+      }
+    } catch (e) {
+      logger.error("❌ Failed to delete persisted like", e);
+    }
+  });
+}
+
+/**
  * Persist tempo votes for a track (called when track changes)
  */
 export async function persistTempoVotes(
