@@ -15,6 +15,7 @@ The command center for the DJ. Built with Tauri v2 (Rust) and React 19.
     *   **Smart Animations**: HUD animations utilize `requestAnimationFrame` with visibility checks to ensure 0% CPU usage when minimized.
     *   **Explicit Data Fetching**: Optimized SQL queries prevent over-fetching, ensuring stable memory usage even with massive session histories.
     *   **Zero-Duplication Guarantee**: Hybrid Deduplication (Time Window + Absolute Interval) ensures accurate track counts even during long sets or app restarts.
+    *   **Seamless History Import**: Auto-detects recent VDJ sessions and allows 1-click "Go Live" with history restoration, while preventing accidental overlapping sets.
 
 ## 🐍 Python Sidecar
 The analysis engine lives in `python-src/`. It is a FastAPI app that runs locally as a sidecar process managed by Tauri.

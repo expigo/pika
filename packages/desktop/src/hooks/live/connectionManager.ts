@@ -14,7 +14,7 @@ import {
   virtualDjWatcher,
 } from "../../services/virtualDjWatcher";
 import { logger } from "../../utils/logger";
-import { TRACK_DEDUP_WINDOW_MS, VDJ_WATCH_INTERVAL_MS } from "./constants";
+import { TRACK_DEDUP_WINDOW_MS } from "./constants";
 import {
   addProcessedTrackKey,
   clearProcessedTrackKeys,
@@ -52,7 +52,7 @@ export async function createDatabaseSession(
  */
 export async function startVirtualDJWatcher(): Promise<NowPlayingTrack | null> {
   logger.debug("Live", "Starting VirtualDJ watcher");
-  await virtualDjWatcher.startWatching(VDJ_WATCH_INTERVAL_MS);
+  await virtualDjWatcher.startWatching();
   return virtualDjWatcher.getCurrentTrack();
 }
 

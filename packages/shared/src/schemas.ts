@@ -38,6 +38,7 @@ export const MESSAGE_TYPES = {
   LISTENER_COUNT: "LISTENER_COUNT",
   TEMPO_FEEDBACK: "TEMPO_FEEDBACK",
   TEMPO_RESET: "TEMPO_RESET",
+  METADATA_UPDATED: "METADATA_UPDATED",
   POLL_STARTED: "POLL_STARTED",
   POLL_UPDATE: "POLL_UPDATE",
   POLL_ENDED: "POLL_ENDED",
@@ -154,6 +155,14 @@ export const RegisterSessionSchema = z.object({
 export const BroadcastTrackSchema = z.object({
   type: z.literal(MESSAGE_TYPES.BROADCAST_TRACK),
   version: z.literal("0.3.0").optional(),
+  sessionId: z.string().min(8).max(64).trim(),
+  track: TrackInfoSchema,
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
+});
+
+export const BroadcastMetadataSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.METADATA_UPDATED),
   sessionId: z.string().min(8).max(64).trim(),
   track: TrackInfoSchema,
   messageId: z.string().optional(),
@@ -300,6 +309,12 @@ export const LikeReceivedSchema = z.object({
   payload: z.object({
     track: TrackInfoSchema,
   }),
+});
+
+export const MetadataUpdatedSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.METADATA_UPDATED),
+  sessionId: z.string(),
+  track: TrackInfoSchema, // Full track info including new BPM
 });
 
 export const ListenerCountSchema = z.object({
@@ -540,6 +555,8 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   EndPollSchema,
   CancelPollSchema,
   VoteOnPollSchema,
+  // Metadata Updates
+  BroadcastMetadataSchema,
   // Client Reactions
   SendReactionSchema,
   // Client Announcements
@@ -579,6 +596,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   // Server Announcements
   AnnouncementReceivedSchema,
   AnnouncementCancelledSchema,
+  MetadataUpdatedSchema,
   // Server System
   AckSchema,
   NackSchema,

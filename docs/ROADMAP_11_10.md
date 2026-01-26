@@ -611,7 +611,20 @@ export const metadata: Metadata = {
 - [x] Latency (H2): Deferred localStorage hits yielding to main thread.
 - [x] Caching (H3): SWR deduplication active on REST endpoints.
 - [x] Economy (H4): Stable WebSocket handler trees (100% memoization).
-- [x] Audit Recap: Created `docs/AUDIT_RECAP.md` and updated all secondary guides.
+### Phase 4: Client Reliability Complete When: ✅ VERIFIED (2026-01-26)
+- [x] Issue 48 (Sleeping Phones): Subscribers receive `SESSION_ENDED` on wake (Cloud Logic).
+- [x] Issue 49 (Late Joiner BPM): `METADATA_UPDATED` broadcast implementation + Ghost Track prevention.
+
+### Phase 5: 11/10 Experience (UX/Psychology) Complete When: ✅ VERIFIED (2026-01-26)
+- [x] **Smart History Import:** Automatic detection of previous sessions (`detectSession`).
+- [x] **Duplicate Warning:** Modal blocks overlapping sessions (>10m match) to prevent duplicate history data.
+- [x] **Seamless Flow:** Name Input merged into Import Modal for 1-click go-live.
+- [x] **Portal Architecture:** All overlay modals use `createPortal` to solve CSS clipping/stacking issues.
+- [x] **Psychology Patterns:**
+  - De-emphasized "Import Anyway" (Destructive).
+  - Explicit "Recommended" actions.
+  - "Currently Playing" context indicators.
+  - Gap detection logic (>10m gaps shown in list).
 
 ---
 
@@ -668,7 +681,7 @@ bun audit
 
 ---
 
-**Document Version:** 2.1
-**Last Updated:** 2026-01-24
+**Document Version:** 2.2
+**Last Updated:** 2026-01-26
 **Maintained By:** Engineering Team
-**Verification Status:** Phase 2 Hardening (v0.3.0) Complete
+**Verification Status:** Phase 5 (11/10 Experience) Complete

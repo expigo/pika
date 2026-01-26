@@ -93,9 +93,25 @@ export function handleSubscribe(ctx: WSContext) {
       }),
     );
 
-    // Send current track to new subscriber if there is one playing
     const session = getSession(targetSession);
-    if (session?.currentTrack) {
+
+    if (!session) {
+      // 🛡️ Issue 48 Fix: If client wakes up and requests a dead session, tell them it's over.
+      // This handles the "Sleeping Phone" scenario where the session ended while they were backgrounded.
+      logger.info("💀 Subscriber requested dead/missing session", { sessionId: targetSession });
+      ws.send(
+        JSON.stringify({
+          type: "SESSION_ENDED",
+          sessionId: targetSession,
+        }),
+      );
+      // Don't send other updates if session is dead
+      if (messageId) sendAck(ws, messageId);
+      return;
+    }
+
+    // Send current track to new subscriber if there is one playing
+    if (session.currentTrack) {
       ws.send(
         JSON.stringify({
           type: "NOW_PLAYING",
@@ -142,7 +158,7 @@ export function handleSubscribe(ctx: WSContext) {
     }
 
     // Send active announcement to late joiners (if any)
-    if (session?.activeAnnouncement) {
+    if (session.activeAnnouncement) {
       ws.send(
         JSON.stringify({
           type: "ANNOUNCEMENT_RECEIVED",

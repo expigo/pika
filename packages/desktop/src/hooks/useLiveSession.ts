@@ -743,21 +743,31 @@ export function useLiveSession() {
   // Go live - connect to cloud and start watching
   // include currentTrack: if false, skip recording/broadcasting whatever is currently playing
   const goLive = useCallback(
-    async (sessionName?: string, includeCurrentTrack: boolean = true) => {
+    async (
+      sessionName?: string,
+      includeCurrentTrack: boolean = true,
+      preCreatedSession?: { sessionId: string; dbSessionId: number },
+    ) => {
       if (status === "live" || status === "connecting") {
         logger.debug("Live", "Already live or connecting");
         return;
       }
 
-      const newSessionId = generateSessionId();
+      const activeSessionId = preCreatedSession?.sessionId || generateSessionId();
 
       setStatus("connecting");
       setError(null);
-      setSessionId(newSessionId);
+      setSessionId(activeSessionId);
 
       try {
-        // Create database session for history tracking
-        const dbSessionId = await createDatabaseSession(sessionName, newSessionId);
+        // Create database session for history tracking (or use existing)
+        let dbSessionId: number;
+        if (preCreatedSession) {
+          dbSessionId = preCreatedSession.dbSessionId;
+          logger.info("Live", "Using pre-created session", { dbSessionId });
+        } else {
+          dbSessionId = await createDatabaseSession(sessionName, activeSessionId);
+        }
         setDbSessionId(dbSessionId);
 
         // Start VirtualDJ watcher and get initial track
@@ -811,7 +821,7 @@ export function useLiveSession() {
           const token = getAuthToken();
           sendMessage({
             type: MESSAGE_TYPES.REGISTER_SESSION,
-            sessionId: newSessionId,
+            sessionId: activeSessionId,
             djName: getDjName(),
             ...(token ? { token } : {}),
           });
@@ -828,7 +838,7 @@ export function useLiveSession() {
         };
 
         // Initialize message router with callbacks for this session (U3 refactor)
-        messageRouter.setContext(createRouterContext(newSessionId, endSet));
+        messageRouter.setContext(createRouterContext(activeSessionId, endSet));
 
         // Message handler using O(1) router dispatch
         socket.onmessage = (event) => {
@@ -1176,5 +1186,16 @@ export function useLiveSession() {
     cancelAnnouncement,
     clearEndedPoll,
     forceSync,
+    registerImportedTrack,
   };
 }
+
+/**
+ * 🛡️ Fix 1: Register imported tracks in the internal dedup state
+ * This prevents the live watcher from re-recording a track that was just imported
+ */
+const registerImportedTrack = (artist: string, title: string, timestamp: number) => {
+  const absoluteKey = `${artist}-${title}`.toLowerCase();
+  sessionTrackTimestamps.set(absoluteKey, timestamp * 1000);
+  logger.debug("Live", "Registered imported track for dedup", { absoluteKey, timestamp });
+};

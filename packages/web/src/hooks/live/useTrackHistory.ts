@@ -143,6 +143,33 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
           return null;
         });
       },
+
+      [MESSAGE_TYPES.METADATA_UPDATED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          sessionId: string;
+          track: TrackInfo;
+        };
+
+        if (sessionId && msg.sessionId !== sessionId) {
+          return;
+        }
+
+        // 🛡️ Race Condition Check: Only update if it matches currently displayed track
+        setCurrentTrack((prev) => {
+          if (
+            prev &&
+            prev.artist?.toLowerCase() === msg.track.artist?.toLowerCase() &&
+            prev.title?.toLowerCase() === msg.track.title?.toLowerCase()
+          ) {
+            // Merge metadata changes
+            return {
+              ...prev,
+              ...msg.track,
+            };
+          }
+          return prev;
+        });
+      },
     }),
     [sessionId, pushToHistory],
   );

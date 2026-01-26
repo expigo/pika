@@ -292,6 +292,10 @@ app.get(
             case "BROADCAST_TRACK":
               await handlers.handleBroadcastTrack(ctx);
               break;
+            case "METADATA_UPDATED":
+              // 🛡️ Issue 49 Fix: Bypasses rate limit for metadata-only updates
+              await handlers.handleBroadcastMetadata(ctx);
+              break;
             case "TRACK_STOPPED":
               handlers.handleTrackStopped(ctx);
               break;

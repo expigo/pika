@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
 **Date:** January 25, 2026
-**Version:** 0.3.3 (Reliability Hardened Release)
+**Version:** 0.3.4 (11/10 Experience Release)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -120,6 +120,12 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Concurrency IDs:** Offline queue sync uses Operation IDs to prevent race conditions during watchdog resets.
     *   **Hybrid Deduplication:** 2-Stage check (Window + Absolute Interval) guarantees zero duplicate track recordings even if the DJ minimizes the app for hours.
     *   **Singleton Watcher:** Module-level singleton pattern for `VirtualDJWatcher` eliminates "ghost" listeners and phantom notifications.
+*   **11/10 Experience (v0.3.4):**
+    *   **Seamless History Import:** Automatic detection of previous VDJ sessions on app start.
+    *   **Duplicate Protection:** Blocking modal prevents accidental re-import of the same set date/time.
+    *   **Portal Architecture:** All modals (`Dialog`, `SessionImport`, `DuplicateWarning`) now render via `createPortal` to `document.body`, eliminating z-index/transform clipping issues.
+    *   **Context-Aware UI:** "Currently Playing" indicators in import lists and smart gap detection (>10m) in track previews.
+    *   **One-Step Go Live:** Merged Session Name input into the Import/Skip flow for a frictionless start.
 
 ---
 
@@ -157,6 +163,11 @@ To ensure production-grade stability under high load, we implemented:
 2.  **Backpressure Protection (Cloud):** Fast-fail mechanism for slow clients (64KB buffer limit) to prevent server OOM.
 3.  **Atomic Transactions (Desktop):** SQLite `BEGIN TRANSACTION` used for all Set operations (`saveSet`, `deleteSet`).
 4.  **O(1) Memory Cleanup:** Refactored Cloud state maps for instant cleanup on session end.
+
+### F. Portal-First UI (v0.3.4)
+To solve the "Clipping Modal" problem inherent in complex flex/grid layouts with `transform` properties:
+1.  **Global Layering:** All critical overlays (Import, Warning, Name Input) are rendered via `createPortal` to `document.body`.
+2.  **Z-Index Hygiene:** Portals ensure these elements strictly sit at `z-[1000]`, independent of the parent component's stacking context.
 
 ---
 
@@ -251,6 +262,10 @@ We use a unified versioning script: `bun run bump <version>`.
 Early in development, Tauri's HMR would spawn multiple Python sidecars, leading to port collisions.
 **Solution:** The current `useSidecar` kill-before-spawn logic is non-negotiable for system stability.
 
+### D. Duplicate Prevention
+Users often restart the app during a gig. Auto-importing history without validation causes "double data" in the stats.
+**Solution:** The `DuplicateSessionWarning` uses a time-overlap heuristic (Overlap > 10m) to block accidental re-imports, forcing the user to consciously choose "Start New" or "Import Anyway" (with warnings).
+
 ---
 
-*Last Updated: January 25, 2026 (v0.3.3 - Reliability & Robustness Hardening)*
+*Last Updated: January 26, 2026 (v0.3.4 - 11/10 Experience Release)*

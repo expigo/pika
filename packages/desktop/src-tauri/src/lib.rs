@@ -244,6 +244,80 @@ pub struct HistoryTrack {
     timestamp: u64,
 }
 
+/// Read ALL entries from the VirtualDJ history file (not just the last one)
+#[tauri::command]
+fn read_virtualdj_history_full(
+    custom_path: Option<String>,
+    max_entries: Option<usize>
+) -> Result<Vec<HistoryTrack>, String> {
+    let history_path = if let Some(ref path_str) = custom_path {
+        if path_str != "auto" && !path_str.is_empty() {
+            let custom = std::path::PathBuf::from(path_str);
+            if custom.exists() {
+                custom
+            } else {
+                find_latest_history_file()?
+            }
+        } else {
+            find_latest_history_file()?
+        }
+    } else {
+        find_latest_history_file()?
+    };
+    
+    let content = std::fs::read_to_string(&history_path)
+        .map_err(|e| format!("Failed to read history: {}", e))?;
+    
+    let mut tracks = Vec::new();
+    let lines: Vec<&str> = content.lines().collect();
+    
+    // Process in reverse (most recent first), but pairs of lines
+    let mut i = lines.len();
+    while i >= 2 {
+        i -= 2;
+        let ext_line = lines[i];
+        let file_path_line = lines[i + 1];
+        
+        if !ext_line.starts_with("#EXTVDJ:") {
+            continue;
+        }
+        
+        let extract_tag = |content: &str, start_tag: &str, end_tag: &str| -> Option<String> {
+            let start_idx = content.find(start_tag)? + start_tag.len();
+            let end_idx = content.find(end_tag)?;
+            if start_idx >= end_idx { return None; }
+            Some(content[start_idx..end_idx].to_string())
+        };
+        
+        let artist = extract_tag(ext_line, "<artist>", "</artist>")
+            .unwrap_or_else(|| "Unknown".to_string());
+        let title = extract_tag(ext_line, "<title>", "</title>")
+            .unwrap_or_else(|| "Unknown".to_string());
+        let timestamp: u64 = extract_tag(ext_line, "<lastplaytime>", "</lastplaytime>")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        
+        tracks.push(HistoryTrack {
+            artist,
+            title,
+            file_path: file_path_line.to_string(),
+            timestamp,
+        });
+        
+        // Respect max_entries limit (default 100)
+        if let Some(max) = max_entries {
+            if tracks.len() >= max {
+                break;
+            }
+        }
+    }
+    
+    // Return in chronological order (oldest first)
+    tracks.reverse();
+    
+    Ok(tracks)
+}
+
 #[tauri::command]
 fn read_virtualdj_history(custom_path: Option<String>) -> Result<Option<HistoryTrack>, String> {
     // If custom path is provided and not "auto", use it directly
@@ -449,7 +523,8 @@ pub fn run() {
         .plugin(tauri_plugin_sql::Builder::default().build())
         .invoke_handler(tauri::generate_handler![
             import_virtualdj_library, 
-            read_virtualdj_history, 
+            read_virtualdj_history,
+            read_virtualdj_history_full,
             lookup_vdj_track_metadata, 
             get_local_ip
         ])

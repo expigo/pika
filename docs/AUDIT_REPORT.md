@@ -3,8 +3,8 @@
 **Audit Date:** 2026-01-22 (Updated: 2026-01-25 Reliability Audit Complete)
 **Auditor:** Senior Engineering Lead
 **Scope:** Desktop App, Web App, Cloud Service, Shared Package
-**Version Audited:** v0.3.3 (Reliability Hardened Release)
-**Status:** ✅ PRODUCTION READY - All Reliability Audits (Batch 1-3) Complete & Verified
+**Version Audited:** v0.3.4 (11/10 Experience Release)
+**Status:** ✅ PRODUCTION READY - All Reliability Audits (Batch 1-4) Complete & Verified
 
 ---
 
@@ -122,6 +122,23 @@ The codebase has achieved **production-grade excellence** with all Reliability A
 | **U3** | goLive Function Size - 219 lines, too large | P2 | ✅ Fixed |
 | **A1** | Test API Compatibility - vi.setSystemTime not portable | P4 | ✅ Fixed |
 
+### Fixes Applied (Client Reliability: Batch 4 v0.3.3)
+
+| ID | Issue | Severity | Status |
+|----|-------|----------|--------|
+| **48** | **Sleeping Phones** | Stale UI on wake (missing Session End) | 🔴 CRITICAL | ✅ Fixed |
+| **49** | **Late Joiner BPM** | Missing metadata (BPM/Key) for late joiners | 🔴 CRITICAL | ✅ Fixed |
+
+### Fixes Applied (11/10 Experience: Batch 5 v0.3.4)
+
+| ID | Issue | Severity | Status |
+|----|-------|----------|--------|
+| **U4** | **Seamless History** | Auto-import VDJ history on app start | 🟡 HIGH | ✅ Fixed |
+| **U5** | **Duplicate Data** | Prevent accidental re-import of same set | 🔴 CRITICAL | ✅ Fixed |
+| **U6** | **Modal Clipping** | Portal architecture for `z-index` safety | 🟡 MEDIUM | ✅ Fixed |
+| **U7** | **Destructive UX** | De-emphasized "Import Anyway" button | 🟡 MEDIUM | ✅ Fixed |
+| **U8** | **Flow Friction** | Merged Name Input into Import flow | 🟡 MEDIUM | ✅ Fixed |
+
 ### Fixes Applied (Sprint 0: Battery & Security)
 
 | ID | Issue | Severity | Status |
@@ -163,8 +180,15 @@ The codebase has achieved **production-grade excellence** with all Reliability A
 - Reduced from 219 to 122 lines (44% reduction)
 
 **A1 - Test API Fix:**
-- Replaced `vi.setSystemTime` with portable `Date.now = vi.fn(() => now)` pattern
 - All 210 desktop tests now pass with both Vitest and bun:test
+
+**48 - Sleeping Phones (Session End Check):**
+- **Root Cause:** Subscriber socket reconnected without checking if the previous session was still active.
+- **Fix:** Added logic in `subscriber.ts` to return `SESSION_ENDED` immediately if a client requests a subscription to a non-existent or finished session.
+
+**49 - Late Joiner BPM (Ghost Track Prevention):**
+- **Root Cause:** Analysis results arrived after track ended, and were ignored by rate limits.
+- **Fix:** Implemented `METADATA_UPDATED` message type that bypasses rate limits. Added **Ghost Track Prevention** in Cloud to reject updates for tracks that are no longer playing (race condition protection).
 
 **Test Results Post-Fix (v0.2.8):**
 | Package | Pass | Fail | Total | Test Files |

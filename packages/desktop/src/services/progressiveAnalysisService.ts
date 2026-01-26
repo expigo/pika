@@ -9,8 +9,9 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import { type AnalysisResult, trackRepository } from "../db/repositories/trackRepository";
 import { settingsRepository } from "../db/repositories/settingsRepository";
-import { broadcastTrack } from "../hooks/live";
+import { sendMessage } from "../hooks/live";
 import { getSessionId as getStoreSessionId } from "../hooks/live/stateHelpers";
+import { MESSAGE_TYPES } from "@pika/shared";
 
 interface AnalysisJob {
   trackId: number;
@@ -37,7 +38,11 @@ export function setSidecarUrl(url: string | null) {
  * Enqueue a track for progressive analysis
  * Respects the analysis.onTheFly setting
  */
-export async function enqueueForAnalysis(trackId: number, filePath: string) {
+export async function enqueueForAnalysis(
+  trackId: number,
+  filePath: string,
+  waitForCompletion = false,
+) {
   // Check if progressive analysis is enabled
   const enabled = await settingsRepository.get("analysis.onTheFly");
   if (!enabled) {
@@ -68,7 +73,8 @@ export async function enqueueForAnalysis(trackId: number, filePath: string) {
 
   // Start processing if not already running
   if (!isProcessing && !processingTimeout) {
-    processQueue();
+    const promise = processQueue();
+    if (waitForCompletion) return promise;
   }
 }
 
@@ -119,22 +125,38 @@ async function processQueue() {
           const track = await trackRepository.getTrackById(job.trackId);
           if (track) {
             console.log("[ProgressiveAnalysis] Broadcasting updated metadata");
-            broadcastTrack(sessionId, {
-              artist: track.artist ?? "",
-              title: track.title ?? "",
-              bpm: track.bpm ?? undefined,
-              key: track.key ?? undefined,
-              energy: track.energy ?? undefined,
-              danceability: track.danceability ?? undefined,
-              brightness: track.brightness ?? undefined,
-              acousticness: track.acousticness ?? undefined,
-              groove: track.groove ?? undefined,
-            });
+            // 🛡️ Issue 49 Fix: Use METADATA_UPDATED to bypass rate limits on server
+            // and avoid resetting like counters.
+            console.log("[TestDebug] About to sendMessage METADATA_UPDATED");
+            try {
+              sendMessage({
+                type: MESSAGE_TYPES.METADATA_UPDATED,
+                sessionId,
+                track: {
+                  artist: track.artist ?? "",
+                  title: track.title ?? "",
+                  bpm: track.bpm ?? undefined,
+                  key: track.key ?? undefined,
+                  energy: track.energy ?? undefined,
+                  danceability: track.danceability ?? undefined,
+                  brightness: track.brightness ?? undefined,
+                  acousticness: track.acousticness ?? undefined,
+                  groove: track.groove ?? undefined,
+                },
+              });
+              console.log("[TestDebug] sendMessage called");
+            } catch (err) {
+              console.error("[TestDebug] sendMessage failed", err);
+            }
+          } else {
+            console.log("[TestDebug] Track not found for broadcast");
           }
+        } else {
+          console.log("[TestDebug] No sessionId");
         }
       }
     } else {
-      console.error("[ProgressiveAnalysis] HTTP error:", response.status);
+      console.log("[ProgressiveAnalysis] HTTP error:", response.status);
       await trackRepository.markTrackAnalyzed(job.trackId, null);
     }
   } catch (e) {
@@ -182,6 +204,19 @@ export function getQueueLength(): number {
  */
 export function clearQueue() {
   queue = [];
+  if (processingTimeout) {
+    clearTimeout(processingTimeout);
+    processingTimeout = null;
+  }
+}
+
+/**
+ * Reset internal state (For testing only)
+ */
+export function resetServiceState() {
+  queue = [];
+  isProcessing = false;
+  sidecarBaseUrl = null;
   if (processingTimeout) {
     clearTimeout(processingTimeout);
     processingTimeout = null;

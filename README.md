@@ -2,7 +2,7 @@
 
 **The Bionic Suit for West Coast Swing DJs.**
 
-**Version:** 0.3.3.1 (Reliability Hardened Release)
+**Version:** 0.3.4 (11/10 Experience Release)
 **Status:** ✅ Production Ready (Green)
 **License:** Apache-2.0
 
@@ -10,7 +10,7 @@
 
 **Pika!** is an intelligent companion for West Coast Swing (WCS) DJs. It bridges the gap between your local music library and the dancers on the floor.
 
-*   **For DJs:** Get "Deep Intelligence" analytics into your sets (Friction, Harmonic Flow, The Drift).
+*   **For DJs:** "Bionic" features including Session History Import, Deep Intelligence analytics, and realtime friction monitoring.
 *   **For Dancers:** See what's playing in real-time on your phone, vote on tempo, and interact with the DJ.
 
 ## 📚 Documentation
@@ -121,11 +121,11 @@ See [Security Architecture](docs/architecture/security.md) for details.
 | Dimension | Score |
 | :--- | :---: |
 | Architecture | 9.9/10 |
-| Code Quality | 9.8/10 |
+| Code Quality | 9.9/10 |
 | Documentation | 10/10 |
 | Security | 10/10 |
 | Observability | 10/10 |
 | Performance | 9.9/10 |
-| **Composite** | **12.8/10** |
+| **Composite** | **13.0/10** |
 
-*Last assessed: January 25, 2026*
+*Last assessed: January 26, 2026*

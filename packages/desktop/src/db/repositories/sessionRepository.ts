@@ -536,6 +536,34 @@ export const sessionRepository = {
       })),
     };
   },
+
+  /**
+   * Check for sessions that overlap with a time range
+   * Used to detect duplicate imports
+   */
+  async getSessionsInTimeRange(
+    startTime: number,
+    endTime: number,
+  ): Promise<{ id: number; name: string | null }[]> {
+    const sqlite = await getSqlite();
+
+    // Find sessions that have plays within the time range
+    const result = await sqlite.select<{ id: number; name: string | null }[]>(
+      `
+      SELECT DISTINCT s.id, s.name
+      FROM sessions s
+      JOIN plays p ON s.id = p.session_id
+      WHERE p.played_at >= ? AND p.played_at <= ?
+      LIMIT 5
+      `,
+      [startTime, endTime],
+    );
+
+    return result.map((row) => ({
+      id: row.id,
+      name: row.name,
+    }));
+  },
 };
 
 // Session details type for logbook

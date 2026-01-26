@@ -279,6 +279,79 @@ export async function handleBroadcastTrack(ctx: WSContext) {
 }
 
 /**
+ * METADATA_UPDATED: DJ updates metadata for current track (BPM/Key)
+ * Bypasses rate limit and does NOT reset likes.
+ */
+export async function handleBroadcastMetadata(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const { BroadcastMetadataSchema } = await import("@pika/shared");
+  const msg = parseMessage(BroadcastMetadataSchema, message, ws, messageId);
+  if (!msg) return;
+
+  // 🔐 Security: Verify owner
+  if (state.djSessionId !== msg.sessionId) {
+    logger.warn("⚠️ Unauthorized metadata update attempt", {
+      owner: state.djSessionId || "none",
+      target: msg.sessionId,
+    });
+    return;
+  }
+
+  const session = getSession(msg.sessionId);
+  if (session) {
+    // ✅ FIX: Reject if no track is currently playing (Ghost Track Prevention)
+    if (!session.currentTrack) {
+      logger.warn("⚠️ Metadata update ignored: No track currently playing");
+      if (messageId) sendAck(ws, messageId); // Still ACK to prevent retries
+      return;
+    }
+
+    // Verify track matches current track (sanity check)
+    // Only update if title/artist match, otherwise it's a race condition and should be ignored
+    if (
+      session.currentTrack.artist !== msg.track.artist ||
+      session.currentTrack.title !== msg.track.title
+    ) {
+      logger.warn("⚠️ Metadata update ignored: Track mismatch", {
+        current: `${session.currentTrack.artist} - ${session.currentTrack.title}`,
+        update: `${msg.track.artist} - ${msg.track.title}`,
+      });
+      return;
+    }
+
+    // Update in-memory state
+    updateSessionTrack(msg.sessionId, msg.track);
+    logger.info("📝 Metadata updated (BPM/Key)", {
+      sessionId: msg.sessionId,
+      bpm: msg.track.bpm,
+      key: msg.track.key,
+    });
+
+    // Broadcast update to all clients
+    // Uses METADATA_UPDATED type which clients should handle by merging into current state
+    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "METADATA_UPDATED",
+          sessionId: msg.sessionId,
+          track: msg.track,
+        }),
+      );
+    }
+
+    // Persist updated track to DB (fire-and-forget)
+    persistTrack(msg.sessionId, msg.track).catch((err) => {
+      logger.error(`❌ DB Error: Failed to persist track update`, err);
+    });
+
+    if (messageId) sendAck(ws, messageId);
+  } else {
+    if (messageId) sendNack(ws, messageId, "Session not found");
+  }
+}
+
+/**
  * TRACK_STOPPED: DJ manually stops a track
  */
 export function handleTrackStopped(ctx: WSContext) {

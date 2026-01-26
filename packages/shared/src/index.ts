@@ -26,6 +26,8 @@ export {
   SendBulkLikeSchema,
   type ServerMessage,
   ServerMessageSchema,
+  BroadcastMetadataSchema,
+  MetadataUpdatedSchema,
   SessionEndedSchema,
   SessionRegisteredSchema,
   SessionStartedSchema,
