@@ -7,7 +7,7 @@
     "dev:local": "next dev --port 3002",
     "build": "next build",
     "postbuild": "bun run scripts/generate-precache-manifest.ts && bun run scripts/build-sw.ts",
-    "start": "next start --port 3002 --hostname 0.0.0.0",
+    "start": "next start",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc --noEmit",
