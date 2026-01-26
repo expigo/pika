@@ -62,7 +62,7 @@ export function InstallPrompt() {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 z-50 animate-in slide-in-from-bottom duration-500 md:left-auto md:right-8 md:w-96">
+    <div className="fixed bottom-[5.5rem] left-4 right-4 z-[100] animate-in slide-in-from-bottom duration-500 md:bottom-4 md:left-auto md:right-8 md:w-96">
       <div className="flex items-start gap-4 rounded-xl border border-zinc-800 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-md">
         <button
           onClick={() => setIsVisible(false)}
