@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@pika/shared";
 import {
   AlertCircle,
   ArrowRight,
@@ -15,7 +16,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 interface RegisterResponse {
   success: boolean;

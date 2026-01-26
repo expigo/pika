@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@pika/shared";
 import {
   Activity,
   Calendar,
@@ -17,9 +18,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
-
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 interface RecapTrack {
   position: number;

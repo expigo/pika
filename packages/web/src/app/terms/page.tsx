@@ -1,6 +1,6 @@
 "use client";
 
-import { Scale, ArrowLeft, AlertTriangle, FileText, Globe } from "lucide-react";
+import { AlertTriangle, ArrowLeft, FileText, Globe, Scale } from "lucide-react";
 import Link from "next/link";
 
 export default function TermsPage() {

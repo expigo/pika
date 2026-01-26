@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@pika/shared";
 import {
   Activity,
   ArrowRight,
@@ -19,7 +20,6 @@ import { LivePlayer } from "@/components/LivePlayer";
 import { ProCard } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 interface ActiveSession {
   sessionId: string;

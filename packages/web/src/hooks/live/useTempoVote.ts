@@ -1,4 +1,4 @@
-import { MESSAGE_TYPES, logger } from "@pika/shared";
+import { logger, MESSAGE_TYPES } from "@pika/shared";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";

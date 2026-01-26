@@ -143,7 +143,8 @@ This is the central index for the Pika! project, tracking active development, fu
 *   [**Spotify Integration**](blueprints/spotify-integration-vision.md) - Auto-export setlists to Spotify.
 *   [**Social Signals Vision**](blueprints/social-signals-vision.md) - Advanced voting & interaction ideas.
 *   [**Logbook Vision**](blueprints/logbook-vision.md) - Advanced post-session analytics.
-*   [**PWA Architecture**](blueprints/pwa-architecture.md) - Progressive Web App for iOS push notifications.
+*   [**Logbook Vision**](blueprints/logbook-vision.md) - Advanced post-session analytics.
+*   [**PWA Architecture**](architecture/pwa-system.md) - ✅ **Implemented**. Full architecture for offline & push.
 
 ---
 

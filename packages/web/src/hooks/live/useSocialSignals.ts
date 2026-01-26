@@ -4,8 +4,8 @@
  * Uses a subscription pattern so components (like Canvas) can listen directly.
  */
 
-import { MESSAGE_TYPES, logger, type TrackInfo } from "@pika/shared";
-import { useCallback, useRef, useMemo } from "react";
+import { logger, MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
+import { useCallback, useMemo, useRef } from "react";
 import type { MessageHandlers, WebSocketMessage } from "./types";
 
 interface UseSocialSignalsProps {

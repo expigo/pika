@@ -3,8 +3,8 @@
  * Handles display, auto-dismiss timer, and manual dismissal
  */
 
-import { MESSAGE_TYPES, logger } from "@pika/shared";
-import { useCallback, useEffect, useState, useMemo } from "react";
+import { logger, MESSAGE_TYPES } from "@pika/shared";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Announcement, MessageHandlers, WebSocketMessage } from "./types";
 
 interface UseAnnouncementProps {

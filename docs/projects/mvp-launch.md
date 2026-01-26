@@ -147,7 +147,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 ## 5. Post-MVP Roadmap (Quick Look)
 *   [ ] **Redis:** For persistent session state (zero-downtime deploys).
 *   [ ] **Organizer Role:** For event branding.
-*   [ ] **Native App:** For push notifications.
+*   [x] **PWA (Mobile App):** Full offline support + Push Notifications. Supersedes Native App.
 *   ✅ **Email Validation:** Upgraded to Zod `.email()` (v0.2.2).
 *   ✅ **ACK/NACK Integration (v0.2.4):** Reliable message delivery for critical messages.
 *   [-] **Reliable Likes:** Deferred (see `realtime-infrastructure.md` for rationale).

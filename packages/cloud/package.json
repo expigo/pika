@@ -18,16 +18,19 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.7.6",
     "@pika/shared": "workspace:*",
     "@sentry/bun": "^10.36.0",
     "drizzle-orm": "^0.38.0",
     "hono": "^4.6.0",
     "hono-rate-limiter": "^0.5.3",
     "postgres": "^3.4.0",
+    "web-push": "^3.6.7",
     "zod": "^4.3.5"
   },
   "devDependencies": {
     "@types/bun": "^1.2.0",
+    "@types/web-push": "^3.6.4",
     "bun-types": "^1.2.0",
     "drizzle-kit": "^0.31.8",
     "typescript": "^5.9.3"

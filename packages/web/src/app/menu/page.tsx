@@ -3,6 +3,7 @@
 import { ArrowRight, Download, Globe, LayoutGrid, LogIn, Smartphone, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { ProCard } from "@/components/ui/ProCard";
+import { NotificationToggle } from "@/components/pwa/NotificationToggle";
 
 export default function MenuPage() {
   const menuGroups = [
@@ -77,6 +78,14 @@ export default function MenuPage() {
 
         {/* Menu Groups */}
         <div className="space-y-8">
+          {/* Notifications */}
+          <div>
+            <h3 className="text-[11px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-2 italic">
+              Alerts
+            </h3>
+            <NotificationToggle />
+          </div>
+
           {menuGroups.map((group) => (
             <div key={group.title}>
               <h3 className="text-[11px] font-black text-slate-600 uppercase tracking-[0.3em] mb-4 ml-2 italic">

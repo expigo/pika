@@ -19,6 +19,7 @@ import { sessions as sessionsRoutes } from "./routes/sessions";
 import { stats as statsRoutes } from "./routes/stats";
 import { dj as djRoutes } from "./routes/dj";
 import { client as clientRoutes } from "./routes/client";
+import { push as pushRoutes } from "./routes/push";
 
 import * as Sentry from "@sentry/bun";
 
@@ -377,6 +378,7 @@ app.route("/api/session", sessionsRoutes); // Alias for recap route
 app.route("/api/stats", statsRoutes);
 app.route("/api/dj", djRoutes);
 app.route("/api/client", clientRoutes);
+app.route("/api/push", pushRoutes);
 app.route("/sessions", sessionsRoutes); // Legacy WebSocket-style endpoint
 
 // Health check endpoint

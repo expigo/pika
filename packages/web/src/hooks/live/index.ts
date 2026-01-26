@@ -17,3 +17,5 @@ export { useSocialSignals } from "./useSocialSignals";
 export { useTempoVote } from "./useTempoVote";
 export { useTrackHistory } from "./useTrackHistory";
 export { useWebSocketConnection } from "./useWebSocketConnection";
+export { useWakeupSync } from "./useWakeupSync";
+export { usePushNotifications } from "./usePushNotifications";

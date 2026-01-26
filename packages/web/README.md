@@ -5,7 +5,7 @@ The dancer-facing mobile application. Built with **Next.js 15**.
 ## Features
 *   **Real-time Interaction:** Connects to Cloud via WebSocket (`useLiveListener` hook).
 *   **Resilient Connectivity:** Self-healing connection with offline action queuing (Heartbeat Monitor).
-*   **Mobile First:** Optimized for mobile browsers (PWA-ready).
+*   **Progressive Web App:** Installable on iOS/Android, offline-capable, and supports Push Notifications.
 *   **Design System:** Tailwind CSS v4 with custom Pika! theme.
 
 ## 📱 Routes

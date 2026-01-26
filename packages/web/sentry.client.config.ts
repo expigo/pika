@@ -1,5 +1,5 @@
-import * as Sentry from "@sentry/nextjs";
 import { PIKA_VERSION } from "@pika/shared";
+import * as Sentry from "@sentry/nextjs";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,

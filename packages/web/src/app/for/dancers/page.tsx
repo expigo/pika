@@ -14,8 +14,8 @@ import {
   Users,
   Zap,
 } from "lucide-react";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { ProCard } from "@/components/ui/ProCard";
 
 export default function ForDancers() {

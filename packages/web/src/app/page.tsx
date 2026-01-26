@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@pika/shared";
 import {
   ArrowRight,
   BarChart3,
@@ -11,13 +12,12 @@ import {
   Radio,
   Smartphone,
 } from "lucide-react";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useVisibility } from "@/hooks/ui/useVisibility";
 import { ProCard } from "@/components/ui/ProCard";
+import { useVisibility } from "@/hooks/ui/useVisibility";
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 interface ActiveSession {
   sessionId: string;

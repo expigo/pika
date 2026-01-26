@@ -1,12 +1,11 @@
 "use client";
 
+import { logger } from "@pika/shared";
 import { ArrowRight, Heart, Radio, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
-
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 // Get or create a stable client ID
 function getClientId(): string | null {

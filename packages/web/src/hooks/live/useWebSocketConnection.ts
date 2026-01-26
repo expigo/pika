@@ -3,7 +3,7 @@
  * Handles connect, disconnect, reconnect, heartbeat, and visibility changes
  */
 
-import { MESSAGE_TYPES, logger } from "@pika/shared";
+import { logger, MESSAGE_TYPES } from "@pika/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { getWebSocketUrl } from "@/lib/api";
@@ -26,6 +26,7 @@ interface UseWebSocketConnectionReturn {
   setDjName: (name: string | null) => void;
   setListenerCount: (count: number) => void;
   lastHeartbeat: number;
+  forceReconnect: () => void;
 }
 
 export function useWebSocketConnection({
@@ -321,5 +322,19 @@ export function useWebSocketConnection({
     setDjName,
     setListenerCount,
     lastHeartbeat,
+    forceReconnect: useCallback(() => {
+      logger.info("[Connection] External force reconnect requested");
+      if (
+        socketRef.current &&
+        statusRef.current !== "connecting" &&
+        !isHardReconnectingRef.current
+      ) {
+        setStatus("connecting");
+        isHardReconnectingRef.current = true;
+        socketRef.current.reconnect();
+      } else {
+        logger.debug("[Connection] Skipping force reconnect (already connecting)");
+      }
+    }, []),
   };
 }

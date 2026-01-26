@@ -1,12 +1,11 @@
 "use client";
 
+import { logger } from "@pika/shared";
 import { AlertCircle, ArrowRight, CheckCircle, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
-
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 interface LoginResponse {
   success: boolean;

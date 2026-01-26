@@ -1,6 +1,11 @@
 "use client";
 
-import { calculateVibeFriction, getHarmonicCompatibility, type TrackInfo } from "@pika/shared";
+import {
+  calculateVibeFriction,
+  getHarmonicCompatibility,
+  logger,
+  type TrackInfo,
+} from "@pika/shared";
 import {
   Activity,
   ArrowLeft,
@@ -35,9 +40,7 @@ import {
 } from "recharts";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
-
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 interface TempoData {
   slower: number;

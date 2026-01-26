@@ -32,6 +32,7 @@ const geistMono = Geist_Mono({
 
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { RegisterPWA } from "@/components/pwa/RegisterPWA";
+import { Toaster } from "sonner";
 
 // ... existing imports
 
@@ -84,9 +85,15 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased selection:bg-purple-500/30`}
+        className="antialiased text-slate-200 bg-slate-950 selection:bg-pink-500/30 selection:text-pink-200"
         suppressHydrationWarning
       >
+        <Toaster
+          position="bottom-center"
+          toastOptions={{
+            style: { background: "#1e293b", border: "1px solid #334155", color: "#f8fafc" },
+          }}
+        />
         <WebVitals />
         {/* Skip to content link for keyboard navigation */}
         <a

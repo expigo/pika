@@ -1,6 +1,6 @@
 "use client";
 
-import { LifeBuoy, ArrowLeft, MessageSquare, Mail, Terminal, Search } from "lucide-react";
+import { ArrowLeft, LifeBuoy, Mail, MessageSquare, Search, Terminal } from "lucide-react";
 import Link from "next/link";
 import { ProCard } from "@/components/ui/ProCard";
 

@@ -1,9 +1,10 @@
 # Blueprint: Progressive Web App (PWA) Architecture
 
-**Status:** 📋 Planning  
-**Priority:** Post-MVP (V1)  
-**Estimated Effort:** 2-3 days  
+**Status:** ✅ Implemented (v2.0)
+**Priority:** Completed
+**Superseded By:** [PWA Architecture System](../architecture/pwa-system.md)
 **Created:** January 13, 2026
+**Last Updated:** January 26, 2026
 
 ---
 
@@ -202,12 +203,46 @@ CREATE TABLE notifications (
 
 ## 6. Phased Rollout
 
-| Phase | Scope | Effort |
-|-------|-------|--------|
-| **Phase 1** | Service Worker + Manifest (installable) | 1 day |
-| **Phase 2** | Offline caching + background sync | 1 day |
-| **Phase 3** | Push notifications (polls, announcements) | 1-2 days |
-| **Phase 4** | Competition targeting (WSDC number) | TBD |
+| Phase | Scope | Status | Notes |
+|-------|-------|--------|-------|
+| **Phase 1** | Service Worker + Manifest | ✅ DONE | Installable, branding, offline fallback |
+| **Phase 2** | Offline caching + Queues | ✅ DONE | `idb-keyval` queue, `CacheFirst` assets |
+| **Phase 3** | Push notifications | ✅ DONE | VAPID, Subscriptions, Broadcasts |
+| **Phase 4** | Competition targeting | ⏳ TBD | WSDC number based targeting |
+
+---
+
+## 10. Roadmap to Full Scalability (Post-v2.0)
+
+While the current implementation is **"Production Ready"** for the defined MVP scale, the following features would be required for high-scale growth (e.g., >10,000 concurrent users).
+
+### Backend & Infrastructure
+*   **Job Queue (BullMQ/Redis):**
+    *   *Current:* Notifications sent during API request (`Promise.allSettled`).
+    *   *Risk:* With 5,000+ subscribers, HTTP requests might time out.
+    *   *Solution:* Offload notification dispatch to a background worker.
+*   **Retry Logic:**
+    *   *Current:* Handles 410 Gone (cleanup).
+    *   *Gap:* Does not retry transient errors (e.g., 503 Service Unavailable from Push Service).
+    *   *Solution:* Implement exponential backoff for 5xx errors.
+*   **Payload Encryption Rotation:**
+    *   *Current:* Static VAPID key pair.
+    *   *Goal:* Rotate keys periodically for high-security compliance.
+
+### User Experience
+*   **In-App Unsubscribe:**
+    *   *Current:* Relies on browser permission settings.
+    *   *Goal:* "Mute Notifications" toggle in app to unsubscribe API-side without revoking browser permission.
+*   **Notification History:**
+    *   *Gap:* No "Inbox" view for missed announcements.
+*   **Granular Preferences:**
+    *   *Gap:* Users cannot subscribe to "Announcements Only" while muting "Poll Started".
+
+### Operations
+*   **Delivery Analytics:**
+    *   *Gap:* Sent/Failed counts are not stored historically.
+*   **Click Tracking:**
+    *   *Gap:* No tracking of notification interaction rates.
 
 ---
 

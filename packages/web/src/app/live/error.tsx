@@ -1,9 +1,9 @@
 "use client";
 
 import * as Sentry from "@sentry/nextjs";
-import { useEffect } from "react";
 import { Radio, RotateCcw } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 
 /**
  * Error boundary for live session pages.

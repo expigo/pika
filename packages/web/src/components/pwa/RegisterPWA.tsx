@@ -37,11 +37,24 @@ export function RegisterPWA() {
           registration.addEventListener("updatefound", () => {
             const newWorker = registration.installing;
             if (newWorker) {
-              newWorker.addEventListener("statechange", () => {
+              newWorker.addEventListener("statechange", async () => {
                 if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
                   // New service worker available
-                  console.log("🔄 New service worker available. Reload to update.");
+                  console.log("🔄 New service worker available. User verification required.");
                   Sentry.captureMessage("Service Worker update available", "info");
+
+                  // Show Update Toast
+                  const { toast } = await import("sonner");
+                  toast.info("Update Available", {
+                    description: "A new version of Pika is available.",
+                    action: {
+                      label: "Refresh",
+                      onClick: () => {
+                        newWorker.postMessage({ type: "SKIP_WAITING" });
+                      },
+                    },
+                    duration: Infinity, // Stay until clicked
+                  });
                 }
               });
             }
@@ -54,7 +67,7 @@ export function RegisterPWA() {
           });
         });
 
-      // Listen for controller change (new SW activated)
+      // Listen for controller change (new SW activated after SKIP_WAITING)
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         console.log("🔄 Service Worker controller changed. Reloading page...");
         window.location.reload();

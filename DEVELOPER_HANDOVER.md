@@ -93,6 +93,7 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Accessibility:** ARIA labels, skip-to-content link, reduced-motion CSS.
     *   **Error Handling:** Error boundary with retry for live session pages.
     *   **Loading States:** Route-level loading skeletons for `/live`, `/analytics`.
+    *   **PWA System:** Full Offline support, Service Worker pipeline, and VAPID Push Notifications.
 *   **Cloud Robustness (v0.2.4):**
     *   **Modular Handlers:** 16 WebSocket handlers extracted to `handlers/` (dj, dancer, poll, subscriber, utility, lifecycle).
     *   **REST Route Extraction:** 4 route modules in `routes/` (sessions, stats, dj, client).

@@ -10,10 +10,10 @@
 "use client";
 
 import {
-  MESSAGE_TYPES,
   getTrackKey,
-  parseWebSocketMessage,
   logger,
+  MESSAGE_TYPES,
+  parseWebSocketMessage,
   type TrackInfo,
 } from "@pika/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -28,6 +28,7 @@ import {
   useSocialSignals,
   useTempoVote,
   useTrackHistory,
+  useWakeupSync,
   useWebSocketConnection,
 } from "./live";
 
@@ -48,9 +49,13 @@ export function useLiveListener(targetSessionId?: string) {
     setDjName,
     setListenerCount,
     lastHeartbeat,
+    forceReconnect,
   } = useWebSocketConnection({
     targetSessionId,
   });
+
+  // 11/10 Resilience: Sync state when waking up from sleep (iOS fix)
+  useWakeupSync({ forceReconnect });
 
   // Like queue (with IndexedDB persistence for offline likes)
   const { likedTracks, sendLike, hasLiked, flushPendingLikes, resetLikes, pendingCount } =
@@ -308,5 +313,6 @@ export function useLiveListener(targetSessionId?: string) {
     sessionEnded,
     lastHeartbeat,
     pendingCount, // Number of likes queued for offline sync
+    forceReconnect,
   };
 }

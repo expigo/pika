@@ -12,7 +12,7 @@
  * NOTE: Run with `bun test` from packages/web directory
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { getTrackKey } from "@pika/shared";
 
 // ============================================================================
@@ -413,7 +413,7 @@ describe("Web Hooks - WebSocket Connection Logic", () => {
    * PRODUCTION LOCATION: useWebSocketConnection.ts line 183-234
    */
   test("stale connection detection on visibility change", () => {
-    let lastPong = Date.now() - 35000; // 35 seconds ago
+    const lastPong = Date.now() - 35000; // 35 seconds ago
     const staleThreshold = 30000;
 
     const isStale = Date.now() - lastPong > staleThreshold;

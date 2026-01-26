@@ -50,6 +50,13 @@
       "when": 1768434805968,
       "tag": "0006_grey_black_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769455987813,
+      "tag": "0007_lumpy_luminals",
+      "breakpoints": true
     }
   ]
 }

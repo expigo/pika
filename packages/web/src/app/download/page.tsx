@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Apple, ArrowLeft, Headphones, Monitor, History, Zap } from "lucide-react";
+import { Apple, ArrowLeft, Download, Headphones, History, Monitor, Zap } from "lucide-react";
 import Link from "next/link";
 import { ProCard } from "@/components/ui/ProCard";
 

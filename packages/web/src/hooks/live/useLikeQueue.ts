@@ -4,13 +4,12 @@
  * Uses localStorage for liked tracks state (already works well)
  */
 
-import { getTrackKey, MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
-import { get, set, del, keys } from "idb-keyval";
+import { getTrackKey, LIMITS, logger, MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
+import { del, get, keys, set } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { getOrCreateClientId } from "@/lib/client";
 import { getStoredLikes, persistLikes } from "./storage";
-import { logger, LIMITS } from "@pika/shared";
 
 interface UseLikeQueueProps {
   sessionId: string | null;

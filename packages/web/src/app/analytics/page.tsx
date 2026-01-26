@@ -1,10 +1,10 @@
 "use client";
 
+import { logger } from "@pika/shared";
 import { Activity, Globe, Heart, PieChart, Trophy } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 interface AnalyticsStats {
   totalSessions: number;

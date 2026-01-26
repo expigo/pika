@@ -2,7 +2,7 @@
  * Message routing factory for WebSocket message dispatch
  */
 
-import { parseWebSocketMessage, logger } from "@pika/shared";
+import { logger, parseWebSocketMessage } from "@pika/shared";
 import type { MessageHandler, MessageHandlers } from "./types";
 
 /**

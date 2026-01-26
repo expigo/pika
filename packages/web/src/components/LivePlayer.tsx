@@ -1,16 +1,16 @@
 "use client";
 
+import { TIMEOUTS } from "@pika/shared";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Activity, Check, Clock, Heart, Music2, Radio, Share2, Users, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { memo, useEffect, useRef, useState } from "react";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
 import { SocialSignalsLayer } from "./SocialSignalsLayer";
 import { StaleDataBanner } from "./StaleDataBanner";
 import { ProCard } from "./ui/ProCard";
-import { TIMEOUTS } from "@pika/shared";
 
 // Dynamic import for QR code (only loaded when sharing)
 const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), {

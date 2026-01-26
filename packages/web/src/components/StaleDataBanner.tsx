@@ -10,9 +10,9 @@
 
 "use client";
 
+import { TIMEOUTS } from "@pika/shared";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { TIMEOUTS } from "@pika/shared";
 
 interface StaleDataBannerProps {
   /**

@@ -128,7 +128,7 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **Global Analytics Fix** | **8** | 3 | **DONE** | Validated `/api/stats/global` with real usage data. |
 | **DJ Dashboard (Web)** | **9** | 5 | **HIGH** | DJs review past sets, manage profile, regenerate tokens. |
 | **Set History Analytics** | **8** | 6 | **DONE** | **Deep Intelligence.** Integrated into `/recap/[id]/analytics`. |
-| **PWA (Lite Mobile)** | **7** | 2 | **HIGH** | Quick win before native. Add to home screen, basic offline. |
+| **PWA (Pro Mobile)** | **10** | 5 | **DONE** | **Architecture.** Offline Mode, Push Notifications, Installable. |
 | **Organizer Role** | **6** | 7 | **MED** | Event branding, multi-DJ coordination, aggregate stats. |
 | **Native Mobile App** | **5** | 10 | **LOW** | Push notifications, widgets. Only after PMF validated. |
 

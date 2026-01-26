@@ -1,12 +1,11 @@
 "use client";
 
+import { logger } from "@pika/shared";
 import { ArrowRight, Clock, History, Music2, User } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
-
 import { getApiBaseUrl } from "@/lib/api";
-import { logger } from "@pika/shared";
 
 interface DjSession {
   id: string;

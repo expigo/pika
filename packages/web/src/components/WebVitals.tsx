@@ -1,7 +1,7 @@
 "use client";
 
-import { useReportWebVitals } from "next/web-vitals";
 import { logger } from "@pika/shared";
+import { useReportWebVitals } from "next/web-vitals";
 
 export function WebVitals() {
   useReportWebVitals((metric) => {

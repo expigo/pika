@@ -45,8 +45,8 @@ We approach offline resilience in layers, from simplest (software) to most compl
 *   **Implementation Status:**
     - [x] Offline Queue (Likes)
     - [x] Offline Queue (DJ Updates)
-    - [ ] **PWA Manifest & Service Worker** (Next Step)
-    - [ ] **Push Notification Infrastructure**
+    - [x] **PWA Manifest & Service Worker** (Done v2.0)
+    - [x] **Push Notification Infrastructure** (Done v2.0)
 
 ### Level 3: "The Bunker" (Local LAN Server) - **FUTURE / GOD MODE**
 A completely localized, self-contained network for the "Concrete Bunker" scenario where ZERO internet is possible.

@@ -185,3 +185,22 @@ export const sessionEvents = pgTable("session_events", {
     clientVersion?: string;
   }>(),
 });
+
+// ============================================================================
+// Push Notifications Table
+// ============================================================================
+
+/**
+ * Web Push subscriptions for engaging users.
+ * Supports anonymous subscriptions (via clientId) or authenticated (via userId).
+ * GDPR Compliance: unsubscribedAt tracks opt-outs without deleting history immediately.
+ */
+export const pushSubscriptions = pgTable("push_subscriptions", {
+  endpoint: text("endpoint").primaryKey(), // URL is unique per subscription
+  p256dh: text("p256dh").notNull(), // Crypto key
+  auth: text("auth").notNull(), // Crypto key
+  clientId: text("client_id"), // Browser identity (for targeting based on history)
+  userId: integer("user_id").references(() => djUsers.id), // Optional: if we add listener accounts later
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  unsubscribedAt: timestamp("unsubscribed_at"), // If set, do not send. GDPR compliance.
+});
