@@ -125,3 +125,9 @@ Once Pika! is a PWA, we unlock powerful new engagement vectors:
     *   The app wakes up in the background the next morning (Periodic Sync).
     *   *Action:* It downloads the full "Session Recap" and sends a notification: "Your night in stats is ready. You danced to 45 songs!".
     *   *Value:* Massive retention driver.
+
+6.  **"Set Reminder" (Local Notification):**
+    *   **Concept:** Dancers drift away from the floor. They want to know when the energy shifts.
+    *   **Feature:** "Alert me when BPM > 120" or "Alert me when [Genre] plays".
+    *   **Mechanism:** Local Period Sync polls the track changes in the background. If criteria match, it fires a local notification: "🔥 High Energy Set Starting!".
+    *   **Value:** Keeps dancers glued to the floor/app loop without needing Server Push.
