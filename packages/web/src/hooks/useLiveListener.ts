@@ -58,11 +58,18 @@ export function useLiveListener(targetSessionId?: string) {
   useWakeupSync({ forceReconnect });
 
   // Like queue (with IndexedDB persistence for offline likes)
-  const { likedTracks, sendLike, hasLiked, flushPendingLikes, resetLikes, pendingCount } =
-    useLikeQueue({
-      sessionId,
-      socketRef,
-    });
+  const {
+    likedTracks,
+    sendLike,
+    removeLike,
+    hasLiked,
+    flushPendingLikes,
+    resetLikes,
+    pendingCount,
+  } = useLikeQueue({
+    sessionId,
+    socketRef,
+  });
 
   // Handle reconnect (flush pending likes from IndexedDB)
   useEffect(() => {
@@ -304,6 +311,7 @@ export function useLiveListener(targetSessionId?: string) {
     hasVotedOnPoll,
     announcement,
     sendLike,
+    removeLike,
     hasLiked,
     sendTempoRequest,
     voteOnPoll,

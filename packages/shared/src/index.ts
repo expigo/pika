@@ -24,6 +24,7 @@ export {
   RegisterSessionSchema,
   SendLikeSchema,
   SendBulkLikeSchema,
+  SendRemoveLikeSchema,
   type ServerMessage,
   ServerMessageSchema,
   BroadcastMetadataSchema,

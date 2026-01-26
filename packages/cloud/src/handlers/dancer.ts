@@ -14,6 +14,7 @@
 import {
   SendLikeSchema,
   SendBulkLikeSchema,
+  SendRemoveLikeSchema,
   SendReactionSchema,
   SendTempoRequestSchema,
   LIMITS,
@@ -21,7 +22,7 @@ import {
   logger,
 } from "@pika/shared";
 import { getSessionIds, hasSession } from "../lib/sessions";
-import { hasLikedTrack, recordLike } from "../lib/likes";
+import { hasLikedTrack, recordLike, removeLike } from "../lib/likes";
 import { persistLike } from "../lib/persistence/tracks";
 import { recordTempoVote, getTempoFeedback } from "../lib/tempo";
 import { sendAck, sendNack, parseMessage } from "../lib/protocol";
@@ -133,6 +134,39 @@ export async function handleSendLike(ctx: WSContext) {
       }),
     );
   }
+
+  if (messageId) sendAck(ws, messageId);
+}
+
+/**
+ * REMOVE_LIKE: Dancer undoes a like
+ */
+export async function handleRemoveLike(ctx: WSContext) {
+  const { message, ws, state, messageId } = ctx;
+  const msg = parseMessage(SendRemoveLikeSchema, message, ws, messageId);
+  if (!msg) return;
+
+  const track = msg.payload.track;
+  const sessionId = msg.sessionId || getSessionIds()[0];
+
+  if (!sessionId || !state.clientId) {
+    if (messageId) sendNack(ws, messageId, "Session or Client ID missing");
+    return;
+  }
+
+  // Remove from internal tracking
+  removeLike(sessionId, state.clientId, track);
+
+  logger.info("💔 Like removed", {
+    artist: track.artist,
+    title: track.title,
+    clientId: state.clientId,
+    sessionId,
+  });
+
+  // Note: We don't delete from persistLike (DB) yet to maintain historical audit,
+  // but the live consensus won't count it anymore if the DJ re-fetches.
+  // We COULD broadcast REMOVE_LIKE if the DJ UI supported live pulse decrementing.
 
   if (messageId) sendAck(ws, messageId);
 }

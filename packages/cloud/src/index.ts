@@ -120,8 +120,8 @@ setInterval(() => {
             reason: "Session expired due to inactivity or age limit",
           }),
         );
-      } catch (e: any) {
-        logger.warn(`⚠️ Cleanup broadcast failed for ${sessionId}`, e, undefined);
+      } catch (e: unknown) {
+        logger.warn(`⚠️ Cleanup broadcast failed for ${sessionId}`, e as Error, undefined);
       }
 
       // 3. Deep Cleanup (Memory Leaks Fix M2)
@@ -309,6 +309,9 @@ app.get(
             case "SEND_BULK_LIKE":
               handlers.handleSendBulkLike(ctx);
               break;
+            case "REMOVE_LIKE":
+              handlers.handleRemoveLike(ctx);
+              break;
             case "SEND_REACTION":
               handlers.handleSendReaction(ctx);
               break;
@@ -348,8 +351,8 @@ app.get(
             default:
               break;
           }
-        } catch (e: any) {
-          logger.error("❌ Failed to handle message", e, undefined);
+        } catch (e: unknown) {
+          logger.error("❌ Failed to handle message", e as Error, undefined);
         }
       },
 
@@ -392,8 +395,8 @@ app.get("/health", async (c) => {
       activeSessions: getSessionCount(),
       database: "connected",
     });
-  } catch (e: any) {
-    logger.error("❌ Health check failed", e, undefined);
+  } catch (e: unknown) {
+    logger.error("❌ Health check failed", e as Error, undefined);
     return c.json(
       {
         status: "error",
@@ -473,8 +476,8 @@ setInterval(() => {
         );
         // L10: Silence listener logs
         // logger.debug("📡 Broadcasted listener count", { sessionId, count: currentCount });
-      } catch (e: any) {
-        logger.warn("⚠️ Broadcast failed", e, undefined);
+      } catch (e: unknown) {
+        logger.warn("⚠️ Broadcast failed", e as Error, undefined);
       }
     }
   }
@@ -516,8 +519,8 @@ async function gracefulShutdown(signal: string) {
           }),
         );
         logger.info("📢 Broadcast shutdown notification to clients");
-      } catch (e: any) {
-        logger.warn("⚠️ Failed to broadcast shutdown", e, undefined);
+      } catch (e: unknown) {
+        logger.warn("⚠️ Failed to broadcast shutdown", e as Error, undefined);
       }
     }
 
@@ -530,8 +533,8 @@ async function gracefulShutdown(signal: string) {
           try {
             await endSessionInDb(sessionId);
             logger.debug(`  ✅ Ended session: ${sessionId.substring(0, 8)}...`);
-          } catch (e: any) {
-            logger.error(`  ❌ Failed to end session ${sessionId}`, e, undefined);
+          } catch (e: unknown) {
+            logger.error(`  ❌ Failed to end session ${sessionId}`, e as Error, undefined);
           }
         }),
       );
@@ -553,8 +556,8 @@ async function gracefulShutdown(signal: string) {
     logger.info("👋 Shutdown complete");
     clearTimeout(forceExitTimeout);
     process.exit(0);
-  } catch (err: any) {
-    logger.error("❌ Critical error during shutdown", err, undefined);
+  } catch (err: unknown) {
+    logger.error("❌ Critical error during shutdown", err as Error, undefined);
     process.exit(1);
   }
 }

@@ -2,7 +2,7 @@
   "name": "Pika!",
   "short_name": "Pika!",
   "description": "Real-time Dance Event Companion",
-  "start_url": "/",
+  "start_url": "/live",
   "display": "standalone",
   "background_color": "#0a0a0a",
   "theme_color": "#0a0a0a",

@@ -8,6 +8,7 @@ import { getTrackKey, LIMITS, logger, MESSAGE_TYPES, type TrackInfo } from "@pik
 import { del, get, keys, set } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
+import { toast } from "sonner";
 import { getOrCreateClientId } from "@/lib/client";
 import { getStoredLikes, persistLikes } from "./storage";
 
@@ -19,6 +20,7 @@ interface UseLikeQueueProps {
 interface UseLikeQueueReturn {
   likedTracks: Set<string>;
   sendLike: (track: TrackInfo) => boolean;
+  removeLike: (track: TrackInfo) => void;
   hasLiked: (track: TrackInfo) => boolean;
   flushPendingLikes: () => Promise<void>;
   resetLikes: () => void;
@@ -52,10 +54,11 @@ async function loadPendingFromIDB(sessionId: string): Promise<PendingLike[]> {
  */
 async function savePendingToIDB(sessionId: string, pending: PendingLike[]): Promise<void> {
   try {
+    const key = getPendingKey(sessionId);
     if (pending.length === 0) {
-      await del(getPendingKey(sessionId));
+      await del(key);
     } else {
-      await set(getPendingKey(sessionId), pending);
+      await set(key, pending);
     }
   } catch (e) {
     logger.error("[Likes] Failed to save pending to IDB", e);
@@ -69,6 +72,35 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   const idbLoadedRef = useRef(false);
   const lastLikeTimeRef = useRef<number>(0);
   const consecutiveLikesRef = useRef<number>(0);
+  const idbSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * 11/10 Optimization: Debounced IndexedDB writes to reduce background churn
+   */
+  const debouncedSavePending = useCallback((sessionId: string, pending: PendingLike[]) => {
+    if (idbSaveTimeoutRef.current) clearTimeout(idbSaveTimeoutRef.current);
+
+    idbSaveTimeoutRef.current = setTimeout(async () => {
+      try {
+        const key = getPendingKey(sessionId);
+        if (pending.length === 0) {
+          await del(key);
+        } else {
+          await set(key, pending);
+        }
+        idbSaveTimeoutRef.current = null;
+      } catch (e) {
+        logger.error("[Likes] Failed to save pending to IDB (debounced)", e);
+      }
+    }, 2000); // 2 second debounce per Principal recommendations
+  }, []);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (idbSaveTimeoutRef.current) clearTimeout(idbSaveTimeoutRef.current);
+    };
+  }, []);
 
   // Load likes and pending from storage when session changes
   useEffect(() => {
@@ -159,6 +191,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
       // Clear pending
       pendingLikesRef.current = [];
       setPendingCount(0);
+      if (idbSaveTimeoutRef.current) clearTimeout(idbSaveTimeoutRef.current);
       await savePendingToIDB(sessionId, []);
     } catch (e) {
       logger.error("[Likes] Failed to flush pending likes batch", e);
@@ -228,6 +261,10 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
         consecutiveLikesRef.current++;
         if (consecutiveLikesRef.current > LIMITS.LIKE_RATE_LIMIT_MAX) {
           logger.warn("[Likes] Rate limit exceeded", { limit: LIMITS.LIKE_RATE_LIMIT_MAX });
+          toast.warning("Whoa! Slow down... too many likes too fast 💓", {
+            id: "like-rate-limit",
+            duration: 3000,
+          });
           return false;
         }
       } else {
@@ -268,18 +305,64 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
         pendingLikesRef.current = [...pendingLikesRef.current, newPending];
         setPendingCount(pendingLikesRef.current.length);
 
-        // Persist to IndexedDB (fire and forget, but log errors)
-        savePendingToIDB(sessionId, pendingLikesRef.current);
+        // Persist to IndexedDB (debounced)
+        debouncedSavePending(sessionId, pendingLikesRef.current);
       }
 
       return true;
     },
-    [likedTracks, sessionId, socketRef],
+    [likedTracks, sessionId, socketRef, debouncedSavePending],
+  );
+
+  // M7: Remove like (Undo)
+  const removeLike = useCallback(
+    (track: TrackInfo) => {
+      const trackKey = getTrackKey(track);
+
+      // 1. Remove from local UI state
+      setLikedTracks((prev) => {
+        const next = new Set(prev);
+        next.delete(trackKey);
+        return next;
+      });
+
+      // 2. Remove from pending offline queue if it's there
+      const initialPendingCount = pendingLikesRef.current.length;
+      pendingLikesRef.current = pendingLikesRef.current.filter(
+        (p) => getTrackKey(p.track) !== trackKey,
+      );
+
+      if (pendingLikesRef.current.length !== initialPendingCount) {
+        setPendingCount(pendingLikesRef.current.length);
+        if (sessionId) {
+          debouncedSavePending(sessionId, pendingLikesRef.current);
+        }
+        logger.info("[Likes] Removed like from pending queue", { title: track.title });
+      }
+
+      logger.info("[Likes] Local like removed", { title: track.title });
+
+      // 11/10: Send "REMOVE_LIKE" to the server when online
+      const socket = socketRef.current;
+      if (socket?.readyState === WebSocket.OPEN && sessionId) {
+        socket.send(
+          JSON.stringify({
+            type: MESSAGE_TYPES.REMOVE_LIKE,
+            clientId: getOrCreateClientId(),
+            sessionId,
+            payload: { track },
+          }),
+        );
+        logger.info("[Likes] Sent unlike notification to server", { title: track.title });
+      }
+    },
+    [sessionId, socketRef, debouncedSavePending],
   );
 
   return {
     likedTracks,
     sendLike,
+    removeLike,
     hasLiked,
     flushPendingLikes,
     resetLikes,

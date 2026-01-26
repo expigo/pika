@@ -26,6 +26,7 @@ export const MESSAGE_TYPES = {
   SEND_ANNOUNCEMENT: "SEND_ANNOUNCEMENT",
   CANCEL_ANNOUNCEMENT: "CANCEL_ANNOUNCEMENT",
   SEND_BULK_LIKE: "SEND_BULK_LIKE",
+  REMOVE_LIKE: "REMOVE_LIKE",
   VALIDATE_SESSION: "VALIDATE_SESSION",
 
   // Server -> Client
@@ -210,6 +211,16 @@ export const SendBulkLikeSchema = z.object({
   messageId: z.string().optional(),
   payload: z.object({
     tracks: z.array(TrackInfoSchema),
+  }),
+});
+
+export const SendRemoveLikeSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.REMOVE_LIKE),
+  sessionId: z.string().optional(),
+  clientId: z.string().optional(),
+  messageId: z.string().optional(),
+  payload: z.object({
+    track: TrackInfoSchema,
   }),
 });
 
@@ -549,6 +560,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   SubscribeSchema,
   SendLikeSchema,
   SendBulkLikeSchema,
+  SendRemoveLikeSchema,
   SendTempoRequestSchema,
   // Client Polls
   StartPollSchema,

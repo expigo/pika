@@ -23,6 +23,7 @@ import {
 import {
   handleSendLike as _handleSendLike,
   handleSendBulkLike as _handleSendBulkLike,
+  handleRemoveLike as _handleRemoveLike,
   handleSendReaction as _handleSendReaction,
   handleSendTempoRequest as _handleSendTempoRequest,
 } from "./dancer";
@@ -90,6 +91,7 @@ export const handleBroadcastMetadata = safeHandler(_handleBroadcastMetadata);
 // Dancer Handlers
 export const handleSendLike = safeHandler(_handleSendLike);
 export const handleSendBulkLike = safeHandler(_handleSendBulkLike);
+export const handleRemoveLike = safeHandler(_handleRemoveLike);
 export const handleSendReaction = safeHandler(_handleSendReaction);
 export const handleSendTempoRequest = safeHandler(_handleSendTempoRequest);
 

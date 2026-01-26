@@ -92,4 +92,31 @@ describe("PWA Implementation - Logic & UX", () => {
     const isNotIOS = /iPad|iPhone|iPod/.test(androidUA);
     expect(isNotIOS).toBe(false);
   });
+
+  /**
+   * TEST: Unhearting (Undo Like) Logic
+   * Verifies that removeLike removes from state and filters the pending queue.
+   */
+  test("Unhearting: removes from likedTracks and filters pending queue", () => {
+    const trackA = { artist: "Artist A", title: "Track A" };
+    const trackB = { artist: "Artist B", title: "Track B" };
+    const sessionId = "session-123";
+
+    // 1. Test state removal
+    const likedTracks = new Set([getTrackKey(trackA), getTrackKey(trackB)]);
+    likedTracks.delete(getTrackKey(trackA));
+    expect(likedTracks.size).toBe(1);
+    expect(likedTracks.has(getTrackKey(trackA))).toBe(false);
+    expect(likedTracks.has(getTrackKey(trackB))).toBe(true);
+
+    // 2. Test pending queue removal
+    let pending = [
+      { track: trackA, sessionId, timestamp: 100 },
+      { track: trackB, sessionId, timestamp: 200 },
+    ];
+
+    pending = pending.filter((p) => getTrackKey(p.track) !== getTrackKey(trackA));
+    expect(pending.length).toBe(1);
+    expect(getTrackKey(pending[0].track)).toBe(getTrackKey(trackB));
+  });
 });

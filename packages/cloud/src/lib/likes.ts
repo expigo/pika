@@ -53,6 +53,13 @@ export function recordLike(sessionId: string, clientId: string, track: TrackInfo
 }
 
 /**
+ * Remove a like for a track
+ */
+export function removeLike(sessionId: string, clientId: string, track: TrackInfo): void {
+  likesSent.get(sessionId)?.get(clientId)?.delete(getTrackKey(track));
+}
+
+/**
  * Clear all likes for a session (when session ends)
  */
 export function clearLikesForSession(sessionId: string): void {

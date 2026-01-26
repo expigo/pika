@@ -1,8 +1,19 @@
 "use client";
 
-import { TIMEOUTS } from "@pika/shared";
+import { TIMEOUTS, type TrackInfo } from "@pika/shared";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Activity, Check, Clock, Heart, Music2, Radio, Share2, Users, X } from "lucide-react";
+import {
+  Activity,
+  Check,
+  Clock,
+  Heart,
+  Music2,
+  Radio,
+  Settings,
+  Share2,
+  Users,
+  X,
+} from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { memo, useEffect, useRef, useState } from "react";
@@ -11,6 +22,7 @@ import { ConnectionStatusIndicator } from "./ConnectionStatus";
 import { SocialSignalsLayer } from "./SocialSignalsLayer";
 import { StaleDataBanner } from "./StaleDataBanner";
 import { ProCard } from "./ui/ProCard";
+import { NotificationToggle } from "./pwa/NotificationToggle";
 import { OfflineStatus } from "./pwa/OfflineStatus";
 
 // Dynamic import for QR code (only loaded when sharing)
@@ -85,16 +97,27 @@ function PollCountdown({ endsAt }: { endsAt?: string | null }) {
 
 interface HistoryListProps {
   tracks: HistoryTrack[];
+  hasLiked: (track: TrackInfo) => boolean;
+  onLike: (track: TrackInfo) => void;
+  onUnlike: (track: TrackInfo) => void;
 }
 
 // History list component - Now virtualized for large history sets (M4)
-const HistoryList = memo(function HistoryList({ tracks }: HistoryListProps) {
+const HistoryList = memo(function HistoryList({
+  tracks,
+  hasLiked,
+  onLike,
+  onUnlike,
+}: HistoryListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const rowVirtualizer = useVirtualizer({
     count: tracks.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 73, // Height of each row based on px-8 py-5
+    estimateSize: (index) => {
+      const track = tracks[index];
+      return track?.bpm ? 85 : 73; // Taller if BPM badge present as per Principal recommendations
+    },
     overscan: 5,
   });
 
@@ -117,6 +140,8 @@ const HistoryList = memo(function HistoryList({ tracks }: HistoryListProps) {
         <ul className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const track = tracks[virtualRow.index];
+            const isLiked = hasLiked(track);
+
             return (
               <li
                 key={`${track.artist}-${track.title}-${virtualRow.index}`}
@@ -126,20 +151,35 @@ const HistoryList = memo(function HistoryList({ tracks }: HistoryListProps) {
                   transform: `translateY(${virtualRow.start}px)`,
                 }}
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <p className="text-sm text-slate-300 font-bold truncate group-hover:text-white transition-colors uppercase italic">
-                      {track.title}
+                <div className="flex-1 min-w-0 flex items-center gap-4">
+                  <button
+                    onClick={() => (isLiked ? onUnlike(track) : onLike(track))}
+                    className={`flex-shrink-0 w-8 h-8 rounded-full border flex items-center justify-center transition-all ${
+                      isLiked
+                        ? "bg-red-500/10 border-red-500/20 text-red-500"
+                        : "bg-slate-900 border-slate-800 text-slate-700 hover:text-red-500/50 hover:border-red-500/30"
+                    }`}
+                  >
+                    <Heart
+                      className={`w-3.5 h-3.5 ${isLiked ? "fill-current" : ""}`}
+                      strokeWidth={isLiked ? 2.5 : 2}
+                    />
+                  </button>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-slate-300 font-bold truncate group-hover:text-white transition-colors uppercase italic">
+                        {track.title}
+                      </p>
+                      {track.bpm && (
+                        <span className="flex-shrink-0 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded text-[9px] font-black text-purple-400 uppercase">
+                          {Math.round(track.bpm)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mt-1">
+                      {track.artist}
                     </p>
-                    {track.bpm && (
-                      <span className="flex-shrink-0 px-2 py-0.5 bg-purple-500/10 border border-purple-500/20 rounded text-[9px] font-black text-purple-400 uppercase">
-                        {Math.round(track.bpm)}
-                      </span>
-                    )}
                   </div>
-                  <p className="text-[10px] text-slate-600 font-black uppercase tracking-widest mt-1">
-                    {track.artist}
-                  </p>
                 </div>
                 <span className="text-[9px] text-slate-700 font-black ml-4 flex-shrink-0 uppercase tracking-tighter">
                   {formatRelativeTime(track.playedAt)}
@@ -165,6 +205,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     history,
     listenerCount,
     sendLike,
+    removeLike,
     hasLiked,
     sendTempoRequest,
     tempoVote,
@@ -184,6 +225,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
   const [votingOption, setVotingOption] = useState<number | null>(null);
   const [thanksText, setThanksText] = useState("SEND THANKS 🦄");
   const [signalLost, setSignalLost] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Haptic Feedback Utility
   const triggerHaptic = (pattern: number | number[] = 10) => {
@@ -224,7 +266,13 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
   const isLiked = currentTrack ? hasLiked(currentTrack) : false;
 
   const handleLike = () => {
-    if (!currentTrack || isLiked) return;
+    if (!currentTrack) return;
+
+    if (isLiked) {
+      removeLike(currentTrack);
+      triggerHaptic(5); // Soft single tap for "unlike"
+      return;
+    }
 
     const sent = sendLike(currentTrack);
     if (sent) {
@@ -380,16 +428,50 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 </div>
               )}
               {isLive && (
-                <button
-                  onClick={handleShare}
-                  aria-label="Share session"
-                  className="w-10 h-10 flex items-center justify-center bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-white transition-all shadow-xl"
-                >
-                  <Share2 className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    aria-label="Booth Settings"
+                    className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all shadow-xl ${
+                      showSettings
+                        ? "bg-purple-500 border-purple-400 text-white"
+                        : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
+                    }`}
+                  >
+                    <Settings className={`w-4 h-4 ${showSettings ? "animate-spin-slow" : ""}`} />
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    aria-label="Share session"
+                    className="w-10 h-10 flex items-center justify-center bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-white transition-all shadow-xl"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
           </div>
+
+          {/* Booth Settings Popup */}
+          {showSettings && (
+            <div className="absolute top-24 right-4 left-4 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="bg-slate-900/95 backdrop-blur-xl border border-purple-500/30 rounded-2xl p-4 shadow-2xl relative">
+                <div className="absolute -top-2 right-12 w-4 h-4 bg-slate-900 border-l border-t border-purple-500/30 rotate-45" />
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-[10px] font-black text-white uppercase tracking-widest italic">
+                    Booth Settings
+                  </h3>
+                  <button
+                    onClick={() => setShowSettings(false)}
+                    className="p-1 hover:bg-slate-800 rounded-lg transition-colors"
+                  >
+                    <X className="w-4 h-4 text-slate-500" />
+                  </button>
+                </div>
+                <NotificationToggle />
+              </div>
+            </div>
+          )}
 
           {/* Content Area */}
           <div className="px-8 py-16 flex flex-col items-center justify-center min-h-[400px]">
@@ -418,11 +500,10 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 <div className="relative mb-12">
                   <button
                     onClick={handleLike}
-                    disabled={isLiked}
                     style={{
                       animationDuration: currentTrack.bpm ? `${60 / currentTrack.bpm}s` : "0.6s",
                     }}
-                    aria-label={isLiked ? "Track already liked" : "Like this track"}
+                    aria-label={isLiked ? "Unlike this track" : "Like this track"}
                     className={`w-28 h-28 rounded-full flex items-center justify-center transition-all duration-500 relative ${
                       isLiked
                         ? "bg-red-500/20 border-2 border-red-500/50 scale-100 shadow-none"
@@ -675,8 +756,19 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
             )}
           </div>
 
-          {/* History List */}
-          <HistoryList tracks={history} />
+          {/* History Stream (Pulse Stream) */}
+          <HistoryList
+            tracks={history}
+            hasLiked={hasLiked}
+            onLike={(track) => {
+              sendLike(track);
+              triggerHaptic(10);
+            }}
+            onUnlike={(track) => {
+              removeLike(track);
+              triggerHaptic(5);
+            }}
+          />
 
           {/* Footer */}
           <div className="px-8 py-5 border-t border-slate-800/50 flex items-center justify-between">
