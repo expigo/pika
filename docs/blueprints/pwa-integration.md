@@ -97,3 +97,31 @@ We will use the **"Modern Standard"** approach for Next.js 15 (App Router).
     *   *Mitigation:* Configure SW to check for updates on every navigation (`skipWaiting: true`).
 *   **Risk:** Storage quota exceeded.
     *   *Mitigation:* `idb-keyval` is tiny. We only store text JSON (votes). Clean up old sessions on load.
+
+---
+
+## 8. Creative Utilization Ideas (Post-Integration)
+
+Once Pika! is a PWA, we unlock powerful new engagement vectors:
+
+1.  **"Vibration Voting" (Haptic):**
+    *   Since PWAs have better access to the **Vibration API**, we can give tactile feedback when voting.
+    *   *Idea:* A "Heartbeat" vibration pattern when the user matches the BPM of the song (tapping tempo).
+
+2.  **"Pocket Announcement" (Push):**
+    *   DJs can send **"Emergency Broadcasts"** (e.g., "Comp sign-ups closing in 5 mins!") that appear on lock screens.
+    *   *Value:* Solves the problem of dancers ignoring the MC (Microphone Controller) over the loud music.
+
+3.  **"Share Target" Viral Loop:**
+    *   Register Pika! as a share target in `manifest.json`.
+    *   *Flow:* User is in Spotify -> Share -> Pika!.
+    *   *Action:* Pika! instantly opens and adds that song to the "Request Queue" (if enabled) or "Personal Wishlist".
+
+4.  **"Local Geo-Fencing" (Bluetooth/NFC):**
+    *   Use Web NFC (Android) or QR.
+    *   *Idea:* Tapping a phone on an NFC sticker at the DJ booth instantly opens the PWA and connects to the current session (zero typing).
+
+5.  **"The Morning After" (Background Sync):**
+    *   The app wakes up in the background the next morning (Periodic Sync).
+    *   *Action:* It downloads the full "Session Recap" and sends a notification: "Your night in stats is ready. You danced to 45 songs!".
+    *   *Value:* Massive retention driver.
