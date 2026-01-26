@@ -24,10 +24,17 @@ export function usePushNotifications() {
 
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      logger.info("[Push] Notifications not supported in this browser environment");
       setPermissionState("unsupported");
       return;
     }
-    setPermissionState(Notification.permission as PushPermissionState);
+    if (typeof Notification !== "undefined") {
+      logger.info("[Push] Notification permission state found", { state: Notification.permission });
+      setPermissionState(Notification.permission as PushPermissionState);
+    } else {
+      logger.info("[Push] Notification global not found (expected on some iOS)");
+      setPermissionState("unsupported");
+    }
   }, []);
 
   const subscribe = useCallback(async () => {

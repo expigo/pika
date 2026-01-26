@@ -229,7 +229,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
   const [thanksText, setThanksText] = useState("SEND THANKS 🦄");
   const [signalLost, setSignalLost] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const { permissionState } = usePushNotifications();
+  const { permissionState, isSupported } = usePushNotifications();
   const notificationsEnabled = permissionState === "granted";
   const notificationsBlocked = permissionState === "denied";
 
@@ -450,7 +450,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                     }`}
                   >
                     {/* 11/10 Discoverability: Pulsing dot if notifications not enabled */}
-                    {!notificationsEnabled && !notificationsBlocked && (
+                    {isSupported && !notificationsEnabled && !notificationsBlocked && (
                       <span className="absolute -top-1 -right-1 flex h-3 w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />
                         <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-500 border-2 border-slate-950" />
