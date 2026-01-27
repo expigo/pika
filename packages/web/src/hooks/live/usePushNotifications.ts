@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { logger } from "@pika/shared";
 import { getOrCreateClientId } from "@/lib/client";
+import { toast } from "sonner";
 
 // Helper to convert VAPID key
 function urlBase64ToUint8Array(base64String: string) {
@@ -58,30 +59,42 @@ export function usePushNotifications() {
     }
 
     setIsSubscribing(true);
+    const id = toast.loading("Connecting to Booth...");
     logger.info("[Push] Starting subscription process...");
 
     try {
+      // Check for VAPID key immediately
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+      if (!vapidKey) {
+        toast.error("VAPID Key Missing! Check environment vars.", { id });
+        logger.error("[Push] Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY");
+        return false;
+      }
+
       // 11/10 UX: Explicitly request permission first
-      // Some browsers (Safari Mac/iOS) prefer this over implicit request via subscribe()
       if (typeof Notification !== "undefined" && Notification.permission === "default") {
         logger.info("[Push] Requesting Notification permission...");
         const permission = await Notification.requestPermission();
         setPermissionState(permission as PushPermissionState);
         if (permission !== "granted") {
+          toast.error("Permission Denied 🚫", { id });
           logger.warn("[Push] User denied notification permission");
           return false;
         }
       }
 
-      const registration = await navigator.serviceWorker.ready;
-      logger.info("[Push] Service Worker ready, checking PushManager...");
+      // Timeout for Service Worker Ready
+      const swTimeout = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Service Worker timeout")), 5000),
+      );
 
-      // Get Public Key from Env (Injected via Next.js)
-      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidKey) {
-        logger.error("[Push] Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY");
-        throw new Error("Push configuration missing");
-      }
+      logger.info("[Push] Waiting for Service Worker...");
+      const registration = (await Promise.race([
+        navigator.serviceWorker.ready,
+        swTimeout,
+      ])) as ServiceWorkerRegistration;
+
+      logger.info("[Push] Service Worker ready, subscribing via PushManager...");
 
       const convertedKey = urlBase64ToUint8Array(vapidKey);
 
