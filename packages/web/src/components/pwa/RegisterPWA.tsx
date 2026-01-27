@@ -72,6 +72,9 @@ export function RegisterPWA() {
         console.log("🔄 Service Worker controller changed. Reloading page...");
         window.location.reload();
       });
+      navigator.serviceWorker.ready.then((reg) => {
+        reg.update();
+      });
     }
   }, []);
 

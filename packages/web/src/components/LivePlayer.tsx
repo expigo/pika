@@ -388,8 +388,13 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 )}
               </div>
               <div>
-                <h1 className="text-xl font-black text-white italic tracking-tighter uppercase leading-none">
+                <h1 className="text-xl font-black text-white italic tracking-tighter uppercase leading-none flex items-center gap-2">
                   Pika! <span className={signalLost ? "text-amber-500" : "text-red-500"}>Live</span>
+                  {process.env.NEXT_PUBLIC_CLOUD_API_URL?.includes("staging") && (
+                    <span className="text-[8px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded font-mono non-italic tracking-normal">
+                      STAGE
+                    </span>
+                  )}
                 </h1>
                 <p
                   className={`text-[9px] font-black uppercase tracking-widest mt-1 ${signalLost ? "text-amber-500 animate-pulse" : "text-slate-600"}`}

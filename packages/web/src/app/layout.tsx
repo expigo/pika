@@ -43,7 +43,11 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://pika.stream"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_CLOUD_API_URL?.includes("staging")
+      ? "https://staging.pika.stream"
+      : "https://pika.stream",
+  ),
   manifest: "/manifest.json",
   title: "Pika! - Real-time DJ Feedback for WCS",
   description:

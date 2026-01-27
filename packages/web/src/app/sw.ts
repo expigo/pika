@@ -15,7 +15,7 @@ declare const self: ServiceWorkerGlobalScope;
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  skipWaiting: false, // 11/10: User controlled updates
+  skipWaiting: true, // 11/10: Force activation for rapid staging iteration
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
