@@ -45,7 +45,9 @@ export function usePushNotifications() {
 
     // 11/10 UX: iOS Check
     // On iOS, push only works if installed to home screen (standalone)
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isIOS =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) &&
+      !(window as unknown as { MSStream: unknown }).MSStream;
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
 
     if (isIOS && !isStandalone) {
@@ -56,9 +58,23 @@ export function usePushNotifications() {
     }
 
     setIsSubscribing(true);
+    logger.info("[Push] Starting subscription process...");
 
     try {
+      // 11/10 UX: Explicitly request permission first
+      // Some browsers (Safari Mac/iOS) prefer this over implicit request via subscribe()
+      if (typeof Notification !== "undefined" && Notification.permission === "default") {
+        logger.info("[Push] Requesting Notification permission...");
+        const permission = await Notification.requestPermission();
+        setPermissionState(permission as PushPermissionState);
+        if (permission !== "granted") {
+          logger.warn("[Push] User denied notification permission");
+          return false;
+        }
+      }
+
       const registration = await navigator.serviceWorker.ready;
+      logger.info("[Push] Service Worker ready, checking PushManager...");
 
       // Get Public Key from Env (Injected via Next.js)
       const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
@@ -88,13 +104,13 @@ export function usePushNotifications() {
             p256dh: btoa(
               String.fromCharCode.apply(
                 null,
-                Array.from(new Uint8Array(subscription.getKey("p256dh")!)),
+                Array.from(new Uint8Array(subscription.getKey("p256dh") || new ArrayBuffer(0))),
               ),
             ),
             auth: btoa(
               String.fromCharCode.apply(
                 null,
-                Array.from(new Uint8Array(subscription.getKey("auth")!)),
+                Array.from(new Uint8Array(subscription.getKey("auth") || new ArrayBuffer(0))),
               ),
             ),
           },

@@ -27,6 +27,9 @@ services:
       - NODE_ENV=production
       - PORT=4001
       - WS_RATE_LIMIT=${WS_RATE_LIMIT:-1000}  # High for load testing, can lower in prod
+      - VAPID_PUBLIC_KEY=BEe-r-0ijWpaTmcV5u7oOp3RHAKY0nhJPp7KKXel6WZ9ciLTAh8dP_fhY4cJQSBzFM-fELxoVKPPGU8EMv8lwKw
+      - VAPID_PRIVATE_KEY=GtVqsDNOsa2tUKm8y7-YlvtST-fndG5xnwe4O_xaEB0
+      - VAPID_SUBJECT=mailto:admin@pika.stream
     volumes:
       - ./:/app
     ports:
@@ -44,6 +47,7 @@ services:
     environment:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://staging-api.pika.stream/ws
       - NEXT_PUBLIC_CLOUD_API_URL=https://staging-api.pika.stream
+      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=BEe-r-0ijWpaTmcV5u7oOp3RHAKY0nhJPp7KKXel6WZ9ciLTAh8dP_fhY4cJQSBzFM-fELxoVKPPGU8EMv8lwKw
       - NODE_ENV=production
       - PORT=4000
     volumes:

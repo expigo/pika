@@ -2,6 +2,7 @@
 
 import { usePushNotifications } from "@/hooks/live";
 import { Bell, BellOff, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 export function NotificationToggle() {
   const { permissionState, isSubscribing, subscribe, isSupported } = usePushNotifications();
@@ -32,7 +33,14 @@ export function NotificationToggle() {
       </div>
 
       <button
-        onClick={subscribe}
+        onClick={async () => {
+          const success = await subscribe();
+          if (success) {
+            toast.success("Notifications Enabled! 🔔");
+          } else if (permissionState !== "denied") {
+            toast.error("Cloud connection failed. Try again?");
+          }
+        }}
         disabled={isSubscribing || permissionState === "denied"}
         className="flex w-full items-center justify-center gap-2 rounded-lg bg-pink-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-pink-500 disabled:opacity-50"
       >
@@ -60,7 +68,7 @@ export function NotificationToggle() {
       {/* iOS Warning */}
       {typeof navigator !== "undefined" &&
         /iPad|iPhone|iPod/.test(navigator.userAgent) &&
-        !(window as any).MSStream &&
+        !(window as unknown as { MSStream: unknown }).MSStream &&
         !window.matchMedia("(display-mode: standalone)").matches && (
           <p className="text-xs text-amber-400 text-center mt-2">
             iOS users: Tap "Share" → "Add to Home Screen" to enable notifications.
