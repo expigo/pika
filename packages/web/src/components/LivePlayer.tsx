@@ -660,8 +660,13 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                   TUNING FREQUENCIES
                 </h2>
                 <div className="flex flex-col items-center gap-2">
-                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em]">
-                    {djName ? `LOCKED TO ${djName.toUpperCase()}` : "SCANNING FOR BROADCAST"}
+                  <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] flex items-center gap-2">
+                    {djName ? `CONNECTED TO ${djName.toUpperCase()}` : "SCANNING FOR BROADCAST"}
+                    {process.env.NEXT_PUBLIC_CLOUD_API_URL?.includes("staging") && (
+                      <span className="text-[7px] px-1 py-0.5 bg-purple-500/10 text-purple-400/50 border border-purple-500/10 rounded font-mono non-italic">
+                        STAGE
+                      </span>
+                    )}
                   </p>
                   <div className="flex gap-1 h-1 items-center">
                     {[1, 2, 3].map((i) => (

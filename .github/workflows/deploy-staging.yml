@@ -40,11 +40,11 @@ jobs:
             
             # 1. Get latest code
             git fetch origin staging
-            git checkout staging
-            git pull origin staging
+            git reset --hard origin/staging
             
             # 2. Rebuild and Restart Staging Services
             # We use project-name 'pika-staging' to avoid conflict with prod default project
+            docker compose -f docker-compose.staging.yml -p pika-staging down
             docker compose -f docker-compose.staging.yml -p pika-staging up -d --build --force-recreate
             
             # 3. Prune old images
