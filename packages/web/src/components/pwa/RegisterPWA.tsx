@@ -57,11 +57,10 @@ export function RegisterPWA() {
     window.addEventListener("unhandledrejection", handleError);
 
     if (process.env.NODE_ENV === "production") {
-      // 11/10 Cache Busting: Ensure we always try to get the latest SW description
-      const swVersion = process.env.NEXT_PUBLIC_APP_VERSION || Date.now().toString();
-
+      // 🛡️ Security/Stability: Remove dynamic query params from SW registration.
+      // These cause infinite reload loops because the browser sees a "new" SW on every mount.
       navigator.serviceWorker
-        .register(`/sw.js?v=${swVersion}`, {
+        .register("/sw.js", {
           scope: "/",
         })
         .then((registration) => {
@@ -72,7 +71,7 @@ export function RegisterPWA() {
             category: "pwa",
             message: "Service Worker registered",
             level: "info",
-            data: { scope: registration.scope, version: swVersion },
+            data: { scope: registration.scope },
           });
 
           // Check for updates on mount and every hour
