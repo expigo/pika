@@ -47,6 +47,10 @@ import { cleanupSessionQueue } from "../lib/persistence/queue";
 import { clearLastPersistedTrackKey } from "../lib/persistence/tracks";
 import type { WSContext } from "./ws-context";
 import { getSessionCount } from "../lib/sessions";
+import { PushService } from "../services/push";
+import { db } from "../db";
+import { pushSubscriptions } from "../db/schema";
+import { isNull, desc } from "drizzle-orm";
 
 // 🛡️ Rate Limiting State
 // Max 1000 concurrent sessions to prevent memory exhaustion (M5)
@@ -512,7 +516,35 @@ export function handleSendAnnouncement(ctx: WSContext) {
     djName: djSession.djName,
     message: announcementMessage,
     durationSeconds,
+    push: msg.push,
   });
+
+  // 11/10: Trigger Push Notifications if requested
+  if (msg.push) {
+    (async () => {
+      try {
+        const targets = await db
+          .select()
+          .from(pushSubscriptions)
+          .where(isNull(pushSubscriptions.unsubscribedAt))
+          .limit(1000)
+          .orderBy(desc(pushSubscriptions.createdAt));
+
+        if (targets.length > 0) {
+          logger.info(`[Push] Broadcasting announcement to ${targets.length} targets`);
+          const payload = JSON.stringify({
+            title: `Announcement from ${djSession.djName}`,
+            body: announcementMessage,
+            data: { url: "/live" },
+          });
+
+          await Promise.allSettled(targets.map((sub) => PushService.send(sub, payload)));
+        }
+      } catch (e) {
+        logger.error("[Push] Failed to broadcast announcement push", e);
+      }
+    })();
+  }
 
   if (messageId) sendAck(ws, messageId);
 }

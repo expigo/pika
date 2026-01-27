@@ -1031,60 +1031,64 @@ export function useLiveSession() {
   }, []);
 
   // Send announcement to dancers
-  const sendAnnouncement = useCallback((message: string, durationSeconds?: number) => {
-    // Input validation
-    const trimmedMessage = message.trim();
-    if (!trimmedMessage) {
-      logger.warn("Live", "Cannot send empty announcement");
-      toast.error("Announcement message cannot be empty");
-      return;
-    }
+  const sendAnnouncement = useCallback(
+    (message: string, durationSeconds?: number, push?: boolean) => {
+      // Input validation
+      const trimmedMessage = message.trim();
+      if (!trimmedMessage) {
+        logger.warn("Live", "Cannot send empty announcement");
+        toast.error("Announcement message cannot be empty");
+        return;
+      }
 
-    if (trimmedMessage.length > MAX_ANNOUNCEMENT_LENGTH) {
-      logger.warn("Live", "Announcement too long", { length: trimmedMessage.length });
-      toast.error(`Announcement must be under ${MAX_ANNOUNCEMENT_LENGTH} characters`);
-      return;
-    }
+      if (trimmedMessage.length > MAX_ANNOUNCEMENT_LENGTH) {
+        logger.warn("Live", "Announcement too long", { length: trimmedMessage.length });
+        toast.error(`Announcement must be under ${MAX_ANNOUNCEMENT_LENGTH} characters`);
+        return;
+      }
 
-    if (
-      durationSeconds !== undefined &&
-      (durationSeconds < MIN_ANNOUNCEMENT_DURATION_SECONDS ||
-        durationSeconds > MAX_ANNOUNCEMENT_DURATION_SECONDS)
-    ) {
-      logger.warn("Live", "Announcement duration out of range", { durationSeconds });
-      toast.error(
-        `Announcement duration must be ${MIN_ANNOUNCEMENT_DURATION_SECONDS}s - ${MAX_ANNOUNCEMENT_DURATION_SECONDS / 60} minutes`,
-      );
-      return;
-    }
+      if (
+        durationSeconds !== undefined &&
+        (durationSeconds < MIN_ANNOUNCEMENT_DURATION_SECONDS ||
+          durationSeconds > MAX_ANNOUNCEMENT_DURATION_SECONDS)
+      ) {
+        logger.warn("Live", "Announcement duration out of range", { durationSeconds });
+        toast.error(
+          `Announcement duration must be ${MIN_ANNOUNCEMENT_DURATION_SECONDS}s - ${MAX_ANNOUNCEMENT_DURATION_SECONDS / 60} minutes`,
+        );
+        return;
+      }
 
-    if (!isInLiveMode() || !getStoreSessionId()) {
-      logger.debug("Live", "Cannot send announcement - not live");
-      return;
-    }
+      if (!isInLiveMode() || !getStoreSessionId()) {
+        logger.debug("Live", "Cannot send announcement - not live");
+        return;
+      }
 
-    const endsAt = durationSeconds
-      ? new Date(Date.now() + durationSeconds * 1000).toISOString()
-      : undefined;
+      const endsAt = durationSeconds
+        ? new Date(Date.now() + durationSeconds * 1000).toISOString()
+        : undefined;
 
-    sendMessage({
-      type: MESSAGE_TYPES.SEND_ANNOUNCEMENT,
-      sessionId: getStoreSessionId(),
-      message: trimmedMessage,
-      durationSeconds,
-    });
+      sendMessage({
+        type: MESSAGE_TYPES.SEND_ANNOUNCEMENT,
+        sessionId: getStoreSessionId(),
+        message: trimmedMessage,
+        durationSeconds,
+        push,
+      });
 
-    useLiveStore.getState().setActiveAnnouncement({
-      message: trimmedMessage,
-      endsAt,
-    });
+      useLiveStore.getState().setActiveAnnouncement({
+        message: trimmedMessage,
+        endsAt,
+      });
 
-    toast.success(`📢 Announcement sent!`);
-    logger.info("Live", "Announcement sent", {
-      message: trimmedMessage,
-      duration: durationSeconds ?? "no timer",
-    });
-  }, []);
+      toast.success(`📢 Announcement sent!`);
+      logger.info("Live", "Announcement sent", {
+        message: trimmedMessage,
+        duration: durationSeconds ?? "no timer",
+      });
+    },
+    [],
+  );
 
   // Cancel active announcement
   const cancelAnnouncement = useCallback(() => {

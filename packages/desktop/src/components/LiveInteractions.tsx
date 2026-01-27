@@ -81,7 +81,7 @@ interface Props {
 
   announcementText: string;
   setAnnouncementText: (val: string) => void;
-  onSendAnnouncement: (message: string, duration?: number) => void;
+  onSendAnnouncement: (message: string, duration?: number, push?: boolean) => void;
   onCancelAnnouncement: () => void;
   onClearEndedPoll: () => void;
 
@@ -124,6 +124,7 @@ export function LiveInteractions({
   // Local state for durations since they are only used during creation
   const [pollDuration, setPollDuration] = useState<number | null>(null);
   const [announcementDuration, setAnnouncementDuration] = useState<number | null>(null);
+  const [sendPush, setSendPush] = useState(false);
 
   return (
     <>
@@ -495,8 +496,45 @@ export function LiveInteractions({
               </div>
             </div>
 
-            <div className="text-right text-[10px] font-black tracking-widest text-slate-600 mb-6 uppercase">
-              {announcementText.length}/200
+            <div className="flex items-center justify-between mb-8">
+              <label className="flex items-center gap-3 cursor-pointer group">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    className="sr-only"
+                    checked={sendPush}
+                    onChange={(e) => setSendPush(e.target.checked)}
+                  />
+                  <div
+                    className={`block w-12 h-6 rounded-full transition-all border ${
+                      sendPush
+                        ? "bg-orange-500 border-orange-400"
+                        : "bg-black border-white/10 group-hover:border-white/20"
+                    }`}
+                  />
+                  <div
+                    className={`absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${
+                      sendPush ? "translate-x-6" : ""
+                    }`}
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <span
+                    className={`text-sm font-black transition-colors ${
+                      sendPush ? "text-white" : "text-slate-500"
+                    }`}
+                  >
+                    Send Push Notification?
+                  </span>
+                  <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
+                    Alert mobile users (11/10 feel)
+                  </span>
+                </div>
+              </label>
+
+              <div className="text-right text-[10px] font-black tracking-widest text-slate-600 uppercase">
+                {announcementText.length}/200
+              </div>
             </div>
 
             <div className="flex justify-end gap-4">
@@ -510,7 +548,7 @@ export function LiveInteractions({
               <button
                 type="button"
                 onClick={() =>
-                  onSendAnnouncement(announcementText, announcementDuration ?? undefined)
+                  onSendAnnouncement(announcementText, announcementDuration ?? undefined, sendPush)
                 }
                 disabled={!announcementText.trim()}
                 className="px-8 py-3 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl font-bold shadow-lg disabled:opacity-50 transition-all text-sm px-2"

@@ -46,7 +46,7 @@ interface Props {
   endedPoll?: EndedPoll | null;
   onStartPoll?: (question: string, options: string[], durationSeconds?: number) => void;
   onEndPoll?: () => void;
-  onSendAnnouncement?: (message: string, durationSeconds?: number) => void;
+  onSendAnnouncement?: (message: string, durationSeconds?: number, push?: boolean) => void;
   onCancelAnnouncement?: () => void;
   onClearEndedPoll?: () => void;
   activeAnnouncement?: Announcement | null;
@@ -578,8 +578,8 @@ export function LivePerformanceMode({
         onEndPoll={onEndPoll || (() => {})}
         announcementText={announcementText}
         setAnnouncementText={setAnnouncementText}
-        onSendAnnouncement={(message, duration) => {
-          onSendAnnouncement?.(message, duration);
+        onSendAnnouncement={(message, duration, push) => {
+          onSendAnnouncement?.(message, duration, push);
           setShowAnnouncementModal(false);
           setAnnouncementText("");
         }}
