@@ -10,22 +10,45 @@ export function RegisterPWA() {
     // 11/10 Reliability: Recover from chunk load failures (404s)
     // This happens when the browser tries to load old chunk hashes after a deploy
     const handleError = (e: ErrorEvent | PromiseRejectionEvent) => {
-      const message = "message" in e ? e.message : String(e.reason);
+      // 1. Get the target resource URL if possible
+      const target =
+        e instanceof ErrorEvent
+          ? (e.target as unknown as { src?: string; href?: string })?.src ||
+            (e.target as unknown as { src?: string; href?: string })?.href
+          : "";
+
+      // 2. Ignore non-critical resource errors (like source maps, images, etc.)
       if (
+        typeof target === "string" &&
+        (target.endsWith(".map") || !target.includes("/_next/static/"))
+      ) {
+        return;
+      }
+
+      const message = "message" in e ? e.message : String(e.reason);
+
+      // 3. Only reload for critical Next.js chunk/script failures
+      const isChunkError =
         message.includes("Loading chunk") ||
         message.includes("Script error") ||
-        message.includes("failed to fetch")
-      ) {
-        console.warn(
-          "Detected chunk load failure, forcing refresh to sync with server...",
+        message.includes("failed to fetch") ||
+        (e instanceof ErrorEvent && (e.target as HTMLElement)?.tagName === "SCRIPT");
+
+      if (isChunkError) {
+        console.warn("Detected critical chunk load failure, syncing with server...", {
           message,
-        );
-        // Only reload if we are not already in a reload loop
+          target,
+        });
+
+        // 4. Stricter Reload Guard: Don't flip out. Wait at least 30s between force-reloads.
         const lastReload = sessionStorage.getItem("pika_last_chunk_reload");
         const now = Date.now();
-        if (!lastReload || now - Number.parseInt(lastReload) > 10000) {
+        if (!lastReload || now - Number.parseInt(lastReload) > 30000) {
           sessionStorage.setItem("pika_last_chunk_reload", now.toString());
-          window.location.reload();
+          // 5. Short delay to allow session storage to persist and user to see what's happening
+          setTimeout(() => window.location.reload(), 500);
+        } else {
+          console.error("Critical error loop detected. Stopping auto-reload.");
         }
       }
     };
