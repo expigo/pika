@@ -77,7 +77,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   const idbSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   /**
-   * 11/10 Optimization: Debounced IndexedDB writes to reduce background churn
+   * Optimization: Debounced IndexedDB writes to reduce background churn
    */
   const debouncedSavePending = useCallback((sessionId: string, pending: PendingLike[]) => {
     if (idbSaveTimeoutRef.current) clearTimeout(idbSaveTimeoutRef.current);
@@ -122,7 +122,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
       setPendingCount(pending.length);
       idbLoadedRef.current = true;
 
-      // 11/10 Conflict Resolution: Mark pending tracks as already liked in UI
+      // Conflict Resolution: Mark pending tracks as already liked in UI
       if (pending.length > 0) {
         setLikedTracks((prev) => {
           const next = new Set(prev);
@@ -146,7 +146,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   }, [likedTracks, sessionId]);
 
   /**
-   * 11/10 Analytics: Periodic session summary logging
+   * Analytics: Periodic session summary logging
    * Reduces log spam while maintaining operational visibility
    */
   useEffect(() => {
@@ -365,7 +365,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
 
       logger.debug("[Likes] Local like removed", { title: track.title });
 
-      // 11/10: Send "REMOVE_LIKE" to the server when online
+      // Send "REMOVE_LIKE" to the server when online
       const socket = socketRef.current;
       if (socket?.readyState === WebSocket.OPEN && sessionId) {
         socket.send(

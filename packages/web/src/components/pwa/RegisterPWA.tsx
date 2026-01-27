@@ -7,7 +7,7 @@ export function RegisterPWA() {
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
 
-    // 11/10 Reliability: Recover from chunk load failures (404s)
+    // Reliability: Recover from chunk load failures (404s)
     // This happens when the browser tries to load old chunk hashes after a deploy
     const handleError = (e: ErrorEvent | PromiseRejectionEvent) => {
       // 1. Get the target resource URL if possible
@@ -45,7 +45,7 @@ export function RegisterPWA() {
         const now = Date.now();
         if (!lastReload || now - Number.parseInt(lastReload) > 30000) {
           sessionStorage.setItem("pika_last_chunk_reload", now.toString());
-          // 5. Short delay to allow session storage to persist and user to see what's happening
+          // Best Practice: Explicitly request permission first
           setTimeout(() => window.location.reload(), 500);
         } else {
           console.error("Critical error loop detected. Stopping auto-reload.");

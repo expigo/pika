@@ -519,7 +519,7 @@ export function handleSendAnnouncement(ctx: WSContext) {
     push: msg.push,
   });
 
-  // 11/10: Trigger Push Notifications if requested
+  // Broadcast Push Notifications to all mobile devices
   if (msg.push) {
     (async () => {
       try {

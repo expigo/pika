@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
  * Adds Content-Security-Policy and other security headers to all responses.
  */
 export function middleware(request: NextRequest) {
-  // 11/10 Security: Generate dynamic nonce for CSP
+  // Security Enhancement: Generate dynamic nonce for CSP
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
 
   // Content Security Policy

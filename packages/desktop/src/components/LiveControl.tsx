@@ -237,7 +237,7 @@ export function LiveControl() {
           return;
         }
 
-        // If not stale (fresh playing), auto-include it! 11/10 Seamless.
+        // If not stale (fresh playing), auto-include it! Seamless.
         goLive(name, true);
         return;
       }

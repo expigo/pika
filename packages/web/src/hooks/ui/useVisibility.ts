@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 /**
  * useVisibility: Reactive hook for tab visibility state
- * 🔋 11/10 Performance: Used to pause CPU/GPU heavy animations or intervals
+ * Performance: Used to pause CPU/GPU heavy animations or intervals when the tab is hidden
  */
 export function useVisibility() {
   // 🛡️ Fix: Always initialize to true to match server-side rendering.

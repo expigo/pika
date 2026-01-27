@@ -45,7 +45,7 @@ export function usePushNotifications() {
       return false;
     }
 
-    // 11/10 UX: iOS Check
+    // iOS Standalone Check
     // On iOS, push only works if installed to home screen (standalone)
     const isIOS =
       /iPad|iPhone|iPod/.test(navigator.userAgent) &&
@@ -72,7 +72,7 @@ export function usePushNotifications() {
         return false;
       }
 
-      // 11/10 UX: Explicitly request permission first
+      // Explicitly request permission first to ensure user visibility
       if (typeof Notification !== "undefined" && Notification.permission === "default") {
         logger.info("[Push] Requesting Notification permission...");
         const permission = await Notification.requestPermission();

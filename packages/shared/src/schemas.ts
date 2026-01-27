@@ -489,7 +489,7 @@ export const SendAnnouncementSchema = z.object({
   sessionId: z.string(),
   message: z.string().min(1).max(200).trim(),
   durationSeconds: z.number().min(60).max(3600).optional(), // 1 min to 1 hour
-  push: z.boolean().optional(), // 11/10: Trigger mobile push notification
+  push: z.boolean().optional(), // Trigger mobile push notification for this announcement
   messageId: z.string().optional(),
   clientId: z.string().optional(),
 });

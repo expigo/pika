@@ -44,7 +44,7 @@ export default function LandingPage() {
   // Fetch active sessions on mount
   useEffect(() => {
     async function checkLiveSessions() {
-      // 🔋 11/10 Performance: Pause polling if tab is hidden
+      // Performance optimization: Pause polling if tab is hidden
       if (document.visibilityState === "hidden") return;
 
       try {

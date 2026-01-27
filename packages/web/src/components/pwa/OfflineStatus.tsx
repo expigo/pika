@@ -10,7 +10,7 @@ interface OfflineStatusProps {
 }
 
 /**
- * 11/10 UI: Subtle, non-intrusive offline status indicator
+ * Subtle, non-intrusive offline status indicator
  * Shows when navigator is offline or when there are pending actions in the queue.
  */
 export function OfflineStatus({ pendingCount, isSaving }: OfflineStatusProps) {

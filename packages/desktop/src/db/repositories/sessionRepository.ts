@@ -380,7 +380,7 @@ export const sessionRepository = {
   async deleteSession(sessionId: number): Promise<void> {
     const sqlite = await getSqlite();
     try {
-      // 🛡️ 11/10 Safety: Atomic deletion via ON DELETE CASCADE
+      // Data Integrity: Atomic deletion via ON DELETE CASCADE
       // Related plays are automatically cleared by the database.
       await sqlite.execute(`DELETE FROM sessions WHERE id = ?`, [sessionId]);
     } catch (e) {

@@ -167,7 +167,7 @@ export function setSessionAnnouncement(
 /**
  * Clean up stale sessions using a Smart Buffer strategy.
  *
- * 11/10 Magic Plan:
+ * Cleanup Logic:
  * - Kill if (Idle > 4h AND Age > 8h)
  * - OR Kill if (Age > 24h) - Hard limit
  *

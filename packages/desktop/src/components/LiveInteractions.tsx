@@ -527,7 +527,7 @@ export function LiveInteractions({
                     Send Push Notification?
                   </span>
                   <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
-                    Alert mobile users (11/10 feel)
+                    Alert mobile users directly
                   </span>
                 </div>
               </label>

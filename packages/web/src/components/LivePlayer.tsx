@@ -454,7 +454,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                         : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
                     }`}
                   >
-                    {/* 11/10 Discoverability: Pulsing dot if notifications not enabled */}
+                    {/* Discoverability: Pulsing dot if notifications not enabled */}
                     {isSupported && !notificationsEnabled && !notificationsBlocked && (
                       <span className="absolute -top-1 -right-1 flex h-3 w-3">
                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75" />

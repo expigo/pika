@@ -54,7 +54,7 @@ export function useLiveListener(targetSessionId?: string) {
     targetSessionId,
   });
 
-  // 11/10 Resilience: Sync state when waking up from sleep (iOS fix)
+  // Resilience: Sync state when waking up from sleep (iOS fix)
   useWakeupSync({ forceReconnect });
 
   // Like queue (with IndexedDB persistence for offline likes)

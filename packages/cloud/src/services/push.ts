@@ -4,7 +4,7 @@ import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
 import { logger } from "@pika/shared";
 
-// 11/10 Architecture: Fail-safe initialization
+// Core Architecture: Initialization logic
 const publicKey = process.env["VAPID_PUBLIC_KEY"];
 const privateKey = process.env["VAPID_PRIVATE_KEY"];
 const subject = process.env["VAPID_SUBJECT"] || "mailto:admin@pika.stream";
@@ -50,7 +50,7 @@ export class PushService {
       await webpush.sendNotification(pushSub, payload);
       return true;
     } catch (error: any) {
-      // 11/10 Reliability: Auto-clean dead subscriptions
+      // Reliability: Automatically handle expired or invalid subscriptions by clearing them from the DB
       if (error.statusCode === 410 || error.statusCode === 404) {
         logger.info("[Push] Subscription expired (410/404), marking as unsubscribed", {
           endpoint: subscription.endpoint.substring(0, 20) + "...",

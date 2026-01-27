@@ -36,7 +36,7 @@ push.post("/subscribe", zValidator("json", SubscriptionSchema), async (c) => {
         p256dh: keys.p256dh,
         auth: keys.auth,
         clientId,
-        // 11/10: If re-subscribing, clear unsubscribedAt (resurrect subscription)
+        // Data Integrity: If re-subscribing, clear unsubscribedAt (resurrect subscription)
         unsubscribedAt: null,
       })
       .onConflictDoUpdate({
@@ -110,7 +110,7 @@ push.post("/send", zValidator("json", SendSchema), async (c) => {
   const finalPayload = typeof payload === "string" ? payload : JSON.stringify(payload);
 
   try {
-    // 11/10 Architecture: Efficient Batching
+    // Scalability: Efficient Batching for notifications
     const targets = await db
       .select()
       .from(pushSubscriptions)

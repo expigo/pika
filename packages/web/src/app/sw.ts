@@ -15,7 +15,7 @@ declare const self: ServiceWorkerGlobalScope;
 
 const serwist = new Serwist({
   precacheEntries: self.__SW_MANIFEST,
-  skipWaiting: true, // 11/10: Force activation for rapid staging iteration
+  skipWaiting: true, // Force activation for rapid updates
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching: [
@@ -80,7 +80,7 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
 
-  // 11/10 Deep-linking logic
+  // Deep-linking logic for incoming notifications
   const urlToOpen = event.notification.data?.url || "/live";
 
   event.waitUntil(

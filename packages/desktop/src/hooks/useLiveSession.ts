@@ -459,7 +459,7 @@ async function recordPlay(
       return null;
     }
 
-    // 🔋 11/10 Performance: findOrCreateTrack and addPlay are async,
+    // Performance: findOrCreateTrack and addPlay are async,
     // but the trackKey already blocks other concurrent calls.
     const dbTrack = await findOrCreateTrack(track.artist, track.title, track.filePath);
     const timestamp = Math.floor(Date.now() / 1000);

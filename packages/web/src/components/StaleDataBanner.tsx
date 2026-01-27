@@ -79,8 +79,8 @@ export function StaleDataBanner({
       setStaleSeconds(Math.floor(elapsed / 1000));
     }
 
-    // Check staleness only when relevant (M3)
-    // 🔋 11/10 Performance: No interval if connection is solid and data is fresh
+    // Check staleness only when relevant
+    // Performance: No interval if connection is solid and data is fresh
     let interval: ReturnType<typeof setInterval> | undefined;
 
     const checkStaleness = () => {

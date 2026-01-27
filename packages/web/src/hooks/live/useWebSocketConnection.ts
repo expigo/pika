@@ -78,7 +78,7 @@ export function useWebSocketConnection({
 
     const socket = new ReconnectingWebSocket(wsUrl, [], {
       maxReconnectionDelay: 10000,
-      minReconnectionDelay: 1000 + Math.random() * 1000, // 11/10: Randomized jitter
+      minReconnectionDelay: 1000 + Math.random() * 1000, // Randomized jitter for reconnection
       reconnectionDelayGrowFactor: 1.3,
       connectionTimeout: 5000,
       maxRetries: Infinity,
@@ -163,7 +163,7 @@ export function useWebSocketConnection({
     socket.addEventListener("error", handleError as any);
     socket.addEventListener("message", handleMessage);
 
-    // 🚀 11/10 Performance: Zero-allocation heartbeat string
+    // Optimized Performance: Zero-allocation heartbeat string
     const PING_STR = JSON.stringify({ type: "PING" });
 
     // Heartbeat monitor (Adaptive)
@@ -172,7 +172,7 @@ export function useWebSocketConnection({
 
       // Skip heartbeats if backgrounded for too long or not connected
       // This saves battery for dancers who leave the tab open in their pocket
-      // 🔋 11/10 Performance: Skip heartbeats if backgrounded
+      // Performance Optimization: Skip heartbeats if backgrounded
       if (isBackground) return;
 
       const now = Date.now();
