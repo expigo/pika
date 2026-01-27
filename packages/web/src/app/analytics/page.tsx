@@ -63,7 +63,7 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+      <div className="h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-center overflow-hidden">
         <div className="text-emerald-400 animate-pulse font-black tracking-widest text-[10px] uppercase">
           Compiling Network Intelligence...
         </div>

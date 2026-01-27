@@ -127,7 +127,7 @@ async fn get_cached_database(custom_path: Option<PathBuf>) -> Result<HashMap<Str
     // Cache miss - Load and parse (Lock for writing)
     let mut cache = VDJ_CACHE.write().await;
     
-    println!("[VDJ] Cache miss or stale. Loading database from: {:?}", db_path);
+    // println!("[VDJ] Cache miss or stale. Loading database from: {:?}", db_path);
     
     let content = tokio::fs::read_to_string(&db_path)
         .await
@@ -147,7 +147,7 @@ async fn get_cached_database(custom_path: Option<PathBuf>) -> Result<HashMap<Str
         songs: song_map.clone(),
     });
 
-    println!("[VDJ] Database indexed: {} tracks", song_map.len());
+    // println!("[VDJ] Database indexed: {} tracks", song_map.len());
     Ok(song_map)
 }
 
@@ -414,7 +414,7 @@ fn find_latest_history_file() -> Result<std::path::PathBuf, String> {
         .find(|p| p.exists())
         .ok_or_else(|| "VirtualDJ History folder not found".to_string())?;
 
-    println!("[VDJ] Reading history from: {:?}", history_dir);
+    // println!("[VDJ] Reading history from: {:?}", history_dir);
     
     // Find the most recently modified .m3u file
     // Find the most recently modified .m3u file
@@ -494,12 +494,12 @@ async fn lookup_vdj_track_metadata(file_path: String) -> Result<Option<VdjTrackM
                 .and_then(|scan| scan.volume.as_ref())
                 .and_then(|v| v.parse::<f64>().ok());
             
-            println!("[VDJ] Found metadata: bpm={:?}, key={:?}, volume={:?}", bpm, key, volume);
+            // println!("[VDJ] Found metadata: bpm={:?}, key={:?}, volume={:?}", bpm, key, volume);
             
             Ok(Some(VdjTrackMetadata { bpm, key, volume }))
         }
         None => {
-            println!("[VDJ] Track not found in database: {}", file_path);
+            // println!("[VDJ] Track not found in database: {}", file_path);
             Ok(None)
         }
     }

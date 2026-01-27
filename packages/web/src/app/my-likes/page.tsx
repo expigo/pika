@@ -121,7 +121,7 @@ export default function MyLikesPage() {
 
   if (error === "no_likes" || (likes && likes.totalLikes === 0)) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
+      <div className="h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-center p-4 overflow-hidden">
         <ProCard className="max-w-md w-full p-12 text-center" glow align="center">
           <div className="w-20 h-20 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl">
             <Heart className="w-8 h-8 text-slate-700" />

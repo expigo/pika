@@ -13,6 +13,7 @@
 import { TIMEOUTS } from "@pika/shared";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useVisibility } from "@/hooks/ui/useVisibility";
 
 interface StaleDataBannerProps {
   /**
@@ -51,6 +52,19 @@ export function StaleDataBanner({
   const [isStale, setIsStale] = useState(false);
   const [staleSeconds, setStaleSeconds] = useState(0);
   const hasEverConnectedRef = useRef(false);
+
+  // 🛡️ Fix for iOS Wake: Give a grace period when app becomes visible
+  // The socket needs time to reconnect/resync after sleep.
+  const isVisible = useVisibility();
+  const [isWakingUp, setIsWakingUp] = useState(false);
+
+  useEffect(() => {
+    if (isVisible) {
+      setIsWakingUp(true);
+      const t = setTimeout(() => setIsWakingUp(false), 8000); // 8s grace period
+      return () => clearTimeout(t);
+    }
+  }, [isVisible]);
 
   // Track if we've ever been connected
   useEffect(() => {
@@ -111,8 +125,8 @@ export function StaleDataBanner({
     };
   }, [lastHeartbeat, staleThresholdMs, sessionEnded, hasData, isConnected, isStale]);
 
-  // Don't render if not stale
-  if (!isStale) {
+  // Don't render if not stale OR if we are just waking up (grace period)
+  if (!isStale || isWakingUp) {
     return null;
   }
 

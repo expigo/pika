@@ -215,34 +215,8 @@ export function LiveControl() {
     // If name provided (via "Start New" in modal), we can fast-track
     if (sessionName) {
       const name = sessionName.trim();
-      // Only check for current track if we really need to (to include it)
-      // For "Start New", usually we assume current track is desired if playing
-      const currentTrack = virtualDjWatcher.getCurrentTrack();
-      if (currentTrack) {
-        // Still verify if stale, but don't show Name Modal after
-        const STALE_THRESHOLD_MS = 10 * 60 * 1000;
-        const trackTime = currentTrack.timestamp?.getTime() ?? 0;
-        const isStale = Date.now() - trackTime > STALE_THRESHOLD_MS;
-
-        if (isStale) {
-          // If stale, we might want to ask. But for seamlessness, let's just
-          // set pending track and show ONLY the include prompt, then go live with `name`.
-          setPendingTrack({
-            artist: currentTrack.artist,
-            title: currentTrack.title,
-            isStale,
-          });
-          setSessionName(name); // buffer the name for next step
-          setShowIncludeTrackPrompt(true);
-          return;
-        }
-
-        // If not stale (fresh playing), auto-include it! Seamless.
-        goLive(name, true);
-        return;
-      }
-
-      // No current track, just go live
+      // User explicitly chose "Start New" (Skip History)
+      // We start fresh, ignoring any currently loaded track in VDJ to avoid confusion
       goLive(name, false);
       return;
     }
@@ -651,7 +625,9 @@ export function LiveControl() {
                     type="button"
                     onClick={() => {
                       setShowDuplicateWarningModal(false);
-                      checkForCurrentTrack(); // Start fresh session
+                      // Start fresh: Skip "Include Current" check and go straight to naming
+                      setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
+                      setShowNameModal(true);
                     }}
                     className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20"
                   >

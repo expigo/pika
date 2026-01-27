@@ -145,6 +145,9 @@ This is the central index for the Pika! project, tracking active development, fu
 *   [**Logbook Vision**](blueprints/logbook-vision.md) - Advanced post-session analytics.
 *   [**Logbook Vision**](blueprints/logbook-vision.md) - Advanced post-session analytics.
 *   [**PWA Architecture**](architecture/pwa-system.md) - ✅ **Implemented**. Full architecture for offline & push.
+*   [**Pika! Next Architecture**](blueprints/pika-next-architecture.md) - **Redis, Stages, & Accounts**. The definitive guide to V2 architecture.
+*   [**Data Strategy**](blueprints/data-strategy.md) - **Smart Crate & WCS Dashboard**. The vision for data-driven features.
+*   [**UX Strategy**](blueprints/ux-strategy.md) - **Dashboards & Personas**. The guide to role-based experiences.
 
 ---
 

@@ -374,8 +374,8 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
       <div className="w-full max-w-md relative z-10">
         <ProCard glow className={`overflow-hidden ${announcement ? "mt-24" : ""}`} variant="hero">
           {/* Header */}
-          <div className="px-8 py-6 border-b border-slate-800/50 flex items-center justify-between">
-            <div className="flex items-center gap-4">
+          <div className="px-5 py-6 border-b border-slate-800/50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
               <div className="relative">
                 <Radio
                   className={`w-6 h-6 ${signalLost ? "text-amber-500" : isLive ? "text-red-500" : "text-slate-700"}`}
@@ -408,7 +408,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               {/* Show dancer count when we have data, even if temporarily reconnecting */}
               {(isConnected || hasTrack) && listenerCount > 0 && (
                 <div
@@ -448,7 +448,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                   <button
                     onClick={() => setShowSettings(!showSettings)}
                     aria-label="Booth Settings"
-                    className={`w-10 h-10 flex items-center justify-center rounded-xl border transition-all shadow-xl relative group ${
+                    className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-all shadow-xl relative group ${
                       showSettings
                         ? "bg-purple-500 border-purple-400 text-white"
                         : "bg-slate-900 border-slate-800 text-slate-500 hover:text-white"
@@ -466,7 +466,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                   <button
                     onClick={handleShare}
                     aria-label="Share session"
-                    className="w-10 h-10 flex items-center justify-center bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-white transition-all shadow-xl"
+                    className="w-9 h-9 flex items-center justify-center bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-white transition-all shadow-xl"
                   >
                     <Share2 className="w-4 h-4" />
                   </button>
