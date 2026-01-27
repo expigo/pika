@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from "react";
 import { logger } from "@pika/shared";
 import { getOrCreateClientId } from "@/lib/client";
 import { toast } from "sonner";
+import { getApiBaseUrl } from "@/lib/api";
 
 // Helper to convert VAPID key
 function urlBase64ToUint8Array(base64String: string) {
@@ -104,8 +105,8 @@ export function usePushNotifications() {
         applicationServerKey: convertedKey,
       });
 
-      // Send to Backend
-      const response = await fetch("/api/push/subscribe", {
+      // Send to Backend (Cloud Server)
+      const response = await fetch(`${getApiBaseUrl()}/api/push/subscribe`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
