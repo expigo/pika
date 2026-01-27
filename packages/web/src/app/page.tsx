@@ -135,6 +135,11 @@ export default function LandingPage() {
             <span className="text-[10px] font-semibold text-slate-400 tracking-[0.6em] uppercase">
               Connected • Interactive • Live
             </span>
+            {process.env.NEXT_PUBLIC_CLOUD_API_URL?.includes("staging") && (
+              <span className="ml-2 text-[7px] px-1.5 py-0.5 bg-purple-500/20 text-purple-400 border border-purple-500/30 rounded font-mono tracking-normal">
+                STAGE
+              </span>
+            )}
           </div>
 
           <h1 className="text-5xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[1.1] mb-12 drop-shadow-[0_0_40px_rgba(244,63_94,0.15)]">
