@@ -111,12 +111,7 @@ function loadSettings(): DjSettings {
             window.location.protocol === "tauri:");
 
         if ((isViteDev || isLocalhost) && settings.serverEnv !== "dev") {
-          console.log("[DJ Settings] Dev mode detected - but allowing manual override", {
-            isViteDev,
-            isLocalhost,
-            currentEnv: settings.serverEnv,
-          });
-          // DISABLED FOR TESTING: settings.serverEnv = "dev";
+          // Silent override log removed to prevent spam
         }
         return settings;
       }
