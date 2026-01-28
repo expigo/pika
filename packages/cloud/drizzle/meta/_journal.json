@@ -64,13 +64,6 @@
       "when": 1769600167579,
       "tag": "0008_ambiguous_amazoness",
       "breakpoints": true
-    },
-    {
-      "idx": 9,
-      "version": "7",
-      "when": 1769627322681,
-      "tag": "0009_bizarre_bloodstrike",
-      "breakpoints": true
     }
   ]
 }
