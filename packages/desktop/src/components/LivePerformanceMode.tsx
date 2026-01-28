@@ -233,7 +233,9 @@ export function LivePerformanceMode({
 
   // Reaction Subscription (Confetti with Velocity Tracking)
   useEffect(() => {
+    console.info("[LivePerformance] Subscribing to reaction events...");
     return subscribeToReactions((reaction) => {
+      console.log(`[LivePerformance] Reaction event received in hook: ${reaction}`);
       if (reaction === "thank_you") {
         const now = Date.now();
         const rainDuration = 3000;

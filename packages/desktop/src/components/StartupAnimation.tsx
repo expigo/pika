@@ -9,12 +9,19 @@ export function StartupAnimation() {
         const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
         const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-        if (prefersReducedMotion) return false;
-        if (hasSeenIntro) return false;
+        console.info("[Startup] Checking constraints:", { hasSeenIntro, prefersReducedMotion });
+
+        if (prefersReducedMotion) {
+          console.warn("[Startup] Skipping due to prefers-reduced-motion");
+          return false;
+        }
+        if (hasSeenIntro) {
+          console.info("[Startup] Skipping - intro already shown in this session");
+          return false;
+        }
       } catch (e) {
-        // 🛡️ Issue 39 Fix: Handle restricted storage access (e.g. Incognito)
-        console.warn("Storage access restrictions prevented startup checks", e);
-        return true; // Use safe default
+        console.warn("[Startup] Storage access restrictions prevented checks", e);
+        return true;
       }
     }
     return true;
@@ -25,16 +32,16 @@ export function StartupAnimation() {
   useEffect(() => {
     if (!visible) return;
 
-    // Start sequence
+    console.log("[Startup] Initiating intro sequence...");
+
+    // Mark as shown AFTER the first successful mount
     try {
       sessionStorage.setItem("pika_intro_shown", "true");
-    } catch (_) {
-      // Ignore storage errors on write
-    }
+    } catch (_) {}
 
     const exitTimer = setTimeout(() => {
       setPhase("exit");
-    }, 2000); // Allow climax (2s)
+    }, 2000);
 
     const removeTimer = setTimeout(() => {
       setVisible(false);
@@ -50,6 +57,7 @@ export function StartupAnimation() {
 
   return (
     <div
+      id="startup-animation-overlay"
       className={`fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950 transition-opacity duration-500 ease-out-expo ${
         phase === "exit" ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
