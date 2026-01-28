@@ -6,21 +6,17 @@ import { deleteSession, getAllSessions, getSession, setSession } from "../lib/se
 // Mock WebSocket
 const mockWs = {
   send: mock(() => {}),
-  // biome-ignore lint/suspicious/noExplicitAny: mock
 } as any;
 
 const mockRawWs = {
   publish: mock(() => {}),
   getBufferedAmount: mock(() => 0),
-  // biome-ignore lint/suspicious/noExplicitAny: mock
 } as any;
 
 describe("handleBroadcastMetadata (Issue 49)", () => {
   beforeEach(() => {
     // Clear sessions via public API
-    getAllSessions().forEach((s) => {
-      deleteSession(s.sessionId);
-    });
+    getAllSessions().forEach((s) => deleteSession(s.sessionId));
     mockWs.send.mockClear();
     mockRawWs.publish.mockClear();
   });

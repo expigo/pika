@@ -7,21 +7,17 @@ import { deleteSession, getAllSessions, setSession } from "../lib/sessions";
 const mockWs = {
   send: mock(() => {}),
   close: mock(() => {}),
-  // biome-ignore lint/suspicious/noExplicitAny: mock
 } as any;
 
 const mockRawWs = {
   publish: mock(() => {}),
   getBufferedAmount: mock(() => 0),
-  // biome-ignore lint/suspicious/noExplicitAny: mock
 } as any;
 
 describe("handleSubscribe (Issue 48)", () => {
   beforeEach(() => {
     // Clear sessions via public API
-    getAllSessions().forEach((s) => {
-      deleteSession(s.sessionId);
-    });
+    getAllSessions().forEach((s) => deleteSession(s.sessionId));
     mockWs.send.mockClear();
     mockRawWs.publish.mockClear();
   });
@@ -52,9 +48,7 @@ describe("handleSubscribe (Issue 48)", () => {
     // Verify
     // Verify
     expect(mockWs.send).toHaveBeenCalled();
-    // biome-ignore lint/suspicious/noExplicitAny: mock calls
     const calls = mockWs.send.mock.calls.map((c: any) => JSON.parse(c[0]));
-    // biome-ignore lint/suspicious/noExplicitAny: mock calls
     const sessionEndedMsg = calls.find((msg: any) => msg.type === "SESSION_ENDED");
 
     expect(sessionEndedMsg).toBeDefined();
@@ -100,9 +94,7 @@ describe("handleSubscribe (Issue 48)", () => {
     // Verify
     // Should send LISTENER_COUNT then NOW_PLAYING
     // We check specifically for NOW_PLAYING
-    // biome-ignore lint/suspicious/noExplicitAny: mock calls
     const calls = mockWs.send.mock.calls.map((c: any) => JSON.parse(c[0]));
-    // biome-ignore lint/suspicious/noExplicitAny: mock calls
     const nowPlayingMsg = calls.find((msg: any) => msg.type === "NOW_PLAYING");
 
     expect(nowPlayingMsg).toBeDefined();

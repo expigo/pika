@@ -34,8 +34,6 @@ const mockDb = {
   update: () => mockDb,
   set: () => mockDb,
   // Allow awaiting the chain at any point
-  // biome-ignore lint/suspicious/noThenProperty: mock thenable
-  // biome-ignore lint/complexity/noBannedTypes: mock
   then: (resolve: Function) => resolve([]),
 };
 
@@ -50,7 +48,6 @@ mock.module("../src/db", () => ({
     polls: { sessionId: "sid" },
     pollVotes: { pollId: "pid" },
   },
-  // biome-ignore lint/suspicious/noExplicitAny: mock
   eq: (a: any, b: any) => ({ key: "eq", a, b }),
 }));
 
@@ -59,7 +56,6 @@ const mockWs = {
   send: mock(),
   publish: mock(),
   getBufferedAmount: () => 0,
-  // biome-ignore lint/suspicious/noExplicitAny: mock
 } as any;
 
 describe("Security Audit Tests (Sprint 0.1)", () => {
