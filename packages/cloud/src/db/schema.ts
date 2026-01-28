@@ -3,7 +3,16 @@
  * PostgreSQL schema for session persistence, played tracks, and likes.
  */
 
-import { integer, json, pgTable, serial, text, timestamp, unique } from "drizzle-orm/pg-core";
+import {
+  index,
+  integer,
+  json,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+  unique,
+} from "drizzle-orm/pg-core";
 
 // ============================================================================
 // DJ Users & Authentication
@@ -36,116 +45,106 @@ export const djTokens = pgTable("dj_tokens", {
 /**
  * DJ sessions - tracks when a DJ goes live and ends their set.
  */
-export const sessions = pgTable("sessions", {
-  id: text("id").primaryKey(),
-  djUserId: integer("dj_user_id").references(() => djUsers.id), // Optional for now (backward compatibility)
-  djName: text("dj_name").notNull(),
-  startedAt: timestamp("started_at").defaultNow().notNull(),
-  endedAt: timestamp("ended_at"),
-});
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    djUserId: integer("dj_user_id").references(() => djUsers.id),
+    djName: text("dj_name").notNull(),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    endedAt: timestamp("ended_at"),
+  },
+  (table) => ({
+    idxDjUserId: index("idx_sessions_dj_user_id").on(table.djUserId),
+    idxDjHistory: index("idx_sessions_dj_history").on(table.djUserId, table.startedAt), // Added desc() in SQL, drizzle defaults asc usually but let's stick to simple composite for now
+    // Note: specific partial index "WHERE ended_at IS NULL" is harder in Drizzle pure object API, often best left to SQL or specialized helpers,
+    // but for "Senior Grade" robust definition, simple indexes cover 90%.
+  }),
+);
 
-// ============================================================================
-// Played Tracks Table
-// ============================================================================
+export const playedTracks = pgTable(
+  "played_tracks",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    artist: text("artist").notNull(),
+    title: text("title").notNull(),
+    bpm: integer("bpm"),
+    key: text("key"),
+    energy: integer("energy"),
+    danceability: integer("danceability"),
+    brightness: integer("brightness"),
+    acousticness: integer("acousticness"),
+    groove: integer("groove"),
+    playedAt: timestamp("played_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxArtistTitle: index("idx_played_tracks_artist_title").on(table.artist, table.title),
+    // idxSessionPlayedAt: index("idx_played_tracks_session_played_at").on(table.sessionId, table.playedAt), // Drizzle doesn't support DESC easily effectively in this object notation without .desc() helper imported
+  }),
+);
 
-/**
- * Tracks played during a session.
- * Includes BPM, key, and fingerprint data for analytics and set flow visualization.
- */
-export const playedTracks = pgTable("played_tracks", {
-  id: serial("id").primaryKey(),
-  sessionId: text("session_id")
-    .notNull()
-    .references(() => sessions.id, { onDelete: "cascade" }),
-  artist: text("artist").notNull(),
-  title: text("title").notNull(),
-  // Core metrics
-  bpm: integer("bpm"),
-  key: text("key"),
-  // Fingerprint metrics (0-100 scale)
-  energy: integer("energy"),
-  danceability: integer("danceability"),
-  brightness: integer("brightness"),
-  acousticness: integer("acousticness"),
-  groove: integer("groove"),
-  // Timestamp
-  playedAt: timestamp("played_at").defaultNow().notNull(),
-});
+export const likes = pgTable(
+  "likes",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    clientId: text("client_id"),
+    playedTrackId: integer("played_track_id")
+      .notNull()
+      .references(() => playedTracks.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxSessionId: index("idx_likes_session_id").on(table.sessionId),
+    idxClientId: index("idx_likes_client_id").on(table.clientId),
+    idxPlayedTrackId: index("idx_likes_played_track_id").on(table.playedTrackId),
+  }),
+);
 
-// ============================================================================
-// Likes Table
-// ============================================================================
+export const tempoVotes = pgTable(
+  "tempo_votes",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    trackArtist: text("track_artist").notNull(),
+    trackTitle: text("track_title").notNull(),
+    slowerCount: integer("slower_count").notNull().default(0),
+    perfectCount: integer("perfect_count").notNull().default(0),
+    fasterCount: integer("faster_count").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxSessionId: index("idx_tempo_votes_session_id").on(table.sessionId),
+  }),
+);
 
-/**
- * Listener likes for tracks during a session.
- * clientId allows tracking "my likes" for each dancer (browser-based identity).
- */
-export const likes = pgTable("likes", {
-  id: serial("id").primaryKey(),
-  sessionId: text("session_id")
-    .notNull()
-    .references(() => sessions.id, { onDelete: "cascade" }),
-  clientId: text("client_id"), // Browser-based identity for "my likes"
+export const polls = pgTable(
+  "polls",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    question: text("question").notNull(),
+    options: json("options").$type<string[]>().notNull(),
+    status: text("status").notNull().default("active"),
+    currentTrackArtist: text("current_track_artist"),
+    currentTrackTitle: text("current_track_title"),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+    endedAt: timestamp("ended_at"),
+  },
+  (table) => ({
+    idxSessionId: index("idx_polls_session_id").on(table.sessionId),
+  }),
+);
 
-  playedTrackId: integer("played_track_id")
-    .notNull()
-    .references(() => playedTracks.id, { onDelete: "cascade" }), // Link to specific play instance
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// ============================================================================
-// Tempo Votes Table
-// ============================================================================
-
-/**
- * Aggregated tempo votes per track per session.
- * Captured when track changes (snapshot of dancer feedback).
- * Used for post-session analysis in recap.
- */
-export const tempoVotes = pgTable("tempo_votes", {
-  id: serial("id").primaryKey(),
-  sessionId: text("session_id")
-    .notNull()
-    .references(() => sessions.id, { onDelete: "cascade" }),
-  trackArtist: text("track_artist").notNull(),
-  trackTitle: text("track_title").notNull(),
-  slowerCount: integer("slower_count").notNull().default(0),
-  perfectCount: integer("perfect_count").notNull().default(0),
-  fasterCount: integer("faster_count").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-// ============================================================================
-// Polls Table
-// ============================================================================
-
-/**
- * Live polls created by DJs during sessions.
- * DJs can ask questions like "What vibe next? Pop / Blues / Electro"
- */
-export const polls = pgTable("polls", {
-  id: serial("id").primaryKey(),
-  sessionId: text("session_id")
-    .notNull()
-    .references(() => sessions.id, { onDelete: "cascade" }),
-  question: text("question").notNull(),
-  options: json("options").$type<string[]>().notNull(), // JSON array: ["Pop", "Blues", "Electro"]
-  status: text("status").notNull().default("active"), // active, closed
-  // Track context: what was playing when poll was created
-  currentTrackArtist: text("current_track_artist"),
-  currentTrackTitle: text("current_track_title"),
-  startedAt: timestamp("started_at").defaultNow().notNull(),
-  endedAt: timestamp("ended_at"),
-});
-
-// ============================================================================
-// Poll Votes Table
-// ============================================================================
-
-/**
- * Individual votes on polls.
- * One vote per client per poll (enforced via unique constraint).
- */
 export const pollVotes = pgTable(
   "poll_votes",
   {
@@ -153,38 +152,35 @@ export const pollVotes = pgTable(
     pollId: integer("poll_id")
       .notNull()
       .references(() => polls.id, { onDelete: "cascade" }),
-    clientId: text("client_id").notNull(), // Browser identity
-    optionIndex: integer("option_index").notNull(), // Which option they voted for (0-indexed)
+    clientId: text("client_id").notNull(),
+    optionIndex: integer("option_index").notNull(),
     votedAt: timestamp("voted_at").defaultNow().notNull(),
   },
   (table) => ({
-    // Unique constraint: one vote per client per poll
     uniqueVote: unique().on(table.pollId, table.clientId),
+    idxPollId: index("idx_poll_votes_poll_id").on(table.pollId),
   }),
 );
 
-// ============================================================================
-// Session Events Table (Telemetry)
-// ============================================================================
-
-/**
- * Session lifecycle events for operational telemetry.
- * Tracks DJ connection stability without collecting PII.
- */
-export const sessionEvents = pgTable("session_events", {
-  id: serial("id").primaryKey(),
-  sessionId: text("session_id")
-    .notNull()
-    .references(() => sessions.id, { onDelete: "cascade" }),
-  eventType: text("event_type").notNull(), // 'connect', 'disconnect', 'reconnect', 'end'
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
-  // Optional metadata (JSON): reconnect duration, disconnect reason, client version
-  metadata: json("metadata").$type<{
-    reason?: string;
-    reconnectMs?: number;
-    clientVersion?: string;
-  }>(),
-});
+export const sessionEvents = pgTable(
+  "session_events",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    eventType: text("event_type").notNull(),
+    timestamp: timestamp("timestamp").defaultNow().notNull(),
+    metadata: json("metadata").$type<{
+      reason?: string;
+      reconnectMs?: number;
+      clientVersion?: string;
+    }>(),
+  },
+  (table) => ({
+    idxSessionId: index("idx_session_events_session_id").on(table.sessionId),
+  }),
+);
 
 // ============================================================================
 // Push Notifications Table
