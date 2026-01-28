@@ -28,7 +28,8 @@ jobs:
             cd /opt/pika/pika
             
             # 1. Get latest code
-            git pull origin main
+            git fetch origin main
+            git reset --hard origin/main
             
             # 2. Rebuild and Restart Cloud & Web
             # We don't restart DB (pika-db) to avoid downtime, unless manual intervention needed

@@ -27,6 +27,9 @@ services:
       - DATABASE_URL=postgres://pika:${POSTGRES_PASSWORD:-pika_secure_change_me}@db:5432/pika_prod
       - NODE_ENV=production
       - PORT=3001
+      - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
+      - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
+      - VAPID_SUBJECT=${VAPID_SUBJECT}
     volumes:
       - ./:/app
     ports:
@@ -44,6 +47,7 @@ services:
     environment:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
       - NEXT_PUBLIC_CLOUD_API_URL=https://api.pika.stream
+      - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
       - NODE_ENV=production
       - PORT=3000
     volumes:
