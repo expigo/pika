@@ -146,8 +146,6 @@ export async function handleRegisterSession(ctx: WSContext) {
   logger.debug(`🔍 [REGISTER_SESSION] state.djSessionId SET to: ${sessionId}`);
 
   setSession(sessionId, session);
-  // Subscribe DJ to updates (Likes, Reactions, Tempo)
-  rawWs.subscribe("live-session");
 
   logger.info("🎧 DJ going live", {
     djName,
