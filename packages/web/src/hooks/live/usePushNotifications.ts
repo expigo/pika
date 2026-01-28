@@ -97,13 +97,50 @@ export function usePushNotifications() {
 
       logger.info("[Push] Service Worker ready, subscribing via PushManager...");
 
+      // Check for existing subscription
+      let subscription = await registration.pushManager.getSubscription();
       const convertedKey = urlBase64ToUint8Array(vapidKey);
 
-      // Subscribe via Browser PushManager
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: convertedKey,
-      });
+      if (subscription) {
+        // Check if the existing subscription uses a different applicationServerKey
+        const existingKey = subscription.options.applicationServerKey;
+
+        let isKeyMismatch = true;
+        if (existingKey) {
+          // Compare the keys (ArrayBuffer)
+          const newKeyBuffer = convertedKey.buffer;
+          // Simple byte comparison
+          const existingArray = new Uint8Array(existingKey);
+          const newArray = new Uint8Array(newKeyBuffer);
+
+          if (existingArray.length === newArray.length) {
+            isKeyMismatch = false;
+            for (let i = 0; i < existingArray.length; i++) {
+              if (existingArray[i] !== newArray[i]) {
+                isKeyMismatch = true;
+                break;
+              }
+            }
+          }
+        }
+
+        if (isKeyMismatch) {
+          logger.info("[Push] VAPID key rotation detected. Unsubscribing old subscription.");
+          await subscription.unsubscribe();
+          subscription = null; // forcing new subscription below
+        } else {
+          logger.info("[Push] Existing subscription is valid.");
+        }
+      }
+
+      // If no subscription existed or we just unsubscribed due to rotation
+      if (!subscription) {
+        logger.info("[Push] Creating new subscription...");
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedKey,
+        });
+      }
 
       // Send to Backend (Cloud Server)
       const response = await fetch(`${getApiBaseUrl()}/api/push/subscribe`, {
@@ -133,7 +170,9 @@ export function usePushNotifications() {
       });
 
       if (!response.ok) {
-        throw new Error("Backend registration failed");
+        const errorText = await response.text();
+        logger.error("[Push] Backend rejection:", errorText);
+        throw new Error(`Backend registration failed: ${errorText}`);
       }
 
       setPermissionState("granted");
