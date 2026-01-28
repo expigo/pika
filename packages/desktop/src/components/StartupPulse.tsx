@@ -55,15 +55,6 @@ export function StartupPulse() {
           }}
         />
       ))}
-      <style>{`
-        @keyframes audioTransient {
-            0% { transform: scaleY(0.1); opacity: 0; }
-            20% { opacity: 1; }
-            50% { transform: scaleY(var(--max-scale)); opacity: 1; filter: drop-shadow(0 0 12px rgba(192,132,252,0.6)); }
-            80% { opacity: 1; }
-            100% { transform: scaleY(0.1); opacity: 0.5; }
-        }
-      `}</style>
     </div>
   );
 }
