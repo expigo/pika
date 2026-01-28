@@ -138,31 +138,30 @@ export function LivePerformanceMode({
 
   // Cannon burst effect (one-shot from bottom)
   const fireCannon = useCallback(() => {
-    console.log("🚀 CANNON MODE!");
-    const count = 200;
+    const count = 300; // Increased to 300 for maximum impact
     const defaults = {
-      origin: { y: 1 }, // Bottom of screen
-      startVelocity: 45,
-      spread: 100,
-      ticks: 100,
-      zIndex: 99999,
+      origin: { y: 1 },
+      startVelocity: 55, // Higher velocity
+      spread: 120, // Wider spread
+      ticks: 200, // Stay on screen longer
+      zIndex: 100000,
     };
 
     // Left cannon
     confetti({
       ...defaults,
       particleCount: count,
-      origin: { x: 0.1, y: 1 },
+      origin: { x: 0, y: 1 },
       angle: 60,
-      colors: ["#a78bfa", "#f472b6", "#fbbf24", "#22c55e"],
+      colors: ["#a78bfa", "#f472b6", "#fbbf24", "#22c55e", "#ffffff"],
     });
     // Right cannon
     confetti({
       ...defaults,
       particleCount: count,
-      origin: { x: 0.9, y: 1 },
+      origin: { x: 1, y: 1 },
       angle: 120,
-      colors: ["#a78bfa", "#f472b6", "#fbbf24", "#22c55e"],
+      colors: ["#a78bfa", "#f472b6", "#fbbf24", "#22c55e", "#ffffff"],
     });
   }, []);
 
@@ -183,10 +182,7 @@ export function LivePerformanceMode({
     const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
     const frame = () => {
-      // 🛡️ Issue 25 Fix: Visibility check to pause animation
       if (document.hidden) {
-        // If hidden, just check if we should stop purely based on time,
-        // but don't render. Next visible frame will resume or stop.
         if (Date.now() > confettiEndTimeRef.current) return;
         requestAnimationFrame(frame);
         return;
@@ -198,21 +194,22 @@ export function LivePerformanceMode({
         return;
       }
 
-      const particleCount = 40 * (timeLeft / rainDuration);
+      // SUBTLE: Reduced particle base from 40 to 15 for a truly "gentle" feel
+      const particleCount = 15 * (timeLeft / rainDuration);
 
-      // Throttling: only fire if particleCount > 0 to avoid wasted calls
       if (particleCount > 0.5) {
         confetti({
           ...defaults,
           particleCount,
-          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
-          colors: ["#a78bfa", "#f472b6", "#fbbf24"],
+          origin: { x: randomInRange(0.1, 0.4), y: Math.random() - 0.2 },
+          // Subsumed palette: softer colors
+          colors: ["#a78bfa", "#f472b6"],
         });
         confetti({
           ...defaults,
           particleCount,
-          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
-          colors: ["#a78bfa", "#f472b6", "#fbbf24"],
+          origin: { x: randomInRange(0.6, 0.9), y: Math.random() - 0.2 },
+          colors: ["#a78bfa", "#f472b6"],
         });
       }
 
