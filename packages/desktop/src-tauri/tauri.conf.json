@@ -22,7 +22,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' http://localhost:* ws://localhost:* https://api.pika.stream wss://api.pika.stream https://staging-api.pika.stream wss://staging-api.pika.stream; img-src 'self' data: blob:; font-src 'self' data:"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; connect-src 'self' ipc://localhost http://localhost:* http://127.0.0.1:* ws://localhost:* https://api.pika.stream wss://api.pika.stream https://staging-api.pika.stream wss://staging-api.pika.stream; img-src 'self' data: blob:; font-src 'self' data: https://fonts.gstatic.com"
     }
   },
   "bundle": {

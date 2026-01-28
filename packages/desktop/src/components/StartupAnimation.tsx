@@ -58,7 +58,8 @@ export function StartupAnimation() {
   return (
     <div
       id="startup-animation-overlay"
-      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950 transition-opacity duration-500 ease-out-expo ${
+      style={{ zIndex: 9999999 }} // Force extreme Priority
+      className={`fixed inset-0 flex items-center justify-center bg-slate-950 transition-opacity duration-500 ease-out-expo ${
         phase === "exit" ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
     >
