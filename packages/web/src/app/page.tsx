@@ -143,7 +143,7 @@ export default function LandingPage() {
           </div>
 
           <h1 className="text-5xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[1.1] mb-12 drop-shadow-[0_0_40px_rgba(244,63_94,0.15)]">
-            <span className="text-white">One Floor.</span>
+            <span className="text-white">One Dance Floor.</span>
             <br className="hidden sm:block" />
             <span className="relative inline-block group/heartbeat">
               <span className="bg-gradient-to-r from-rose-500 via-purple-400 to-indigo-500 text-transparent bg-clip-text italic animate-[heartbeat-glow_3s_ease-in-out_infinite]">
