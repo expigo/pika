@@ -1,10 +1,77 @@
 "use client";
 
-import { Apple, ArrowLeft, Download, Headphones, History, Monitor, Zap } from "lucide-react";
+import {
+  Apple,
+  ArrowLeft,
+  Download,
+  Headphones,
+  History,
+  Loader2,
+  Monitor,
+  Zap,
+} from "lucide-react";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
 
+interface GithubAsset {
+  name: string;
+  browser_download_url: string;
+}
+
+interface GithubRelease {
+  tag_name: string;
+  html_url: string;
+  assets: GithubAsset[];
+}
+
 export default function DownloadPage() {
+  const [latestRelease, setLatestRelease] = useState<GithubRelease | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [macDownloadUrl, setMacDownloadUrl] = useState<string | null>(null);
+  const [winDownloadUrl, setWinDownloadUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchLatestRelease() {
+      try {
+        // Fetch LIST of releases (including pre-releases) instead of just "latest" (stable only)
+        const res = await fetch("https://api.github.com/repos/expigo/pika/releases?per_page=1");
+        if (!res.ok) throw new Error("Failed to fetch GitHub release");
+
+        const data: GithubRelease[] = await res.json();
+        const release = data[0]; // Get the most recent one (beta or stable)
+
+        if (release) {
+          setLatestRelease(release);
+
+          // Smart Asset Detection
+          const macAsset = release.assets.find(
+            (a) =>
+              a.name.endsWith(".dmg") ||
+              (a.name.endsWith(".app.tar.gz") && !a.name.includes("updater")),
+          );
+          const winAsset = release.assets.find(
+            (a) => a.name.endsWith(".exe") || a.name.endsWith(".msi"),
+          );
+
+          if (macAsset) setMacDownloadUrl(macAsset.browser_download_url);
+          if (winAsset) setWinDownloadUrl(winAsset.browser_download_url);
+        }
+      } catch (error) {
+        console.error("Release fetch failed:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchLatestRelease();
+  }, []);
+
+  // Fallback: If no direct asset found, link to the release page
+  const finalMacUrl =
+    macDownloadUrl || latestRelease?.html_url || "https://github.com/expigo/pika/releases";
+  // Windows stays disabled unless we explicitly found an .exe
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-purple-500/30">
       {/* Navigation */}
@@ -53,15 +120,30 @@ export default function DownloadPage() {
               Compatible with Apple Silicon (M1/M2/M3) and Intel Macs. Requires VirtualDJ 2023 or
               later.
             </p>
-            <button
-              disabled
-              className="w-full bg-white text-slate-900 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 active:scale-95 transition-all shadow-2xl flex items-center justify-center gap-3 mb-4"
+
+            <a
+              href={isLoading ? "#" : finalMacUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`w-full bg-white text-slate-900 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 active:scale-95 transition-all shadow-2xl flex items-center justify-center gap-3 mb-4 ${
+                isLoading ? "opacity-80 cursor-wait" : ""
+              }`}
             >
-              Download v0.2.1
-              <Download className="w-4 h-4" />
-            </button>
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Checking Latest...
+                </>
+              ) : (
+                <>
+                  Download {latestRelease?.tag_name || "Latest"}
+                  <Download className="w-4 h-4" />
+                </>
+              )}
+            </a>
             <span className="text-[9px] font-black text-slate-600 uppercase tracking-widest leading-tight">
-              Beta Access Only &mdash; Sign in to Activate
+              {latestRelease ? `Release: ${latestRelease.tag_name}` : "Beta Access Only"} &mdash;
+              GitHub Secure
             </span>
           </ProCard>
 
@@ -78,12 +160,25 @@ export default function DownloadPage() {
             <p className="text-slate-600 text-sm font-medium mb-12 leading-relaxed">
               We are currently optimizing the Windows engine for VirtualDJ and Serato.
             </p>
-            <button
-              disabled
-              className="w-full bg-slate-800 text-slate-600 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest cursor-not-allowed border border-white/5"
-            >
-              Coming Soon
-            </button>
+
+            {winDownloadUrl ? (
+              <a
+                href={winDownloadUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full bg-slate-800 text-white border border-white/10 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-700 active:scale-95 transition-all shadow-xl flex items-center justify-center gap-3 cursor-pointer"
+              >
+                Download {latestRelease?.tag_name}
+                <Download className="w-4 h-4" />
+              </a>
+            ) : (
+              <button
+                disabled
+                className="w-full bg-slate-800 text-slate-600 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest cursor-not-allowed border border-white/5"
+              >
+                Coming Soon
+              </button>
+            )}
           </ProCard>
         </div>
 
