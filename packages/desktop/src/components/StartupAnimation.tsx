@@ -3,24 +3,19 @@ import { StartupPulse } from "./StartupPulse";
 
 export function StartupAnimation() {
   const [visible, setVisible] = useState(() => {
-    // Check constraints synchronously to prevent "blink"
     if (typeof window !== "undefined") {
       try {
         const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
-        const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-        console.info("[Startup] Checking constraints:", { hasSeenIntro, prefersReducedMotion });
+        // DEBUG: Log explicitly as strings for easier reading in screenshots
+        console.info(`[Startup] hasSeenIntro: ${hasSeenIntro}`);
 
-        if (prefersReducedMotion) {
-          console.warn("[Startup] Skipping due to prefers-reduced-motion");
-          return false;
-        }
         if (hasSeenIntro) {
-          console.info("[Startup] Skipping - intro already shown in this session");
+          console.info("[Startup] Skipping - intro already shown");
           return false;
         }
       } catch (e) {
-        console.warn("[Startup] Storage access restrictions prevented checks", e);
+        console.warn("[Startup] Storage error", e);
         return true;
       }
     }
@@ -32,9 +27,8 @@ export function StartupAnimation() {
   useEffect(() => {
     if (!visible) return;
 
-    console.log("[Startup] Initiating intro sequence...");
+    console.log("[Startup] !!! VISUAL SEQUENCE INITIATED !!!");
 
-    // Mark as shown AFTER the first successful mount
     try {
       sessionStorage.setItem("pika_intro_shown", "true");
     } catch (_) {}
@@ -53,13 +47,16 @@ export function StartupAnimation() {
     };
   }, [visible]);
 
-  if (!visible) return null;
+  if (!visible) {
+    console.log("[Startup] Component is NOT VISIBLE (returning null)");
+    return null;
+  }
 
   return (
     <div
       id="startup-animation-overlay"
-      style={{ zIndex: 9999999 }} // Force extreme Priority
-      className={`fixed inset-0 flex items-center justify-center bg-slate-950 transition-opacity duration-500 ease-out-expo ${
+      style={{ zIndex: 9999999, background: "#020617" }}
+      className={`fixed inset-0 flex items-center justify-center transition-opacity duration-500 ease-out-expo ${
         phase === "exit" ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
     >
