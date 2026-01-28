@@ -4,6 +4,7 @@
  */
 
 import {
+  check,
   index,
   integer,
   json,
@@ -13,6 +14,7 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 // ============================================================================
 // DJ Users & Authentication
@@ -65,7 +67,9 @@ export const sessions = pgTable(
   (table) => ({
     idxDjUserId: index("idx_sessions_dj_user_id").on(table.djUserId),
     // Composite index for fast history lookup ordered by time
-    idxDjHistory: index("idx_sessions_dj_history").on(table.djUserId, table.startedAt),
+    idxDjHistory: index("idx_sessions_dj_history").on(table.djUserId, table.startedAt.desc()),
+    // Partial index for ultra-fast active session lookups (Dashboard/Live query)
+    idxSessionsActive: index("idx_sessions_active").on(table.endedAt).where(sql`ended_at IS NULL`),
   }),
 );
 
@@ -101,6 +105,28 @@ export const playedTracks = pgTable(
   (table) => ({
     // Fast lookup for history and "Similar Tracks" logic
     idxArtistTitle: index("idx_played_tracks_artist_title").on(table.artist, table.title),
+    // Composite index for session history ordered by time (descending)
+    idxSessionPlayedAt: index("idx_played_tracks_session_played_at").on(
+      table.sessionId,
+      table.playedAt.desc(),
+    ),
+    // Data Integrity: Metric Ranges (0-100)
+    chkEnergy: check("chk_energy_range", sql`energy IS NULL OR (energy >= 0 AND energy <= 100)`),
+    chkDanceability: check(
+      "chk_danceability_range",
+      sql`danceability IS NULL OR (danceability >= 0 AND danceability <= 100)`,
+    ),
+    chkBrightness: check(
+      "chk_brightness_range",
+      sql`brightness IS NULL OR (brightness >= 0 AND brightness <= 100)`,
+    ),
+    chkAcousticness: check(
+      "chk_acousticness_range",
+      sql`acousticness IS NULL OR (acousticness >= 0 AND acousticness <= 100)`,
+    ),
+    chkGroove: check("chk_groove_range", sql`groove IS NULL OR (groove >= 0 AND groove <= 100)`),
+    // Data Integrity: BPM Range (20-300)
+    chkBpm: check("chk_bpm_range", sql`bpm IS NULL OR (bpm >= 20 AND bpm <= 300)`),
   }),
 );
 
@@ -156,6 +182,10 @@ export const tempoVotes = pgTable(
   },
   (table) => ({
     idxSessionId: index("idx_tempo_votes_session_id").on(table.sessionId),
+    // Data Integrity: Positive counts
+    chkSlowerPositive: check("chk_slower_count_positive", sql`slower_count >= 0`),
+    chkPerfectPositive: check("chk_perfect_count_positive", sql`perfect_count >= 0`),
+    chkFasterPositive: check("chk_faster_count_positive", sql`faster_count >= 0`),
   }),
 );
 
@@ -210,6 +240,8 @@ export const pollVotes = pgTable(
     // Prevents double-voting
     uniqueVote: unique().on(table.pollId, table.clientId),
     idxPollId: index("idx_poll_votes_poll_id").on(table.pollId),
+    // Data Integrity: Non-negative option reference
+    chkOptionIndexPositive: check("chk_option_index_positive", sql`option_index >= 0`),
   }),
 );
 
