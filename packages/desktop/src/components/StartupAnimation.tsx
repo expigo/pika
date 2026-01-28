@@ -6,12 +6,7 @@ export function StartupAnimation() {
     if (typeof window !== "undefined") {
       try {
         const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
-        console.info(`[Startup] hasSeenIntro: ${hasSeenIntro}`);
-
-        if (hasSeenIntro) {
-          console.info("[Startup] Skipping - intro already shown");
-          return false;
-        }
+        if (hasSeenIntro) return false;
       } catch (e) {
         return true;
       }
@@ -24,19 +19,17 @@ export function StartupAnimation() {
   useEffect(() => {
     if (!visible) return;
 
-    console.log("[Startup] !!! VISUAL SEQUENCE INITIATED !!!");
-
     try {
       sessionStorage.setItem("pika_intro_shown", "true");
     } catch (_) {}
 
     const exitTimer = setTimeout(() => {
       setPhase("exit");
-    }, 2500); // 2.5s display
+    }, 2500);
 
     const removeTimer = setTimeout(() => {
       setVisible(false);
-    }, 3000); // 3s total
+    }, 3000);
 
     return () => {
       clearTimeout(exitTimer);
@@ -55,7 +48,7 @@ export function StartupAnimation() {
     >
       <div
         className={`transform transition-all duration-700 ease-out ${
-          phase === "exit" ? "scale-125 opacity-0" : "scale-100 opacity-100"
+          phase === "exit" ? "scale-110 opacity-0" : "scale-100 opacity-100"
         }`}
       >
         <StartupPulse />
