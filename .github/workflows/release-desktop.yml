@@ -69,6 +69,8 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          VITE_ENV: ${{ github.ref_type == 'tag' && 'production' || 'staging' }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Pika! Desktop ${{ github.ref_name }}"
