@@ -30,6 +30,8 @@ services:
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}
       - VAPID_PRIVATE_KEY=${VAPID_PRIVATE_KEY}
       - VAPID_SUBJECT=${VAPID_SUBJECT}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - SENTRY_ENVIRONMENT=staging
     volumes:
       - ./:/app
     ports:
@@ -48,6 +50,11 @@ services:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://staging-api.pika.stream/ws
       - NEXT_PUBLIC_CLOUD_API_URL=https://staging-api.pika.stream
       - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
+      - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
+      - SENTRY_DSN=${SENTRY_DSN}
+      - SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
+      - SENTRY_ENVIRONMENT=staging
+      - NEXT_PUBLIC_ENV=staging
       - NODE_ENV=production
       - PORT=4000
     volumes:
