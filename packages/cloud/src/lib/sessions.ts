@@ -12,9 +12,9 @@
  * FUTURE:
  * Interface allows swapping Map for Redis without handler changes.
  */
-import { logger } from "@pika/shared";
 
 import type { TrackInfo } from "@pika/shared";
+import { logger } from "@pika/shared";
 
 // ============================================================================
 // Types

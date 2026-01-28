@@ -15,46 +15,49 @@
  */
 
 import {
+  BroadcastTrackSchema,
+  CancelAnnouncementSchema,
+  EndSessionSchema,
+  logger,
   PIKA_VERSION,
   RegisterSessionSchema,
-  BroadcastTrackSchema,
-  TrackStoppedSchema,
-  EndSessionSchema,
   SendAnnouncementSchema,
-  CancelAnnouncementSchema,
   TIMEOUTS,
-  logger,
+  TrackStoppedSchema,
 } from "@pika/shared";
-import {
-  setSession,
-  getSession,
-  deleteSession,
-  updateSessionTrack,
-  clearSessionTrack,
-  setSessionAnnouncement,
-  type LiveSession,
-} from "../lib/sessions";
-import { persistSession, endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
-import { persistTrack, persistTempoVotes } from "../lib/persistence/tracks";
-import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
-import { logSessionEvent, sendAck, sendNack, parseMessage } from "../lib/protocol";
-import { validateToken } from "../lib/auth";
-import { checkBackpressure } from "./utility";
-import { checkAndRecordNonce } from "../lib/nonces";
-import { clearLikesForSession } from "../lib/likes";
-import { clearListeners } from "../lib/listeners";
-import { cleanupSessionQueue } from "../lib/persistence/queue";
-import { clearLastPersistedTrackKey } from "../lib/persistence/tracks";
-import type { WSContext } from "./ws-context";
-import { getSessionCount } from "../lib/sessions";
-import { PushService } from "../services/push";
+import { desc, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
-import { isNull, desc } from "drizzle-orm";
+import { validateToken } from "../lib/auth";
+import { clearLikesForSession } from "../lib/likes";
+import { clearListeners } from "../lib/listeners";
+import { checkAndRecordNonce } from "../lib/nonces";
+import { cleanupSessionQueue } from "../lib/persistence/queue";
+import { endSessionInDb, persistedSessions, persistSession } from "../lib/persistence/sessions";
+import {
+  clearLastPersistedTrackKey,
+  persistTempoVotes,
+  persistTrack,
+} from "../lib/persistence/tracks";
+import { logSessionEvent, parseMessage, sendAck, sendNack } from "../lib/protocol";
+import {
+  clearSessionTrack,
+  deleteSession,
+  getSession,
+  getSessionCount,
+  type LiveSession,
+  setSession,
+  setSessionAnnouncement,
+  updateSessionTrack,
+} from "../lib/sessions";
+import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
+import { PushService } from "../services/push";
+import { checkBackpressure } from "./utility";
+import type { WSContext } from "./ws-context";
 
 // 🛡️ Rate Limiting State
 // Max 1000 concurrent sessions to prevent memory exhaustion (M5)
-const MAX_CONCURRENT_SESSIONS = Number(process.env["MAX_SESSIONS"] ?? 1000);
+const MAX_CONCURRENT_SESSIONS = Number(process.env.MAX_SESSIONS ?? 1000);
 export const lastBroadcastTime = new Map<string, number>();
 
 /**

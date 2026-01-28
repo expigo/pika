@@ -73,7 +73,7 @@ export function recordTempoVote(
   if (!tempoVotes.has(sessionId)) {
     tempoVotes.set(sessionId, new Map());
   }
-  tempoVotes.get(sessionId)!.set(clientId, {
+  tempoVotes.get(sessionId)?.set(clientId, {
     preference,
     timestamp: Date.now(),
   });

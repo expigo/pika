@@ -43,7 +43,7 @@ export function RegisterPWA() {
         // 4. Stricter Reload Guard: Don't flip out. Wait at least 30s between force-reloads.
         const lastReload = sessionStorage.getItem("pika_last_chunk_reload");
         const now = Date.now();
-        if (!lastReload || now - Number.parseInt(lastReload) > 30000) {
+        if (!lastReload || now - Number.parseInt(lastReload, 10) > 30000) {
           sessionStorage.setItem("pika_last_chunk_reload", now.toString());
           // Best Practice: Explicitly request permission first
           setTimeout(() => window.location.reload(), 500);

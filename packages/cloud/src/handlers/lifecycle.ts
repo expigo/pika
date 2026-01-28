@@ -8,21 +8,20 @@
  * @created 2026-01-21
  */
 
-import type { ServerWebSocket } from "bun";
 import { logger } from "@pika/shared";
-import { getSession, deleteSession } from "../lib/sessions";
-import { removeListener, getListenerCount, clearListeners } from "../lib/listeners";
-import { endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
-import { persistTempoVotes } from "../lib/persistence/tracks";
-import { lastBroadcastTime } from "./dj";
-import { clearSessionPolls } from "../lib/polls";
-import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
+import type { ServerWebSocket } from "bun";
 import { clearLikesForSession } from "../lib/likes";
-import { logSessionEvent } from "../lib/protocol";
-import type { WSConnectionState } from "./ws-context";
-import { checkBackpressure } from "./utility";
+import { clearListeners, getListenerCount, removeListener } from "../lib/listeners";
 import { cleanupSessionQueue } from "../lib/persistence/queue";
-import { clearLastPersistedTrackKey } from "../lib/persistence/tracks";
+import { endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
+import { clearLastPersistedTrackKey, persistTempoVotes } from "../lib/persistence/tracks";
+import { clearSessionPolls } from "../lib/polls";
+import { logSessionEvent } from "../lib/protocol";
+import { deleteSession, getSession } from "../lib/sessions";
+import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
+import { lastBroadcastTime } from "./dj";
+import { checkBackpressure } from "./utility";
+import type { WSConnectionState } from "./ws-context";
 
 /**
  * Handle new WebSocket connection

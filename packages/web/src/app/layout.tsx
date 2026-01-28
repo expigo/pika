@@ -20,19 +20,19 @@ logger.setReporter((message, error, context) => {
   }
 });
 
-const geistSans = Geist({
+const _geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
+const _geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
 
+import { Toaster } from "sonner";
 import { InstallPrompt } from "@/components/pwa/InstallPrompt";
 import { RegisterPWA } from "@/components/pwa/RegisterPWA";
-import { Toaster } from "sonner";
 // ... existing imports
 
 export const viewport: Viewport = {

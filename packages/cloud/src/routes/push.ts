@@ -1,12 +1,12 @@
 import { zValidator } from "@hono/zod-validator";
 import { logger } from "@pika/shared";
+import { desc, eq, isNull } from "drizzle-orm";
 import { Hono } from "hono";
+import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
-import { pushSubscriptions, djTokens } from "../db/schema";
+import { djTokens, pushSubscriptions } from "../db/schema";
 import { PushService } from "../services/push";
-import { eq, isNull, desc } from "drizzle-orm";
-import { rateLimiter } from "hono-rate-limiter";
 
 export const push = new Hono();
 
@@ -50,7 +50,7 @@ push.post("/subscribe", zValidator("json", SubscriptionSchema), async (c) => {
         },
       });
 
-    logger.info("[Push] Registered subscription", { endpoint: endpoint.substring(0, 30) + "..." });
+    logger.info("[Push] Registered subscription", { endpoint: `${endpoint.substring(0, 30)}...` });
     return c.json({ success: true });
   } catch (e) {
     logger.error("[Push] Registration failed", e);

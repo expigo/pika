@@ -5,43 +5,40 @@
  * log them, and send NACK responses to clients - preventing connection crashes.
  */
 
-import { sendNack } from "../lib/protocol";
-import type { WSContext, MessageHandler } from "./ws-context";
 import { logger } from "@pika/shared";
-
-// Raw handler imports (private, unwrapped)
+import { sendNack } from "../lib/protocol";
 import {
-  handleRegisterSession as _handleRegisterSession,
-  handleBroadcastTrack as _handleBroadcastTrack,
-  handleTrackStopped as _handleTrackStopped,
-  handleEndSession as _handleEndSession,
-  handleSendAnnouncement as _handleSendAnnouncement,
-  handleCancelAnnouncement as _handleCancelAnnouncement,
-  handleBroadcastMetadata as _handleBroadcastMetadata,
-} from "./dj";
-
-import {
-  handleSendLike as _handleSendLike,
-  handleSendBulkLike as _handleSendBulkLike,
   handleRemoveLike as _handleRemoveLike,
+  handleSendBulkLike as _handleSendBulkLike,
+  handleSendLike as _handleSendLike,
   handleSendReaction as _handleSendReaction,
   handleSendTempoRequest as _handleSendTempoRequest,
 } from "./dancer";
 
-import { handleSubscribe as _handleSubscribe } from "./subscriber";
-
+// Raw handler imports (private, unwrapped)
 import {
-  handleStartPoll as _handleStartPoll,
-  handleEndPoll as _handleEndPoll,
+  handleBroadcastMetadata as _handleBroadcastMetadata,
+  handleBroadcastTrack as _handleBroadcastTrack,
+  handleCancelAnnouncement as _handleCancelAnnouncement,
+  handleEndSession as _handleEndSession,
+  handleRegisterSession as _handleRegisterSession,
+  handleSendAnnouncement as _handleSendAnnouncement,
+  handleTrackStopped as _handleTrackStopped,
+} from "./dj";
+import {
   handleCancelPoll as _handleCancelPoll,
+  handleEndPoll as _handleEndPoll,
+  handleStartPoll as _handleStartPoll,
   handleVoteOnPoll as _handleVoteOnPoll,
 } from "./poll";
 
+import { handleSubscribe as _handleSubscribe } from "./subscriber";
 import {
-  handlePing as _handlePing,
   handleGetSessions as _handleGetSessions,
+  handlePing as _handlePing,
   handleValidateSession as _handleValidateSession,
 } from "./utility";
+import type { MessageHandler, WSContext } from "./ws-context";
 
 // ============================================================================
 // Safe Handler Wrapper
@@ -109,7 +106,7 @@ export const handlePing = safeHandler(_handlePing);
 export const handleGetSessions = safeHandler(_handleGetSessions);
 export const handleValidateSession = safeHandler(_handleValidateSession);
 
+export { cleanupRateLimits } from "./dj";
+export * from "./lifecycle";
 // Re-export types and lifecycle handlers (no wrapping needed for lifecycle)
 export * from "./ws-context";
-export * from "./lifecycle";
-export { cleanupRateLimits } from "./dj";

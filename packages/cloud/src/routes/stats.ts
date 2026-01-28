@@ -7,11 +7,12 @@
  *
  * Extracted from index.ts for modularity.
  */
-import { Hono } from "hono";
+
+import { logger } from "@pika/shared";
 import { count, desc, eq } from "drizzle-orm";
+import { Hono } from "hono";
 import { db, schema } from "../db";
 import { withCache } from "../lib/cache";
-import { logger } from "@pika/shared";
 
 const stats = new Hono();
 

@@ -14,7 +14,7 @@
  * - index.ts lines 380-412 (logSessionEvent)
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 // ============================================================================
 // MOCK CACHE IMPLEMENTATION (mirrors lib/cache.ts)

@@ -3,7 +3,6 @@
 import {
   Activity,
   ArrowLeft,
-  ChevronRight,
   Globe,
   Heart,
   Music,

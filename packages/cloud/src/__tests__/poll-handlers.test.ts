@@ -12,7 +12,7 @@
  * PRODUCTION LOCATION: packages/cloud/src/index.ts lines 275-378
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 // ============================================================================
 // MOCK POLL STATE (mirrors production patterns)
@@ -124,7 +124,7 @@ describe("Poll State Management", () => {
    * Polls must be stored and retrievable by ID for vote processing.
    */
   test("creates and retrieves poll by ID", () => {
-    const poll = createPoll(1, "session-1", "Faster or slower?", ["Faster", "Slower", "Perfect"]);
+    const _poll = createPoll(1, "session-1", "Faster or slower?", ["Faster", "Slower", "Perfect"]);
 
     const retrieved = getActivePoll(1);
     expect(retrieved).toBeDefined();

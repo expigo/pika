@@ -158,7 +158,7 @@ describe("Web Hooks - Message Router", () => {
     const handlers: Record<string, (msg: any) => void> = {};
     let receivedType = "";
 
-    handlers["NOW_PLAYING"] = (msg) => {
+    handlers.NOW_PLAYING = (msg) => {
       receivedType = msg.type;
     };
 
@@ -469,7 +469,7 @@ describe("Web Hooks - Poll State Logic", () => {
    * PRODUCTION LOCATION: usePollState.ts line 161-187
    */
   test("vote rejection provides corrected vote counts", () => {
-    const localVotes = [4, 6, 2]; // Optimistically updated
+    const _localVotes = [4, 6, 2]; // Optimistically updated
     const serverVotes = [3, 5, 2]; // Server's authoritative count
 
     // Rollback to server state
@@ -704,10 +704,10 @@ describe("Web Hooks - Track History Logic", () => {
 // ============================================================================
 
 describe("Web Hooks - Edge Cases: Error Handling", () => {
-  let mockStorage: MockStorage;
+  let _mockStorage: MockStorage;
 
   beforeEach(() => {
-    mockStorage = new MockStorage();
+    _mockStorage = new MockStorage();
   });
 
   /**
@@ -947,7 +947,7 @@ describe("Web Hooks - Edge Cases: State Consistency", () => {
 });
 
 // Helper to get stored likes (mock implementation)
-function getStoredLikes(sessionId: string): Set<string> {
+function getStoredLikes(_sessionId: string): Set<string> {
   // This would normally read from localStorage
   return new Set();
 }

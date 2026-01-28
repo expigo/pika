@@ -6,10 +6,11 @@
  *
  * Extracted from index.ts for modularity.
  */
-import { Hono } from "hono";
-import { desc, eq, inArray } from "drizzle-orm";
-import { db, schema } from "../db";
+
 import { logger } from "@pika/shared";
+import { desc, eq, inArray } from "drizzle-orm";
+import { Hono } from "hono";
+import { db, schema } from "../db";
 
 const client = new Hono();
 
@@ -23,7 +24,7 @@ client.get("/:clientId/likes", async (c) => {
 
   // Validation: client IDs must match client_{uuid} or client_{timestamp}_{random} format
   // We accept both strict UUIDs and the browser-generated generic IDs
-  const clientIdRegex = /^client_[a-zA-Z0-9_\-]+$/i;
+  const clientIdRegex = /^client_[a-zA-Z0-9_-]+$/i;
 
   if (!clientId || !clientIdRegex.test(clientId)) {
     return c.json({ error: "Invalid client ID format" }, 400);

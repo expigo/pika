@@ -14,18 +14,18 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { memo, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
+import { usePushNotifications } from "@/hooks/live";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
+import { NotificationToggle } from "./pwa/NotificationToggle";
+import { OfflineStatus } from "./pwa/OfflineStatus";
 import { SocialSignalsLayer } from "./SocialSignalsLayer";
 import { StaleDataBanner } from "./StaleDataBanner";
 import { ProCard } from "./ui/ProCard";
-import { NotificationToggle } from "./pwa/NotificationToggle";
-import { OfflineStatus } from "./pwa/OfflineStatus";
-import { usePushNotifications } from "@/hooks/live";
 
 // Dynamic import for QR code (only loaded when sharing)
 const QRCodeSVG = dynamic(() => import("qrcode.react").then((m) => m.QRCodeSVG), {

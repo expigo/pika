@@ -4,10 +4,10 @@
  * Helper functions for DJ authentication
  */
 
+import { logger } from "@pika/shared";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
 import * as schema from "../db/schema";
-import { logger } from "@pika/shared";
 
 /**
  * Generate secure random token

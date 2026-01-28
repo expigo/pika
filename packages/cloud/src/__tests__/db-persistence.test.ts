@@ -18,7 +18,7 @@
  * - endSessionInDb (line 670)
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 // ============================================================================
 // MOCK DB STATE
@@ -108,7 +108,7 @@ async function persistSession(
     persistedSessions.add(sessionId);
     operationLog.push(`session:${sessionId}:created`);
     return true;
-  } catch (e) {
+  } catch (_e) {
     operationLog.push(`session:${sessionId}:error`);
     return false;
   }

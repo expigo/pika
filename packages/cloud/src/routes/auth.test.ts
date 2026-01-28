@@ -4,7 +4,7 @@
  * Tests auth endpoint validation without hitting actual database.
  * Uses Bun's built-in test runner.
  */
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
 
 // Type for API responses

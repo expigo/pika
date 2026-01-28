@@ -13,7 +13,7 @@
  * 4. waitForSession() - Event-based session coordination
  */
 
-import { describe, test, expect, beforeEach, afterEach, mock } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 import { z } from "zod";
 
 // ============================================================================
@@ -21,7 +21,7 @@ import { z } from "zod";
 // ============================================================================
 
 // Import the parseMessage helper
-import { parseMessage, sendNack } from "../lib/protocol";
+import { parseMessage } from "../lib/protocol";
 
 describe("parseMessage - Type-Safe Validation", () => {
   // Mock WebSocket for testing
@@ -139,7 +139,7 @@ describe("parseMessage - Type-Safe Validation", () => {
 // ============================================================================
 
 import { safeHandler } from "../handlers/index";
-import type { WSContext, MessageHandler } from "../handlers/ws-context";
+import type { MessageHandler, WSContext } from "../handlers/ws-context";
 
 describe("safeHandler - Error Wrapper", () => {
   // Create a minimal mock WSContext
@@ -251,14 +251,7 @@ describe("safeHandler - Error Wrapper", () => {
 // 3. Poll Timer Cleanup Tests
 // ============================================================================
 
-import {
-  createPoll,
-  endPoll,
-  setPollTimer,
-  cancelPollTimer,
-  getActivePoll,
-  clearAllPolls,
-} from "../lib/polls";
+import { cancelPollTimer, clearAllPolls, createPoll, endPoll, setPollTimer } from "../lib/polls";
 
 describe("Poll Timer Cleanup", () => {
   beforeEach(() => {
@@ -377,7 +370,7 @@ describe("Poll Timer Cleanup", () => {
 // 4. waitForSession() Tests
 // ============================================================================
 
-import { waitForSession, persistSession, persistedSessions } from "../lib/persistence/sessions";
+import { persistedSessions, persistSession, waitForSession } from "../lib/persistence/sessions";
 
 describe("waitForSession - Event-Based Coordination", () => {
   beforeEach(() => {

@@ -10,9 +10,9 @@
  * Includes event-based coordination for dependent operations (tracks, polls).
  */
 
+import { logger } from "@pika/shared";
 import { eq } from "drizzle-orm";
 import { db, schema } from "../../db";
-import { logger } from "@pika/shared";
 
 // ============================================================================
 // State (shared with handlers during migration)
@@ -46,7 +46,7 @@ export async function waitForSession(sessionId: string, timeoutMs = 4000): Promi
     if (!sessionWaiters.has(sessionId)) {
       sessionWaiters.set(sessionId, []);
     }
-    sessionWaiters.get(sessionId)!.push(resolve);
+    sessionWaiters.get(sessionId)?.push(resolve);
 
     // Set timeout
     setTimeout(() => {

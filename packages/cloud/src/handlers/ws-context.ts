@@ -9,8 +9,8 @@
  * @created 2026-01-21
  */
 
-import type { ServerWebSocket } from "bun";
 import type { WebSocketMessage } from "@pika/shared";
+import type { ServerWebSocket } from "bun";
 
 /**
  * Represents the mutable connection state for a WebSocket client.

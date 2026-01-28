@@ -112,7 +112,7 @@ export function removeListener(sessionId: string, clientId: string): boolean {
     if (!staleCandidates.has(sessionId)) {
       staleCandidates.set(sessionId, new Set());
     }
-    staleCandidates.get(sessionId)!.add(clientId);
+    staleCandidates.get(sessionId)?.add(clientId);
   }
 
   // M8: Invalidate cache

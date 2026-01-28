@@ -1,8 +1,8 @@
 "use client";
 
-import { useOnlineStatus } from "../../hooks/useOnlineStatus";
-import { WifiOff, Cloud } from "lucide-react";
+import { Cloud, WifiOff } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 
 interface OfflineStatusProps {
   pendingCount: number;

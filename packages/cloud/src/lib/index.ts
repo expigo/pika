@@ -4,39 +4,36 @@
  * Central export for all utility modules
  */
 
-// Listener tracking
-export {
-  getListenerCount,
-  addListener,
-  removeListener,
-  clearListeners,
-  cleanupStaleListeners,
-} from "./listeners";
-
-// Tempo feedback
-export {
-  getTempoFeedback,
-  recordTempoVote,
-  clearTempoVotes,
-  type TempoVote,
-} from "./tempo";
-
-// Cache utilities
-export {
-  withCache,
-  invalidateCache,
-  clearCache,
-  cachedListenerCounts,
-} from "./cache";
-
-// Protocol helpers
-export { sendAck, sendNack } from "./protocol";
-
 // Auth utilities
 export {
   generateToken,
   hashPassword,
   hashToken,
-  verifyPassword,
   validateToken,
+  verifyPassword,
 } from "./auth";
+// Cache utilities
+export {
+  cachedListenerCounts,
+  clearCache,
+  invalidateCache,
+  withCache,
+} from "./cache";
+// Listener tracking
+export {
+  addListener,
+  cleanupStaleListeners,
+  clearListeners,
+  getListenerCount,
+  removeListener,
+} from "./listeners";
+
+// Protocol helpers
+export { sendAck, sendNack } from "./protocol";
+// Tempo feedback
+export {
+  clearTempoVotes,
+  getTempoFeedback,
+  recordTempoVote,
+  type TempoVote,
+} from "./tempo";

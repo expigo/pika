@@ -172,8 +172,8 @@ export function getHarmonicCompatibility(
   if (camA === camB)
     return { level: "perfect", label: "Perfect Match", score: 100, color: "green" };
 
-  const valA = parseInt(camA);
-  const valB = parseInt(camB);
+  const valA = parseInt(camA, 10);
+  const valB = parseInt(camB, 10);
   const typeA = camA.slice(-1); // 'A' or 'B'
   const typeB = camB.slice(-1);
 
@@ -217,7 +217,7 @@ export function calculateVibeFriction(trackA: TrackInfo, trackB: TrackInfo): num
     const valA = trackA[field] as number | undefined;
     const valB = trackB[field] as number | undefined;
     if (typeof valA === "number" && typeof valB === "number") {
-      sumSq += Math.pow((valA - valB) / 100, 2);
+      sumSq += ((valA - valB) / 100) ** 2;
       count++;
     }
   }

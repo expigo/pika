@@ -27,7 +27,7 @@
  * - This file adds WebSocket handler coverage
  */
 
-import { describe, test, expect, beforeEach, mock } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 // ============================================================================
 // MOCK TYPES & HELPERS
@@ -198,7 +198,7 @@ interface NonceState {
   sessionId: string;
 }
 
-const NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const _NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_NONCES = 10_000;
 
 let seenNonces: Map<string, NonceState>;
@@ -552,7 +552,7 @@ function recordTempoVote(
   if (!tempoVotes.has(sessionId)) {
     tempoVotes.set(sessionId, new Map());
   }
-  tempoVotes.get(sessionId)!.set(clientId, {
+  tempoVotes.get(sessionId)?.set(clientId, {
     preference,
     timestamp: timestamp ?? Date.now(),
   });

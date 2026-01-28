@@ -11,14 +11,15 @@
  *
  * Extracted from index.ts for modularity.
  */
-import { Hono } from "hono";
+
+import { LIMITS, logger } from "@pika/shared";
 import { and, count, desc, eq, isNotNull } from "drizzle-orm";
+import { Hono } from "hono";
 import { db, schema } from "../db";
-import { getAllSessions } from "../lib/sessions";
-import { getListenerCount } from "../lib/listeners";
-import { withCache } from "../lib/cache";
 import { validateToken } from "../lib/auth";
-import { logger, LIMITS } from "@pika/shared";
+import { withCache } from "../lib/cache";
+import { getListenerCount } from "../lib/listeners";
+import { getAllSessions } from "../lib/sessions";
 
 const sessions = new Hono();
 
@@ -375,9 +376,9 @@ sessions.get("/:sessionId/recap", async (c) => {
 
     // Only include polls if authenticated
     if (isAuthenticated) {
-      response["polls"] = pollsWithResults;
-      response["totalPolls"] = pollsWithResults.length;
-      response["totalPollVotes"] = (pollsWithResults as { totalVotes: number }[]).reduce(
+      response.polls = pollsWithResults;
+      response.totalPolls = pollsWithResults.length;
+      response.totalPollVotes = (pollsWithResults as { totalVotes: number }[]).reduce(
         (sum, p) => sum + p.totalVotes,
         0,
       );
@@ -433,13 +434,13 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
 
       // Build update object with only non-null values
       const updateData: Record<string, unknown> = {};
-      if (track.bpm != null) updateData["bpm"] = Math.round(track.bpm);
-      if (track.key != null) updateData["key"] = track.key;
-      if (track.energy != null) updateData["energy"] = Math.round(track.energy);
-      if (track.danceability != null) updateData["danceability"] = Math.round(track.danceability);
-      if (track.brightness != null) updateData["brightness"] = Math.round(track.brightness);
-      if (track.acousticness != null) updateData["acousticness"] = Math.round(track.acousticness);
-      if (track.groove != null) updateData["groove"] = Math.round(track.groove);
+      if (track.bpm != null) updateData.bpm = Math.round(track.bpm);
+      if (track.key != null) updateData.key = track.key;
+      if (track.energy != null) updateData.energy = Math.round(track.energy);
+      if (track.danceability != null) updateData.danceability = Math.round(track.danceability);
+      if (track.brightness != null) updateData.brightness = Math.round(track.brightness);
+      if (track.acousticness != null) updateData.acousticness = Math.round(track.acousticness);
+      if (track.groove != null) updateData.groove = Math.round(track.groove);
 
       if (Object.keys(updateData).length === 0) {
         continue;

@@ -15,7 +15,7 @@
  * - CANCEL_ANNOUNCEMENT: index.ts lines 2167-2200
  */
 
-import { describe, test, expect, beforeEach } from "bun:test";
+import { beforeEach, describe, expect, test } from "bun:test";
 
 // ============================================================================
 // MOCK STATE

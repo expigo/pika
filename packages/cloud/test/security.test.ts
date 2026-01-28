@@ -13,16 +13,16 @@
  * @created 2026-01-23
  */
 
-import { describe, test, expect } from "bun:test";
+import { describe, expect, test } from "bun:test";
 
 // Import schemas from shared package
 import {
-  TrackInfoSchema,
   BroadcastTrackSchema,
-  StartPollSchema,
-  SendAnnouncementSchema,
-  RegisterSessionSchema,
   MESSAGE_TYPES,
+  RegisterSessionSchema,
+  SendAnnouncementSchema,
+  StartPollSchema,
+  TrackInfoSchema,
 } from "@pika/shared";
 
 // ============================================================================
@@ -519,7 +519,7 @@ describe("Security: Rate Limit Behavior", () => {
 
   test("like rate limit blocks 11th request within window", () => {
     const LIKE_RATE_LIMIT = 10;
-    const LIKE_WINDOW_MS = 60 * 1000;
+    const _LIKE_WINDOW_MS = 60 * 1000;
     const now = Date.now();
     const history: number[] = [];
 
@@ -553,7 +553,7 @@ describe("Security: Rate Limit Behavior", () => {
   });
 
   test("broadcast track rate limit: 1 per 5 seconds", () => {
-    const BROADCAST_RATE_LIMIT = 1;
+    const _BROADCAST_RATE_LIMIT = 1;
     const BROADCAST_WINDOW_MS = 5000;
 
     // Simulate state

@@ -1,14 +1,13 @@
-import { describe, expect, it, mock, spyOn, beforeEach, afterEach } from "bun:test";
+import { describe, expect, it, mock, spyOn } from "bun:test";
 import { handleRegisterSession } from "../src/handlers/dj";
+import * as authLib from "../src/lib/auth";
 import { client } from "../src/routes/client";
 import { sessions } from "../src/routes/sessions";
-import { activeSessions } from "../src/lib/sessions";
-import * as authLib from "../src/lib/auth";
 
 // Recursive mock for DB chaining
-const mockDbChain = () => {
+const _mockDbChain = () => {
   const handler = {
-    get: (target: any, prop: string) => {
+    get: (_target: any, prop: string) => {
       if (prop === "then") return undefined; // Promise safety
       // Return promise handling for limits (end of chain)
       if (["limit", "returning", "execute"].includes(prop)) {
@@ -35,6 +34,8 @@ const mockDb = {
   update: () => mockDb,
   set: () => mockDb,
   // Allow awaiting the chain at any point
+  // biome-ignore lint/suspicious/noThenProperty: mock thenable
+  // biome-ignore lint/complexity/noBannedTypes: mock
   then: (resolve: Function) => resolve([]),
 };
 
@@ -49,6 +50,7 @@ mock.module("../src/db", () => ({
     polls: { sessionId: "sid" },
     pollVotes: { pollId: "pid" },
   },
+  // biome-ignore lint/suspicious/noExplicitAny: mock
   eq: (a: any, b: any) => ({ key: "eq", a, b }),
 }));
 
@@ -57,6 +59,7 @@ const mockWs = {
   send: mock(),
   publish: mock(),
   getBufferedAmount: () => 0,
+  // biome-ignore lint/suspicious/noExplicitAny: mock
 } as any;
 
 describe("Security Audit Tests (Sprint 0.1)", () => {

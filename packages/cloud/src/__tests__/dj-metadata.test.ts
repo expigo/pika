@@ -1,22 +1,26 @@
-import { describe, it, expect, beforeEach, mock } from "bun:test";
+import { beforeEach, describe, expect, it, mock } from "bun:test";
 import { handleBroadcastMetadata } from "../handlers/dj";
-import { setSession, getSession, getAllSessions, deleteSession } from "../lib/sessions";
 import type { WSContext } from "../handlers/ws-context";
+import { deleteSession, getAllSessions, getSession, setSession } from "../lib/sessions";
 
 // Mock WebSocket
 const mockWs = {
   send: mock(() => {}),
+  // biome-ignore lint/suspicious/noExplicitAny: mock
 } as any;
 
 const mockRawWs = {
   publish: mock(() => {}),
   getBufferedAmount: mock(() => 0),
+  // biome-ignore lint/suspicious/noExplicitAny: mock
 } as any;
 
 describe("handleBroadcastMetadata (Issue 49)", () => {
   beforeEach(() => {
     // Clear sessions via public API
-    getAllSessions().forEach((s) => deleteSession(s.sessionId));
+    getAllSessions().forEach((s) => {
+      deleteSession(s.sessionId);
+    });
     mockWs.send.mockClear();
     mockRawWs.publish.mockClear();
   });

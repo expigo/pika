@@ -10,9 +10,9 @@
  * @created 2026-01-21
  */
 
-import { PingSchema, GetSessionsSchema, ValidateSessionSchema, logger } from "@pika/shared";
+import { GetSessionsSchema, logger, PingSchema, ValidateSessionSchema } from "@pika/shared";
+import { parseMessage, sendAck } from "../lib/protocol";
 import { getAllSessions, hasSession } from "../lib/sessions";
-import { sendAck, parseMessage } from "../lib/protocol";
 import type { WSContext } from "./ws-context";
 
 /**

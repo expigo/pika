@@ -1,8 +1,8 @@
 "use client";
 
-import { usePushNotifications } from "@/hooks/live";
 import { Bell, BellOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { usePushNotifications } from "@/hooks/live";
 
 export function NotificationToggle() {
   const { permissionState, isSubscribing, subscribe, isSupported } = usePushNotifications();

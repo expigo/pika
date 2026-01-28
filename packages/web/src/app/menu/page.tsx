@@ -2,8 +2,8 @@
 
 import { ArrowRight, Download, Globe, LayoutGrid, LogIn, Smartphone, UserPlus } from "lucide-react";
 import Link from "next/link";
-import { ProCard } from "@/components/ui/ProCard";
 import { NotificationToggle } from "@/components/pwa/NotificationToggle";
+import { ProCard } from "@/components/ui/ProCard";
 
 export default function MenuPage() {
   const menuGroups = [

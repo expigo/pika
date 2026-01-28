@@ -1,33 +1,32 @@
 import {
+  LIMITS,
+  logger,
   PIKA_VERSION,
+  TIMEOUTS,
+  URLS,
   type WebSocketMessage,
   WebSocketMessageSchema,
-  TIMEOUTS,
-  LIMITS,
-  URLS,
-  logger,
 } from "@pika/shared";
+import * as Sentry from "@sentry/bun";
 import type { ServerWebSocket } from "bun";
 import { sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
-import { db, client } from "./db";
+import { client, db } from "./db";
 import { auth as authRoutes } from "./routes/auth";
+import { client as clientRoutes } from "./routes/client";
+import { dj as djRoutes } from "./routes/dj";
+import { push as pushRoutes } from "./routes/push";
 import { sessions as sessionsRoutes } from "./routes/sessions";
 import { stats as statsRoutes } from "./routes/stats";
-import { dj as djRoutes } from "./routes/dj";
-import { client as clientRoutes } from "./routes/client";
-import { push as pushRoutes } from "./routes/push";
-
-import * as Sentry from "@sentry/bun";
 
 // Initialize Sentry for production error monitoring
-if (process.env["NODE_ENV"] === "production" || process.env["SENTRY_DSN"]) {
+if (process.env.NODE_ENV === "production" || process.env.SENTRY_DSN) {
   Sentry.init({
-    dsn: process.env["SENTRY_DSN"],
-    environment: process.env["NODE_ENV"] || "production",
+    dsn: process.env.SENTRY_DSN,
+    environment: process.env.NODE_ENV || "production",
     release: `pika-cloud@${PIKA_VERSION}`,
     tracesSampleRate: 0.1,
 
@@ -60,17 +59,17 @@ if (process.env["NODE_ENV"] === "production" || process.env["SENTRY_DSN"]) {
   logger.info("🛡️ Sentry initialized for Cloud service");
 }
 
-import { cleanupStaleListeners, getListenerCount } from "./lib/listeners";
+import * as handlers from "./handlers";
 import { cachedListenerCounts } from "./lib/cache";
-import {
-  getSessionCount,
-  getSessionIds,
-  getAllSessions,
-  cleanupStaleSessions,
-} from "./lib/sessions";
+import { cleanupStaleListeners, getListenerCount } from "./lib/listeners";
 import { cleanupSessionQueue } from "./lib/persistence/queue";
 import { clearLastPersistedTrackKey } from "./lib/persistence/tracks";
-import * as handlers from "./handlers";
+import {
+  cleanupStaleSessions,
+  getAllSessions,
+  getSessionCount,
+  getSessionIds,
+} from "./lib/sessions";
 
 // WS type alias removed (unused)
 
@@ -183,7 +182,7 @@ const csrfCheck = async (c: Context, next: Next) => {
 // ============================================================================
 
 const wsConnectionAttempts = new Map<string, { count: number; resetAt: number }>();
-const WS_RATE_LIMIT = Number(process.env["WS_RATE_LIMIT"] ?? LIMITS.WS_CONNECT_RATE_LIMIT_MAX);
+const WS_RATE_LIMIT = Number(process.env.WS_RATE_LIMIT ?? LIMITS.WS_CONNECT_RATE_LIMIT_MAX);
 const WS_RATE_WINDOW = LIMITS.WS_CONNECT_RATE_LIMIT_WINDOW;
 
 setInterval(() => {
@@ -447,12 +446,12 @@ app.get("/", (c) => {
 // Start Server
 // ============================================================================
 
-const port = Number(process.env["PORT"] ?? 3001);
-const hostname = process.env["HOST"] ?? "0.0.0.0";
+const port = Number(process.env.PORT ?? 3001);
+const hostname = process.env.HOST ?? "0.0.0.0";
 
 logger.info(`🚀 Pika! Cloud server starting on http://${hostname}:${port}`);
 logger.info(`📡 WebSocket endpoint: ws://${hostname}:${port}/ws`);
-logger.info(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "localhost (default)"}`);
+logger.info(`💾 Database: ${process.env.DATABASE_URL ? "configured" : "localhost (default)"}`);
 
 /**
  * Debounced broadcast of listener counts (Heartbeat).
@@ -543,7 +542,7 @@ async function gracefulShutdown(signal: string) {
     // Close database connection pool
     try {
       logger.info("🔌 Closing database connection pool...");
-      // @ts-ignore - client is postgres.js instance
+      // @ts-expect-error - client is postgres.js instance
       await client.end({ timeout: 2 });
       logger.info("  ✅ Database connection pool closed");
     } catch (e) {

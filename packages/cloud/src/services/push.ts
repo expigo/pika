@@ -1,13 +1,13 @@
+import { logger } from "@pika/shared";
 import { eq } from "drizzle-orm";
 import webpush, { type PushSubscription } from "web-push";
 import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
-import { logger } from "@pika/shared";
 
 // Core Architecture: Initialization logic
-const publicKey = process.env["VAPID_PUBLIC_KEY"];
-const privateKey = process.env["VAPID_PRIVATE_KEY"];
-const subject = process.env["VAPID_SUBJECT"] || "mailto:admin@pika.stream";
+const publicKey = process.env.VAPID_PUBLIC_KEY;
+const privateKey = process.env.VAPID_PRIVATE_KEY;
+const subject = process.env.VAPID_SUBJECT || "mailto:admin@pika.stream";
 
 if (publicKey && privateKey) {
   try {
@@ -53,7 +53,7 @@ export class PushService {
       // Reliability: Automatically handle expired or invalid subscriptions by clearing them from the DB
       if (error.statusCode === 410 || error.statusCode === 404) {
         logger.info("[Push] Subscription expired (410/404), marking as unsubscribed", {
-          endpoint: subscription.endpoint.substring(0, 20) + "...",
+          endpoint: `${subscription.endpoint.substring(0, 20)}...`,
         });
 
         try {
@@ -69,7 +69,7 @@ export class PushService {
 
       logger.error("[Push] Send failed", {
         statusCode: error.statusCode,
-        endpoint: subscription.endpoint.substring(0, 20) + "...",
+        endpoint: `${subscription.endpoint.substring(0, 20)}...`,
       });
       return false;
     }

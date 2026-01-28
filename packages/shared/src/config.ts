@@ -72,7 +72,6 @@ export const URLS = {
         return "http://localhost:3001";
       case "staging":
         return "https://staging-api.pika.stream";
-      case "production":
       default:
         return "https://api.pika.stream";
     }
@@ -84,7 +83,6 @@ export const URLS = {
         return "http://localhost:3000";
       case "staging":
         return "https://staging.pika.stream";
-      case "production":
       default:
         return "https://pika.stream";
     }
@@ -96,7 +94,6 @@ export const URLS = {
         return "ws://localhost:3001";
       case "staging":
         return "wss://staging-api.pika.stream";
-      case "production":
       default:
         return "wss://api.pika.stream";
     }

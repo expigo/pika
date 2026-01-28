@@ -4,8 +4,8 @@
  * WebSocket acknowledgment utilities for the Pika! protocol
  */
 
-import { db, schema } from "../db";
 import { logger } from "@pika/shared";
+import { db, schema } from "../db";
 
 // ============================================================================
 // Types

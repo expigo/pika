@@ -1,6 +1,6 @@
+import { logger } from "@pika/shared";
 import { useEffect, useRef } from "react";
 import { useSWRConfig } from "swr";
-import { logger } from "@pika/shared";
 
 interface UseWakeupSyncProps {
   forceReconnect: () => void;
