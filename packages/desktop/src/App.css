@@ -418,9 +418,37 @@ textarea,
   transition: width 0.3s ease;
 }
 
-/* Scrollable area */
-.pro-scroll-area {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
+/* 🚀 Startup Animation (CSP-Safe) */
+.startup-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #020617;
+  z-index: 9999999;
+}
+
+.startup-logo-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 80px;
+}
+
+.startup-bar {
+  width: 4px;
+  height: 64px;
+  background: linear-gradient(to top, #c084fc, #db2777);
+  border-radius: 9999px;
+  transform-origin: center;
+  opacity: 0;
+  transform: scaleY(0.1);
+}
+
+.startup-bar.active {
+  animation: audioTransient var(--bar-speed) cubic-bezier(0.5, 0, 0.5, 1) infinite;
+  animation-delay: var(--bar-delay);
+  animation-fill-mode: both;
 }

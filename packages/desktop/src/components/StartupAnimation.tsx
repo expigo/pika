@@ -6,8 +6,6 @@ export function StartupAnimation() {
     if (typeof window !== "undefined") {
       try {
         const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
-
-        // DEBUG: Log explicitly as strings for easier reading in screenshots
         console.info(`[Startup] hasSeenIntro: ${hasSeenIntro}`);
 
         if (hasSeenIntro) {
@@ -15,7 +13,6 @@ export function StartupAnimation() {
           return false;
         }
       } catch (e) {
-        console.warn("[Startup] Storage error", e);
         return true;
       }
     }
@@ -35,11 +32,11 @@ export function StartupAnimation() {
 
     const exitTimer = setTimeout(() => {
       setPhase("exit");
-    }, 2000);
+    }, 2500); // 2.5s display
 
     const removeTimer = setTimeout(() => {
       setVisible(false);
-    }, 2500);
+    }, 3000); // 3s total
 
     return () => {
       clearTimeout(exitTimer);
@@ -47,21 +44,17 @@ export function StartupAnimation() {
     };
   }, [visible]);
 
-  if (!visible) {
-    console.log("[Startup] Component is NOT VISIBLE (returning null)");
-    return null;
-  }
+  if (!visible) return null;
 
   return (
     <div
       id="startup-animation-overlay"
-      style={{ zIndex: 9999999, background: "#020617" }}
-      className={`fixed inset-0 flex items-center justify-center transition-opacity duration-500 ease-out-expo ${
+      className={`startup-overlay transition-opacity duration-500 ease-out ${
         phase === "exit" ? "opacity-0 pointer-events-none" : "opacity-100"
       }`}
     >
       <div
-        className={`transform transition-all duration-700 ease-out-expo ${
+        className={`transform transition-all duration-700 ease-out ${
           phase === "exit" ? "scale-125 opacity-0" : "scale-100 opacity-100"
         }`}
       >
