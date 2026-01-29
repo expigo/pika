@@ -1,7 +1,7 @@
 # Prioritized Roadmap & Feature Matrix
 
 **Date:** January 28, 2026
-**Status:** ✅ PRODUCTION READY (v0.3.5 - The "Excellence" Hardening Release)
+**Status:** ✅ PRODUCTION READY (v0.4.0 - The "Excellence" Hardening Release)
 
 > **📊 Complete Sprint Verification:** See [ROADMAP_11_10.md](../ROADMAP_11_10.md) for detailed verification with code references.
 
@@ -53,17 +53,17 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 
 | Feature | Value | Complexity | Priority | Notes |
 | :--- | :---: | :---: | :---: | :--- |
-| **CORS Hardening** | **10** | 2 | **DONE** | **🚨 CRITICAL** Restrict origins to `pika.stream` only. Implemented in v0.1.0+. |
+| **CORS Hardening** | **10** | 2 | **DONE** | **🚨 CRITICAL** Restrict origins to `pika.stream` only. Implemented in v0.4.0+. |
 | **Auth Rate Limiting** | **10** | 3 | **DONE** | **🚨 CRITICAL** Added `hono-rate-limiter` (5 req/15min) on `/api/auth/*`. |
 | **Secrets to Env Vars** | **8** | 2 | **DONE** | **HIGH** Moved `POSTGRES_PASSWORD` from hardcoded in `docker-compose.prod.yml` to env. |
-| **Email Validation** | **5** | 1 | **DONE** | **MED** Upgraded to Zod `.email()` validator (v0.2.2). |
-| **Password Max Length** | **5** | 1 | **DONE** | **LOW** 128 char limit to prevent DoS (v0.2.2). |
-| **Tauri CSP** | **5** | 2 | **DONE** | **LOW** Content-Security-Policy enabled in desktop app (v0.2.2). |
+| **Email Validation** | **5** | 1 | **DONE** | **MED** Upgraded to Zod `.email()` validator (v0.4.0). |
+| **Password Max Length** | **5** | 1 | **DONE** | **LOW** 128 char limit to prevent DoS (v0.4.0). |
+| **Tauri CSP** | **5** | 2 | **DONE** | **LOW** Content-Security-Policy enabled in desktop app (v0.4.0). |
 | **WebSocket Session Ownership** | **7** | 4 | **DONE** | **MED** Track connection ownership to prevent session ID spoofing. |
 | **CSRF on Login** | **5** | 2 | **DONE** | **MED** X-Pika-Client header check for REST auth endpoints. |
-| **CSP Headers** | **4** | 2 | **DONE** | **LOW** Content-Security-Policy via Next.js middleware (v0.1.9). |
-| **WS Connection Rate Limit** | **5** | 3 | **DONE** | **LOW** 20 connections/min per IP (v0.1.9). |
-| **Session Telemetry** | **6** | 4 | **DONE** | **MED** DJ connect/disconnect tracking in `session_events` table (v0.1.9). |
+| **CSP Headers** | **4** | 2 | **DONE** | **LOW** Content-Security-Policy via Next.js middleware (v0.4.0). |
+| **WS Connection Rate Limit** | **5** | 3 | **DONE** | **LOW** 20 connections/min per IP (v0.4.0). |
+| **Session Telemetry** | **6** | 4 | **DONE** | **MED** DJ connect/disconnect tracking in `session_events` table (v0.4.0). |
 
 ---
 
@@ -72,12 +72,12 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 
 | Observation | Impact | Complexity | Priority | Notes |
 | :--- | :---: | :---: | :---: | :--- |
-| **Split Cloud Backend** | Architecture | 5 | **DONE** | `lib/` modules created. Auth routes extracted to `routes/auth.ts` (v0.2.2). |
-| **Cloud Unit Tests** | Quality | 4 | **DONE** | 15 auth route unit tests using Bun test runner (v0.2.2). |
+| **Split Cloud Backend** | Architecture | 5 | **DONE** | `lib/` modules created. Auth routes extracted to `routes/auth.ts` (v0.4.0). |
+| **Cloud Unit Tests** | Quality | 4 | **DONE** | 15 auth route unit tests using Bun test runner (v0.4.0). |
 | **Decompose useLiveSession** | Maintainability | 4 | **DONE** | Extracted `useLiveStore.ts` (130 lines). Reduced main hook from 1,090→960 lines. |
-| **Decompose useLiveListener** | Maintainability | 6 | **DONE** | Split into 6 focused hooks (v0.2.3). 1029→238 lines (77% reduction). |
-| **Web Shared Utils** | Maintainability | 2 | **DONE** | Extracted `lib/api.ts`, `lib/client.ts` (v0.2.3). |
-| **Accessibility (A11y)** | Quality | 3 | **DONE** | ARIA labels, skip-to-content, reduced-motion CSS (v0.2.3). |
+| **Decompose useLiveListener** | Maintainability | 6 | **DONE** | Split into 6 focused hooks (v0.4.0). 1029→238 lines (77% reduction). |
+| **Web Shared Utils** | Maintainability | 2 | **DONE** | Extracted `lib/api.ts`, `lib/client.ts` (v0.4.0). |
+| **Accessibility (A11y)** | Quality | 3 | **DONE** | ARIA labels, skip-to-content, reduced-motion CSS (v0.4.0). |
 | **Add E2E Tests** | Quality | 6 | **DONE** | Web: Playwright (6 tests). Desktop: Vitest (16 tests). |
 | **Load Testing** | Reliability | 4 | **DONE** | 300 VUs verified on staging. Max ~1,000 dancers on 4GB VPS. |
 | **WebSocket Message Tests** | Reliability | 3 | **MED** | Test Zod schema parsing and edge cases. |
@@ -85,10 +85,10 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **Library Virtualization** | Performance | 4 | **DONE** | @tanstack/react-virtual for 10k+ tracks. |
 | **Production HUD Tools** | UX | 3 | **DONE** | Clock, Battery, Track Timer in Stage Mode. |
 | **Intelligent Wake-Sync** | Robustness | 4 | **DONE** | Web app self-heals on mobile phone wake-up. |
-| **ACK/NACK Protocol** | Reliability | 6 | **DONE** | Reliable BROADCAST_TRACK delivery (v0.2.4). |
-| **Nonce Deduplication** | Security | 3 | **DONE** | Server-side replay protection (v0.2.4). |
-| **Safari/iOS Bulletproofing** | Robustness | 5 | **DONE** | pageshow, statusRef, addEventListener pattern (v0.2.5). |
-| **Chaos Testing** | Reliability | 4 | **DONE** | k6 scripts with 4 scenarios (v0.2.4). |
+| **ACK/NACK Protocol** | Reliability | 6 | **DONE** | Reliable BROADCAST_TRACK delivery (v0.4.0). |
+| **Nonce Deduplication** | Security | 3 | **DONE** | Server-side replay protection (v0.4.0). |
+| **Safari/iOS Bulletproofing** | Robustness | 5 | **DONE** | pageshow, statusRef, addEventListener pattern (v0.4.0). |
+| **Chaos Testing** | Reliability | 4 | **DONE** | k6 scripts with 4 scenarios (v0.4.0). |
 
 
 ---
@@ -381,23 +381,23 @@ export const eventDjs = pgTable("event_djs", {
 
 | Date | Change | Context |
 | :--- | :--- | :--- |
-| **2026-01-28** | **✅ PRODUCTION READY v0.3.5** | Excellence Hardening complete. Structural animations, Missed Love tracking, and Idempotent Migrations. |
-| **2026-01-23** | **✅ PRODUCTION READY v0.2.8** | All Sprints S0-S5 complete. 612+ tests. Zero CRITICAL/HIGH issues. See [ROADMAP_11_10.md](../ROADMAP_11_10.md) |
+| **2026-01-28** | **✅ PRODUCTION READY v0.4.0** | Excellence Hardening complete. Structural animations, Missed Love tracking, and Idempotent Migrations. |
+| **2026-01-23** | **✅ PRODUCTION READY v0.4.0** | All Sprints S0-S5 complete. 612+ tests. Zero CRITICAL/HIGH issues. See [ROADMAP_11_10.md](../ROADMAP_11_10.md) |
 | **2026-01-18** | **Network Resilience 11/10** | ACK/NACK, IndexedDB, nonce dedup, Safari bulletproofing, chaos tests. Score: 11/10. |
 | **2026-01-17** | **Production Readiness Polish** | Clock, Battery, Track Timer, Wake-Up Sync, Flicker-free UI. |
 | **2026-01-17** | **Desktop UI/UX Audit Complete** | Virtualization, Tags/Notes, Templates, 16 unit tests, lazy loading. Score: 8.9/10. |
 | **2026-01-17** | **Deep Intelligence v1** | Implemented advanced analytics for set recaps. Fixed global stats API. |
 | **2026-01-16** | **Pro Enhancements Complete** | Slate & Neon theme, TTL cache, Debounced broadcasts, PWA BottomNav. |
 | **2026-01-15** | E2E Tests Fixed (6 passing) | WebSocket injection replaces Tauri mocks. |
-| **2026-01-15** | **Release v0.1.9** | Security hardening complete: CSP, CSRF, telemetry, WS rate limiting. |
+| **2026-01-15** | **Release v0.4.0** | Security hardening complete: CSP, CSRF, telemetry, WS rate limiting. |
 | **2026-01-15** | Added Tier 3 Growth Features | Detailed specs for DJ Dashboard, Analytics, Organizer Role, Native App. |
 | **2026-01-13** | Added Security Hardening Phase 2.5 | Security Audit identified 2 High, 4 Medium issues. |
 | **2026-01-13** | Added Code Quality Phase 4 | Engineering Assessment (8.4/10). |
-| **2026-01-13** | **Release v0.1.5 (Launch Candidate)** | "Thank You" Rain, Auto-Migrations, Security Hardening. |
+| **2026-01-13** | **Release v0.4.0 (Launch Candidate)** | "Thank You" Rain, Auto-Migrations, Security Hardening. |
 | **2026-01-12** | Added "Native App" as Low Priority | PWA approach preferred over React Native rewrite. |
 | **2026-01-12** | Created Document | Initial prioritization of roadmap items. |
 
 ---
 
-*Last Updated: January 28, 2026 (Production Ready v0.3.5)*
+*Last Updated: January 28, 2026 (Production Ready v0.4.0)*
 *Status: ✅ Phase 6 Hardening Complete - See [ROADMAP_11_10.md](../ROADMAP_11_10.md)*

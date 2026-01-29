@@ -21,7 +21,7 @@ This is the central index for the Pika! project, tracking active development, fu
         *   ✅ **VDJ Bridge:** Automated history detection with "Seamless Transition" validation.
         *   ✅ **Integrity:** Sequential initialization logic eliminates race conditions on session start.
         *   ✅ **Testing:** 100% coverage for connection lifecycle and history import logic.
-    *   **Previous Completions (Jan 28, 2026 - Excellence Hardening v0.3.5):**
+    *   **Previous Completions (Jan 28, 2026 - Excellence Hardening v0.4.0):**
         *   ✅ **Security:** CSP Externalization (defeat production build blocks).
         *   ✅ **Social:** Intelligent "Missed Love" buffer for backgrounded app engagement.
         *   ✅ **Design:** Symmetrical animation framing (curated left/right columns).

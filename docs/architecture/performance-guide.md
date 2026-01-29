@@ -55,11 +55,11 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Indexed lookup** | `findByTrackKey()` uses index | ✅ Done |
 | **Chunked imports** | 100 tracks per batch | ✅ Done |
 | **track_key index** | `CREATE UNIQUE INDEX idx_track_key` | ✅ Done |
-| **Mandatory API Limits** | `getTracks(limit)` forces explicit memory sizing | ✅ Done (v0.3.3) |
-| **JSON Optimization** | `json_each` for O(N) tag aggregation | ✅ Done (v0.3.2) |
+| **Mandatory API Limits** | `getTracks(limit)` forces explicit memory sizing | ✅ Done (v0.4.0) |
+| **JSON Optimization** | `json_each` for O(N) tag aggregation | ✅ Done (v0.4.0) |
 | **Cloud DB indexes** | 12 indexes on hot query paths | ✅ Done |
 | **Atomic Transactions** | `BEGIN TRANSACTION` on critical writes | ✅ Done |
-| **Explicit Columns** | No `SELECT *` in repositories | ✅ Done (v0.3.3) |
+| **Explicit Columns** | No `SELECT *` in repositories | ✅ Done (v0.4.0) |
 
 ---
 
@@ -77,14 +77,14 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | Strategy | Implementation | Status |
 |----------|---------------|--------|
 | **Offline queue** | SQLite `offline_queue` table with ID-based concurrency | ✅ Done |
-| **Reliability Buffer** | 1,000 pending message capacity with Drop-Oldest | ✅ Done (v0.3.3) |
-| **Capacity Monitoring** | 80% buffer warnings via shared logger | ✅ Done (v0.3.3) |
+| **Reliability Buffer** | 1,000 pending message capacity with Drop-Oldest | ✅ Done (v0.4.0) |
+| **Capacity Monitoring** | 80% buffer warnings via shared logger | ✅ Done (v0.4.0) |
 | **Heartbeat monitor** | Reconnect on disconnect | ✅ Done |
 | **Batch sync** | POST fingerprints at session end | ✅ Done |
 | **Debounced Broadcasts** | 2-second heartbeat for listener counts | ✅ Done |
 | **TTL Caching** | 5-minute cache for `/stats/top-tracks` | ✅ Done |
 | **Sticky Participants** | 5-minute window for pocketed phones | ✅ Done |
-| **Fatal Error Checks** | Stop reconnect on 4000+ codes | ✅ Done (v0.3.3) |
+| **Fatal Error Checks** | Stop reconnect on 4000+ codes | ✅ Done (v0.4.0) |
 
 ---
 
@@ -106,10 +106,10 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Debounced search** | 200ms delay on keystrokes | ✅ Done |
 | **Progress indicators** | Analysis shows current track | ✅ Done |
 | **Pause/Resume** | Analyzer can be paused mid-batch | ✅ Done |
-| **Smart Animations** | `requestAnimationFrame` and Confetti loops pause when hidden | ✅ Done (v0.3.5) |
-| **Hydration Stability** | `useVisibility` hook initializes to server-safe defaults | ✅ Done (v0.3.3) |
-| **IPC Timeouts** | `invokeWithTimeout` prevents hanging Rust calls | ✅ Done (v0.3.3) |
-| **Off-Main-Thread** | Confetti rendering moved to Web Worker (via `blob:`) | ✅ Done (v0.3.5) |
+| **Smart Animations** | `requestAnimationFrame` and Confetti loops pause when hidden | ✅ Done (v0.4.0) |
+| **Hydration Stability** | `useVisibility` hook initializes to server-safe defaults | ✅ Done (v0.4.0) |
+| **IPC Timeouts** | `invokeWithTimeout` prevents hanging Rust calls | ✅ Done (v0.4.0) |
+| **Off-Main-Thread** | Confetti rendering moved to Web Worker (via `blob:`) | ✅ Done (v0.4.0) |
 
 
 ---
@@ -131,9 +131,9 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Stream audio** | Don't load full file into memory | ✅ librosa handles |
 | **Clear analysis results** | Don't keep in React state | ✅ Done |
 | **Lazy component loading** | React.lazy() for LivePerformanceMode, Settings, Logbook | ✅ Done |
-| **Proper Store LRU** | `playedTrackKeys` set limited to 500 with LRU eviction | ✅ Done (v0.3.3) |
-| **O(1) Map Cleanup (Cloud)** | Nested `Map<Session, Map<Client...>>` for instant delete | ✅ Done (v0.3.0) |
-| **Explicit Queue Cleanup** | `cleanupSessionQueue()` on disconnect | ✅ Done (v0.3.0) |
+| **Proper Store LRU** | `playedTrackKeys` set limited to 500 with LRU eviction | ✅ Done (v0.4.0) |
+| **O(1) Map Cleanup (Cloud)** | Nested `Map<Session, Map<Client...>>` for instant delete | ✅ Done (v0.4.0) |
+| **Explicit Queue Cleanup** | `cleanupSessionQueue()` on disconnect | ✅ Done (v0.4.0) |
 
 ---
 
@@ -198,11 +198,11 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 
 | Date | Change |
 |------|--------|
-| 2026-01-28 | **Excellence Hardening (v0.3.5)**: Web Worker Confetti (Performance), Missed Love Buffer (UX), Idempotent SQL (Ops), Cascading DB Deletes (Integrity), Symmetrical Animation Framing (Design) |
-| 2026-01-25 | **Performance Batch 3 (v0.3.3)**: Fatal Error Protection (Issue 41), Explicit Column Selection (Issue 40), Rust File Scan Opt (Issue 42), Reduced Cache Latency (Issue 47) |
-| 2026-01-25 | **Reliability & Robustness Hardening (v0.3.3)**: Mandatory API limits, Adaptive 3s background polling, 1,000 message reliability buffer, Store LRU eviction, ID-based queue concurrency, Hybrid Deduplication (Window + Absolute) |
-| 2026-01-25 | **Performance Hardening (v0.3.2)**: Visibility polling (H1), Yielding I/O (H2), SWR Caching (H3), Memoized Handlers (H4) |
-| 2026-01-24 | **Phase 2 Hardening (v0.3.0)**: O(1) Map optimizations, Atomic Transactions (Desktop), Queue Cleanup |
+| 2026-01-28 | **Excellence Hardening (v0.4.0)**: Web Worker Confetti (Performance), Missed Love Buffer (UX), Idempotent SQL (Ops), Cascading DB Deletes (Integrity), Symmetrical Animation Framing (Design) |
+| 2026-01-25 | **Performance Batch 3 (v0.4.0)**: Fatal Error Protection (Issue 41), Explicit Column Selection (Issue 40), Rust File Scan Opt (Issue 42), Reduced Cache Latency (Issue 47) |
+| 2026-01-25 | **Reliability & Robustness Hardening (v0.4.0)**: Mandatory API limits, Adaptive 3s background polling, 1,000 message reliability buffer, Store LRU eviction, ID-based queue concurrency, Hybrid Deduplication (Window + Absolute) |
+| 2026-01-25 | **Performance Hardening (v0.4.0)**: Visibility polling (H1), Yielding I/O (H2), SWR Caching (H3), Memoized Handlers (H4) |
+| 2026-01-24 | **Phase 2 Hardening (v0.4.0)**: O(1) Map optimizations, Atomic Transactions (Desktop), Queue Cleanup |
 | 2026-01-23 | **11/10 Battery Update**: Implemented Zero-Wakeup architecture (WS suspension, Poll freezing, Animation kill) |
 | 2026-01-17 | Library virtualization (`@tanstack/react-virtual`) and lazy component loading implemented |
 | 2026-01-16 | Restored `blur-[120px]` on all devices; documented Aesthetic Intensity |

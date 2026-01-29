@@ -37,7 +37,7 @@ This document outlines the security architecture of Pika!, including implemented
                     │             VPS Origin                │
                     │  - No inbound ports (except SSH)      │
                     │  - Docker network isolation           │
-                    │  - Containers bind to 127.0.0.1       │
+                    │  - Containers bind to 0.4.0.1       │
                     └───────────────────────────────────────┘
 ```
 
@@ -174,13 +174,13 @@ app.use("*", cors({
 
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
-| 🟢 CLOSED | HIGH | Fixed in v0.1.0+ |
+| 🟢 CLOSED | HIGH | Fixed in v0.4.0+ |
 
 ### 4.2 CSRF Protection
 
 REST API endpoints use Bearer token authentication. Additionally, state-changing requests require a custom header.
 
-**Implementation (v0.1.9):**
+**Implementation (v0.4.0):**
 ```typescript
 // packages/cloud/src/index.ts
 app.use("/api/auth/*", csrfCheck);  // Validates X-Pika-Client header
@@ -191,7 +191,7 @@ app.use("/api/auth/*", csrfCheck);  // Validates X-Pika-Client header
 
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
-| 🟢 FIXED | MEDIUM | v0.1.9 |
+| 🟢 FIXED | MEDIUM | v0.4.0 |
 
 ---
 
@@ -216,7 +216,7 @@ grep -r "eval(" packages/                     # No results
 
 ### 5.2 Content Security Policy
 
-**Implementation (v0.1.9 - Web):**
+**Implementation (v0.4.0 - Web):**
 ```typescript
 // packages/web/middleware.ts
 // Adds CSP, X-Frame-Options, X-Content-Type-Options, etc.
@@ -229,9 +229,9 @@ export function middleware(request: NextRequest) {
 
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
-| 🟢 FIXED | LOW | v0.1.9 |
+| 🟢 FIXED | LOW | v0.4.0 |
  
- **Implementation (v0.3.5 - Desktop/Tauri):**
+ **Implementation (v0.4.0 - Desktop/Tauri):**
  Pika! uses a "Pragmatically Safe" CSP in `tauri.conf.json` to balance security with the functional requirements of modern animation libraries.
  
  | Directive | Policy | Rationale |
@@ -243,7 +243,7 @@ export function middleware(request: NextRequest) {
  
  | Status | Severity | ETA |
  | :---: | :---: | :--- |
- | 🟢 FIXED | LOW | v0.3.5 |
+ | 🟢 FIXED | LOW | v0.4.0 |
 
 ---
 
@@ -256,7 +256,7 @@ export function middleware(request: NextRequest) {
 | Origin IP Hidden | Cloudflare Tunnel | ✅ |
 | SSL/TLS | Cloudflare Edge (Auto-renew) | ✅ |
 | Container Isolation | Docker network | ✅ |
-| Port Binding | `127.0.0.1` only | ✅ |
+| Port Binding | `0.4.0.1` only | ✅ |
 | SSH Access | Key-based only | ✅ |
 
 ### 6.2 Secrets Management
@@ -332,7 +332,7 @@ The Python analysis sidecar:
 | 2026-01-24 | Phase 2 Hardening | Backpressure, Queues | Internal |
 | 2026-01-23 | **Production Readiness** | 0 Open (All Fixed) | [ROADMAP_11_10.md](../ROADMAP_11_10.md) |
 | 2026-01-22 | Code Quality Audit | All P1/P2 Resolved | [AUDIT_REPORT.md](../AUDIT_REPORT.md) |
-| 2026-01-18 | Security Hardening v0.2.2 | Schema, Rate Limiting | Internal |
+| 2026-01-18 | Security Hardening v0.4.0 | Schema, Rate Limiting | Internal |
 | 2026-01-15 | Code Verification | 4 Fixed, 5 Open | Internal |
 | 2026-01-13 | Full Security Audit | 0 Critical, 2 High | Internal |
 
