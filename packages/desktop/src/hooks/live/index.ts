@@ -79,6 +79,7 @@ export { messageRouter, type MessageRouterContext } from "./messageRouter";
 // Connection manager (goLive helpers)
 export {
   createDatabaseSession,
+  detectInitialTrack,
   startVirtualDJWatcher,
   prepareInitialTrackState,
   getTrackInfoForBroadcast,

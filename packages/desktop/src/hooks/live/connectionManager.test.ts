@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
-import { prepareInitialTrackState, createDatabaseSession } from "./connectionManager";
+import {
+  prepareInitialTrackState,
+  createDatabaseSession,
+  detectInitialTrack,
+  startVirtualDJWatcher,
+} from "./connectionManager";
 import { sessionRepository } from "../../db/repositories/sessionRepository";
 import {
   clearProcessedTrackKeys,
@@ -7,6 +12,7 @@ import {
   setSkipInitialTrackBroadcast,
   addProcessedTrackKey,
 } from "./stateHelpers";
+import { virtualDjWatcher, type NowPlayingTrack } from "../../services/virtualDjWatcher";
 
 // Mock dependencies
 vi.mock("../../db/repositories/sessionRepository", () => ({
@@ -23,17 +29,42 @@ vi.mock("./stateHelpers", () => ({
   addProcessedTrackKey: vi.fn(),
 }));
 
+vi.mock("../../services/virtualDjWatcher", () => ({
+  virtualDjWatcher: {
+    readLatestTrack: vi.fn(),
+    startWatching: vi.fn(),
+    getCurrentTrack: vi.fn(),
+  },
+}));
+
+vi.mock("../../utils/logger", () => ({
+  logger: {
+    info: vi.fn(),
+    debug: vi.fn(),
+    error: vi.fn(),
+  },
+}));
+
 describe("connectionManager", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
+  describe("detectInitialTrack", () => {
+    it("should call virtualDjWatcher.readLatestTrack", async () => {
+      await detectInitialTrack();
+      expect(virtualDjWatcher.readLatestTrack).toHaveBeenCalled();
+    });
+  });
+
+  describe("startVirtualDJWatcher", () => {
+    it("should call virtualDjWatcher.startWatching", async () => {
+      await startVirtualDJWatcher();
+      expect(virtualDjWatcher.startWatching).toHaveBeenCalled();
+    });
+  });
+
   describe("createDatabaseSession", () => {
-    /**
-     * TEST: createDatabaseSession creates and links DB session
-     * RATIONALE: Must ensure DB records are created for local persistence
-     * FAILURE IMPACT: Session history lost if DB creation fails
-     */
     it("should create a session and set its cloud ID", async () => {
       const mockSession = { id: 123, name: "Test Set" };
       (sessionRepository.createSession as Mock).mockResolvedValue(mockSession);
@@ -64,13 +95,8 @@ describe("connectionManager", () => {
       timestamp: new Date(),
     };
 
-    /**
-     * TEST: includeCurrentTrack=true marks track as processed
-     * RATIONALE: Even if including, we mark as processed for recordPlay to prevent double-counting
-     * FAILURE IMPACT: Duplicate track entries in history
-     */
     it("should prepare state to include current track but prevent double-count", () => {
-      prepareInitialTrackState(mockTrack as unknown as any, true);
+      prepareInitialTrackState(mockTrack as unknown as NowPlayingTrack, true);
 
       expect(clearProcessedTrackKeys).toHaveBeenCalled();
       expect(setLastBroadcastedTrackKey).toHaveBeenCalledWith(null);
@@ -81,13 +107,8 @@ describe("connectionManager", () => {
       expect(setLastBroadcastedTrackKey).toHaveBeenCalledWith("Test Artist:Test Track");
     });
 
-    /**
-     * TEST: includeCurrentTrack=false skips broadcast
-     * RATIONALE: Respect user choice to start fresh
-     * FAILURE IMPACT: Immediate broadcast of track user wanted to skip
-     */
     it("should prepare state to skip initial track", () => {
-      prepareInitialTrackState(mockTrack as unknown as any, false);
+      prepareInitialTrackState(mockTrack as unknown as NowPlayingTrack, false);
 
       expect(setSkipInitialTrackBroadcast).toHaveBeenCalledWith(true);
       expect(addProcessedTrackKey).toHaveBeenCalledWith(

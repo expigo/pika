@@ -48,12 +48,19 @@ export async function createDatabaseSession(
 // =============================================================================
 
 /**
- * Start VDJ watcher and return the current track if any
+ * Fetch the currently playing track from VDJ history without starting the watcher
  */
-export async function startVirtualDJWatcher(): Promise<NowPlayingTrack | null> {
+export async function detectInitialTrack(): Promise<NowPlayingTrack | null> {
+  logger.debug("Live", "Detecting initial VirtualDJ track");
+  return virtualDjWatcher.readLatestTrack();
+}
+
+/**
+ * Start VDJ watcher polling
+ */
+export async function startVirtualDJWatcher(): Promise<void> {
   logger.debug("Live", "Starting VirtualDJ watcher");
   await virtualDjWatcher.startWatching();
-  return virtualDjWatcher.getCurrentTrack();
 }
 
 // =============================================================================

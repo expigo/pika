@@ -21,6 +21,7 @@ import {
   clearPendingMessages,
   clearReactionListeners,
   createDatabaseSession,
+  detectInitialTrack,
   flushQueue,
   generateSessionId,
   handleAck,
@@ -30,8 +31,8 @@ import {
   sendMessage,
   setMessageSenderSocket,
   setQueueSocketInstance,
-  setSocketInstance as setReliabilitySocket,
   startVirtualDJWatcher,
+  setSocketInstance as setReliabilitySocket,
 } from "./live";
 // Import constants
 import {
@@ -806,20 +807,17 @@ export function useLiveSession() {
         }
         setDbSessionId(dbSessionId);
 
-        // Start VirtualDJ watcher and get initial track
-        const initialTrack = await startVirtualDJWatcher();
+        // Detect initial track before starting watcher to prevent race conditions
+        const initialTrack = await detectInitialTrack();
 
-        // Prepare initial track state based on user preference
+        // Prepare initial track state based on user preference (sets masks/dedup)
         prepareInitialTrackState(initialTrack, includeCurrentTrack);
 
-        // 🛡️ R1 Fix: Removed redundant recordPlay(initialTrack) call.
-        // startVirtualDJWatcher calls virtualDjWatcher.startWatching(), which
-        // broadcasts the initial track to all listeners. handleTrackChange (the listener)
-        // will then call recordPlay(initialTrack) automatically if isInLiveMode is true.
-        // Calling it manually here caused double-counting on session start.
+        // Now start the watcher polling
+        await startVirtualDJWatcher();
+
         if (initialTrack && includeCurrentTrack) {
           setNowPlaying(initialTrack);
-          // Initial recording is handled by handleTrackChange listener
         }
 
         // Connect to cloud using ReconnectingWebSocket
