@@ -118,6 +118,7 @@ export interface LiveSessionStore {
   clearEndedPoll: () => void;
   setLiveLikes: (count: number) => void;
   incrementLiveLikes: () => void;
+  decrementLiveLikes: () => void;
   addPlayedTrack: (trackKey: string) => void;
   clearPlayedTracks: () => void;
   reset: () => void;
@@ -171,6 +172,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   clearEndedPoll: () => set({ endedPoll: null }),
   setLiveLikes: (liveLikes) => set({ liveLikes }),
   incrementLiveLikes: () => set((state) => ({ liveLikes: state.liveLikes + 1 })),
+  decrementLiveLikes: () => set((state) => ({ liveLikes: Math.max(0, state.liveLikes - 1) })),
   addPlayedTrack: (trackKey: string) =>
     set((state) => {
       const newSet = new Set(state.playedTrackKeys);

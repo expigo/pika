@@ -18,6 +18,7 @@ import {
   hasMessageType,
   isAckMessage,
   isLikeReceivedMessage,
+  isLikeRemovedMessage,
   isListenerCountMessage,
   isNackMessage,
   isPollEndedMessage,
@@ -41,6 +42,7 @@ export interface MessageRouterContext {
   onAck: (messageId: string) => void;
   onNack: (messageId: string, error: string) => void;
   onLikeReceived: (trackTitle: string) => void;
+  onLikeRemoved: (trackTitle: string) => void;
   onListenerCount: (count: number) => void;
   onTempoFeedback: (feedback: {
     faster: number;
@@ -141,6 +143,16 @@ class MessageRouter {
         const trackTitle = msg.payload?.track?.title;
         if (trackTitle) {
           ctx.onLikeReceived(trackTitle);
+        }
+      }
+    });
+
+    // Like removed handler
+    this.register(MESSAGE_TYPES.LIKE_REMOVED, (msg: unknown) => {
+      if (isLikeRemovedMessage(msg)) {
+        const trackTitle = msg.payload?.track?.title;
+        if (trackTitle) {
+          ctx.onLikeRemoved(trackTitle);
         }
       }
     });

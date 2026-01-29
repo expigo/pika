@@ -155,6 +155,12 @@ export const likes = pgTable(
     idxSessionId: index("idx_likes_session_id").on(table.sessionId),
     idxClientId: index("idx_likes_client_id").on(table.clientId),
     idxPlayedTrackId: index("idx_likes_played_track_id").on(table.playedTrackId),
+    // Idempotency: One client can only like a specific play instance once
+    uniqueIdempotency: unique("unique_like_idempotency").on(
+      table.sessionId,
+      table.clientId,
+      table.playedTrackId,
+    ),
   }),
 );
 

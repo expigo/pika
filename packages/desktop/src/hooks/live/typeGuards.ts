@@ -132,6 +132,24 @@ export function isLikeReceivedMessage(msg: unknown): msg is LikeReceivedMessage 
   );
 }
 
+export interface LikeRemovedMessage extends BaseMessage {
+  type: typeof MESSAGE_TYPES.LIKE_REMOVED;
+  payload?: {
+    track?: {
+      title: string;
+    };
+  };
+}
+
+export function isLikeRemovedMessage(msg: unknown): msg is LikeRemovedMessage {
+  return (
+    typeof msg === "object" &&
+    msg !== null &&
+    "type" in msg &&
+    msg.type === MESSAGE_TYPES.LIKE_REMOVED
+  );
+}
+
 // =============================================================================
 // Listener Count Messages
 // =============================================================================
@@ -261,6 +279,7 @@ export type WebSocketMessage =
   | NackMessage
   | SessionRegisteredMessage
   | LikeReceivedMessage
+  | LikeRemovedMessage
   | ListenerCountMessage
   | TempoFeedbackMessage
   | PollStartedMessage

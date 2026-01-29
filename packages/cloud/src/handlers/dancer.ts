@@ -14,6 +14,7 @@
 import {
   LIMITS,
   logger,
+  MESSAGE_TYPES,
   SendBulkLikeSchema,
   SendLikeSchema,
   SendReactionSchema,
@@ -142,7 +143,7 @@ export async function handleSendLike(ctx: WSContext) {
  * REMOVE_LIKE: Dancer undoes a like
  */
 export async function handleRemoveLike(ctx: WSContext) {
-  const { message, ws, state, messageId } = ctx;
+  const { message, ws, rawWs, state, messageId } = ctx;
   const msg = parseMessage(SendRemoveLikeSchema, message, ws, messageId);
   if (!msg) return;
 
@@ -168,6 +169,17 @@ export async function handleRemoveLike(ctx: WSContext) {
   deletePersistedLike(track, sessionId, state.clientId).catch((e) =>
     logger.error("❌ Failed to delete persisted like", e),
   );
+
+  // Broadcast the removal to all subscribers (including the DJ)
+  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: MESSAGE_TYPES.LIKE_REMOVED,
+        payload: { track },
+      }),
+    );
+  }
 
   if (messageId) sendAck(ws, messageId);
 }

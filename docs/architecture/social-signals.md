@@ -13,7 +13,7 @@ The Social Signals system turns the audience from passive listeners into active 
 *   **WebSockets:** Real-time bidirectional communication.
 *   **Active Polling:** DJ-initiated questions.
 *   **Tempo Feedback:** Dancer requests for "Faster/Slower/Perfect".
-*   **Likes:** Positive feedback for current tracks.
+*   **Likes (Pulse):** Real-time positive feedback for current tracks (with Undo support).
 
 ## 2. Implemented Features
 
@@ -32,11 +32,16 @@ Dancers can signal their preference for the music speed *anonymously*.
 *   **Reset:** Votes are tied to the *current track*? (Needs verification: Code suggests `TEMPO_RESET` exists but when does it fire?).
 *   **Code:** `SEND_TEMPO_REQUEST` handler in `packages/cloud/src/index.ts`.
 
-### C. Likes (Hype) ❤️
-Simple binary positive feedback.
-*   **Action:** Dancer taps "Heart".
-*   **Restriction:** 1 like per track per `clientId`.
-*   **Feedback:** "Like" animation on sender, counter update for everyone.
+### C. Likes & Unhearts (Pulse) ❤️
+Simple binary sentiment feedback with real-time synchronization.
+*   **Heart (Like):** Dancer taps the Pulse button to signal hype.
+*   **Unheart (Undo):** Dancer taps again to remove the like.
+*   **Restriction:** 1 like per track play per `clientId`.
+*   **Broadcasting:** Handled via `LIKE_RECEIVED` and `LIKE_REMOVED` messages.
+*   **Persistence:** Mirrored to database with a 2-second debounce for DJ efficiency.
+
+> [!NOTE]
+> For deep technical details on the Heart/Unheart message flow and database idempotency, see [Heart & Unheart Logic](./heart-logic.md).
 
 ### D. Announcements 📢
 DJ can broadcast messages to all dancers.
@@ -86,12 +91,10 @@ This ensures busy DJs don't miss poll results during live performances.
 ## 5. Known Limitations
 
 *   **Ghost Mode:** Not implemented. All feedback is always live.
-*   **Throttling:** 
-    *   Likes: 1 per track.
-    *   Polls: 1 per poll.
-    *   **Missing:** Rate limiting for connection floods or spamming updates.
-*   **"Vibe Check" Grid:** Original design had a 4-button grid. Current implementation effectively splits this into "Tempo" (3 buttons) and "Like" (1 button).
-*   **Persistence:** Polls are saved to DB. Likes constitute a session-scoped local state for the user.
+*   **Rate Limiting:** 
+    *   Likes: Client-side rate limiting (Sonner toasts) and server-side sliding window protection.
+    *   Unhearts: Validated against current session state.
+*   **Idempotency:** Enforced via DB unique constraint on `(session_id, client_id, played_track_id)`.
 
 
 ## 6. Session Telemetry (v0.1.9)
@@ -106,4 +109,4 @@ This enables operational insights without storing PII.
 
 ---
 
-*Last Updated: January 15, 2026 (v0.1.9)*
+*Last Updated: January 29, 2026 (v0.3.0)*

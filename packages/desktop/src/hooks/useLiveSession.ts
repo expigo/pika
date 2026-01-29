@@ -172,6 +172,41 @@ function handleLikeReceivedCallback(trackTitle: string): void {
 }
 
 /**
+ * Handle incoming like removal - debounced DB update
+ */
+function handleLikeRemovedCallback(trackTitle: string): void {
+  // 🛡️ Match track title to prevent logic errors on track change
+  const currentTrack = useLiveStore.getState().nowPlaying;
+
+  if (!currentTrack || currentTrack.title !== trackTitle) {
+    logger.debug("Live", "Ignored unlike for previous/unknown track", {
+      msgTitle: trackTitle,
+      currentTitle: currentTrack?.title,
+    });
+    return;
+  }
+
+  logger.debug("Live", "Like removed", { title: trackTitle });
+  useLiveStore.getState().decrementLiveLikes();
+
+  // Debounced DB storage (H4 fix - prevents spam writes)
+  const currentPlayId = getStoreCurrentPlayId();
+  if (currentPlayId) {
+    // Decrement count for THIS specific playId (allow negative if it hasn't been flushed yet)
+    const currentCount = pendingLikesByPlayId.get(currentPlayId) || 0;
+    pendingLikesByPlayId.set(currentPlayId, currentCount - 1);
+
+    // Reset debounce timer
+    if (likeStorageTimer) {
+      clearTimeout(likeStorageTimer);
+    }
+    likeStorageTimer = setTimeout(() => {
+      void flushAllPendingLikes();
+    }, LIKE_STORAGE_DEBOUNCE_MS);
+  }
+}
+
+/**
  * Handle poll started confirmation from server
  */
 function handlePollStartedCallback(pollId: number, question: string, endsAt?: string): void {
@@ -240,6 +275,7 @@ function createRouterContext(sessionId: string, endSet: () => Promise<void>): Me
     onAck: handleAck,
     onNack: handleNack,
     onLikeReceived: handleLikeReceivedCallback,
+    onLikeRemoved: handleLikeRemovedCallback,
     onListenerCount: (count: number) => {
       logger.debug("Live", "Listener count", { count });
       useLiveStore.getState().setListenerCount(count);

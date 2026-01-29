@@ -36,6 +36,7 @@ export const MESSAGE_TYPES = {
   SESSION_ENDED: "SESSION_ENDED",
   SESSIONS_LIST: "SESSIONS_LIST",
   LIKE_RECEIVED: "LIKE_RECEIVED",
+  LIKE_REMOVED: "LIKE_REMOVED",
   LISTENER_COUNT: "LISTENER_COUNT",
   TEMPO_FEEDBACK: "TEMPO_FEEDBACK",
   TEMPO_RESET: "TEMPO_RESET",
@@ -322,6 +323,13 @@ export const LikeReceivedSchema = z.object({
   }),
 });
 
+export const LikeRemovedSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.LIKE_REMOVED),
+  payload: z.object({
+    track: TrackInfoSchema,
+  }),
+});
+
 export const MetadataUpdatedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.METADATA_UPDATED),
   sessionId: z.string(),
@@ -593,6 +601,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   SessionEndedSchema,
   SessionsListSchema,
   LikeReceivedSchema,
+  LikeRemovedSchema,
   ListenerCountSchema,
   TempoFeedbackSchema,
   TempoResetSchema,

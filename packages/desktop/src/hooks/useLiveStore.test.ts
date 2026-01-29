@@ -60,6 +60,18 @@ describe("useLiveStore", () => {
       useLiveStore.getState().incrementLiveLikes();
       expect(useLiveStore.getState().liveLikes).toBe(6);
     });
+
+    it("should decrement likes", () => {
+      useLiveStore.getState().setLiveLikes(5);
+      useLiveStore.getState().decrementLiveLikes();
+      expect(useLiveStore.getState().liveLikes).toBe(4);
+    });
+
+    it("should not decrement below zero", () => {
+      useLiveStore.getState().setLiveLikes(0);
+      useLiveStore.getState().decrementLiveLikes();
+      expect(useLiveStore.getState().liveLikes).toBe(0);
+    });
   });
 
   describe("playedTrackKeys", () => {
