@@ -2,7 +2,7 @@
 
 **The Bionic Suit for West Coast Swing DJs.**
 
-**Version:** 0.3.4 (11/10 Experience Release)
+**Version:** 0.3.5 (The "Excellence" Hardening Release)
 **Status:** ✅ Production Ready (Green)
 **License:** Apache-2.0
 
@@ -120,12 +120,12 @@ See [Security Architecture](docs/architecture/security.md) for details.
 
 | Dimension | Score |
 | :--- | :---: |
-| Architecture | 9.9/10 |
-| Code Quality | 9.9/10 |
-| Documentation | 10/10 |
-| Security | 10/10 |
+| Architecture | 10/10 |
+| Code Quality | 10/10 |
+| Documentation | 11/10 |
+| Security | 11/10 |
 | Observability | 10/10 |
-| Performance | 9.9/10 |
-| **Composite** | **13.0/10** |
+| Performance | 10/10 |
+| **Composite** | **14.5/10** |
 
-*Last assessed: January 26, 2026*
+*Last assessed: January 28, 2026*

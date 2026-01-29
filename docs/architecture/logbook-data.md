@@ -60,7 +60,20 @@ Currently, analytics are delivered via the **Session Recap API** (`packages/clou
 *   It includes basic counts (Likes).
 *   **Missing:** Advanced transition quality analysis, "Energy Flow" graphs, or "Crowd Sentiment" timelines.
 
-## 5. Known Limitations
+## 5. Data Integrity & Resilience (v0.3.5)
+ 
+ ### A. Cascading Purge
+ All session-linked data is guarded by strict `ON DELETE CASCADE` foreign keys. Deleting a session via the API or Logbook automatically and atomically clears:
+ *   Associated tracks, likes, tempo votes, and poll data.
+ *   Session telemetry events.
+ 
+ ### B. Server-Side Constraints (Hardening)
+ The analytics layer enforces professional data boundaries at the SQL level:
+ *   **Metric Sanitization:** Track energy, danceability, etc., are checked against a `0-100` range.
+ *   **BPM Validation:** Enforces a `20-300` BPM range to prevent outlier noise.
+ *   **Vote Integrity:** Checks for non-negative counters on all vote tables.
+ 
+ ## 6. Known Limitations
 
 1.  **Correlation Gap:** There is no dedicated `session_events` table for fine-grained timestamped events (e.g. "at 10:05:33 user X clicked Like"). Likes are associated with a *Track*, not a specific timestamp within the track.
 2.  **Performance Mode UI:** The desktop UI does not yet implement the distinct "Democracy Mode" or "Ghost Mode" overlays described in the vision.

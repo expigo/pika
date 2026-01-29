@@ -106,9 +106,11 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Debounced search** | 200ms delay on keystrokes | ✅ Done |
 | **Progress indicators** | Analysis shows current track | ✅ Done |
 | **Pause/Resume** | Analyzer can be paused mid-batch | ✅ Done |
-| **Smart Animations** | `requestAnimationFrame` pauses when hidden | ✅ Done (v0.3.3) |
+| **Smart Animations** | `requestAnimationFrame` and Confetti loops pause when hidden | ✅ Done (v0.3.5) |
 | **Hydration Stability** | `useVisibility` hook initializes to server-safe defaults | ✅ Done (v0.3.3) |
 | **IPC Timeouts** | `invokeWithTimeout` prevents hanging Rust calls | ✅ Done (v0.3.3) |
+| **Off-Main-Thread** | Confetti rendering moved to Web Worker (via `blob:`) | ✅ Done (v0.3.5) |
+
 
 ---
 
@@ -160,13 +162,14 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 | Condition | WebSocket | Polling (API) | VDJ Watcher | Power State |
 |-----------|-----------|---------------|-------------|-------------|
 | **Active** | Connected | 30s Interval | 1s Interval | Normal |
-| **Hidden** | Suspended | Stopped | **Adaptive (3s)** | **Hybrid Sleep** |
-| **Resumed** | Reconnect | Immediate | 1s Interval | Awake |
+| **Hidden** | Suspended | Stopped | **Adaptive (3s)** | **Hybrid Sleep (Missed Love Buffer)** |
+| **Resumed** | Reconnect | Immediate | 1s Interval | **Awake (Buffered Burst)** |
 
 ### 1. WebSocket & Polling Suspension (H1)
 - **Logic:** `useLiveListener.ts` and `page.tsx` use a visibility-aware polling strategy.
 - **Action:** Network activity (AJAX polling and heartbeats) is **stopped** when the tab is hidden.
 - **Benefit:** Eliminates 100% of background network noise, drastically extending mobile battery life.
+- **UX Bridge (Missed Love):** To ensure the DJ doesn't lose the "vibe" while in the background, a `missedReactionsRef` buffers all incoming events. Upon window focus, a single high-intensity burst (up to 2.0x normal) is fired to provide immediate physical feedback of missed engagement.
 
 #### Technical Implementation Details
 *   **WebSocket Suspension:** `useWebSocketConnection.ts` checks `document.visibilityState` inside its heartbeat loop and skips `PING` frames if hidden to keep the mobile radio dormant.
@@ -195,6 +198,7 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 
 | Date | Change |
 |------|--------|
+| 2026-01-28 | **Excellence Hardening (v0.3.5)**: Web Worker Confetti (Performance), Missed Love Buffer (UX), Idempotent SQL (Ops), Cascading DB Deletes (Integrity), Symmetrical Animation Framing (Design) |
 | 2026-01-25 | **Performance Batch 3 (v0.3.3)**: Fatal Error Protection (Issue 41), Explicit Column Selection (Issue 40), Rust File Scan Opt (Issue 42), Reduced Cache Latency (Issue 47) |
 | 2026-01-25 | **Reliability & Robustness Hardening (v0.3.3)**: Mandatory API limits, Adaptive 3s background polling, 1,000 message reliability buffer, Store LRU eviction, ID-based queue concurrency, Hybrid Deduplication (Window + Absolute) |
 | 2026-01-25 | **Performance Hardening (v0.3.2)**: Visibility polling (H1), Yielding I/O (H2), SWR Caching (H3), Memoized Handlers (H4) |

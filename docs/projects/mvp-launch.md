@@ -3,7 +3,8 @@
 This document tracks the tasks and status for the upcoming MVP Launch Event.
 
 **Target Date:** ~1 month from now
-**Status:** Pre-Launch Polish
+**Version:** v0.3.5 (The "Excellence" Hardening Release)
+**Status:** ✅ Production Ready (Green)
 
 ## 1. Executive Summary
 
@@ -30,6 +31,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [x] **SSL:** Managed by Cloudflare Edge.
 *   [x] **CI/CD:** `deploy.yml` pipeline active.
 *   [x] **Reliability:** Persistence Queue + Atomic Transactions (v0.3.0).
+*   [x] **Schema Hardening:** Idempotent migrations + Cascading DB deletes (v0.3.5).
+
 
 ## 3. Implementation Checklist (Remaining)
 
@@ -48,6 +51,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **CSP Headers**: Content-Security-Policy via Next.js middleware (v0.1.9).
     *   [x] **WS Connection Rate Limit**: 20 connections/min per IP (v0.1.9).
     *   [x] **Session Telemetry**: DJ connect/disconnect events for operational insights (v0.1.9).
+    *   [x] **CSP Externalization**: Moved animation styles to external CSS to bypass production build security blocks (v0.3.5).
+
 *   [x] **Performance & Stability (Completed)**:
     *   [x] Recap Duration Fix ("0 min" bug).
     *   [x] Recap Privacy Links (Public vs DJ Analytics).
@@ -78,8 +83,11 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Safe QR Codes**: Smart generation (public URL in prod, local IP in dev).
     *   [x] **Landing Page**: Add "How It Works" visual section and clear value props.
     *   [x] **Download Page**: Smart GitHub Release integration for Desktop downloads.
-    *   [x] **"Thank You" Rain**: Interactive confetti (Canon Mode) + Performance Mode UI Polish.
+    *   [x] **"Thank You" Rain**: Symmetrical framing columns + Intense Cannon burst modes (v0.3.5).
     *   [x] **UI Polish**: Fixed selection highlighting and database migration stability.
+    *   [x] **Missed Love Tracking**: Intelligent background buffering + "Welcome Back" playback (v0.3.5).
+    *   [x] **Pulse Sync**: Heartbeat pulse syncs with track BPM for visual rhythm (v0.3.5).
+
     *   [x] **Poll Alerts**: Toast notification + drawer results with winner highlight and dismiss button.
     *   [x] **DJ Announcements**: Overlay banner with auto-dismiss timer. Session-scoped (only visible to DJ's dancers).
     *   [x] **Pro Polish**: **Slate & Neon** theme overhaul across all web endpoints (v0.2.0).

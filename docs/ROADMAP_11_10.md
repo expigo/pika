@@ -28,6 +28,8 @@ This roadmap consolidates findings from deep code audits across all 4 packages (
 - **Observability:** Full-stack Sentry + PII scrubbing (v0.3.1) ✅
 - **Performance:** Zero-waste battery + SWR caching (v0.3.2) ✅
 - **Resilience:** Backpressure + Persistence Queues (v0.3.0) ✅
+- **Hardening:** CSP Externalization + DB Cascades (v0.3.4) ✅
+- **UX Fidelity:** Structural "Thank You" Framing + Welcome-Back Burst (v0.3.5) ✅
 
 ---
 
@@ -41,7 +43,8 @@ This roadmap consolidates findings from deep code audits across all 4 packages (
 | **S3** | Schema Hardening & Validation | 3-4 days | REQUIRED | ✅ COMPLETE |
 | **S4** | Accessibility & UX Polish | 1 week | IMPORTANT | ✅ COMPLETE |
 | **S5** | Test Coverage & Documentation | 1 week | IMPORTANT | ✅ COMPLETE |
-| **S6** | Future Infrastructure | 2 weeks | STRATEGIC | PLANNED |
+| **S6** | Professional Hardening & Polish | 3 days | REQUIRED | ✅ COMPLETE |
+| **S7** | Future Infrastructure | 2 weeks | STRATEGIC | PLANNED |
 
 ---
 
@@ -611,20 +614,18 @@ export const metadata: Metadata = {
 - [x] Latency (H2): Deferred localStorage hits yielding to main thread.
 - [x] Caching (H3): SWR deduplication active on REST endpoints.
 - [x] Economy (H4): Stable WebSocket handler trees (100% memoization).
-### Phase 4: Client Reliability Complete When: ✅ VERIFIED (2026-01-26)
-- [x] Issue 48 (Sleeping Phones): Subscribers receive `SESSION_ENDED` on wake (Cloud Logic).
-- [x] Issue 49 (Late Joiner BPM): `METADATA_UPDATED` broadcast implementation + Ghost Track prevention.
-
-### Phase 5: Top-Tier Experience (UX/Psychology) Complete When: ✅ VERIFIED (2026-01-26)
-- [x] **Smart History Import:** Automatic detection of previous sessions (`detectSession`).
-- [x] **Duplicate Warning:** Modal blocks overlapping sessions (>10m match) to prevent duplicate history data.
-- [x] **Seamless Flow:** Name Input merged into Import Modal for 1-click go-live.
-- [x] **Portal Architecture:** All overlay modals use `createPortal` to solve CSS clipping/stacking issues.
-- [x] **Psychology Patterns:**
-  - De-emphasized "Import Anyway" (Destructive).
-  - Explicit "Recommended" actions.
-  - "Currently Playing" context indicators.
-  - Gap detection logic (>10m gaps shown in list).
+### Phase 6: Professional Hardening & Animation Polish ✅ VERIFIED (2026-01-28)
+- [x] **CSP Armor:** Removed redundant meta-tags; consolidated CSP in `tauri.conf.json`.
+- [x] **Inline Style Purge:** Moved animation keyframes to external CSS (`App.css`) to defeat WebKit security blocks.
+- [x] **DB Cascades:** Implemented strict `ON DELETE CASCADE` for sessions (tracks, likes, votes, events).
+- [x] **Schema Consolidation:** Merged high-performance indexes into a single idempotent `0008` migration.
+- [x] **Structural Polish:**
+  - **Symmetrical Framing:** "Thank You" particles fire in structured left/right columns.
+  - **Dainty Drift:** Reduced density + slow velocity for premium "Glimmer" feel.
+  - **Intense Cannon:** High-velocity 300-particle bursts for peak engagement.
+- [x] **Intelligent UI:**
+  - **Missed Love Tracking:** Backgrounded apps accumulate reactions and playback a burst on Focus.
+  - **Zero-Waste Focus:** `requestAnimationFrame` and confetti loops pause when document is hidden.
 
 ---
 
@@ -681,7 +682,7 @@ bun audit
 
 ---
 
-**Document Version:** 2.2
-**Last Updated:** 2026-01-26
+**Document Version:** 2.3
+**Last Updated:** 2026-01-28
 **Maintained By:** Engineering Team
-**Verification Status:** Phase 5 (Top-Tier Experience) Complete
+**Verification Status:** Phase 6 (Professional Hardening) Complete

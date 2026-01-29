@@ -2,9 +2,9 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** ✅ PRODUCTION HARDENED
-**Status:** Release v0.3.2 (Monitoring & Performance Audit)
-**Verification Date:** 2026-01-25
+**Current Focus:** ✅ PRODUCTION HARDENED (v0.3.5)
+**Status:** Release v0.3.5 (The "Excellence" Release)
+**Verification Date:** 2026-01-28
 
 > **📊 Audit Recap:** See [AUDIT_RECAP.md](AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.
 > **📊 Complete Roadmap:** See [ROADMAP_11_10.md](ROADMAP_11_10.md) for detailed sprint verification with code references.
@@ -16,7 +16,12 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 25, 2026 - Performance Hardening v0.3.2):**
+    *   **Recent Completions (Jan 28, 2026 - Excellence Hardening v0.3.5):**
+        *   ✅ **Security:** CSP Externalization (defeat production build blocks).
+        *   ✅ **Social:** Intelligent "Missed Love" buffer for backgrounded app engagement.
+        *   ✅ **Design:** Symmetrical animation framing (curated left/right columns).
+        *   ✅ **Integrity:** Idempotent "IF NOT EXISTS" migrations + cascading DB deletes.
+    *   **Previous Completions (Jan 25, 2026 - Performance Hardening v0.3.2):**
         *   ✅ **H1 (Battery):** Visibility-aware polling in Live Lobby (pauses in background).
         *   ✅ **H2 (Sync Blocking):** Deferred localStorage hits via event loop yielding.
         *   ✅ **H3 (Caching):** Integrated SWR for O(1) track history deduplication.

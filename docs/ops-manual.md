@@ -41,9 +41,16 @@ bun run db:migrate
 # bun run db:push  # ⚠️ Use only for rapid prototyping
 ```
 
-**Important:** Migration files in `drizzle/*.sql` MUST be committed to git. These are the source of truth for database schema.
+**Important:** Migration files in `drizzle/*.sql` MUST be committed to git. These are the source of truth for database schema. Starting from v0.3.5, migrations are **Idempotent** (using `IF NOT EXISTS`), making them safe to run against existing databases without crashing.
 
----
+**Local Desynchronization (The "Fix" for Migration Conflicts):**
+If you ever encounter an `ECONNRESET` or a `relation already exists` error during local startup, it means your local Docker volume is out of sync with the Git history.
+```bash
+# Nuclear Reset (SAFE for local dev, data will be lost)
+docker compose down -v  # Wipes the VOLUME
+docker compose up -d postgres
+bun run --filter @pika/cloud dev # Re-runs all migrations from scratch
+```
 
 ## � Git Strategy & Workflow
 
@@ -167,8 +174,8 @@ Pika! utilizes **Sentry** for full-stack observability.
 - **Filtering Noise:** Use the "Inbound Filters" in Sentry settings to ignore browser extension errors (already configured in code via `ignoreErrors`).
 - **Performance Baseline:** Check the "Performance" tab to see transaction durations for WebSocket `ON_MESSAGE` and REST API endpoints.
 - **Environment Scoping:** Use the `environment` tag to distinguish between `staging` and `production` errors.
+- **Tauri Builds (Desktop):** The `SENTRY_DSN` is injected at build time via GitHub Secrets. To update it for production `.dmg` builds, update the secret in GitHub Settings (Actions > Secrets).
 
----
 
 ## 🔍 Database Operations (Production)
 

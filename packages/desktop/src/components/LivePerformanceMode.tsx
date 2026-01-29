@@ -136,14 +136,16 @@ export function LivePerformanceMode({
   const REACTION_WINDOW_MS = 3000;
   const CANNON_THRESHOLD = 5;
 
+  const missedReactionsRef = useRef(0);
+
   // Cannon burst effect (one-shot from bottom)
-  const fireCannon = useCallback(() => {
-    const count = 300; // Increased to 300 for maximum impact
+  const fireCannon = useCallback((intensity = 1.0) => {
+    const count = Math.floor(300 * intensity);
     const defaults = {
       origin: { y: 1 },
-      startVelocity: 55, // Higher velocity
-      spread: 120, // Wider spread
-      ticks: 200, // Stay on screen longer
+      startVelocity: 55 * Math.min(intensity, 1.2), // Caps speed to avoid "vanishing" particles
+      spread: 120,
+      ticks: 200,
       zIndex: 100000,
     };
 
@@ -194,22 +196,26 @@ export function LivePerformanceMode({
         return;
       }
 
-      // SUBTLE: Reduced particle base from 40 to 15 for a truly "gentle" feel
-      const particleCount = 15 * (timeLeft / rainDuration);
+      // COLORFUL SYMMETRICAL FRAMING: Explicitly picking colors for variety
+      const probability = 0.8 * (timeLeft / rainDuration);
 
-      if (particleCount > 0.5) {
+      if (Math.random() < probability) {
+        const isLeft = Math.random() > 0.5;
+        const xOrigin = isLeft ? randomInRange(0.02, 0.28) : randomInRange(0.72, 0.98);
+
+        const palette = ["#a78bfa", "#f472b6", "#fbbf24", "#22d3ee"];
+        const color = palette[Math.floor(Math.random() * palette.length)];
+
         confetti({
           ...defaults,
-          particleCount,
-          origin: { x: randomInRange(0.1, 0.4), y: Math.random() - 0.2 },
-          // Subsumed palette: softer colors
-          colors: ["#a78bfa", "#f472b6"],
-        });
-        confetti({
-          ...defaults,
-          particleCount,
-          origin: { x: randomInRange(0.6, 0.9), y: Math.random() - 0.2 },
-          colors: ["#a78bfa", "#f472b6"],
+          particleCount: 1,
+          startVelocity: 18,
+          gravity: 0.85,
+          scalar: randomInRange(0.6, 1.0),
+          ticks: 150,
+          origin: { x: xOrigin, y: -0.1 },
+          colors: [color], // Explicitly pass the chosen color
+          shapes: ["circle"],
         });
       }
 
@@ -228,10 +234,32 @@ export function LivePerformanceMode({
     };
   }, []);
 
+  // "Welcome Back" Logic: Fire missed love when window gains focus
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && missedReactionsRef.current > 0) {
+        // Map missed count to intensity (max 2.0x for huge bursts)
+        const intensity = Math.min(1 + missedReactionsRef.current * 0.1, 2.0);
+        fireCannon(intensity);
+        ensureRainLoop(4000); // Longer rain for "Welcome Back"
+        missedReactionsRef.current = 0; // Reset
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [fireCannon, ensureRainLoop]);
+
   // Reaction Subscription (Confetti with Velocity Tracking)
   useEffect(() => {
     return subscribeToReactions((reaction) => {
       if (reaction === "thank_you") {
+        // 🛡️ Missed Love Tracking
+        if (document.hidden) {
+          missedReactionsRef.current += 1;
+          return;
+        }
+
         const now = Date.now();
         const rainDuration = 3000;
 

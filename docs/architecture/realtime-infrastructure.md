@@ -19,7 +19,11 @@ The connection is established via WebSockets (`wss://`).
 *   **Library:** `reconnecting-websocket` wraps the standard DOM `WebSocket`.
 *   **Behavior (Desktop):**
     *   **Auto-Reconnect:** Exponential backoff (1s to 10s) on disconnection.
-    *   **Adaptive Polling:** The VirtualDJ Watcher drops to 3s when hidden to ensure zero data loss during long background periods.
+    *   **Adaptive Polling:** The VirtualDJ Watcher drops to 3s when hidden to ensure zero data loss while saving battery.
+    *   **Visibility Control (Missed Love):** 
+        *   Animations pause completely when the window is backgrounded.
+        *   Incoming reactions are buffered in a "Missed Love" counter.
+        *   Upon Focus, a "Welcome Back" Cannon burst is triggered proportional to the missed volume.
     *   **Session Restoration:** On `onopen`, the client immediately re-sends `REGISTER_SESSION` with the active `sessionId`.
 *   **Behavior (Mobile Web):**
     *   **Battery Optimization:** Heartbeats adapt to tab visibility (30s foreground / 60s background).

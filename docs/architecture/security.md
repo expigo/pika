@@ -216,7 +216,7 @@ grep -r "eval(" packages/                     # No results
 
 ### 5.2 Content Security Policy
 
-**Implementation (v0.1.9):**
+**Implementation (v0.1.9 - Web):**
 ```typescript
 // packages/web/middleware.ts
 // Adds CSP, X-Frame-Options, X-Content-Type-Options, etc.
@@ -230,6 +230,20 @@ export function middleware(request: NextRequest) {
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
 | 🟢 FIXED | LOW | v0.1.9 |
+ 
+ **Implementation (v0.3.5 - Desktop/Tauri):**
+ Pika! uses a "Pragmatically Safe" CSP in `tauri.conf.json` to balance security with the functional requirements of modern animation libraries.
+ 
+ | Directive | Policy | Rationale |
+ | :--- | :--- | :--- |
+ | `style-src` | `'self' 'unsafe-inline'` | Required for dynamic animation math (e.g., Confetti, Pulse). Core keyframes are externalized to `App.css` to bypass WebKit blocks. |
+ | `worker-src` | `blob: tauri:` | Enables high-performance confetti rendering via Web Workers. |
+ | `connect-src` | `ipc: localhost:*` | Permits internal communication between Tauri frontend and backend. |
+ | `script-src` | `'self' 'unsafe-eval'` | Required for the Tauri IPC bridge and dynamic expression evaluation in physics engines. |
+ 
+ | Status | Severity | ETA |
+ | :---: | :---: | :--- |
+ | 🟢 FIXED | LOW | v0.3.5 |
 
 ---
 
