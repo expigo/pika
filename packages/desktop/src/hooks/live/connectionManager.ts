@@ -80,17 +80,23 @@ export function prepareInitialTrackState(
     title: initialTrack.title,
   });
 
+  const dedupWindow = Math.floor(Date.now() / TRACK_DEDUP_WINDOW_MS);
+  const trackKey = `${initialTrack.artist}-${initialTrack.title}-${dedupWindow}`;
+  const absoluteKey = `${initialTrack.artist}:${initialTrack.title}`;
+
   if (includeCurrentTrack) {
     setSkipInitialTrackBroadcast(false);
+    // Even if including, we mark as processed for recordPlay to prevent double-counting
+    // (the watcher listener will handle the actual broadcast/recording)
+    addProcessedTrackKey(trackKey);
+    setLastBroadcastedTrackKey(absoluteKey);
   } else {
     logger.debug("Live", "Skipping initial track (user chose not to include)");
     setSkipInitialTrackBroadcast(true);
 
     // Mark the initial track as processed so it won't be recorded/broadcast
-    const dedupWindow = Math.floor(Date.now() / TRACK_DEDUP_WINDOW_MS);
-    const trackKey = `${initialTrack.artist}-${initialTrack.title}-${dedupWindow}`;
     addProcessedTrackKey(trackKey);
-    setLastBroadcastedTrackKey(`${initialTrack.artist}:${initialTrack.title}`);
+    setLastBroadcastedTrackKey(absoluteKey);
   }
 }
 

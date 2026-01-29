@@ -56,7 +56,6 @@ export function LiveControl() {
   const [showNameModal, setShowNameModal] = useState(false);
   const [showDjNamePrompt, setShowDjNamePrompt] = useState(false);
   const [showEditDjName, setShowEditDjName] = useState(false);
-  const [showIncludeTrackPrompt, setShowIncludeTrackPrompt] = useState(false);
   const [pendingTrack, setPendingTrack] = useState<PendingTrack | null>(null);
   const [sessionName, setSessionName] = useState("");
   const [djNameInput, setDjNameInput] = useState("");
@@ -212,26 +211,27 @@ export function LiveControl() {
     setShowImportModal(false);
     setDetectedSession(null);
 
-    // If name provided (via "Start New" in modal), we can fast-track
+    // If name provided (via "Start Fresh" in modal), we still check for current track
+    // but we can pre-set the session name.
     if (sessionName) {
-      const name = sessionName.trim();
-      // User explicitly chose "Start New" (Skip History)
-      // We start fresh, ignoring any currently loaded track in VDJ to avoid confusion
-      goLive(name, false);
-      return;
+      setSessionName(sessionName.trim());
     }
 
-    // Default flow if no name (shouldn't happen with new modal)
     checkForCurrentTrack();
   };
 
-  // Check if there's a track playing and prompt to include it
+  // Check if there's a track playing and prioritize immediate naming
   const checkForCurrentTrack = () => {
     const currentTrack = virtualDjWatcher.getCurrentTrack();
+
+    // Set default name if not already set (e.g. via Skip History flow)
+    if (!sessionName) {
+      setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
+    }
+
     if (currentTrack) {
       // Check if track is stale (older than 10 minutes)
-      // This helps detect tracks from previous sessions that are still in VirtualDJ history
-      const STALE_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+      const STALE_THRESHOLD_MS = 10 * 60 * 1000;
       const trackTime = currentTrack.timestamp?.getTime() ?? 0;
       const isStale = Date.now() - trackTime > STALE_THRESHOLD_MS;
 
@@ -240,12 +240,11 @@ export function LiveControl() {
         title: currentTrack.title,
         isStale,
       });
-      setShowIncludeTrackPrompt(true);
     } else {
-      // No current track, go straight to session name
-      setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
-      setShowNameModal(true);
+      setPendingTrack(null);
     }
+
+    setShowNameModal(true);
   };
 
   const handleDjNameSubmit = () => {
@@ -256,7 +255,6 @@ export function LiveControl() {
       setShowEditDjName(false);
       // If this was the initial prompt, check history then track
       if (!hasSetDjName) {
-        // We use checkVdjHistory here but need to make it async/await safe or just trigger it
         void checkForVdjHistory();
       }
     }
@@ -265,16 +263,6 @@ export function LiveControl() {
   const handleEditDjName = () => {
     setDjNameInput(djName);
     setShowEditDjName(true);
-  };
-
-  const handleIncludeTrack = (include: boolean) => {
-    setShowIncludeTrackPrompt(false);
-    if (!include) {
-      setPendingTrack(null); // Will be skipped
-    }
-    // Show session name modal
-    setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
-    setShowNameModal(true);
   };
 
   const handleCopyRecapLink = async () => {
@@ -289,9 +277,9 @@ export function LiveControl() {
     setLastSessionId(null);
   };
 
-  const handleStartSession = () => {
+  const handleStartSession = (includeTrack: boolean) => {
     // Pass the pending track decision to goLive
-    goLive(sessionName.trim() || undefined, pendingTrack !== null);
+    goLive(sessionName.trim() || undefined, includeTrack);
     setShowNameModal(false);
     setSessionName("");
     setPendingTrack(null);
@@ -625,9 +613,8 @@ export function LiveControl() {
                     type="button"
                     onClick={() => {
                       setShowDuplicateWarningModal(false);
-                      // Start fresh: Skip "Include Current" check and go straight to naming
-                      setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
-                      setShowNameModal(true);
+                      // Start fresh: prioritizes immediate naming + track check
+                      checkForCurrentTrack();
                     }}
                     className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20"
                   >
@@ -676,117 +663,109 @@ export function LiveControl() {
         />
       )}
 
-      {/* Include Current Track Prompt */}
-      {showIncludeTrackPrompt && pendingTrack && (
-        <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={() => handleIncludeTrack(false)}
-        >
-          <div
-            className="w-full max-w-md bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="p-6 space-y-6">
-              <div className="flex items-center gap-3 text-pika-accent">
-                <Music2 size={24} />
-                <h3 className="text-xl font-bold text-white tracking-tight">
-                  Include Current Track?
-                </h3>
-              </div>
-
-              <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-center space-y-1">
-                <p className="text-lg font-bold text-white truncate">{pendingTrack.title}</p>
-                <p className="text-sm text-slate-500 truncate">{pendingTrack.artist}</p>
-              </div>
-
-              {pendingTrack.isStale && (
-                <div className="flex items-start gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-500 text-xs leading-relaxed">
-                  <AlertTriangle size={16} className="shrink-0" />
-                  <span>
-                    This track might be from an old session. Check if it's currently playing.
-                  </span>
-                </div>
-              )}
-
-              <p className="text-sm text-slate-400">
-                {pendingTrack.isStale
-                  ? "Found in history, but might be stale. Include in your live set?"
-                  : "This song is currently playing. Should we add it to your live set list?"}
-              </p>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => handleIncludeTrack(false)}
-                  className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-700"
-                >
-                  Skip
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleIncludeTrack(true)}
-                  className="flex-1 px-4 py-3 bg-pika-accent hover:bg-pika-accent-light text-white font-bold rounded-xl transition-all shadow-lg shadow-pika-accent/20 flex items-center justify-center gap-2"
-                >
-                  <Check size={18} />
-                  Include It
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Session Name Modal (Fallback for non-import flow) */}
+      {/* Unified Start Session Modal */}
       {showNameModal &&
         createPortal(
           <div
             className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={() => setShowNameModal(false)}
+            onClick={() => handleCancelSession()}
           >
             <div
-              className="w-full max-w-md bg-slate-900 border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+              className="w-full max-w-md bg-slate-900 border border-slate-700/50 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6 space-y-6">
+              <div className="p-8 space-y-8">
                 <div className="flex items-center gap-3 text-pika-accent">
-                  <Edit3 size={24} />
-                  <h3 className="text-xl font-bold text-white tracking-tight">Name Your Session</h3>
+                  <Radio size={28} className="animate-pulse" />
+                  <h3 className="text-2xl font-bold text-white tracking-tight">
+                    Start New Session
+                  </h3>
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-3">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
-                    Session Title
+                    Set Title
                   </label>
                   <input
                     type="text"
                     value={sessionName}
                     onChange={(e) => setSessionName(e.target.value)}
                     placeholder="e.g. Friday Night Social"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white placeholder:text-slate-600 focus:border-pika-accent outline-none transition-all font-medium"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-5 py-4 text-white placeholder:text-slate-600 focus:border-pika-accent outline-none transition-all font-bold text-lg"
                     autoFocus
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") handleStartSession();
+                      if (e.key === "Enter") handleStartSession(pendingTrack !== null);
                       if (e.key === "Escape") handleCancelSession();
                     }}
                   />
                 </div>
 
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleCancelSession}
-                    className="flex-1 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-700"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleStartSession}
-                    className="flex-1 px-4 py-3 bg-pika-accent hover:bg-pika-accent-light text-white font-bold rounded-xl transition-all shadow-lg shadow-pika-accent/20 flex items-center justify-center gap-2"
-                  >
-                    <Radio size={18} />
-                    Go Live
-                  </button>
+                {pendingTrack && (
+                  <div className="space-y-3">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                      Currently Playing
+                    </label>
+                    <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center gap-4">
+                      <div className="w-10 h-10 bg-pika-accent/10 rounded-xl flex items-center justify-center shrink-0">
+                        <Music2 size={20} className="text-pika-accent" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-white truncate">
+                          {pendingTrack.title}
+                        </p>
+                        <p className="text-xs text-slate-500 truncate">{pendingTrack.artist}</p>
+                      </div>
+                    </div>
+                    {pendingTrack.isStale && (
+                      <div className="flex items-start gap-2.5 p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-amber-500/80 text-[10px] leading-relaxed font-medium">
+                        <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                        <span>
+                          Warning: This track was detected as starting over 10m ago and might be
+                          from a past set.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-3 pt-2">
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleCancelSession()}
+                      className="flex-1 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-2xl transition-all border border-slate-700 uppercase text-xs tracking-widest"
+                    >
+                      Cancel
+                    </button>
+                    {pendingTrack ? (
+                      <button
+                        type="button"
+                        onClick={() => handleStartSession(true)}
+                        className="flex-[2] px-6 py-4 bg-pika-accent hover:bg-pika-accent-light text-white font-black rounded-2xl transition-all shadow-xl shadow-pika-accent/20 flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                      >
+                        <Radio size={16} />
+                        Include Track & Go Live
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleStartSession(false)}
+                        className="flex-[2] px-6 py-4 bg-pika-accent hover:bg-pika-accent-light text-white font-black rounded-2xl transition-all shadow-xl shadow-pika-accent/20 flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                      >
+                        <Radio size={16} />
+                        Go Live Now
+                      </button>
+                    )}
+                  </div>
+                  {pendingTrack && (
+                    <button
+                      type="button"
+                      onClick={() => handleStartSession(false)}
+                      className="w-full py-3 text-slate-500 hover:text-slate-300 text-[10px] font-black uppercase tracking-widest transition-colors"
+                    >
+                      Ignore Track & Start Fresh
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

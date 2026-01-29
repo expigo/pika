@@ -1,4 +1,4 @@
-import { Music2, X } from "lucide-react";
+import { Check, Music2, Radio, X } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { DetectedSession, VdjHistoryTrack } from "../hooks/useVdjHistory";
@@ -88,16 +88,26 @@ export function SessionImportModal({
             </div>
 
             {currentTrack && (
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl shrink-0">
-                <div className="flex items-center gap-2 mb-2">
-                  <Music2 size={16} className="text-emerald-500" />
-                  <p className="text-xs font-bold text-emerald-500 uppercase tracking-wider">
-                    Currently Playing
-                  </p>
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl shrink-0">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-500">
+                      Deck Status: Playing Now
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm font-semibold text-white">
-                  {currentTrack.artist} - {currentTrack.title}
-                </p>
+
+                <div className="flex items-center gap-4 bg-slate-950/40 p-3 rounded-xl border border-emerald-500/10">
+                  <div className="w-10 h-10 bg-emerald-500/20 rounded-lg flex items-center justify-center shrink-0">
+                    <Music2 size={20} className="text-emerald-500" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-white truncate">{currentTrack.title}</p>
+                    <p className="text-xs text-slate-400 truncate">{currentTrack.artist}</p>
+                  </div>
+                </div>
+
                 {(() => {
                   const isInImport = detectedSession.tracks.some(
                     (t) =>
@@ -105,11 +115,19 @@ export function SessionImportModal({
                       t.title.toLowerCase() === currentTrack.title.toLowerCase(),
                   );
                   return isInImport ? (
-                    <p className="text-xs text-slate-400 mt-1">✓ Already in import list</p>
+                    <div className="flex items-center gap-2 mt-3 text-[10px] font-bold text-slate-400 uppercase tracking-tight">
+                      <div className="w-4 h-4 rounded-full bg-slate-800 flex items-center justify-center shrink-0">
+                        <Check size={10} className="text-emerald-500" />
+                      </div>
+                      <span>Seamless Transition: This track is already in your history</span>
+                    </div>
                   ) : (
-                    <p className="text-xs text-amber-400 mt-1">
-                      ⚠️ Not in import list (will be added separately)
-                    </p>
+                    <div className="flex items-center gap-2 mt-3 text-[10px] font-bold text-amber-500 uppercase tracking-tight">
+                      <div className="w-4 h-4 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 border border-amber-500/20">
+                        <span className="text-[10px]">!</span>
+                      </div>
+                      <span>Bridge Required: This song will be added to the end of your set</span>
+                    </div>
                   );
                 })()}
               </div>
@@ -118,35 +136,40 @@ export function SessionImportModal({
             {/* Track Preview */}
             <div className="space-y-2">
               <div className="flex items-center justify-between shrink-0">
-                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                  Track List Preview
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                  History Timeline
                 </p>
                 <button
                   type="button"
                   onClick={() => setShowFullList(!showFullList)}
-                  className="text-xs text-pika-accent hover:underline cursor-pointer"
+                  className="text-[10px] font-bold text-pika-accent hover:underline cursor-pointer uppercase tracking-wider"
                 >
-                  {showFullList ? "Show Less" : "Show All"}
+                  {showFullList ? "Collapse" : "View All"}
                 </button>
               </div>
 
-              <div className="max-h-64 overflow-y-auto bg-slate-950/30 rounded-xl border border-slate-800 p-3 space-y-2 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+              <div className="max-h-56 overflow-y-auto bg-slate-950/30 rounded-2xl border border-slate-800/50 p-2 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
                 {(showFullList ? selectedTracks : selectedTracks.slice(0, 5)).map((track, idx) => (
                   <div
                     key={`${track.timestamp}-${track.title}`}
-                    className="flex items-center gap-3 p-2 bg-slate-800/40 rounded-lg"
+                    className="flex items-center gap-3 p-2 hover:bg-slate-800/40 rounded-xl transition-colors group"
                   >
-                    <div className="flex-shrink-0 w-8 h-8 bg-pika-accent/10 rounded-full flex items-center justify-center">
-                      <span className="text-xs font-bold text-pika-accent">
+                    <div className="flex-shrink-0 w-7 h-7 bg-slate-800 group-hover:bg-pika-accent/10 rounded-lg flex items-center justify-center transition-colors">
+                      <span className="text-[10px] font-black text-slate-500 group-hover:text-pika-accent">
                         {selectedStartIndex + idx + 1}
                       </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{track.title}</p>
-                      <p className="text-xs text-slate-500 truncate">{track.artist}</p>
+                      <p className="text-xs font-bold text-white truncate">{track.title}</p>
+                      <p className="text-[10px] text-slate-500 truncate font-medium">
+                        {track.artist}
+                      </p>
                     </div>
-                    <span className="text-xs text-slate-600 tabular-nums flex items-center gap-2">
-                      {new Date(track.timestamp * 1000).toLocaleTimeString()}
+                    <span className="text-[10px] text-slate-600 tabular-nums flex items-center gap-1.5 font-mono">
+                      {new Date(track.timestamp * 1000).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
                       {idx > 0 &&
                         (() => {
                           const prevTrack = selectedTracks[idx - 1];
@@ -154,8 +177,8 @@ export function SessionImportModal({
                             (track.timestamp - prevTrack.timestamp) / 60,
                           );
                           return gapMinutes >= 10 ? (
-                            <span className="text-[10px] text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">
-                              (+{gapMinutes}m)
+                            <span className="text-[9px] text-amber-500 font-black bg-amber-500/10 px-1 py-0.5 rounded border border-amber-500/10">
+                              +{gapMinutes}M
                             </span>
                           ) : null;
                         })()}
@@ -164,57 +187,65 @@ export function SessionImportModal({
                 ))}
 
                 {!showFullList && selectedTracks.length > 5 && (
-                  <p className="text-xs text-slate-500 text-center py-2">
-                    ... and {selectedTracks.length - 5} more tracks
-                  </p>
+                  <div className="text-[10px] font-bold text-slate-600 text-center py-2 uppercase tracking-widest bg-slate-900/50 rounded-lg border border-dashed border-slate-800">
+                    + {selectedTracks.length - 5} history items hidden
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Import Options (Improved List Option) */}
             <div className="space-y-3 shrink-0">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Import Options
+              <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
+                Playback Configuration
               </p>
 
-              <div className="flex items-center gap-3 bg-slate-950/50 border border-slate-700 rounded-xl p-1 relative">
-                <label className="flex-1 text-sm text-slate-300 pl-3">Start importing from:</label>
+              <div className="flex items-center gap-3 bg-slate-950/50 border border-slate-800 rounded-2xl p-1 relative hover:border-slate-700 transition-colors">
+                <label className="flex-1 text-[11px] font-bold text-slate-400 pl-4 uppercase tracking-tight">
+                  Timeline Start:
+                </label>
                 <select
                   value={selectedStartIndex}
                   onChange={(e) => setSelectedStartIndex(Number(e.target.value))}
-                  className="bg-slate-900 border-l border-slate-700 text-white text-sm py-2 px-4 rounded-r-lg outline-none cursor-pointer hover:bg-slate-800 transition-colors appearance-none min-w-[200px] text-right"
+                  className="bg-slate-900 border-l border-slate-800 text-white text-xs py-2.5 px-4 rounded-r-xl outline-none cursor-pointer hover:bg-slate-800 transition-colors appearance-none min-w-[220px] text-right font-bold"
                   style={{ textAlignLast: "right" }}
                 >
-                  <option value={0}>Track #1 (All {detectedSession.tracks.length})</option>
+                  <option value={0}>From First Song (Full Session)</option>
                   {detectedSession.tracks.map(
                     (_, idx) =>
                       idx > 0 && (
                         <option key={`start-option-${idx}`} value={idx}>
-                          Track #{idx + 1} ({detectedSession.tracks.length - idx} left)
+                          Track #{idx + 1} ({detectedSession.tracks.length - idx} items)
                         </option>
                       ),
                   )}
                 </select>
+                <div className="absolute right-4 pointer-events-none text-slate-500 opacity-50">
+                  <div className="w-2 h-2 border-r-2 border-b-2 border-current rotate-45" />
+                </div>
               </div>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-3 pt-4 shrink-0">
-            <button
-              type="button"
-              onClick={() => onSkip(sessionName)}
-              className="flex-1 px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all border border-slate-700 cursor-pointer"
-            >
-              Skip History (Start New)
-            </button>
-            <button
-              type="button"
-              onClick={() => onImport(selectedTracks, selectedStartIndex, sessionName)}
-              className="flex-1 px-6 py-3 bg-pika-accent hover:bg-pika-accent-light text-white font-bold rounded-xl transition-all shadow-lg shadow-pika-accent/20 cursor-pointer"
-            >
-              Go Live with {selectedTracks.length} Track{selectedTracks.length !== 1 ? "s" : ""}
-            </button>
+          <div className="p-6 bg-slate-950/50 border-t border-slate-800 rounded-b-3xl">
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => onSkip(sessionName)}
+                className="flex-1 px-6 py-4 bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white text-sm font-bold rounded-2xl transition-all border border-slate-800 cursor-pointer uppercase tracking-widest shadow-lg active:scale-95"
+              >
+                Start Fresh
+              </button>
+              <button
+                type="button"
+                onClick={() => onImport(selectedTracks, selectedStartIndex, sessionName)}
+                className="flex-[2] px-6 py-4 bg-pika-accent hover:bg-pika-accent-light text-white text-sm font-black rounded-2xl transition-all shadow-xl shadow-pika-accent/20 cursor-pointer uppercase tracking-widest active:scale-95 flex items-center justify-center gap-3"
+              >
+                <Radio size={18} className="animate-pulse" />
+                Go Live With {selectedTracks.length} tracks
+              </button>
+            </div>
           </div>
         </div>
       </div>
