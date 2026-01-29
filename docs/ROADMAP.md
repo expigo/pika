@@ -3,8 +3,8 @@
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
 **Current Focus:** ✅ PRODUCTION HARDENED (v0.4.0)
-**Status:** Release v0.4.0 (The "Excellence" Release)
-**Verification Date:** 2026-01-28
+**Status:** Release v0.4.0 (The "Go Live" Refactor)
+**Verification Date:** 2026-01-29
 
 > **📊 Audit Recap:** See [AUDIT_RECAP.md](AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.
 > **📊 Complete Roadmap:** See [ROADMAP_11_10.md](ROADMAP_11_10.md) for detailed sprint verification with code references.
@@ -16,7 +16,12 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 28, 2026 - Excellence Hardening v0.4.0):**
+    *   **Recent Completions (Jan 29, 2026 - Go Live Refactor v0.4.0):**
+        *   ✅ **UX Consolidation:** Unified "Start Session" flow replaces multiple fragmented modals.
+        *   ✅ **VDJ Bridge:** Automated history detection with "Seamless Transition" validation.
+        *   ✅ **Integrity:** Sequential initialization logic eliminates race conditions on session start.
+        *   ✅ **Testing:** 100% coverage for connection lifecycle and history import logic.
+    *   **Previous Completions (Jan 28, 2026 - Excellence Hardening v0.3.5):**
         *   ✅ **Security:** CSP Externalization (defeat production build blocks).
         *   ✅ **Social:** Intelligent "Missed Love" buffer for backgrounded app engagement.
         *   ✅ **Design:** Symmetrical animation framing (curated left/right columns).
@@ -104,7 +109,8 @@ This is the central index for the Pika! project, tracking active development, fu
 ---
 
 ## 🏛️ Architecture Documentation
-*   [**Cloud Modules**](architecture/cloud-modules.md) - Handler, route, and lib module structure (NEW).
+*   [**Go Live Flow**](architecture/go-live-flow.md) - **Real-time & History Sync synchronization maps** (NEW).
+*   [**Cloud Modules**](architecture/cloud-modules.md) - Handler, route, and lib module structure.
 *   [**Authentication**](architecture/auth-system.md) - DJ accounts, token management, security.
 *   [**Security**](architecture/security.md) - Threat model, vulnerabilities, remediation plans.
 *   [**Deployment**](architecture/deployment.md) - VPS, Cloudflare Tunnel, CI/CD, Docker.
@@ -175,5 +181,6 @@ This is the central index for the Pika! project, tracking active development, fu
 
 ## 🛠️ Operational Guides
 *   [**Ops Manual**](ops-manual.md) - How to run, debug, and manage the system.
+*   [**Session Initialization**](user-guides/session-initialization.md) - **DJ Guide for "Start Session" & history import** (NEW).
 *   [**API Reference**](api-reference.md) - (Planned)
 
