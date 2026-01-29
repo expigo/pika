@@ -30,6 +30,9 @@ const targets = [
   { path: "packages/desktop/src-tauri/tauri.conf.json", type: "json" },
   { path: "packages/desktop/src-tauri/Cargo.toml", type: "toml" },
   { path: "packages/shared/src/index.ts", type: "ts-const" },
+  { path: "README.md", type: "md" },
+  { path: "docs/ROADMAP.md", type: "md" },
+  { path: "docs/ops-manual.md", type: "md" },
 ];
 
 let updatedCount = 0;
@@ -46,16 +49,23 @@ for (const target of targets) {
       newContent = content.replace(/"version":\s*"[^"]+"/, `"version": "${newVersion}"`);
     } else if (target.type === "toml") {
       // specific replace for version = "x.y.z" at the top level (hopefully)
-      // Cargo.toml can have multiple versions for dependencies.
-      // We target the [package] section's version.
-      // A simple regex approach: replace the first occurrence of version = "..."
-      // This is usually safe for the package version at the top.
       newContent = content.replace(/^version\s*=\s*"[^"]+"/m, `version = "${newVersion}"`);
     } else if (target.type === "ts-const") {
       // replace export const PIKA_VERSION = "x.y.z";
       newContent = content.replace(
         /export const PIKA_VERSION = "[^"]+";/,
         `export const PIKA_VERSION = "${newVersion}";`,
+      );
+    } else if (target.type === "md") {
+      // Matches v0.3.0, 0.3.0, (v0.3.0), Version: 0.3.0
+      // We are careful to only replace things that look like Pika versions
+      // This is a broad but usually safe replace for these small doc files
+      newContent = content.replace(
+        /(\bv?)\d+\.\d+\.\d+(-[a-z0-9]+(\.[0-9]+)?)?(\b)/g,
+        (match, prefix, suffix) => {
+          // If it starts with v, keep the v
+          return `${prefix}${newVersion}`;
+        },
       );
     }
 

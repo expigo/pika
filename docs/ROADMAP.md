@@ -2,8 +2,8 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** ✅ PRODUCTION HARDENED (v0.3.5)
-**Status:** Release v0.3.5 (The "Excellence" Release)
+**Current Focus:** ✅ PRODUCTION HARDENED (v0.4.0)
+**Status:** Release v0.4.0 (The "Excellence" Release)
 **Verification Date:** 2026-01-28
 
 > **📊 Audit Recap:** See [AUDIT_RECAP.md](AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.
@@ -16,21 +16,21 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 28, 2026 - Excellence Hardening v0.3.5):**
+    *   **Recent Completions (Jan 28, 2026 - Excellence Hardening v0.4.0):**
         *   ✅ **Security:** CSP Externalization (defeat production build blocks).
         *   ✅ **Social:** Intelligent "Missed Love" buffer for backgrounded app engagement.
         *   ✅ **Design:** Symmetrical animation framing (curated left/right columns).
         *   ✅ **Integrity:** Idempotent "IF NOT EXISTS" migrations + cascading DB deletes.
-    *   **Previous Completions (Jan 25, 2026 - Performance Hardening v0.3.2):**
+    *   **Previous Completions (Jan 25, 2026 - Performance Hardening v0.4.0):**
         *   ✅ **H1 (Battery):** Visibility-aware polling in Live Lobby (pauses in background).
         *   ✅ **H2 (Sync Blocking):** Deferred localStorage hits via event loop yielding.
         *   ✅ **H3 (Caching):** Integrated SWR for O(1) track history deduplication.
         *   ✅ **H4 (Economy):** Memoized stable handler trees for all feature hooks.
-    *   **Recent Completions (Jan 24, 2026 - Observability v0.3.1):**
+    *   **Recent Completions (Jan 24, 2026 - Observability v0.4.0):**
         *   ✅ **C1 (Monitoring):** Cloud, Web, and Desktop Sentry integration.
         *   ✅ **Privacy (PII):** Mandatory scrubbing of cookies, headers, and IP addresses.
         *   ✅ **Tracing:** 10% sampling rate implemented for transaction profiling.
-    *   **Recent Completions (Jan 23, 2026 - Production Ready v0.2.8):**
+    *   **Recent Completions (Jan 23, 2026 - Production Ready v0.4.0):**
         *   ✅ **Sprint 0 (Battery & Security):** Fixed continuous RAF loop (B1), verified CSRF (S1), confirmed Reduced Motion (B2)
         *   ✅ **Sprint S0-S5 Complete:** All 150+ issues resolved with code verification
         *   ✅ **Security Hardening (Phase 1):**
@@ -42,12 +42,12 @@ This is the central index for the Pika! project, tracking active development, fu
         *   ✅ **Schema Validation:** All string/numeric constraints enforced
         *   ✅ **Test Coverage:** 612+ tests passing (exceeded 442 target by 38%)
         *   ✅ **Documentation:** ROADMAP_11_10.md with code references for all fixes
-    *   **Previous Completions (Jan 22, 2026 - Audit Fixes v0.2.7):**
+    *   **Previous Completions (Jan 22, 2026 - Audit Fixes v0.4.0):**
         *   ✅ **Like Attribution Fix (A2):** Per-track like counting with `Map<playId, count>`
         *   ✅ **Batch DB Writes (A3):** `incrementDancerLikesBy()` method
         *   ✅ **Token Revalidation (U1):** Hourly periodic validation + focus-based revalidation
         *   ✅ **goLive Decomposition (U3):** 44% reduction (219→122 lines)
-    *   **Previous Completions (Jan 22, 2026 - Cloud Robustness v0.2.6):**
+    *   **Previous Completions (Jan 22, 2026 - Cloud Robustness v0.4.0):**
         *   ✅ **Modular Handlers:** 16 WebSocket handlers extracted to `handlers/` directory.
         *   ✅ **REST Route Modules:** 4 route files (sessions, stats, dj, client) extracted.
         *   ✅ **Type-Safe Validation:** `parseMessage<T>()` replaces all `as any` casts.
@@ -57,7 +57,7 @@ This is the central index for the Pika! project, tracking active development, fu
         *   ✅ **Event-Based Coordination:** `waitForSession()` replaces busy-wait loops.
         *   ✅ **Lib Modules Tracked:** Fixed .gitignore, 16 source files now tracked.
         *   ✅ **Test Coverage:** 179 tests (up from 58).
-    *   **Previous Completions (Jan 18, 2026 - Safari/iOS Bulletproofing v0.2.5):**
+    *   **Previous Completions (Jan 18, 2026 - Safari/iOS Bulletproofing v0.4.0):**
         *   ✅ **Safari bfcache:** pageshow listener for cache restoration.
         *   ✅ **Status Sync:** Periodic sync between socket readyState and React state.
         *   ✅ **addEventListener Pattern:** Proper cleanup to prevent memory leaks.
@@ -67,14 +67,14 @@ This is the central index for the Pika! project, tracking active development, fu
         *   ✅ **Tailwind Dynamic Classes Fix:** Explicit class strings for tempo buttons.
         *   ✅ **Poll Presets (Desktop):** Common DJ poll templates.
         *   ✅ **SocialSignalsLayer (Web):** Visual crowd feedback animations.
-    *   **Previous Completions (Jan 18, 2026 - Network Resilience 11/10 v0.2.4):**
+    *   **Previous Completions (Jan 18, 2026 - Network Resilience 11/10 v0.4.0):**
         *   ✅ **Hook Decomposition:** `useLiveListener` split from 1029→238 lines (77% reduction).
         *   ✅ **Shared Utils:** Extracted `lib/api.ts`, `lib/client.ts` from 4 files.
         *   ✅ **Dynamic Imports:** QR code lazy loaded (~30KB saved).
         *   ✅ **Accessibility:** ARIA labels, skip-to-content, reduced-motion CSS.
         *   ✅ **Error Handling:** Error boundary for live session pages.
         *   ✅ **Loading States:** Route loading skeletons for `/live`, `/analytics`.
-    *   **Previous Completions (Jan 18, 2026 - Security & Schema Hardening v0.2.2):**
+    *   **Previous Completions (Jan 18, 2026 - Security & Schema Hardening v0.4.0):**
         *   ✅ **Tauri CSP:** Enabled Content-Security-Policy in desktop app.
         *   ✅ **Auth Validation:** Password max length (128), Zod email validation.
         *   ✅ **DB Performance:** 12 new indexes on hot query paths.
