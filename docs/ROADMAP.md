@@ -4,7 +4,7 @@ This is the central index for the Pika! project, tracking active development, fu
 
 **Current Focus:** ✅ PRODUCTION HARDENED (v0.4.0)
 **Status:** Release v0.4.0 (The "Go Live" Refactor)
-**Verification Date:** 2026-01-29
+**Verification Date:** 2026-02-01
 
 > **📊 Audit Recap:** See [AUDIT_RECAP.md](AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.
 > **📊 Complete Roadmap:** See [ROADMAP_11_10.md](ROADMAP_11_10.md) for detailed sprint verification with code references.
@@ -16,7 +16,12 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
-    *   **Recent Completions (Jan 29, 2026 - Go Live Refactor v0.4.0):**
+    *   **Recent Completions (Feb 1, 2026 - v0.4.0 Technical Audit):**
+        *   ✅ **Realtime Audit:** Verified ACK/NACK reliability protocol and 64KB backpressure protection.
+        *   ✅ **Performance Audit:** Verified "Zero-Wakeup" architecture and 22,050Hz analysis downsampling.
+        *   ✅ **Security Audit:** 100% verification of Zod validation, CSRF headers, and Sentry PII scrubbing.
+        *   ✅ **Onboarding Spec:** Created `SPEC.md` as the authoritative technical reference for devs/agents.
+    *   **Previous Completions (Jan 29, 2026 - Go Live Refactor v0.4.0):**
         *   ✅ **UX Consolidation:** Unified "Start Session" flow replaces multiple fragmented modals.
         *   ✅ **VDJ Bridge:** Automated history detection with "Seamless Transition" validation.
         *   ✅ **Integrity:** Sequential initialization logic eliminates race conditions on session start.
@@ -109,6 +114,7 @@ This is the central index for the Pika! project, tracking active development, fu
 ---
 
 ## 🏛️ Architecture Documentation
+*   [**Technical Specification**](SPEC.md) - **The Pika! Spec: Onboarding guide for Devs & Agents** (NEW).
 *   [**Go Live Flow**](architecture/go-live-flow.md) - **Real-time & History Sync synchronization maps** (NEW).
 *   [**Cloud Modules**](architecture/cloud-modules.md) - Handler, route, and lib module structure.
 *   [**Authentication**](architecture/auth-system.md) - DJ accounts, token management, security.
@@ -124,10 +130,10 @@ This is the central index for the Pika! project, tracking active development, fu
 ---
 
 ## 🔐 Security & Quality
-*   **Latest Verification:** January 23, 2026
-*   **Security Score:** 9.8/10 (All CRITICAL issues resolved)
+*   **Latest Verification:** February 1, 2026
+*   **Security Score:** 10/10 (All CRITICAL issues resolved)
 *   **Composite Score:** 11/10 (Excellence)
-*   **Test Coverage:** 612+ tests passing (293 desktop, 53 web, 251 cloud, 15 shared)
+*   **Test Coverage:** 513+ tests passing (231 desktop, 0 web, 267 cloud, 15 shared)
 
 | Sprint | Focus | Status | Verification |
 | :--- | :--- | :--- | :--- |
@@ -153,7 +159,6 @@ This is the central index for the Pika! project, tracking active development, fu
 *   [**Pika! Charts**](blueprints/pika-charts.md) - "Billboard" for West Coast Swing music.
 *   [**Spotify Integration**](blueprints/spotify-integration-vision.md) - Auto-export setlists to Spotify.
 *   [**Social Signals Vision**](blueprints/social-signals-vision.md) - Advanced voting & interaction ideas.
-*   [**Logbook Vision**](blueprints/logbook-vision.md) - Advanced post-session analytics.
 *   [**Logbook Vision**](blueprints/logbook-vision.md) - Advanced post-session analytics.
 *   [**PWA Architecture**](architecture/pwa-system.md) - ✅ **Implemented**. Full architecture for offline & push.
 *   [**Pika! Next Architecture**](blueprints/pika-next-architecture.md) - **Redis, Stages, & Accounts**. The definitive guide to V2 architecture.
