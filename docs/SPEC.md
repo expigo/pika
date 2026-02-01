@@ -65,10 +65,10 @@ Pika! adheres to a "Premium First" design philosophy:
 ### 6.1. Package Management
 Pika! uses **Bun Workspaces**. Run commands from the root:
 ```bash
-bun install                    # Install all dependencies
-bun run dev                    # Run Desktop, Cloud, and Web in dev mode
-bun --filter @pika/cloud test  # Run tests only for the Cloud package
-bun --filter @pika/desktop dev # Run only the Desktop dev server
+bun install                          # Install all dependencies
+bun run dev                          # Run Desktop, Cloud, and Web in dev mode
+bun --filter @pika/cloud test        # Run tests only for the Cloud package
+bun --filter @pika/desktop tauri dev # Run only the Desktop dev server
 ```
 
 ### 6.2. Standards

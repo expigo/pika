@@ -14,7 +14,7 @@ Run the entire stack (Desktop, Web, Cloud, DB) from the root using Bun:
 bun run dev
 
 # Start the Desktop App (Tauri)
-bun run --filter @pika/desktop dev
+bun run --filter @pika/desktop tauri dev
 ```
 
 ### 🗄️ Database (Local)
