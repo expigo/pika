@@ -2,9 +2,9 @@
 
 This document tracks the tasks and status for the upcoming MVP Launch Event.
 
-**Target Date:** ~1 month from now
-**Version:** v0.4.0 (The "Excellence" Hardening Release)
-**Status:** ✅ Production Ready (Green)
+**Target Date:** Pilot Event Feb 2026
+**Version:** v0.4.0 (The "Onboarding & Intelligence" Release)
+**Status:** ✅ Production Ready (100% Audited)
 
 ## 1. Executive Summary
 
@@ -140,7 +140,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   ✅ **Auth Rate Limiting:** Fixed - 5 req/15min on auth endpoints (v0.4.0).
 *   ✅ **Secrets:** Fixed - Docker compose uses env vars with fallbacks.
 *   ✅ **Session Ownership:** Fixed - WS connections validated against session owner.
-*   🟡 **Email Validation:** Deferred - Low risk for MVP demo.
+*   ✅ **Email Validation:** Fixed - Upgraded to Zod `.email()` (v0.4.0).
 
 ### Code Quality Observations (Engineering Assessment Jan 2026)
 *   ✅ **Split Cloud Backend:** `lib/` modules created (listeners, tempo, cache, protocol, auth).
@@ -165,6 +165,7 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 
 | Date | Audit | Findings | Ref |
 | :--- | :--- | :--- | :--- |
+| **2026-02-01** | **Final v0.4.0 Audit** | ✅ 10/10 Security & Reliability. Verified SPEC.md and Operations baseline. | `v0.4.0` |
 | **2026-01-24** | **System Hardening** | ✅ 12.5/10 - Production Ready. Persistence Queues, Backpressure, 100% Test Coverage. | `v0.4.0` |
 | **2026-01-18** | Network Resilience | ✅ 11/10 - Safari bulletproofing, ACK/NACK, nonce dedup, chaos tests. | `v0.4.0` |
 | **2026-01-18** | Web App Excellence | ✅ Pass - Hook decomposition, ARIA labels, dynamic imports. | `v0.4.0` |
