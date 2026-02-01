@@ -2,7 +2,7 @@
 
 This document describes the modular architecture of the `@pika/cloud` backend service, introduced in v0.4.0.
 
-**Last Updated:** January 24, 2026 (v0.4.0)
+**Last Updated:** February 1, 2026 (v0.4.0)
 
 ---
 
@@ -12,10 +12,10 @@ The Cloud service has been refactored from a monolithic `index.ts` (~3000 lines)
 
 | Category | Files | Purpose |
 |----------|-------|---------|
-| **Handlers** | 8 files | WebSocket message processing |
-| **Routes** | 5 files | REST API endpoints |
-| **Lib** | 13 files | State management & utilities |
-| **Entry** | 1 file | ~360 lines, wiring only |
+| **Handlers** | 8 files | WebSocket message processing (20 handlers) |
+| **Routes** | 6 files | REST API endpoints |
+| **Lib** | 14 files | State management & utilities |
+| **Entry** | 1 file | ~570 lines, wiring + global cleanup |
 
 ---
 
@@ -41,12 +41,12 @@ packages/cloud/src/handlers/
 
 | File | Message Types | Count |
 |------|---------------|-------|
-| `dj.ts` | REGISTER_SESSION, BROADCAST_TRACK, TRACK_STOPPED, END_SESSION, SEND_ANNOUNCEMENT, CANCEL_ANNOUNCEMENT | 6 |
-| `dancer.ts` | SEND_LIKE, SEND_REACTION, SEND_TEMPO_REQUEST | 3 |
+| `dj.ts` | REGISTER_SESSION, BROADCAST_TRACK, TRACK_STOPPED, END_SESSION, SEND_ANNOUNCEMENT, CANCEL_ANNOUNCEMENT, BROADCAST_METADATA | 7 |
+| `dancer.ts` | SEND_LIKE, SEND_BULK_LIKE, REMOVE_LIKE, SEND_REACTION, SEND_TEMPO_REQUEST | 5 |
 | `poll.ts` | START_POLL, END_POLL, CANCEL_POLL, VOTE_ON_POLL | 4 |
 | `subscriber.ts` | SUBSCRIBE | 1 |
-| `utility.ts` | PING, GET_SESSIONS | 2 |
-| **Total** | | **16** |
+| `utility.ts` | PING, GET_SESSIONS, VALIDATE_SESSION | 3 |
+| **Total** | | **20** |
 
 ### WSContext Pattern
 
@@ -112,7 +112,8 @@ packages/cloud/src/routes/
 ├── sessions.ts   # Session queries
 ├── stats.ts      # Global statistics
 ├── dj.ts         # DJ profile routes
-└── client.ts     # Client/dancer routes
+├── client.ts     # Client/dancer routes
+└── push.ts       # Web Push subscriptions
 ```
 
 ### Route Breakdown
@@ -124,6 +125,7 @@ packages/cloud/src/routes/
 | `stats.ts` | `/api/stats/*` | Top tracks, global stats |
 | `dj.ts` | `/api/dj/*` | DJ profile by slug |
 | `client.ts` | `/api/client/*` | Liked tracks for dancers |
+| `push.ts` | `/api/push/*` | Web Push subscription management |
 
 ### Mounting in index.ts
 
@@ -132,11 +134,12 @@ import { auth as authRoutes } from "./routes/auth";
 import { sessions as sessionsRoutes } from "./routes/sessions";
 // ...
 
-app.route("/", authRoutes);
-app.route("/", sessionsRoutes);
-app.route("/", statsRoutes);
-app.route("/", djRoutes);
-app.route("/", clientRoutes);
+app.route("/api/auth", authRoutes);
+app.route("/api/sessions", sessionsRoutes);
+app.route("/api/stats", statsRoutes);
+app.route("/api/dj", djRoutes);
+app.route("/api/client", clientRoutes);
+app.route("/api/push", pushRoutes);
 ```
 
 ---
@@ -164,6 +167,8 @@ packages/cloud/src/lib/
     ├── tracks.ts         # Track DB ops
     ├── polls.ts          # Poll DB ops
     └── queue.ts          # Serialized persistence queue (v0.4.0)
+└── services/
+    └── push.ts           # Web Push service (VAPID)
 ```
 
 ### Key Modules
@@ -238,16 +243,18 @@ export function cleanupSessionQueue(sessionId: string): void;
 
 ## 4. Entry Point (`src/index.ts`)
 
-After modularization, `index.ts` is reduced to ~360 lines:
+After modularization, `index.ts` is ~570 lines:
 
 ### Responsibilities
 
-1. **Middleware Setup** - CORS, logging, CSRF
-2. **Route Mounting** - All 5 route modules
-3. **WebSocket Configuration** - Rate limiting, connection handlers
-4. **Message Dispatch** - Switch on message type to handlers
-5. **Heartbeat Interval** - Listener count broadcasting
-6. **Graceful Shutdown** - SIGTERM/SIGINT handlers
+1. **Sentry Initialization** - Error monitoring and PII scrubbing
+2. **Middleware Setup** - CORS, logging, CSRF Check
+3. **Route Mounting** - All 6 route modules
+4. **WebSocket Configuration** - Rate limiting, connection handlers
+5. **Message Dispatch** - Switch on message type to 20 handlers
+6. **Global Cleanup Intervals** - 5-minute cleanup for stale listeners/sessions/rate-limits
+7. **Heartbeat Interval** - Listener count broadcasting (every 2s)
+8. **Graceful Shutdown** - SIGTERM/SIGINT handlers (ends sessions, closes DB)
 
 ### Message Dispatch Pattern
 
@@ -259,7 +266,7 @@ switch (message.type) {
   case "BROADCAST_TRACK":
     await handleBroadcastTrack(ctx);
     break;
-  // ... 14 more cases
+  // ... 18 more cases
 }
 ```
 
@@ -287,8 +294,8 @@ switch (message.type) {
 | `websocket-handlers.test.ts` | 43 | Core WS behavior |
 | `subscriber-handlers.test.ts` | 17 | Subscription logic |
 | `poll-handlers.test.ts` | 28 | Poll VCs |
-| Others | 148 | REST, cache, auth, queues, backpressure |
-| **Total** | **260** | |
+| Others | 155 | REST, cache, auth, queues, analytics |
+| **Total** | **267** | |
 
 ### Running Tests
 

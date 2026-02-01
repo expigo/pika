@@ -2,7 +2,8 @@
 
 This document describes the technical implementation of the synchronization layer between the **Desktop** app (the source of truth) and the **Cloud** server (the distribution layer).
 
-**Last Updated:** January 25, 2026 (v0.4.0)
+**Last Updated:** February 1, 2026 (v0.4.0)
+**Audit Status:** 100% Verified against v0.4.0 codebase.
 
 ## 1. Design Philosophy: "Local First, Cloud Second"
 
@@ -52,7 +53,7 @@ To handle network drops without data loss, the Desktop app implements a persiste
 *   **ID-Based Concurrency:** Sync loops use a unique Operation ID (timestamp) to prevent "zombie" sync processes after watchdog resets.
 *   **Capacity Monitoring:** Logger alerts at 80% (800 msgs) buffer usage.
 *   **Exponential Backoff (v0.4.0):**
-    *   Base delay: 100ms between messages
+    *   Base delay: 500ms between messages (`TIMEOUTS.OFFLINE_RETRY_BASE`)
     *   Growth factor: 1.2x every 5 messages
     *   Max delay: 2000ms
     *   Concurrent flush guard: Operation ID based locking
@@ -384,7 +385,7 @@ export function checkBackpressure(ws: ServerWebSocket, clientId?: string): boole
 | Web Offline Queue | 10/10 | IndexedDB persistence, survives refresh |
 | Heartbeat Detection | 10/10 | Signal lost indicator, stale banner |
 | Visibility Handling | 10/10 | Re-sync on phone wake, Safari bfcache |
-| Test Coverage | 11/10 | E2E specs, chaos testing, **300+ unit tests** |
+| Test Coverage | 11/10 | E2E specs, chaos testing, **450+ unit tests** |
 | Error Isolation | 10/10 | safeHandler prevents cascading failures |
 | Graceful Shutdown | 10/10 | Clean state on deploy |
 | **Data Integrity** | **12/10** | **Persistence Queues + Operation IDs** |

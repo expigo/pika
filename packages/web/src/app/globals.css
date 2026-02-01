@@ -259,3 +259,49 @@ body {
 .animate-float-soft {
   animation: float-soft 6s ease-in-out infinite;
 }
+@keyframes loading {
+  0% {
+    transform: translateX(-100%);
+  }
+  50% {
+    transform: translateX(100%);
+  }
+  100% {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes atmos-pulse {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: translate(-50%, 0) scale(1);
+  }
+  50% {
+    opacity: 0.25;
+    transform: translate(-50%, -5%) scale(1.05);
+  }
+}
+
+.animate-loading {
+  animation: loading 2s ease-in-out infinite;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.8s ease-out forwards;
+}
+
+.animate-atmos-pulse {
+  animation: atmos-pulse 8s ease-in-out infinite;
+}

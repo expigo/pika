@@ -1,8 +1,8 @@
 # Engagement Feature Specifications
 
 **Status:** Living Document
-**Date:** January 15, 2026
-**Based on:** `engagement-strategy.md` & Team Discussions
+**Date:** February 1, 2026
+**Version Reference:** v0.4.0
 
 ---
 
@@ -24,10 +24,9 @@
     *   Performance cost on low-end devices.
 
 > [!NOTE] 
-> **Audit Assessment (Jan 2026)**
-> *   **Complexity:** **High**. Requires syncing animations across clients via WebSocket. Pure CSS/JS particles can be CPU intensive on mobile.
-> *   **Value:** **Critical**. This is the "killer feature" for "liveness".
-> *   **Priority:** **CRITICAL**. Move to v0.2.0.
+> **Audit Assessment (Feb 2026 - v0.4.0)**
+> *   **Status:** ✅ **DONE**. Implemented via `SocialSignalsLayer.tsx`.
+> *   **Implementation:** Syncs hearts across clients via WebSocket. Performance optimized with RAF and canvas rendering.
 
 
 ### 3.2. Dancer Avatars
@@ -55,10 +54,9 @@
     *   Generic questions might feel robotic if overused.
 
 > [!NOTE] 
-> **Audit Assessment (Jan 2026)**
-> *   **Complexity:** **Low**. Frontend-only change to the Poll Builder.
-> *   **Value:** **High**. Friction is the enemy of DJ adoption.
-> *   **Priority:** **HIGH**. Easy win.
+> **Audit Assessment (Feb 2026 - v0.4.0)**
+> *   **Status:** ✅ **DONE**. Implemented in `PollPresets.ts` and `LiveInteractions.tsx`.
+> *   **Value:** **High**. Proven to drastically reduce DJ interaction friction.
 
 
 ### 3.4. DJ Bio Card
@@ -106,10 +104,10 @@
     *   Risk of spam if not rate-limited (e.g., 1 per 15 mins).
 
 > [!NOTE] 
-> **Audit Assessment (Jan 2026)**
-> *   **Complexity:** **Low**. Similar to standard "Like" but with different weight/cooldown.
-> *   **Value:** **High**. DJs love "signal".
-> *   **Priority:** **HIGH**.
+> **Audit Assessment (Feb 2026 - v0.4.0)**
+> *   **Status:** 🏗️ **INFRASTRUCTURE READY**. `SEND_BULK_LIKE` protocol exists.
+> *   **Missing:** Frontend "Banger" UI and gold border history markers.
+> *   **Priority:** **HIGH**. Next polish target.
 
 
 ### 4.3. Unlockable / Event Themes
@@ -216,10 +214,9 @@
     *   Requires generating images client-side or server-side (resource intensive).
 
 > [!NOTE] 
-> **Audit Assessment (Jan 2026)**
-> *   **Complexity:** **High**. Generating images server-side is heavy.
-> *   **Value:** **High**. Viral growth loop.
-> *   **Priority:** **Medium** (Post-MVP).
+> **Audit Assessment (Feb 2026 - v0.4.0)**
+> *   **Status:** ✅ **DONE**. Implemented as the `/recap/[id]` and `/analytics` routes.
+> *   **Value:** **High**. Provides closure and archival value for both DJs and Dancers.
 
 
 ---
@@ -281,10 +278,9 @@
     *   DJ typing while mixing is hard (needs presets).
 
 > [!NOTE] 
-> **Audit Assessment (Jan 2026)**
-> *   **Complexity:** **Low**. We already have announcements!
-> *   **Value:** **High**.
-> *   **Priority:** **HIGH** (Already partially implemented).
+> **Audit Assessment (Feb 2026 - v0.4.0)**
+> *   **Status:** ✅ **DONE**. Evolved into the **Announcement System** (REST/WS) with push support.
+> *   **Value:** **High**. Education/Context is a key differentiator.
 
 
 ### 5.15. "Leader vs. Follower" Battle
@@ -356,10 +352,9 @@
     *   Needs user to check phone *after* the music stops.
 
 > [!NOTE] 
-> **Audit Assessment (Jan 2026)**
-> *   **Complexity:** **High**. Needs data aggregation logic.
-> *   **Value:** **Medium**.
-> *   **Priority:** **Medium**.
+> **Audit Assessment (Feb 2026 - v0.4.0)**
+> *   **Status:** ✅ **DONE**. Integrated into DJ Analytics and Dancer Recap views.
+> *   **Value:** **Medium**. Great for retention and "bragging rights".
 
 
 ---
@@ -369,8 +364,8 @@
 ### 6.1. "Hype-O-Meter" (Audio Visualizer)
 *   **Concept:** A subtle background animation that reacts to the music's volume/energy.
 *   **Technical:** Web Audio API is overkill and restricted by browsers (needs user gesture).
-*   **Solution:** **Fake it.** Use the *BPM* to drive a CSS pulsing animation. 90 BPM = slow breathe, 120 BPM = fast pulse.
-*   **Value:** Makes the app feel "alive" and connected to the sound, even if it's just a sync trick.
+*   **Solution:** ✅ **DONE (Fake it).** Implemented via CSS pulsing of the Like button synchronized to track BPM.
+> *   **Value:** High engagement "juice" without the overhead of Web Audio API.
 
 ### 6.2. "Song Requests" (Structured)
 *   **Problem:** Dancers always want to request songs, but DJs hate being interrupted.

@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** January 25, 2026
-**Version:** 0.3.4 (11/10 Experience Release)
+**Date:** February 1, 2026
+**Version:** 0.4.0 ("Onboarding & Intelligence" Release)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -26,7 +26,7 @@ The system is divided into three distinct environments (monorepo via **Bun Works
     *   **Capabilities:** Real-time broadcasting, Session management, Auth (DJs), Voting/Polling system.
 
 3.  **Web (The Face)** - `@pika/web`
-    *   **Tech:** Next.js 15, React 19, TailwindCSS 4, Recharts.
+    *   **Tech:** Next.js 16, React 19, TailwindCSS 4, Recharts.
     *   **Role:** The public-facing interface for Dancers and the Landing Page.
     *   **Features:** Live "Now Playing" view, History, Voting/Polls, and DJ Registration.
     *   **Optimization:** Battery-aware animations (RAF loops stop when idle).
@@ -64,8 +64,8 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   Polls/Questions pushed by DJ.
     *   DJ Announcements with auto-dismiss timer.
 *   **Deep Intelligence:**
-    *   **Transition Friction:** Euclidean distance on audio fingerprints (BPM, Energy, Groove, etc.).
-    *   **Harmonic Flow:** Camelot-based compatibility scoring.
+    *   **Transition Friction:** Euclidean distance on audio fingerprints (Energy, Groove, Danceability, Brightness, Acousticness). BPM is handled as a separate "Safety check" for gap analysis.
+    *   **Harmonic Flow:** Camelot-based compatibility scoring (Transition Engine).
 *   **Persistence:**
     *   Postgres DB stores Sessions, Played Tracks, Likes, and Tempo Votes.
 *   **UI/UX Refinements (v0.2.1):**
@@ -79,7 +79,9 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Schema Guards (S3, S4):** String length caps (500 chars) and strict regex sanitization for user input.
     *   **CSP Headers:** Content-Security-Policy via Next.js middleware.
     *   **Desktop CSP:** Tauri app CSP enabled for defense-in-depth.
-    *   **CSRF Protection:** X-Pika-Client header validation.
+    *   **CSRF Protection:** Multi-layered strategy:
+        *   `X-Pika-Client` header validation for standard API routes.
+        *   `X-Requested-With: Pika` requirement for sensitive Auth endpoints.
     *   **Email Validation:** Zod `.email()` validator.
     *   **Password Max Length:** 128 character limit.
     *   **DB Integrity:** CASCADE deletes, CHECK constraints.
@@ -87,7 +89,7 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Auth Routes:** Extracted to `routes/auth.ts` (~300 lines).
     *   **Unit Tests:** 15 tests for auth validation using Bun test runner.
 *   **Web App Excellence (v0.2.3):**
-    *   **Hook Decomposition:** `useLiveListener` split into 6 focused hooks (77% reduction).
+    *   **Hook Decomposition:** `useLiveListener` split into 13 focused modules (e.g., `useSocialSignals`, `useWakeupSync`, `usePushNotifications`) for O(1) maintainability.
     *   **Shared Utils:** `lib/api.ts`, `lib/client.ts` consolidate 4 duplicated functions.
     *   **Dynamic Imports:** QR code lazy loaded (~30KB saved on initial load).
     *   **Accessibility:** ARIA labels, skip-to-content link, reduced-motion CSS.
@@ -95,7 +97,7 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Loading States:** Route-level loading skeletons for `/live`, `/analytics`.
     *   **PWA System:** Full Offline support, Service Worker pipeline, and VAPID Push Notifications.
 *   **Cloud Robustness (v0.2.4):**
-    *   **Modular Handlers:** 16 WebSocket handlers extracted to `handlers/` (dj, dancer, poll, subscriber, utility, lifecycle).
+    *   **Modular Handlers:** 20 WebSocket handlers extracted to `handlers/` (dj, dancer, poll, subscriber, utility, lifecycle).
     *   **REST Route Extraction:** 4 route modules in `routes/` (sessions, stats, dj, client).
     *   **Type-Safe Validation:** `parseMessage<T>()` helper with Zod schemas replaces all `as any` casts.
     *   **Error Isolation:** `safeHandler()` wrapper prevents single message from crashing WS connection.
@@ -269,4 +271,4 @@ Users often restart the app during a gig. Auto-importing history without validat
 
 ---
 
-*Last Updated: January 26, 2026 (v0.3.4 - 11/10 Experience Release)*
+*Last Updated: February 1, 2026 (v0.4.0 - Onboarding & Intelligence Release)*

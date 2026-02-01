@@ -5,7 +5,6 @@ import {
   Cpu,
   Database,
   Download,
-  ExternalLink,
   Fingerprint,
   Headphones,
   Lock,
@@ -537,10 +536,11 @@ export default function ForDJs() {
                     Download for {getPlatformLabel()}
                   </Link>
                   <Link
-                    href="/download"
-                    className="text-[10px] sm:text-[11px] font-black text-slate-500 hover:text-white uppercase tracking-widest flex items-center gap-2 transition-all hover:translate-x-2 p-2"
+                    href="/guide/dj"
+                    className="w-full sm:w-auto px-10 sm:px-12 py-4 sm:py-5 bg-slate-900 text-white border border-white/10 font-black uppercase text-[10px] sm:text-[12px] tracking-widest rounded-xl sm:rounded-2xl shadow-2xl flex items-center justify-center gap-3 hover:bg-slate-800 transition-all"
                   >
-                    Other Platforms <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4" />
+                    <Zap className="w-5 h-5 text-purple-400" />
+                    Onboarding Guide
                   </Link>
                 </div>
               </>

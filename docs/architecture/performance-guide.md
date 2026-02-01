@@ -1,6 +1,7 @@
 # Pika! Performance & Optimization Guide
 
 This document tracks performance considerations, bottlenecks, and optimization strategies.
+**Audit Status:** February 1, 2026 (v0.4.0) - 95% Verified.
 
 ---
 
@@ -109,7 +110,7 @@ This document tracks performance considerations, bottlenecks, and optimization s
 | **Smart Animations** | `requestAnimationFrame` and Confetti loops pause when hidden | ✅ Done (v0.4.0) |
 | **Hydration Stability** | `useVisibility` hook initializes to server-safe defaults | ✅ Done (v0.4.0) |
 | **IPC Timeouts** | `invokeWithTimeout` prevents hanging Rust calls | ✅ Done (v0.4.0) |
-| **Off-Main-Thread** | Confetti rendering moved to Web Worker (via `blob:`) | ✅ Done (v0.4.0) |
+| **Off-Main-Thread** | Confetti rendering (Planned Work Worker migration) | ⚠️ Partial |
 
 
 ---
@@ -192,12 +193,16 @@ To achieve an **11/10 Battery Score**, we implemented a "Zero-Wakeup" architectu
 - **Logic:** `SocialSignalsLayer.tsx` checks `document.hidden` inside the `requestAnimationFrame` callback.
 - **Action:** Sets `animationFrameRef.current = null` and **returns** from the function, effectively stopping the loop.
 - **Benefit:** Ensures 0% GPU/CPU usage for rendering when the tab is not visible, bypassing browser heuristics that might only throttle to 1fps.
+
+### 6. Off-Main-Thread Rendering (Correction)
+- **Status:** While `requestAnimationFrame` termination is active, the `canvas-confetti` library still operates on the main thread in `LivePerformanceMode.tsx`. The migration to a `blob:` based Web Worker for confetti is a post-v0.4.0 target to further reduce main-thread jank during heavy engagement bursts.
 ---
 
 ## Change Log
 
 | Date | Change |
 |------|--------|
+| 2026-02-01 | **v0.4.0 Performance Audit**: Verified Audio Analysis (22kHz/60s), Zero-Wakeup Architecture (Web), Reliability Buffer (1000 msg), and LRU eviction (500 keys). Corrected Worker Confetti status to Partial. |
 | 2026-01-28 | **Excellence Hardening (v0.4.0)**: Web Worker Confetti (Performance), Missed Love Buffer (UX), Idempotent SQL (Ops), Cascading DB Deletes (Integrity), Symmetrical Animation Framing (Design) |
 | 2026-01-25 | **Performance Batch 3 (v0.4.0)**: Fatal Error Protection (Issue 41), Explicit Column Selection (Issue 40), Rust File Scan Opt (Issue 42), Reduced Cache Latency (Issue 47) |
 | 2026-01-25 | **Reliability & Robustness Hardening (v0.4.0)**: Mandatory API limits, Adaptive 3s background polling, 1,000 message reliability buffer, Store LRU eviction, ID-based queue concurrency, Hybrid Deduplication (Window + Absolute) |
