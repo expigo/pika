@@ -7,14 +7,14 @@ This document serves as the primary reference for operating, deploying, and debu
 ## 🛠️ Development Environment (Local)
 
 ### 🚀 Starting the App
-Run the entire stack (Desktop, Web, Cloud, DB) generally from the request of the `dev` script, but here are the specifics:
+Run the entire stack (Desktop, Web, Cloud, DB) from the root using Bun:
 
 ```bash
-# Start the backend services (Cloud + DB + Web)
-npm run dev
+# Start the backend services (Cloud + DB + Web + Shared)
+bun run dev
 
 # Start the Desktop App (Tauri)
-npm run tauri dev
+bun run --filter @pika/desktop dev
 ```
 
 ### 🗄️ Database (Local)
@@ -146,7 +146,7 @@ We run a dedicated stack for internal metrics and public status.
     ```
 
 ### 3. Cloudflare Tunnel Configuration (Domain Map)
-Since ports are bound to `0.4.0.1` for security, you MUST connect them via Cloudflare Tunnel.
+Since ports are bound to `127.0.0.1` for security, you MUST connect them via Cloudflare Tunnel.
 
 **In Cloudflare Dashboard (Zero Trust > Access > Tunnels):**
 
@@ -194,7 +194,7 @@ You can connect your **local** Drizzle Studio to the **production** database sec
     cd packages/cloud
     
     # ⚠️ Important: Overwrite DB URL to localhost for the session
-    DATABASE_URL="postgres://pika:pika_password@0.4.0.1:5432/pika_prod" bun run db:studio
+    DATABASE_URL="postgres://pika:pika_password@127.0.0.1:5432/pika_prod" bun run db:studio
     ```
 
 3.  **Browse:** Open `https://local.drizzle.studio` in your browser. You now have full read/write access to production data.
@@ -627,5 +627,5 @@ docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
 
 ---
 
-*Last Updated: January 24, 2026 (v0.4.0)*
+*Last Updated: February 1, 2026 (v0.4.0)*
 
