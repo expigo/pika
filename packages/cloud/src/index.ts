@@ -76,6 +76,11 @@ import {
 // Connection Registry for reliable global broadcasts
 const activeConnections = new Set<ServerWebSocket>();
 
+// 🛡️ P0 Fix: Track last activity time per connection for idle timeout
+// Connections without PING for 5 minutes will be closed
+const connectionLastActivity = new Map<ServerWebSocket, number>();
+const IDLE_CONNECTION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Returns an open WebSocket to use for broadcasting.
  * Prefers DJ connections if available, as they are usually more stable.
@@ -90,10 +95,30 @@ function getBroadcaster(): ServerWebSocket | null {
 // 🧹 M3 & M5 Fix: Global Cleanup Intervals
 // Run every 5 minutes to remove stale listeners and orphaned sessions
 setInterval(() => {
-  const now = new Date().toISOString();
-  logger.debug("🧹 [CLEANUP] Running scheduled cleanup", { timestamp: now });
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  logger.debug("🧹 [CLEANUP] Running scheduled cleanup", { timestamp: nowIso });
   cleanupStaleListeners();
   handlers.cleanupRateLimits(); // 🛡️ Issue 21 Fix: Clear stale rate-limit entries
+
+  // 🛡️ P0 Fix: Close idle connections (no activity for 5 minutes)
+  let idleClosedCount = 0;
+  for (const ws of activeConnections) {
+    const lastActivity = connectionLastActivity.get(ws);
+    if (lastActivity && now - lastActivity > IDLE_CONNECTION_TIMEOUT) {
+      try {
+        ws.close(1000, "Idle timeout - no heartbeat received");
+        idleClosedCount++;
+      } catch (e) {
+        // Connection might already be closed
+        activeConnections.delete(ws);
+        connectionLastActivity.delete(ws);
+      }
+    }
+  }
+  if (idleClosedCount > 0) {
+    logger.info(`🧹 Closed ${idleClosedCount} idle connection(s)`);
+  }
 
   const removedIds = cleanupStaleSessions(); // Default thresholds: Idle 4h, Age 8h, Hard 24h
   const broadcaster = getBroadcaster();
@@ -240,6 +265,8 @@ app.get(
         wsConnectionAttempts.delete(ip);
         const rawWs = ws.raw as ServerWebSocket;
         activeConnections.add(rawWs);
+        // 🛡️ P0 Fix: Initialize last activity time for idle timeout tracking
+        connectionLastActivity.set(rawWs, Date.now());
         handlers.handleOpen(rawWs);
       },
 
@@ -339,6 +366,8 @@ app.get(
               handlers.handleVoteOnPoll(ctx);
               break;
             case "PING":
+              // 🛡️ P0 Fix: Update last activity time on heartbeat
+              connectionLastActivity.set(rawWs, Date.now());
               handlers.handlePing(ctx);
               break;
             case "GET_SESSIONS":
@@ -358,6 +387,8 @@ app.get(
       onClose(_event, ws) {
         const rawWs = (ws as any).raw as ServerWebSocket;
         activeConnections.delete(rawWs);
+        // 🛡️ P0 Fix: Clean up activity tracking
+        connectionLastActivity.delete(rawWs);
         handlers.handleClose({ raw: rawWs }, state);
       },
       onError(_event, _ws) {

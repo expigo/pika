@@ -9,9 +9,9 @@
  * messages to the 'live-session' channel.
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { handleSendLike, handleRemoveLike } from "../src/handlers/dancer";
 import { MESSAGE_TYPES } from "@pika/shared";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { handleRemoveLike, handleSendLike } from "../src/handlers/dancer";
 
 // Mock internal libs
 vi.mock("../src/lib/likes", () => ({

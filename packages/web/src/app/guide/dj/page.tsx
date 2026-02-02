@@ -1,18 +1,18 @@
 "use client";
 
 import {
+  Activity,
+  ArrowRight,
+  CheckCircle2,
+  ChevronRight,
   Download,
-  Settings,
-  Zap,
+  Info,
+  Monitor,
   Radio,
+  Settings,
   Share2,
   Trophy,
-  Activity,
-  ChevronRight,
-  ArrowRight,
-  Monitor,
-  CheckCircle2,
-  Info,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";

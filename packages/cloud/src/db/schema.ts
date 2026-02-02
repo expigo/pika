@@ -3,6 +3,7 @@
  * PostgreSQL schema for session persistence, played tracks, and likes.
  */
 
+import { sql } from "drizzle-orm";
 import {
   check,
   index,
@@ -14,7 +15,6 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core";
-import { sql } from "drizzle-orm";
 
 // ============================================================================
 // DJ Users & Authentication

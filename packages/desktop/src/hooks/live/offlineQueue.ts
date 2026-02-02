@@ -118,12 +118,14 @@ export async function flushQueue(): Promise<void> {
         idsToDelete.push(item.id);
         consecutiveFailures = 0; // Reset on success
 
-        // Add delay between messages (exponential backoff based on queue position)
+        // 🛡️ P2 Fix: Linear backoff after first 10 messages (replaces steep exponential)
+        // Exponential: Math.pow(1.2, i/5) grows too aggressively
+        // Linear: predictable delay that doesn't explode for large queues
         if (i < queue.length - 1) {
-          const delay = Math.min(
-            config.baseDelayMs * Math.pow(1.2, Math.floor(i / 5)),
-            config.maxDelayMs,
-          );
+          const delay =
+            i < 10
+              ? config.baseDelayMs // First 10 messages: use base delay
+              : Math.min(config.baseDelayMs + (i - 10) * 50, config.maxDelayMs); // After 10: linear +50ms per message
           await new Promise((r) => setTimeout(r, delay));
         }
       } catch (e) {

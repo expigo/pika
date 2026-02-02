@@ -170,7 +170,7 @@ export async function handleRegisterSession(ctx: WSContext) {
   if (messageId) sendAck(ws, messageId);
 
   // Broadcast to all subscribers
-  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
       "live-session",
       JSON.stringify({
@@ -244,7 +244,7 @@ export async function handleBroadcastTrack(ctx: WSContext) {
         clearTempoVotes(msg.sessionId);
 
         // Broadcast to all clients to reset their tempo vote UI
-        if (checkBackpressure(rawWs, state.clientId || undefined)) {
+        if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
           rawWs.publish(
             "live-session",
             JSON.stringify({
@@ -264,7 +264,7 @@ export async function handleBroadcastTrack(ctx: WSContext) {
     });
 
     // Broadcast new track to all connected clients
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({
@@ -337,7 +337,7 @@ export async function handleBroadcastMetadata(ctx: WSContext) {
 
     // Broadcast update to all clients
     // Uses METADATA_UPDATED type which clients should handle by merging into current state
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({
@@ -383,7 +383,7 @@ export function handleTrackStopped(ctx: WSContext) {
     clearSessionTrack(msg.sessionId);
     logger.info(`⏸️ Track stopped for session: ${msg.sessionId}`);
 
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({
@@ -448,7 +448,7 @@ export function handleEndSession(ctx: WSContext) {
     clearLastPersistedTrackKey(msg.sessionId);
 
     // Broadcast end session (best effort)
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({
@@ -502,7 +502,7 @@ export function handleSendAnnouncement(ctx: WSContext) {
     ...(endsAt && { endsAt }),
   });
 
-  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
       "live-session",
       JSON.stringify({
@@ -582,7 +582,7 @@ export function handleCancelAnnouncement(ctx: WSContext) {
 
   setSessionAnnouncement(cancelSessionId, null);
 
-  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
       "live-session",
       JSON.stringify({

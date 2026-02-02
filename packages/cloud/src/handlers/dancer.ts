@@ -126,7 +126,7 @@ export async function handleSendLike(ctx: WSContext) {
   );
 
   // Broadcast the like to all subscribers (including the DJ)
-  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
       "live-session",
       JSON.stringify({
@@ -171,7 +171,7 @@ export async function handleRemoveLike(ctx: WSContext) {
   );
 
   // Broadcast the removal to all subscribers (including the DJ)
-  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
       "live-session",
       JSON.stringify({
@@ -217,7 +217,7 @@ export async function handleSendBulkLike(ctx: WSContext) {
     persistLike(track, likeSessionId, state.clientId).catch(() => {});
 
     // Broadcast individually to DJ/Subscribers so regular animations/events fire
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({
@@ -241,7 +241,7 @@ export function handleSendReaction(ctx: WSContext) {
 
   if (msg.reaction === "thank_you") {
     // Broadcast reaction to all subscribers
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({
@@ -302,7 +302,7 @@ export function handleSendTempoRequest(ctx: WSContext) {
   const feedback = getTempoFeedback(targetSessionId);
 
   // Broadcast updated aggregates to all subscribers
-  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
       "live-session",
       JSON.stringify({

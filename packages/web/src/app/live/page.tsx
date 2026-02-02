@@ -103,21 +103,42 @@ export default function LivePage() {
   }, []);
 
   useEffect(() => {
+    // 🛡️ P2 Fix: Debounced visibility change handler prevents API burst on rapid tab switching
+    let visibilityDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
     const handlePoll = () => {
       if (document.visibilityState === "visible") {
         fetchAllData();
       }
     };
 
+    const handleVisibilityChange = () => {
+      // Clear any pending debounce timer
+      if (visibilityDebounceTimer) {
+        clearTimeout(visibilityDebounceTimer);
+      }
+
+      // Only trigger fetch when becoming visible, with 500ms debounce
+      if (document.visibilityState === "visible") {
+        visibilityDebounceTimer = setTimeout(() => {
+          fetchAllData();
+          visibilityDebounceTimer = null;
+        }, 500);
+      }
+    };
+
     fetchAllData();
     const interval = setInterval(handlePoll, 15000); // 15s polling with visibility check
 
-    // Resume immediately when tab becomes visible
-    document.addEventListener("visibilitychange", handlePoll);
+    // Resume with debounce when tab becomes visible
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       clearInterval(interval);
-      document.removeEventListener("visibilitychange", handlePoll);
+      if (visibilityDebounceTimer) {
+        clearTimeout(visibilityDebounceTimer);
+      }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [fetchAllData]);
 

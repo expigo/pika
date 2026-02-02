@@ -84,7 +84,7 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
 
       // Broadcast session ended to all listeners
       const rawWs = ws.raw as ServerWebSocket;
-      if (checkBackpressure(rawWs, clientId || undefined)) {
+      if (checkBackpressure(rawWs, clientId || undefined).canSend) {
         rawWs.publish(
           "live-session",
           JSON.stringify({

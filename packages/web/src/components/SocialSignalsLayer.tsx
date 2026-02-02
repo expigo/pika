@@ -31,6 +31,9 @@ export function SocialSignalsLayer({ onLikeReceived }: Props) {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
+    // 🛡️ P3 Fix: Respect prefers-reduced-motion accessibility preference
+    const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
@@ -98,6 +101,9 @@ export function SocialSignalsLayer({ onLikeReceived }: Props) {
 
     // Spawner Function - now starts loop on-demand
     const spawnParticleWithLoop = (_track: unknown, count = 1) => {
+      // 🛡️ P3 Fix: Skip animations if user prefers reduced motion
+      if (prefersReducedMotion) return;
+
       if (particlesRef.current.length >= MAX_PARTICLES) return;
 
       const spawnCount = Math.min(count || 1, 5);

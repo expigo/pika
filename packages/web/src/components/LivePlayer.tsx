@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePushNotifications } from "@/hooks/live";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
@@ -96,6 +96,68 @@ function PollCountdown({ endsAt }: { endsAt?: string | null }) {
 
   return <span className="text-purple-400 font-black tabular-nums font-mono">⏱️ {timeStr}</span>;
 }
+
+// 🛡️ P3 Fix: Constant tempo button config (prevents recreation on every render)
+const TEMPO_BUTTONS = [
+  {
+    id: "slower" as const,
+    label: "SLOWER",
+    icon: "🐢",
+    activeClass: "bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-blue-500/10",
+  },
+  {
+    id: "perfect" as const,
+    label: "PERFECT",
+    icon: "👌",
+    activeClass: "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-emerald-500/10",
+  },
+  {
+    id: "faster" as const,
+    label: "FASTER",
+    icon: "🐇",
+    activeClass: "bg-orange-500/20 border-orange-500/50 text-orange-400 shadow-orange-500/10",
+  },
+] as const;
+
+interface TempoButtonsProps {
+  tempoVote: "slower" | "perfect" | "faster" | null;
+  sendTempoRequest: (preference: "slower" | "perfect" | "faster") => void;
+  triggerHaptic: (pattern?: number | number[]) => void;
+}
+
+const TempoButtons = memo(function TempoButtons({
+  tempoVote,
+  sendTempoRequest,
+  triggerHaptic,
+}: TempoButtonsProps) {
+  return (
+    <div className="flex items-center gap-3 w-full max-w-[320px] mb-12 select-none">
+      {TEMPO_BUTTONS.map((btn) => {
+        const isActive = tempoVote === btn.id;
+        return (
+          <button
+            key={btn.id}
+            onClick={() => {
+              triggerHaptic(10);
+              sendTempoRequest(btn.id);
+            }}
+            aria-label={`Vote for tempo: ${btn.label}`}
+            aria-pressed={isActive}
+            className={`flex-1 py-3 rounded-2xl flex flex-col items-center justify-center transition-all border font-black text-[9px] uppercase tracking-widest gap-1 active:scale-90 ${
+              isActive
+                ? `${btn.activeClass} shadow-lg`
+                : "bg-slate-900 border-slate-800 text-slate-600"
+            }`}
+          >
+            <span className="text-sm">{btn.icon}</span>
+            {btn.label}
+            {isActive && <Check className="w-2 h-2 mt-1" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+});
 
 interface HistoryListProps {
   tracks: HistoryTrack[];
@@ -564,54 +626,12 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
                 </div>
 
                 {/* Secondary Actions: Tempo */}
-                <div className="flex items-center gap-3 w-full max-w-[320px] mb-12 select-none">
-                  {[
-                    {
-                      id: "slower" as const,
-                      label: "SLOWER",
-                      icon: "🐢",
-                      activeClass:
-                        "bg-blue-500/20 border-blue-500/50 text-blue-400 shadow-blue-500/10",
-                    },
-                    {
-                      id: "perfect" as const,
-                      label: "PERFECT",
-                      icon: "👌",
-                      activeClass:
-                        "bg-emerald-500/20 border-emerald-500/50 text-emerald-400 shadow-emerald-500/10",
-                    },
-                    {
-                      id: "faster" as const,
-                      label: "FASTER",
-                      icon: "🐇",
-                      activeClass:
-                        "bg-orange-500/20 border-orange-500/50 text-orange-400 shadow-orange-500/10",
-                    },
-                  ].map((btn) => {
-                    const isActive = tempoVote === btn.id;
-                    return (
-                      <button
-                        key={btn.id}
-                        onClick={() => {
-                          triggerHaptic(10);
-                          sendTempoRequest(btn.id);
-                        }}
-                        aria-label={`Vote for tempo: ${btn.label}`}
-                        aria-pressed={isActive}
-                        className={`flex-1 py-3 rounded-2xl flex flex-col items-center justify-center transition-all border font-black text-[9px] uppercase tracking-widest gap-1 active:scale-90 ${
-                          isActive
-                            ? `${btn.activeClass} shadow-lg`
-                            : "bg-slate-900 border-slate-800 text-slate-600"
-                        }`}
-                      >
-                        <span className="text-sm">{btn.icon}</span>
-                        {btn.label}
-                        {isActive && <Check className="w-2 h-2 mt-1" />}
-                      </button>
-                    );
-                  })}
-                </div>
-
+                {/* 🛡️ P3 Fix: Memoized tempo buttons to prevent recreation on every render */}
+                <TempoButtons
+                  tempoVote={tempoVote}
+                  sendTempoRequest={sendTempoRequest}
+                  triggerHaptic={triggerHaptic}
+                />
                 {/* Reaction: Thanks */}
                 <button
                   onClick={() => {

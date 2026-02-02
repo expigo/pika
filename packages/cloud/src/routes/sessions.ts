@@ -13,7 +13,7 @@
  */
 
 import { LIMITS, logger } from "@pika/shared";
-import { and, count, desc, eq, isNotNull } from "drizzle-orm";
+import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { db, schema } from "../db";
 import { validateToken } from "../lib/auth";
@@ -273,48 +273,63 @@ sessions.get("/:sessionId/recap", async (c) => {
         .from(schema.polls)
         .where(eq(schema.polls.sessionId, sessionId));
 
-      // Get vote counts for each poll
-      pollsWithResults = await Promise.all(
-        pollsData.map(async (poll) => {
-          const votes = await db
-            .select({
-              optionIndex: schema.pollVotes.optionIndex,
-              count: count(),
-            })
-            .from(schema.pollVotes)
-            .where(eq(schema.pollVotes.pollId, poll.id))
-            .groupBy(schema.pollVotes.optionIndex);
+      // 🛡️ P0 Fix: Single batched query for all poll vote counts (eliminates N+1)
+      const pollIds = pollsData.map((p) => p.id);
+      let allVotes: { pollId: number; optionIndex: number; count: number }[] = [];
 
-          const options = poll.options as string[];
-          const voteCounts = new Array(options.length).fill(0) as number[];
+      if (pollIds.length > 0) {
+        // Use IN clause for batch query
+        allVotes = await db
+          .select({
+            pollId: schema.pollVotes.pollId,
+            optionIndex: schema.pollVotes.optionIndex,
+            count: count(),
+          })
+          .from(schema.pollVotes)
+          .where(
+            sql`${schema.pollVotes.pollId} IN (${sql.join(
+              pollIds.map((id) => sql`${id}`),
+              sql`, `,
+            )})`,
+          )
+          .groupBy(schema.pollVotes.pollId, schema.pollVotes.optionIndex);
+      }
 
-          for (const v of votes) {
-            if (v.optionIndex >= 0 && v.optionIndex < voteCounts.length) {
-              voteCounts[v.optionIndex] = v.count;
-            }
-          }
+      // Build vote counts map: pollId -> optionIndex -> count
+      const votesByPoll = new Map<number, Map<number, number>>();
+      for (const v of allVotes) {
+        if (!votesByPoll.has(v.pollId)) {
+          votesByPoll.set(v.pollId, new Map());
+        }
+        votesByPoll.get(v.pollId)!.set(v.optionIndex, v.count);
+      }
 
-          const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
-          const winnerIndex = totalVotes > 0 ? voteCounts.indexOf(Math.max(...voteCounts)) : -1;
+      // Map polls with their vote data (no additional queries)
+      pollsWithResults = pollsData.map((poll) => {
+        const options = poll.options as string[];
+        const pollVotes = votesByPoll.get(poll.id) || new Map();
+        const voteCounts = options.map((_, idx) => pollVotes.get(idx) || 0);
 
-          return {
-            id: poll.id,
-            question: poll.question,
-            options,
-            votes: voteCounts,
-            totalVotes,
-            winnerIndex,
-            winner: winnerIndex >= 0 ? options[winnerIndex] : null,
-            startedAt: poll.startedAt,
-            endedAt: poll.endedAt,
-            // Track context: what was playing when poll was created
-            currentTrack:
-              poll.currentTrackArtist && poll.currentTrackTitle
-                ? { artist: poll.currentTrackArtist, title: poll.currentTrackTitle }
-                : null,
-          };
-        }),
-      );
+        const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
+        const winnerIndex = totalVotes > 0 ? voteCounts.indexOf(Math.max(...voteCounts)) : -1;
+
+        return {
+          id: poll.id,
+          question: poll.question,
+          options,
+          votes: voteCounts,
+          totalVotes,
+          winnerIndex,
+          winner: winnerIndex >= 0 ? options[winnerIndex] : null,
+          startedAt: poll.startedAt,
+          endedAt: poll.endedAt,
+          // Track context: what was playing when poll was created
+          currentTrack:
+            poll.currentTrackArtist && poll.currentTrackTitle
+              ? { artist: poll.currentTrackArtist, title: poll.currentTrackTitle }
+              : null,
+        };
+      });
     }
 
     // Calculate session stats
@@ -424,45 +439,52 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
   logger.info("🔄 Syncing fingerprints for session", { sessionId, count: body.tracks.length });
 
   try {
-    let updated = 0;
+    // 🛡️ P0 Fix: Batch all UPDATEs in a single transaction (eliminates N roundtrips)
+    // Filter tracks that have data to update
+    const tracksToUpdate = body.tracks.filter((track) => track.bpm || track.key || track.energy);
 
-    for (const track of body.tracks) {
-      // Skip tracks without data
-      if (!track.bpm && !track.key && !track.energy) {
-        continue;
-      }
-
-      // Build update object with only non-null values
-      const updateData: Record<string, unknown> = {};
-      if (track.bpm != null) updateData.bpm = Math.round(track.bpm);
-      if (track.key != null) updateData.key = track.key;
-      if (track.energy != null) updateData.energy = Math.round(track.energy);
-      if (track.danceability != null) updateData.danceability = Math.round(track.danceability);
-      if (track.brightness != null) updateData.brightness = Math.round(track.brightness);
-      if (track.acousticness != null) updateData.acousticness = Math.round(track.acousticness);
-      if (track.groove != null) updateData.groove = Math.round(track.groove);
-
-      if (Object.keys(updateData).length === 0) {
-        continue;
-      }
-
-      // Update by sessionId + artist + title match
-      const result = await db
-        .update(schema.playedTracks)
-        .set(updateData)
-        .where(
-          and(
-            eq(schema.playedTracks.sessionId, sessionId),
-            eq(schema.playedTracks.artist, track.artist),
-            eq(schema.playedTracks.title, track.title),
-          ),
-        )
-        .returning({ id: schema.playedTracks.id });
-
-      if (result.length > 0) {
-        updated++;
-      }
+    if (tracksToUpdate.length === 0) {
+      return c.json({ synced: 0, total: body.tracks.length, sessionId });
     }
+
+    // Use transaction to batch all updates
+    let updated = 0;
+    await db.transaction(async (tx) => {
+      // Build promises for all updates (executed in parallel within transaction)
+      const updatePromises = tracksToUpdate.map(async (track) => {
+        // Build update object with only non-null values
+        const updateData: Record<string, unknown> = {};
+        if (track.bpm != null) updateData.bpm = Math.round(track.bpm);
+        if (track.key != null) updateData.key = track.key;
+        if (track.energy != null) updateData.energy = Math.round(track.energy);
+        if (track.danceability != null) updateData.danceability = Math.round(track.danceability);
+        if (track.brightness != null) updateData.brightness = Math.round(track.brightness);
+        if (track.acousticness != null) updateData.acousticness = Math.round(track.acousticness);
+        if (track.groove != null) updateData.groove = Math.round(track.groove);
+
+        if (Object.keys(updateData).length === 0) {
+          return 0;
+        }
+
+        // Update by sessionId + artist + title match
+        const result = await tx
+          .update(schema.playedTracks)
+          .set(updateData)
+          .where(
+            and(
+              eq(schema.playedTracks.sessionId, sessionId),
+              eq(schema.playedTracks.artist, track.artist),
+              eq(schema.playedTracks.title, track.title),
+            ),
+          )
+          .returning({ id: schema.playedTracks.id });
+
+        return result.length > 0 ? 1 : 0;
+      });
+
+      const results = await Promise.all(updatePromises);
+      updated = results.reduce<number>((sum, r) => sum + r, 0);
+    });
 
     logger.info("✅ Synced tracks for session", {
       sessionId,

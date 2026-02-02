@@ -58,10 +58,15 @@ let nextPollId = 1;
 
 /**
  * Set an auto-end timer for a poll
+ * 🛡️ P0 Fix: Timers are unref'd to prevent blocking graceful shutdown
  */
 export function setPollTimer(pollId: number, timer: Timer): void {
   // Clear any existing timer first
   cancelPollTimer(pollId);
+  // 🛡️ P0 Fix: Unref the timer so it doesn't prevent graceful shutdown
+  if (timer.unref) {
+    timer.unref();
+  }
   pollTimers.set(pollId, timer);
 }
 

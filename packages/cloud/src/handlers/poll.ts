@@ -94,7 +94,7 @@ export async function handleStartPoll(ctx: WSContext) {
   refreshSessionActivity(msg.sessionId);
 
   // Broadcast poll arrival to all listeners
-  if (checkBackpressure(rawWs, state.clientId || undefined)) {
+  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
       "live-session",
       JSON.stringify({
@@ -124,7 +124,7 @@ export async function handleStartPoll(ctx: WSContext) {
         closePollInDb(pollId).catch((e) => logger.error("❌ Failed to close poll in DB", e));
         const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
         const winnerIndex = totalVotes > 0 ? poll.votes.indexOf(Math.max(...poll.votes)) : 0;
-        if (checkBackpressure(rawWs, state.clientId || undefined)) {
+        if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
           rawWs.publish(
             "live-session",
             JSON.stringify({
@@ -171,7 +171,7 @@ export async function handleEndPoll(ctx: WSContext) {
     const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
 
     // Broadcast results
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({
@@ -217,7 +217,7 @@ export async function handleCancelPoll(ctx: WSContext) {
     endPoll(msg.pollId);
     refreshSessionActivity(poll.sessionId);
     // For cancelled polls, send 0 results
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({
@@ -278,7 +278,7 @@ export async function handleVoteOnPoll(ctx: WSContext) {
     const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
 
     // Broadcast live update to DJ (and potentially others)
-    if (checkBackpressure(rawWs, state.clientId || undefined)) {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
         "live-session",
         JSON.stringify({

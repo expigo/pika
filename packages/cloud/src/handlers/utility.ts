@@ -16,21 +16,50 @@ import { getAllSessions, hasSession } from "../lib/sessions";
 import type { WSContext } from "./ws-context";
 
 /**
+ * Backpressure check result with context for callers
+ */
+export interface BackpressureResult {
+  /** Whether it's safe to send the message */
+  canSend: boolean;
+  /** Current buffer size in bytes */
+  bufferSize: number;
+  /** Whether the message was dropped due to backpressure */
+  dropped: boolean;
+}
+
+/**
  * Check if the WebSocket buffer is full (Backpressure)
- * Returns true if safe to send, false if backed up.
+ * 🛡️ P1 Fix: Returns detailed status instead of just boolean
+ *
+ * @returns Object with `canSend`, `bufferSize`, and `dropped` fields
  */
 export function checkBackpressure(
   rawWs: { getBufferedAmount: () => number },
   clientId?: string | null,
-): boolean {
-  if (rawWs.getBufferedAmount() > 1024 * 64) {
-    logger.warn(`⏳ Backpressure: Skipping message`, {
+): BackpressureResult {
+  const bufferSize = rawWs.getBufferedAmount();
+  const threshold = 1024 * 64; // 64KB
+
+  if (bufferSize > threshold) {
+    logger.warn(`⏳ Backpressure: Message dropped`, {
       clientId: clientId || "unknown",
-      reason: "buffer full",
+      bufferSize,
+      threshold,
     });
-    return false;
+    return { canSend: false, bufferSize, dropped: true };
   }
-  return true;
+  return { canSend: true, bufferSize, dropped: false };
+}
+
+/**
+ * Legacy boolean check for backwards compatibility
+ * @deprecated Use checkBackpressure() and check .canSend property
+ */
+export function canSendWithBackpressure(
+  rawWs: { getBufferedAmount: () => number },
+  clientId?: string | null,
+): boolean {
+  return checkBackpressure(rawWs, clientId).canSend;
 }
 
 /**
@@ -63,7 +92,7 @@ export function handleGetSessions(ctx: WSContext) {
   });
 
   // Backpressure awareness
-  if (checkBackpressure(rawWs, state.clientId)) {
+  if (checkBackpressure(rawWs, state.clientId).canSend) {
     ws.send(
       JSON.stringify({
         type: "SESSIONS_LIST",
