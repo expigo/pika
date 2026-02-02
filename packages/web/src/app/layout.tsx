@@ -40,6 +40,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
@@ -92,7 +93,7 @@ export default function RootLayout({
         suppressHydrationWarning
       >
         <Toaster
-          position="bottom-center"
+          position="top-center"
           toastOptions={{
             style: { background: "#1e293b", border: "1px solid #334155", color: "#f8fafc" },
           }}
@@ -105,7 +106,7 @@ export default function RootLayout({
         >
           Skip to content
         </a>
-        <main id="main-content" className="pb-20 sm:pb-0">
+        <main id="main-content" className="pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-0">
           {children}
         </main>
         <RegisterPWA />
