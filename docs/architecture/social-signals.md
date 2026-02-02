@@ -97,7 +97,7 @@ This ensures busy DJs don't miss poll results during live performances.
 *   **Idempotency:** Enforced via DB unique constraint on `(session_id, client_id, played_track_id)`.
 
 
-## 6. Session Telemetry (v0.4.1)
+## 6. Session Telemetry (v0.4.2)
 
 DJ session stability is tracked via the `session_events` table:
 *   `connect` - DJ established WebSocket connection
@@ -109,4 +109,4 @@ This enables operational insights without storing PII.
 
 ---
 
-*Last Updated: January 29, 2026 (v0.4.1)*
+*Last Updated: January 29, 2026 (v0.4.2)*
