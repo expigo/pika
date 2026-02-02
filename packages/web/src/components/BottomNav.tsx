@@ -16,7 +16,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/90 backdrop-blur-lg border-t border-slate-800/50 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:hidden transition-all duration-300"
+      className="fixed bottom-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/50 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] sm:hidden"
       aria-label="Main navigation"
     >
       <div className="max-w-md mx-auto flex items-center justify-around" role="menubar">
