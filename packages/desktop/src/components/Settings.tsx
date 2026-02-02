@@ -61,8 +61,8 @@ export function Settings({ isOpen, onClose }: Props) {
       const selected = await open({
         multiple: false,
         directory: false,
-        title: "Select VirtualDJ history.txt",
-        filters: [{ name: "Text Files", extensions: ["txt"] }],
+        title: "Select VirtualDJ History File",
+        filters: [{ name: "History Files", extensions: ["m3u", "m3u8", "txt"] }],
       });
       if (selected && typeof selected === "string") {
         setIsSaving(true);

@@ -407,6 +407,9 @@ fn find_latest_history_file() -> Result<std::path::PathBuf, String> {
         
         // 2. macOS Legacy / Root location
         path.join("Library").join("Application Support").join("VirtualDJ").join("History"),
+
+        // 3. Windows AppData location
+        path.join("AppData").join("Local").join("VirtualDJ").join("History"),
     ];
 
     // Find first existing directory
