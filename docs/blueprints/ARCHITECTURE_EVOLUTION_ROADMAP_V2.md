@@ -772,7 +772,7 @@ bun add lucia @lucia-auth/adapter-drizzle
 ## Phase 4: Data Strategy - Smart Crate (REVISED: 2 weeks, was 3 weeks)
 
 **Goal:** Deliver US-DJ3 (Track Verification)
-**Strategy Shift:** DJ-driven crowdsourcing (not automated fuzzy matching)
+**Strategy Shift:** **"Lazy Load" Ingestion.** We do NOT import the full VDJ library (100k+ rows). We only ingest tracks *as they are played live*. This ensures zero setup time and high performance.
 
 ### Sprint 4.1: Global Track Repository (3 days)
 

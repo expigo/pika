@@ -44,7 +44,16 @@ We use a specific language to keep the vibe premium and focused on the music.
 
 ---
 
-## 📈 4. Your Professional Showcase
+### 4. Note on "The Crate"
+Pika! is designed to be **zero-setup**. Instead of importing your entire 50,000 song library (which takes forever), Pika! uses a **"Proven History"** strategy:
+- Your Crate starts empty.
+- When you play a track live, Pika! adds it to The Crate automatically.
+- Over time, The Crate becomes a filtered archive of your **performance repertoire**, complete with "Vibe Fingerprints" and crowd stats.
+- **VirtualDJ** is for digging. **Pika!** is for analyzing what works.
+
+---
+
+## 📈 5. Your Professional Showcase
 
 Every set you play is archived in your **Showcase** (Profile).
 *   **Legacy:** Dancers can browse your past sets and see what you played at major events.

@@ -35,6 +35,7 @@ Pika! is built as a **Local-First, Cloud-Synced** system using a **Bun Workspace
 ## 4. Primary Data Flow: "Life of a Track"
 
 1.  **Capture:** `virtualDjWatcher.ts` (Desktop) polls the VirtualDJ history file every 1s.
+    *   *Note:* Pika! uses a **Lazy Load** strategy. It populates its database only when tracks are played, ensuring fast startup without full library imports.
 2.  **Analysis:** If the track is new, it's sent to the Python sidecar. Analysis results (BPM, Key, Energy) are saved to local SQLite.
 3.  **Broadcast:** `useLiveSession.ts` (Desktop) sends a `BROADCAST_TRACK` message with a unique `messageId`.
 4.  **Relay:** `handleBroadcastTrack` (Cloud) verifies the nonce, enqueues the DB write in the `PersistenceQueue`, and publishes to the `live-session` channel.

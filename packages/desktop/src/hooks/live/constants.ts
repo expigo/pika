@@ -33,7 +33,7 @@ export const MAX_RETRIES = 3;
 export const RETRY_DELAYS_MS = [1000, 2000, 4000] as const;
 
 /** Maximum reconnection attempts for WebSocket */
-export const MAX_RECONNECT_ATTEMPTS = 10;
+export const MAX_RECONNECT_ATTEMPTS = undefined;
 
 /** Minimum delay between reconnection attempts */
 export const MIN_RECONNECTION_DELAY_MS = TIMEOUTS.SOCKET_RECONNECT_MIN;
