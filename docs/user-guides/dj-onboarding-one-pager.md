@@ -31,6 +31,12 @@ Pika! supports **VirtualDJ**, **Serato**, and **Rekordbox** via history-log moni
     *   **Title:** Enter a Session Title (e.g., *“Friday Night Social @ WCS Budapest”*).
     *   **Event Mode:** If playing at an official event, select the **Stage** (e.g., *“Main Floor”*) so dancers on the event schedule find you automatically.
 
+> **🔥 Pro Tip: Signal Tuning**
+> For instant crowd feedback, Pika! needs your track data immediately.
+> By default, VirtualDJ waits 45s before logging a track.
+> **Recommendation:** Go to VDJ Settings, search for `historyDelay`, and set it to **10s**.
+> This ensures the crowd sees the track while it's hot, not when it's ending!
+
 ---
 
 ## 🎨 3. Mastering the Vocabulary
