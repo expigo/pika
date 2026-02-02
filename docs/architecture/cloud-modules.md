@@ -1,8 +1,8 @@
 # Architecture: Cloud Module Structure
 
-This document describes the modular architecture of the `@pika/cloud` backend service, introduced in v0.4.0.
+This document describes the modular architecture of the `@pika/cloud` backend service, introduced in v0.4.1.
 
-**Last Updated:** February 1, 2026 (v0.4.0)
+**Last Updated:** February 1, 2026 (v0.4.1)
 
 ---
 
@@ -166,7 +166,7 @@ packages/cloud/src/lib/
     ├── sessions.ts       # Session DB ops + waitForSession
     ├── tracks.ts         # Track DB ops
     ├── polls.ts          # Poll DB ops
-    └── queue.ts          # Serialized persistence queue (v0.4.0)
+    └── queue.ts          # Serialized persistence queue (v0.4.1)
 └── services/
     └── push.ts           # Web Push service (VAPID)
 ```
@@ -224,7 +224,7 @@ export async function persistSession(
 ): Promise<boolean>;
 ```
 
-#### `persistence/queue.ts` - Serialized Persistence (v0.4.0)
+#### `persistence/queue.ts` - Serialized Persistence (v0.4.1)
 
 Ensures operations like "Persist Track" and "Persist Like" happen in strict order, regardless of async database timings.
 

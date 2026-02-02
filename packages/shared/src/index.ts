@@ -3,7 +3,7 @@
  * Common types, schemas, and utilities shared between desktop, cloud, and web packages.
  */
 
-export const PIKA_VERSION = "0.4.0";
+export const PIKA_VERSION = "0.4.1";
 
 export { LIMITS, TIMEOUTS, URLS } from "./config";
 export { type LogContext, type LogLevel, logger } from "./logger";
