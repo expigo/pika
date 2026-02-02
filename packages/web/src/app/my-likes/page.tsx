@@ -148,8 +148,8 @@ export default function MyLikesPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200">
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
-        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-red-600/10 rounded-full blur-[120px]" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-0 w-[800px] h-[800px] bg-[radial-gradient(circle_at_center,rgba(220,38,38,0.15),transparent_70%)] opacity-70" />
       </div>
 
       <div className="relative max-w-2xl mx-auto px-4 py-12">

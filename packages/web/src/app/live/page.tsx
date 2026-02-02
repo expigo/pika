@@ -196,9 +196,9 @@ export default function LivePage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-purple-500/30">
       {/* Background Decorative Element */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none opacity-20">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[600px] bg-gradient-to-b from-purple-600/20 to-transparent blur-[120px]" />
-        <div className="absolute bottom-0 right-1/4 w-full h-[400px] bg-gradient-to-t from-blue-600/10 to-transparent blur-[120px]" />
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[1000px] h-[800px] bg-[radial-gradient(circle_at_top,rgba(147,51,234,0.15),transparent_70%)] opacity-70" />
+        <div className="absolute bottom-0 right-0 w-[800px] h-[600px] bg-[radial-gradient(circle_at_bottom_right,rgba(37,99,235,0.1),transparent_70%)] opacity-70" />
       </div>
 
       <div className="relative max-w-2xl mx-auto px-4 py-16 pb-32">
