@@ -87,10 +87,10 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of Feb 2026):** 513 verified tests total
-- Desktop: 231 tests
-- Cloud: 267 tests
-- Shared: 15 tests
+**Test Coverage (as of Feb 2026):** 614 verified tests total
+- Desktop: 316 tests (Vitest)
+- Cloud: 283 tests (Bun)
+- Shared: 15 tests (Bun)
 - Web: Test infrastructure exists but no test script in package.json yet
 
 ### Code Quality

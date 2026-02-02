@@ -449,7 +449,7 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 231 verified tests
+**Current coverage:** 316 verified tests (Vitest)
 
 ### Test Files
 

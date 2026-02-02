@@ -13,7 +13,7 @@
  * @created 2026-01-23
  */
 
-import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Track, VirtualDJTrack, AnalysisResult } from "./trackRepository";
 import { CURRENT_ANALYSIS_VERSION } from "./trackRepository";
 
@@ -22,14 +22,14 @@ import { CURRENT_ANALYSIS_VERSION } from "./trackRepository";
 // ============================================================================
 
 // Mock the database module
-const mockExecute = mock();
-const mockSelect = mock();
-const mockInsert = mock();
-const mockUpdate = mock();
-const mockDelete = mock();
+const mockExecute = vi.fn();
+const mockSelect = vi.fn();
+const mockInsert = vi.fn();
+const mockUpdate = vi.fn();
+const mockDelete = vi.fn();
 
-mock.module("../index", () => ({
-  getSqlite: mock(() =>
+vi.mock("../index", () => ({
+  getSqlite: vi.fn(() =>
     Promise.resolve({
       execute: mockExecute,
       select: mockSelect,
@@ -52,9 +52,15 @@ mock.module("../index", () => ({
   },
 }));
 
-// Mock @pika/shared getTrackKey
-mock.module("@pika/shared", () => ({
+// Mock @pika/shared - include all required exports
+vi.mock("@pika/shared", () => ({
   getTrackKey: (artist: string, title: string) => `${artist.toLowerCase()}:${title.toLowerCase()}`,
+  logger: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  },
 }));
 
 // Import after mocking
@@ -76,7 +82,7 @@ describe("trackRepository", () => {
   });
 
   afterEach(() => {
-    mock.restore();
+    vi.clearAllMocks();
   });
 
   // ==========================================================================

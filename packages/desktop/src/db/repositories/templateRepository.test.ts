@@ -4,7 +4,7 @@
  * Tests CRUD operations for set templates.
  */
 
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect } from "vitest";
 import type { SetTemplate, TemplateSlot } from "./templateRepository";
 
 describe("templateRepository", () => {

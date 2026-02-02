@@ -13,19 +13,19 @@
  * @created 2026-01-23
  */
 
-import { describe, it, expect, mock, spyOn, beforeEach, afterEach } from "bun:test";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { Session, Play } from "./sessionRepository";
 
 // ============================================================================
 // Mock Setup
 // ============================================================================
 
-const mockExecute = mock();
-const mockSelect = mock();
-const mockUpdate = mock();
+const mockExecute = vi.fn();
+const mockSelect = vi.fn();
+const mockUpdate = vi.fn();
 
-mock.module("../index", () => ({
-  getSqlite: mock(() =>
+vi.mock("../index", () => ({
+  getSqlite: vi.fn(() =>
     Promise.resolve({
       execute: mockExecute,
       select: mockSelect,
@@ -42,7 +42,7 @@ mock.module("../index", () => ({
 
 // Mock crypto.randomUUID
 const mockUUID = "550e8400-e29b-41d4-a716-446655440000";
-global.crypto.randomUUID = mock(() => mockUUID);
+vi.stubGlobal("crypto", { randomUUID: () => mockUUID });
 
 // Import after mocking
 import { sessionRepository } from "./sessionRepository";
@@ -59,7 +59,7 @@ describe("sessionRepository", () => {
   });
 
   afterEach(() => {
-    mock.restore();
+    vi.clearAllMocks();
   });
 
   // ==========================================================================

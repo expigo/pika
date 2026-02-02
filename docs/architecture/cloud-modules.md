@@ -294,8 +294,8 @@ switch (message.type) {
 | `websocket-handlers.test.ts` | 43 | Core WS behavior |
 | `subscriber-handlers.test.ts` | 17 | Subscription logic |
 | `poll-handlers.test.ts` | 28 | Poll VCs |
-| Others | 155 | REST, cache, auth, queues, analytics |
-| **Total** | **267** | |
+| Others | 171 | REST, cache, auth, queues, analytics |
+| **Total** | **283** | |
 
 ### Running Tests
 

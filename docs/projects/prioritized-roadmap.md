@@ -24,11 +24,11 @@ This document organizes the Pika! roadmap by **weighted priority**, balancing us
 | **S2** | Performance & Data Integrity | ✅ DONE | - | 9 indexes, batch operations |
 | **S3** | Schema Hardening | ✅ DONE | - | String/numeric constraints |
 | **S4** | Accessibility & UX | ✅ DONE | - | SEO, skip-to-content |
-| **S5** | Test Coverage | ✅ DONE | +170 | 513 total tests |
+| **S5** | Test Coverage | ✅ DONE | +271 | 614 total tests |
 | **S6** | Final Technical Audit | ✅ DONE | Feb 1 | SPEC.md, Ops Manual, 10/10 Sec |
 
 **Key Achievements:**
-- ✅ 513+ verified tests passing (exceeded initial targets)
+- ✅ 614+ verified tests passing (exceeded initial targets)
 - ✅ Zero CRITICAL/HIGH issues remaining
 - ✅ All security fixes verified with code references
 - ✅ Complete documentation update

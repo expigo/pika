@@ -19,7 +19,7 @@ This roadmap consolidates findings from deep code audits across all 4 packages (
 - **Critical Issues:** 0 ✅
 - **High Issues:** 0 ✅
 - **Medium Issues:** 0 (resolved or documented)
-- **Test Coverage:** 513 Verified Unit Tests (+ E2E) ✅
+- **Test Coverage:** 614 Verified Unit Tests (+ E2E) ✅
 - **Observability:** Full-stack Sentry + PII scrubbing (v0.4.1) ✅
 - **Performance:** Zero-waste battery + SWR caching (v0.4.1) ✅
 - **Resilience:** Backpressure + Persistence Queues (v0.4.1) ✅
@@ -380,8 +380,8 @@ export const metadata: Metadata = {
 | Component | Current | Target | Verified (Feb 2026) |
 |-----------|---------|--------|--------------|
 | useLiveSession | ~20% | 90% | ✅ 90% |
-| Desktop Repositories | 100% | 100% | ✅ 231 tests |
-| Cloud Handlers | 100% | 95% | ✅ 267 tests |
+| Desktop Repositories | 100% | 100% | ✅ 316 tests |
+| Cloud Handlers | 100% | 95% | ✅ 283 tests |
 | Web Hooks | ~85% | 80% | ✅ 53 tests |
 | Shared Utils | 100% | 100% | ✅ 15 tests |
 
