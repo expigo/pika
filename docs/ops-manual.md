@@ -41,7 +41,7 @@ bun run db:migrate
 # bun run db:push  # ⚠️ Use only for rapid prototyping
 ```
 
-**Important:** Migration files in `drizzle/*.sql` MUST be committed to git. These are the source of truth for database schema. Starting from v0.4.2, migrations are **Idempotent** (using `IF NOT EXISTS`), making them safe to run against existing databases without crashing.
+**Important:** Migration files in `drizzle/*.sql` MUST be committed to git. These are the source of truth for database schema. Starting from v0.4.3, migrations are **Idempotent** (using `IF NOT EXISTS`), making them safe to run against existing databases without crashing.
 
 **Local Desynchronization (The "Fix" for Migration Conflicts):**
 If you ever encounter an `ECONNRESET` or a `relation already exists` error during local startup, it means your local Docker volume is out of sync with the Git history.
@@ -146,7 +146,7 @@ We run a dedicated stack for internal metrics and public status.
     ```
 
 ### 3. Cloudflare Tunnel Configuration (Domain Map)
-Since ports are bound to `0.4.2.1` for security, you MUST connect them via Cloudflare Tunnel.
+Since ports are bound to `0.4.3.1` for security, you MUST connect them via Cloudflare Tunnel.
 
 **In Cloudflare Dashboard (Zero Trust > Access > Tunnels):**
 
@@ -194,7 +194,7 @@ You can connect your **local** Drizzle Studio to the **production** database sec
     cd packages/cloud
     
     # ⚠️ Important: Overwrite DB URL to localhost for the session
-    DATABASE_URL="postgres://pika:pika_password@0.4.2.1:5432/pika_prod" bun run db:studio
+    DATABASE_URL="postgres://pika:pika_password@0.4.3.1:5432/pika_prod" bun run db:studio
     ```
 
 3.  **Browse:** Open `https://local.drizzle.studio` in your browser. You now have full read/write access to production data.
@@ -434,7 +434,7 @@ cat backup.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U pi
     chmod +x packages/cloud/src/index.ts
     ```
 
-### 🧠 Memory Leaks (v0.4.2)
+### 🧠 Memory Leaks (v0.4.3)
 *   **Symptoms:** Server RAM climbs continuously, eventually crashing (OOM).
 *   **Cause:** Stale sessions not being cleaned up, or pending promises accumulating.
 *   **Fix:**
@@ -449,7 +449,7 @@ cat backup.sql | docker compose -f docker-compose.prod.yml exec -T db psql -U pi
 
 ---
 
-## 📊 Session Telemetry (v0.4.2)
+## 📊 Session Telemetry (v0.4.3)
 
 Telemetry tracks DJ session stability for operational insights. Events are stored in the `session_events` table.
 
@@ -627,5 +627,5 @@ docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
 
 ---
 
-*Last Updated: February 1, 2026 (v0.4.2)*
+*Last Updated: February 1, 2026 (v0.4.3)*
 

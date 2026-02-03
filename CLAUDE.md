@@ -6,6 +6,8 @@ We're building the app described in @docs/SPEC.MD. Read that file for general ar
 
 Keep your replies extremely concise and focus on conveying the key information. No unnecessary fluff, no long code snippets.
 
+Whenever working with any third-party library or something similar, you MUST look up the official documentation to ensure that you're working with up-to-date information. Use the DocsExplorer subagent for efficient documentation lookup.
+
 ## Project Overview
 
 **Pika!** is an intelligent companion for West Coast Swing DJs that bridges the gap between a DJ's local music library and dancers on the floor. It provides real-time "Now Playing" displays, analytics, and social interaction features.

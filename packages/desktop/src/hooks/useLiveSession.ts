@@ -811,10 +811,11 @@ export function useLiveSession() {
         const initialTrack = await detectInitialTrack();
 
         // Prepare initial track state based on user preference (sets masks/dedup)
+        // Prepare initial track state based on user preference (sets masks/dedup)
         prepareInitialTrackState(initialTrack, includeCurrentTrack);
 
-        // Now start the watcher polling
-        await startVirtualDJWatcher();
+        // 🛡️ Change: Defer watcher start until socket is OPEN to prevent offline-queue race conditions
+        // await startVirtualDJWatcher();
 
         if (initialTrack && includeCurrentTrack) {
           setNowPlaying(initialTrack);
@@ -862,6 +863,13 @@ export function useLiveSession() {
 
           // Flush any pending messages from offline time
           flushQueue();
+
+          // Start watcher now that socket is ready - ensures initial track broadcast goes out reliably
+          logger.info("Live", "Socket open, starting VDJ watcher");
+          startVirtualDJWatcher().catch((e) => {
+            logger.error("Live", "Failed to start VDJ watcher", e);
+            toast.error("Failed to connect to VirtualDJ");
+          });
 
           // Send initial track if available AND user chose to include it
           if (!shouldSkipInitialTrackBroadcast()) {

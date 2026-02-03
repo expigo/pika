@@ -15,7 +15,7 @@ Install the **Pika! Desktop App** (available for Mac & Windows). This is the "br
 
 ### **B. Connect Your Gear**
 Pika! supports **VirtualDJ**, **Serato**, and **Rekordbox** via history-log monitoring.
-*   **VirtualDJ:** Point Pika! to your `Documents/VirtualDJ/History` folder.
+*   **VirtualDJ:** Point Pika! to your `Documents/VirtualDJ/History` folder. Pika! will verify the connection and show specific errors (like "Permission Denied") if it can't read the files.
 *   **Threshold:** Tracks are broadcast after **30 seconds** of play (ensuring soundchecks or quick "pre-fader" listens don't leak).
 
 ---

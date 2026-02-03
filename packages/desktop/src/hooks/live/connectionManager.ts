@@ -93,10 +93,10 @@ export function prepareInitialTrackState(
 
   if (includeCurrentTrack) {
     setSkipInitialTrackBroadcast(false);
-    // Even if including, we mark as processed for recordPlay to prevent double-counting
-    // (the watcher listener will handle the actual broadcast/recording)
-    addProcessedTrackKey(trackKey);
-    setLastBroadcastedTrackKey(absoluteKey);
+    // 🛡️ Fix for Issue #2: Do NOT mark as processed or broadcasted here.
+    // By leaving it clean, the watcher's initial "readLatestTrack" event will trigger:
+    // 1. recordPlay (since it's not processed) -> Writes to DB
+    // 2. broadcastTrack (since lastBroadcastedKey is distinct) -> Sends to Mobile
   } else {
     logger.debug("Live", "Skipping initial track (user chose not to include)");
     setSkipInitialTrackBroadcast(true);

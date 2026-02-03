@@ -1,133 +1,132 @@
-import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
-import { virtualDjWatcher, type NowPlayingTrack } from "./virtualDjWatcher";
-import { invoke } from "@tauri-apps/api/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { virtualDjWatcher } from "./virtualDjWatcher";
 
-// Mock Tauri invoke
+// Mock Tauri APIs
+const mockInvoke = vi.fn();
+const mockListen = vi.fn();
+
 vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(),
+  invoke: (...args: any[]) => mockInvoke(...args),
 }));
 
-type mockInvoke = Mock<typeof invoke>;
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: (...args: any[]) => mockListen(...args),
+}));
 
-describe("VirtualDJWatcher - Visibility Fix Verification", () => {
-  let doc: {
-    visibilityState: string;
-    addEventListener: Mock;
-    removeEventListener: Mock;
-  };
+// Mock settings repository
+vi.mock("../db/repositories/settingsRepository", () => ({
+  settingsRepository: {
+    get: vi.fn().mockResolvedValue("auto"),
+  },
+}));
 
+describe("VirtualDJWatcher", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.clearAllMocks();
-
-    // Mock global document with visibilityState support
-    doc = {
-      visibilityState: "visible",
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    };
-    vi.stubGlobal("document", doc);
-
-    // Reset singleton state manually to ensure isolation
-    virtualDjWatcher.stopWatching();
-    // @ts-ignore - accessing private for test reset
-    virtualDjWatcher.lastTrack = null;
-    // @ts-ignore
-    virtualDjWatcher.lastTimestamp = 0;
-    // @ts-ignore
-    virtualDjWatcher.listeners = [];
+    mockInvoke.mockReset();
+    mockListen.mockReset();
   });
 
   afterEach(() => {
+    vi.clearAllTimers();
     vi.useRealTimers();
-    vi.unstubAllGlobals();
+    virtualDjWatcher.stopWatching();
   });
 
-  /**
-   * TEST: Initial read check
-   * RATIONALE: App restores from background should NOT notify if track is same
-   * PRODUCTION LOCATION: virtualDjWatcher.ts:148-154
-   */
-  it("should NOT notify listeners on start if track is identical (🛡️ FIX 1)", async () => {
+  it("should start native watcher and listen for events", async () => {
+    // Setup mocks
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "start_vdj_watcher") return Promise.resolve("Watching");
+      if (cmd === "read_virtualdj_history") return Promise.resolve(null);
+      return Promise.resolve(null);
+    });
+
+    let eventCallback: (event: any) => void = () => {};
+    mockListen.mockImplementation((_, cb) => {
+      eventCallback = cb;
+      return Promise.resolve(() => {});
+    });
+
+    // Action
+    await virtualDjWatcher.startWatching();
+
+    // Verify native watcher started
+    expect(mockInvoke).toHaveBeenCalledWith("start_vdj_watcher", { customPath: "auto" });
+    expect(mockListen).toHaveBeenCalledWith("vdj-history-update", expect.any(Function));
+
+    // Verify event handling
     const mockTrack = {
-      artist: "Daft Punk",
-      title: "One More Time",
-      file_path: "/path/music.mp3",
-      timestamp: 1700000000,
+      artist: "Test Artist",
+      title: "Test Title",
+      file_path: "/path/to/song.mp3",
+      timestamp: 1234567890,
     };
-    (invoke as any).mockResolvedValue(mockTrack);
 
     const listener = vi.fn();
     virtualDjWatcher.onTrackChange(listener);
 
-    // 1. Initial start
-    await virtualDjWatcher.startWatching();
-    expect(listener).toHaveBeenCalledTimes(1);
+    // Simulate event
+    await eventCallback({ payload: mockTrack });
 
-    // 2. Stop and restart (simulating visibility-triggered restart)
-    virtualDjWatcher.stopWatching();
-    listener.mockClear();
+    // Flush promises to allow async handleNativeUpdate to finish
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
-    await virtualDjWatcher.startWatching();
-
-    // 🛡️ VERIFICATION: Fix 1 prevents notifying when lastTrack matches initial read
-    expect(listener).not.toHaveBeenCalled();
+    // Verify listener notified
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artist: "Test Artist",
+        title: "Test Title",
+      }),
+    );
   });
 
-  /**
-   * TEST: Polling adjustment
-   * RATIONALE: Visibility change should only change timer, not read immediately
-   * PRODUCTION LOCATION: virtualDjWatcher.ts:176-184
-   */
-  it("should adjust interval on visibility change without immediate read (🛡️ FIX 2)", async () => {
-    const mockTrack = {
-      artist: "Daft Punk",
-      title: "One More Time",
-      file_path: "/path/music.mp3",
-      timestamp: 1700000000,
-      bpm: 124, // Provide BPM to avoid metadata lookup extra call
-      key: "Am",
-    };
-    (invoke as mockInvoke).mockResolvedValue(mockTrack);
+  it("should fallback to polling if native watcher fails", async () => {
+    // Setup mocks to fail native watcher
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "start_vdj_watcher") return Promise.reject("Native watcher failed");
+      if (cmd === "read_virtualdj_history")
+        return Promise.resolve({
+          artist: "Poll Artist",
+          title: "Poll Title",
+          file_path: "/path/poll.mp3",
+          timestamp: 1000,
+        });
+      return Promise.resolve(null);
+    });
 
-    await virtualDjWatcher.startWatching();
-    expect(invoke).toHaveBeenCalledTimes(1);
-
-    // Simulate visibility change to hidden
-    doc.visibilityState = "hidden";
-    // @ts-ignore - manually trigger private handler for test
-    virtualDjWatcher.handleVisibilityChange();
-
-    // 🛡️ VERIFICATION: Fix 2 prevents immediate read on visibility change
-    expect(invoke).toHaveBeenCalledTimes(1);
-
-    // Should NOT poll at 1s interval anymore
-    await vi.advanceTimersByTimeAsync(1500);
-    expect(invoke).toHaveBeenCalledTimes(1);
-
-    // Should poll at hidden interval (3s)
-    await vi.advanceTimersByTimeAsync(2000); // 3.5s total
-    expect(invoke).toHaveBeenCalledTimes(2);
-  });
-
-  it("should still notify immediately if track ACTUALLY changed during restart", async () => {
-    const track1 = { artist: "A", title: "1", file_path: "f1", timestamp: 100, bpm: 120, key: "C" };
-    const track2 = { artist: "B", title: "2", file_path: "f2", timestamp: 200, bpm: 128, key: "G" };
-
-    (invoke as any).mockResolvedValue(track1);
     const listener = vi.fn();
     virtualDjWatcher.onTrackChange(listener);
 
+    // Action
     await virtualDjWatcher.startWatching();
-    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ artist: "A" }));
 
+    // Verify native failed but caught
+    expect(mockInvoke).toHaveBeenCalledWith("start_vdj_watcher", expect.anything());
+
+    // Simulate poll tick
+    vi.advanceTimersByTime(1000);
+
+    // Flush promises to let the async interval callback run
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    // Verify polling read occurred and listener notified
+    expect(mockInvoke).toHaveBeenCalledWith("read_virtualdj_history", expect.anything());
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artist: "Poll Artist",
+      }),
+    );
+  }, 10000);
+
+  it("should stop watcher correctly", async () => {
+    const unlistenFn = vi.fn();
+    mockListen.mockResolvedValue(unlistenFn);
+    mockInvoke.mockResolvedValue(null);
+
+    await virtualDjWatcher.startWatching();
     virtualDjWatcher.stopWatching();
-    listener.mockClear();
 
-    // Change mock to new track
-    (invoke as any).mockResolvedValue(track2);
-
-    await virtualDjWatcher.startWatching();
-    expect(listener).toHaveBeenCalledWith(expect.objectContaining({ artist: "B" }));
+    expect(unlistenFn).toHaveBeenCalled();
+    expect(mockInvoke).toHaveBeenCalledWith("stop_vdj_watcher");
   });
 });

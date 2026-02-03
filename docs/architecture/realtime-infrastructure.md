@@ -2,8 +2,8 @@
 
 This document describes the technical implementation of the synchronization layer between the **Desktop** app (the source of truth) and the **Cloud** server (the distribution layer).
 
-**Last Updated:** February 1, 2026 (v0.4.2)
-**Audit Status:** 100% Verified against v0.4.2 codebase.
+**Last Updated:** February 1, 2026 (v0.4.3)
+**Audit Status:** 100% Verified against v0.4.3 codebase.
 
 ## 1. Design Philosophy: "Local First, Cloud Second"
 
@@ -47,12 +47,12 @@ To handle network drops without data loss, the Desktop app implements a persiste
     *   Sends them sequentially with **exponential backoff** to prevent server overload.
     *   Deletes them from SQLite only after `send()` is called.
 
-### Resilience Mechanisms (v0.4.2)
+### Resilience Mechanisms (v0.4.3)
 *   **Reliability Buffer:** `pendingMessages` increased to 1,000 to survive 30+ minute network blackouts.
 *   **Drop-Oldest Eviction:** If buffer fills, oldest messages are evicted to maintain real-time availability.
 *   **ID-Based Concurrency:** Sync loops use a unique Operation ID (timestamp) to prevent "zombie" sync processes after watchdog resets.
 *   **Capacity Monitoring:** Logger alerts at 80% (800 msgs) buffer usage.
-*   **Exponential Backoff (v0.4.2):**
+*   **Exponential Backoff (v0.4.3):**
     *   Base delay: 500ms between messages (`TIMEOUTS.OFFLINE_RETRY_BASE`)
     *   Growth factor: 1.2x every 5 messages
     *   Max delay: 2000ms
@@ -63,7 +63,7 @@ To handle network drops without data loss, the Desktop app implements a persiste
 > [!NOTE]
 > Only critical messages (like `BROADCAST_TRACK`) are queued. Ephemeral messages (like "typing indicators" or high-frequency updates) may be dropped to prevent flood on reconnection.
 
-## 4. ACK/NACK Protocol (v0.4.2) ✅ IMPLEMENTED
+## 4. ACK/NACK Protocol (v0.4.3) ✅ IMPLEMENTED
 
 The system now implements application-level acknowledgements for reliable message delivery.
 
@@ -96,7 +96,7 @@ sendMessage(
 );
 ```
 
-## 5. Message Nonce Deduplication (v0.4.2) ✅ IMPLEMENTED
+## 5. Message Nonce Deduplication (v0.4.3) ✅ IMPLEMENTED
 
 Server-side protection against replay attacks and duplicate processing from network retries.
 
@@ -118,7 +118,7 @@ Since the Desktop app periodically polls VirtualDJ (every 1-2s), it may detect t
 *   **Ghost Tracks:** If a DJ plays a file not imported into the Pika! library, the system generates a "Ghost Track" (ID: `ghost://...`) to ensure the play is still recorded and broadcast.
 
 ### Server-Side (Cloud)
-*   **lastPersistedTrackKey Map (v0.4.2):** In-memory Map tracks the last persisted track per session. Skips duplicate `persistTrack()` calls.
+*   **lastPersistedTrackKey Map (v0.4.3):** In-memory Map tracks the last persisted track per session. Skips duplicate `persistTrack()` calls.
 *   **Nonce Tracking:** `checkAndRecordNonce()` prevents duplicate message processing within 5-minute window.
 
 ### ⚠️ Known Limitation: Server Restart Edge Case
@@ -139,7 +139,7 @@ Since the Desktop app periodically polls VirtualDJ (every 1-2s), it may detect t
 
 **When to Revisit:** If frequent deploys during peak hours cause noticeable duplicates, add a DB query check before insert.
 
-## 7. Web App Offline Queue (v0.4.2) ✅ IMPLEMENTED
+## 7. Web App Offline Queue (v0.4.3) ✅ IMPLEMENTED
 
 The Web app (`packages/web`) now also implements persistent offline queuing for dancer interactions.
 
@@ -159,13 +159,13 @@ The Web app (`packages/web`) now also implements persistent offline queuing for 
 *   Triggers reconnect if connection is closed, stale, or disconnected.
 *   Uses `hasReceivedPongRef` to prevent false positives on initial load.
 
-### Safari/iOS Bulletproofing (v0.4.2)
+### Safari/iOS Bulletproofing (v0.4.3)
 *   **pageshow listener:** Handles Safari bfcache page restoration.
 *   **statusRef:** Uses ref to avoid stale closure values in callbacks.
 *   **addEventListener pattern:** Proper cleanup prevents memory leaks.
 *   **Periodic status sync:** Heartbeat interval syncs React state with actual readyState.
 
-## 8. Testing Infrastructure (v0.4.2)
+## 8. Testing Infrastructure (v0.4.3)
 
 ### E2E Reconnection Tests (`tests/e2e/specs/reconnection.spec.ts`)
 5 scenarios covering network resilience:
@@ -225,7 +225,7 @@ k6 script with 4 scenarios:
 **Alternative Considered:**
 Batch ACK (one ACK per 10 likes) - adds complexity without clear benefit.
 
-## 11. Modular Handler Architecture (v0.4.2)
+## 11. Modular Handler Architecture (v0.4.3)
 
 The Cloud service now uses a modular handler architecture for better maintainability and error isolation.
 
@@ -274,7 +274,7 @@ export const handleSendLike = safeHandler(_handleSendLike);
 3. Does NOT crash the WebSocket connection
 4. Other clients unaffected
 
-## 12. Graceful Shutdown (v0.4.2)
+## 12. Graceful Shutdown (v0.4.3)
 
 The server now handles shutdown signals gracefully:
 
@@ -315,7 +315,7 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 > The only deferred item (reliable likes) is intentionally omitted due to cost/benefit analysis, not technical limitation.
 
-## 14. Data Persistence & Integrity (v0.4.2) ✅ IMPLEMENTED
+## 14. Data Persistence & Integrity (v0.4.3) ✅ IMPLEMENTED
 
 To ensure strict data consistency and handle high-volume write bursts, the Cloud server implements a dedicated **Persistence Queue** per session.
 
@@ -348,7 +348,7 @@ The Desktop app now uses SQLite Transactions for all complex write operations to
 *   `deleteSet` (Cascading delete)
 *   `updateSetTracks` (Replace all tracks)
 
-## 15. Server Stability & Backpressure (v0.4.2) ✅ IMPLEMENTED
+## 15. Server Stability & Backpressure (v0.4.3) ✅ IMPLEMENTED
 
 To prevent the server from crashing under load when clients have slow connections, we implemented **Backpressure Management**.
 

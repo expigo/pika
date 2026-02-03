@@ -1,7 +1,7 @@
 import { useAnalyzer } from "../hooks/useAnalyzer";
 import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 import { FlaskConical, Play, Pause, Square, RefreshCcw, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import * as trackRepo from "../db/repositories/trackRepository";
 
 interface Props {
@@ -25,6 +25,23 @@ export function AnalyzerStatus({ baseUrl, onComplete }: Props) {
 
   const { triggerRefresh } = useLibraryRefresh();
   const [showDetails, setShowDetails] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setShowDetails(false);
+      }
+    }
+
+    if (showDetails) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [showDetails]);
 
   const handleStart = async () => {
     if (!baseUrl) return;
@@ -51,7 +68,7 @@ export function AnalyzerStatus({ baseUrl, onComplete }: Props) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <button
         type="button"
         onClick={() => setShowDetails(!showDetails)}

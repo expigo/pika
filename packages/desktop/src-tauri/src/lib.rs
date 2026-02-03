@@ -4,6 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
+use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher, Event, EventKind};
+use tauri::{AppHandle, Emitter, Manager};
+use std::sync::Mutex;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename = "VirtualDJ_Database")]
@@ -100,12 +103,17 @@ struct VdjCache {
 
 static VDJ_CACHE: Lazy<tokio::sync::RwLock<Option<VdjCache>>> = Lazy::new(|| tokio::sync::RwLock::new(None));
 
+struct VdjWatcherState {
+    watcher: Mutex<Option<RecommendedWatcher>>,
+}
+
 /// Internal helper to load and parse the VDJ database with caching
 async fn get_cached_database(custom_path: Option<PathBuf>) -> Result<HashMap<String, VirtualDJSong>, String> {
+
     let db_path = if let Some(path) = custom_path {
         path
     } else {
-        find_vdj_database_path()
+        find_vdj_database_path(None)
             .ok_or_else(|| "VirtualDJ database.xml not found".to_string())?
     };
     
@@ -137,6 +145,7 @@ async fn get_cached_database(custom_path: Option<PathBuf>) -> Result<HashMap<Str
         .map_err(|e| format!("XML parsing error: {}", e))?;
     
     let mut song_map = HashMap::with_capacity(database.songs.len());
+
     for song in database.songs {
         song_map.insert(song.file_path.clone(), song);
     }
@@ -229,8 +238,19 @@ async fn import_virtualdj_library(xml_path: String) -> Result<Vec<VirtualDJTrack
     let path = PathBuf::from(xml_path);
     let song_map = get_cached_database(Some(path)).await?;
     
-    // Convert VirtualDJSong to VirtualDJTrack
-    let tracks: Vec<VirtualDJTrack> = song_map.into_values().map(|s| s.into()).collect();
+    // Convert VirtualDJSong to VirtualDJTrack and filter non-audio
+    let tracks: Vec<VirtualDJTrack> = song_map.into_values()
+        .map(|s| s.into())
+        .filter(|t: &VirtualDJTrack| {
+            // Filter out common video formats
+            let ext = std::path::Path::new(&t.file_path)
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_lowercase())
+                .unwrap_or_default();
+            !matches!(ext.as_str(), "mov" | "mp4" | "m4v" | "avi" | "mkv" | "mpg" | "mpeg" | "flv" | "webm")
+        })
+        .collect();
     
     Ok(tracks)
 }
@@ -436,6 +456,27 @@ fn find_latest_history_file() -> Result<std::path::PathBuf, String> {
     Ok(history_path)
 }
 
+/// Helper to check if a file is from today
+fn is_file_today(path: &std::path::Path) -> bool {
+    // Check filename content (YYYY-MM-DD.m3u)
+    if let Some(name) = path.file_stem() {
+        if let Some(name_str) = name.to_str() {
+            let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+            return name_str == today;
+        }
+    }
+    // Fallback to checking modification time if name doesn't match standard
+    if let Ok(metadata) = path.metadata() {
+        if let Ok(modified) = metadata.modified() {
+            let now = std::time::SystemTime::now();
+            if let Ok(duration) = now.duration_since(modified) {
+                return duration.as_secs() < 24 * 60 * 60;
+            }
+        }
+    }
+    false
+}
+
 /// Metadata returned from VDJ database lookup (for ghost tracks)
 #[derive(Debug, Serialize)]
 pub struct VdjTrackMetadata {
@@ -445,7 +486,27 @@ pub struct VdjTrackMetadata {
 }
 
 /// Find VirtualDJ database.xml location
-fn find_vdj_database_path() -> Option<std::path::PathBuf> {
+fn find_vdj_database_path(hint_path: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
+    // 0. Use hint path (e.g. History folder) to find parent database.xml
+    if let Some(hist_path) = hint_path {
+        // If hist_path is a file (e.g. .../History/2026-02-03.m3u)
+        // Parent is .../History. Parent of that is .../VirtualDJ
+        if hist_path.is_file() {
+             if let Some(hist_dir) = hist_path.parent() {
+                 if let Some(vdj_root) = hist_dir.parent() {
+                     let db = vdj_root.join("database.xml");
+                     if db.exists() { return Some(db); }
+                 }
+             }
+        } else if hist_path.is_dir() {
+            // If hist_path is the History directory
+             if let Some(vdj_root) = hist_path.parent() {
+                 let db = vdj_root.join("database.xml");
+                 if db.exists() { return Some(db); }
+             }
+        }
+    }
+
     let home = std::env::var("HOME")
         .or_else(|_| std::env::var("USERPROFILE"))
         .ok()?;
@@ -524,12 +585,16 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_sql::Builder::default().build())
+        .manage(VdjWatcherState { watcher: Mutex::new(None) })
         .invoke_handler(tauri::generate_handler![
             import_virtualdj_library, 
             read_virtualdj_history,
             read_virtualdj_history_full,
             lookup_vdj_track_metadata, 
-            get_local_ip
+            get_local_ip,
+            get_virtualdj_status,
+            start_vdj_watcher,
+            stop_vdj_watcher
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -538,7 +603,6 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
-
     #[test]
     fn test_convert_virtualdj_bpm() {
         // VDJ stores 60 / BPM
@@ -547,5 +611,243 @@ mod tests {
         // 60 / 0.479 = 125.26... -> 125.3
         assert_eq!(convert_virtualdj_bpm("0.479"), Some("125.3".to_string()));
     }
+}
+
+#[derive(Debug, Serialize)]
+pub struct VdjStatus {
+    database_status: String, // "connected", "not_found", "error"
+    database_path: Option<String>,
+    database_track_count: usize,
+    history_status: String, // "active", "searching", "error", "stale"
+    history_file_name: Option<String>,
+    history_track_count: usize,
+    is_today: bool,
+    error_details: Option<String>,
+}
+
+#[tauri::command]
+async fn get_virtualdj_status(custom_history_path: Option<String>) -> Result<VdjStatus, String> {
+    // 1. Analyze History first to get a hint for database location
+    let (hist_status, hist_name, hist_count, hist_path_found, is_today, hist_error) = match find_latest_history_file() {
+        Ok(path) => {
+            let name = path.file_name().map(|n| n.to_string_lossy().to_string());
+            let is_today = is_file_today(&path);
+            
+            // Count actual played tracks in today's session
+            let count = std::fs::read_to_string(&path)
+                .map(|c| c.lines().filter(|l| l.starts_with("#EXTVDJ:")).count())
+                .unwrap_or(0);
+            
+            // If custom path is set in Settings (passed here via args?), we should rely on it.
+            // But here we rely on auto-detection logic within find_latest which handles "auto" vs custom internally?
+            // Wait, get_virtualdj_status receives custom_history_path.
+            // If that is set, we should use it.
+            
+            // Actually, find_latest_history_file() as written doesn't take arguments, it just scans default dirs.
+            // Ideally we pass the custom path logic here.
+            
+            // Refined Check Logic:
+            let status = if is_today { "active" } else { "stale" };
+            
+            (status.to_string(), name, count, Some(path), is_today, None)
+        },
+        Err(e) => ("searching".to_string(), None, 0, None, false, Some(e))
+    };
+
+    // 1b. If custom history path is provided, override the auto-detected one for DB hint purposes
+    let db_hint_path = if let Some(ref custom) = custom_history_path {
+        if custom != "auto" {
+             Some(PathBuf::from(custom))
+        } else {
+             hist_path_found.as_ref().map(|p| p.to_path_buf())
+        }
+    } else {
+         hist_path_found.as_ref().map(|p| p.to_path_buf())
+    };
+
+    // 2. Analyze Database (The Library Source) using Hint
+    // Note: get_cached_database expects "custom_path" to be the XML file itself, not a hint.
+    // We need to resolve the generic "database.xml" path using our new finder.
+    
+    // We can't easily pass 'hint' to get_cached_database broadly without changing its signature everywhere.
+    // Instead, let's resolve it here.
+    let resolved_db_path = find_vdj_database_path(db_hint_path.as_deref());
+    
+    // We pass the resolved path as "custom_path" to get_cached_database to force it to use it.
+    let (db_status, db_path, db_count, db_error) = match get_cached_database(resolved_db_path.clone()).await {
+        Ok(map) => (
+            "connected".to_string(), 
+            Some(VDJ_CACHE.read().await.as_ref().map(|c| c.path.to_string_lossy().to_string()).unwrap_or_default()), 
+            // Filter videos from count to match user expectation
+            map.values().filter(|s| {
+                 let ext = std::path::Path::new(&s.file_path)
+                    .extension()
+                    .and_then(|e| e.to_str())
+                    .map(|e| e.to_lowercase())
+                    .unwrap_or_default();
+                !matches!(ext.as_str(), "mov" | "mp4" | "m4v" | "avi" | "mkv" | "mpg" | "mpeg" | "flv" | "webm")
+            }).count(),
+            None
+        ),
+        Err(e) => {
+             if let Some(path) = resolved_db_path {
+                ("error".to_string(), Some(path.to_string_lossy().to_string()), 0, Some(e))
+             } else {
+                 ("not_found".to_string(), None, 0, Some(e))
+             }
+        }
+    };
+
+    // Combine errors (prefer specific database error if connecting, or history error if searching failed)
+    let error_details = db_error.or(hist_error);
+
+    Ok(VdjStatus {
+        database_status: db_status,
+        database_path: db_path,
+        database_track_count: db_count,
+        history_status: hist_status,
+        history_file_name: hist_name,
+        history_track_count: hist_count,
+        is_today,
+        error_details,
+    })
+}
+
+#[tauri::command]
+async fn start_vdj_watcher(
+    app: AppHandle,
+    state: tauri::State<'_, VdjWatcherState>,
+    custom_path: Option<String>,
+) -> Result<String, String> {
+    // 1. Resolve History Path
+    let history_path = if let Some(ref path_str) = custom_path {
+        if path_str != "auto" && !path_str.is_empty() {
+             let custom = std::path::PathBuf::from(path_str);
+             // If the user points to a specific file, watch its parent directory
+             if custom.is_file() {
+                 custom.parent().ok_or("Invalid file path")?.to_path_buf()
+             } else {
+                 custom
+             }
+        } else {
+             // For auto, we find the DIRECTORY, not the file
+             let file = find_latest_history_file()?;
+             file.parent().ok_or("Invalid history path")?.to_path_buf()
+        }
+    } else {
+        let file = find_latest_history_file()?;
+        file.parent().ok_or("Invalid history path")?.to_path_buf()
+    };
+
+    if !history_path.exists() {
+        return Err(format!("History directory not found: {:?}", history_path));
+    }
+
+    println!("[VDJ Watcher] Starting native watcher on: {:?}", history_path);
+
+    // 2. Setup Watcher
+    let app_handle = app.clone();
+
+    let event_handler = move |res: Result<Event, notify::Error>| {
+        match res {
+            Ok(event) => {
+                // We are interested in Modify or Create events on .m3u files
+                let interesting = matches!(event.kind, EventKind::Modify(_) | EventKind::Create(_));
+                if interesting {
+                     for path in event.paths {
+                         if let Some(ext) = path.extension() {
+                             if ext == "m3u" {
+                                 // Debounce/Logic handled by finding the *latest* file and reading it
+                                 // We simply signal that "something changed in history"
+                                 // The payload uses the standard logic to find the LATEST entry
+                                 // 🛡️ Debounce/Race Condition Fix: Wait 100ms before reading
+                                 // This ensures VDJ file flush is complete and avoids event storms
+                                 let app_handle_clone = app_handle.clone();
+                                 let path_clone = path.clone();
+                                 
+                                 tauri::async_runtime::spawn(async move {
+                                     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                                     match read_virtualdj_history_internal(&path_clone) {
+                                         Ok(Some(track)) => {
+                                             let _ = app_handle_clone.emit("vdj-history-update", &track);
+                                         },
+                                         Ok(None) => {}, // Not a valid track line yet
+                                         Err(e) => println!("[VDJ Watcher] Read error: {}", e),
+                                     }
+                                 });
+                             }
+                         }
+                     }
+                }
+            },
+            Err(e) => println!("[VDJ Watcher] Watch error: {:?}", e),
+        }
+    };
+
+    let mut watcher = RecommendedWatcher::new(event_handler, Config::default())
+        .map_err(|e| format!("Failed to create watcher: {}", e))?;
+
+    watcher.watch(&history_path, RecursiveMode::NonRecursive)
+        .map_err(|e| format!("Failed to watch directory: {}", e))?;
+
+    // 3. Store watcher in state
+    let mut state_val = state.watcher.lock().map_err(|_| "Failed to lock watcher mutex")?;
+    *state_val = Some(watcher);
+
+    Ok(format!("Watching {:?}", history_path))
+}
+
+#[tauri::command]
+fn stop_vdj_watcher(state: tauri::State<'_, VdjWatcherState>) -> Result<(), String> {
+    let mut state_val = state.watcher.lock().map_err(|_| "Failed to lock watcher mutex")?;
+    if state_val.is_some() {
+        *state_val = None; // Dropping the watcher stops it
+        println!("[VDJ Watcher] Native watcher stopped");
+    }
+    Ok(())
+}
+
+/// Internal shared logic to read specific file
+fn read_virtualdj_history_internal(path: &std::path::Path) -> Result<Option<HistoryTrack>, String> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| e.to_string())?;
+    
+    let mut lines_iter = content.trim().lines().rev();
+    
+    let file_path_line = match lines_iter.next() {
+        Some(l) => l,
+        None => return Ok(None),
+    };
+    
+    let ext_line = match lines_iter.next() {
+        Some(l) => l,
+        None => return Ok(None),
+    };
+    
+    if !ext_line.starts_with("#EXTVDJ:") {
+        return Ok(None);
+    }
+
+    let file_path = file_path_line.to_string();
+    
+    let extract_tag = |content: &str, start_tag: &str, end_tag: &str| -> Option<String> {
+        let start_idx = content.find(start_tag)? + start_tag.len();
+        let end_idx = content.find(end_tag)?;
+        if start_idx >= end_idx { return None; }
+        Some(content[start_idx..end_idx].to_string())
+    };
+    
+    let artist = extract_tag(ext_line, "<artist>", "</artist>").unwrap_or_else(|| "Unknown".to_string());
+    let title = extract_tag(ext_line, "<title>", "</title>").unwrap_or_else(|| "Unknown".to_string());
+    let timestamp: u64 = extract_tag(ext_line, "<lastplaytime>", "</lastplaytime>")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(0);
+    
+    Ok(Some(HistoryTrack {
+        artist,
+        title,
+        file_path,
+        timestamp,
+    }))
 }
 

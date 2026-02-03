@@ -14,7 +14,7 @@ import {
   Globe,
   Key,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { type AppSettings, useSettings } from "../hooks/useSettings";
 import { useDjSettings } from "../hooks/useDjSettings";
 
@@ -29,6 +29,68 @@ export function Settings({ isOpen, onClose }: Props) {
     useDjSettings();
   const [isSaving, setIsSaving] = useState(false);
   const [localToken, setLocalToken] = useState(authToken);
+  const [vdjStatus, setVdjStatus] = useState<{
+    database: { status: string; path: string | null; count: number };
+    history: { status: string; name: string | null; count: number; isToday: boolean };
+    loading: boolean;
+    errorDetails: string | null;
+  }>({
+    database: { status: "checking", path: null, count: 0 },
+    history: { status: "checking", name: null, count: 0, isToday: false },
+    loading: true,
+    errorDetails: null,
+  });
+
+  // Check VDJ Connection on mount or path change
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let mounted = true;
+    (async () => {
+      try {
+        setVdjStatus((prev) => ({ ...prev, loading: true }));
+
+        const result = await import("@tauri-apps/api/core").then((tauri) =>
+          tauri.invoke<{
+            database_status: string;
+            database_path: string | null;
+            database_track_count: number;
+            history_status: string;
+            history_file_name: string | null;
+            history_track_count: number;
+            is_today: boolean;
+            error_details: string | null;
+          }>("get_virtualdj_status", { customHistoryPath: settings["library.vdjPath"] }),
+        );
+
+        if (mounted) {
+          setVdjStatus({
+            database: {
+              status: result.database_status,
+              path: result.database_path,
+              count: result.database_track_count,
+            },
+            history: {
+              status: result.history_status,
+              name: result.history_file_name,
+              count: result.history_track_count,
+              isToday: result.is_today,
+            },
+            loading: false,
+            errorDetails: result.error_details,
+          });
+        }
+      } catch {
+        if (mounted) {
+          setVdjStatus((prev) => ({ ...prev, loading: false }));
+        }
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen, settings["library.vdjPath"]]);
 
   if (!isOpen) return null;
 
@@ -213,21 +275,47 @@ export function Settings({ isOpen, onClose }: Props) {
               <Section title="VirtualDJ Integration" icon={<FolderOpen size={14} />}>
                 <div className="p-5 bg-slate-950/40 border border-white/5 rounded-2xl space-y-5">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                      Library Path
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                        Now Playing Monitor
+                      </label>
+                      <div className="text-[9px] font-mono text-slate-500">
+                        {vdjStatus.history.isToday
+                          ? `${vdjStatus.history.count} track(s) today`
+                          : "No active session"}
+                      </div>
+                    </div>
                     <div className="space-y-2">
-                      <div className="text-[11px] font-mono text-pika-accent truncate bg-slate-950/80 p-3 rounded-xl border border-white/5 shadow-inner">
-                        {settings["library.vdjPath"] === "auto"
-                          ? "Auto-detecting VirtualDJ history..."
-                          : settings["library.vdjPath"]}
+                      <div className="text-[11px] font-mono text-pika-accent truncate bg-slate-950/80 p-3 rounded-xl border border-white/5 shadow-inner flex items-center justify-between">
+                        <span className="truncate max-w-[200px]">
+                          {vdjStatus.history.name || "Searching..."}
+                        </span>
+                        {/* Status Indicator */}
+                        <div
+                          className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-[9px] font-bold uppercase tracking-wide border ${
+                            vdjStatus.history.status === "active"
+                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                              : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                          }`}
+                        >
+                          <div
+                            className={`w-1.5 h-1.5 rounded-full ${vdjStatus.history.status === "active" ? "bg-emerald-500 animate-pulse" : "bg-amber-500"}`}
+                          />
+                          {vdjStatus.loading
+                            ? "..."
+                            : vdjStatus.history.status === "active"
+                              ? "Live"
+                              : vdjStatus.history.status === "stale"
+                                ? "Inactive"
+                                : "Searching"}
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <button
                           onClick={handleBrowseVdjPath}
                           className="flex-1 px-4 py-2 bg-pika-accent hover:bg-pika-accent-light text-white text-[11px] font-black rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-pika-accent/20"
                         >
-                          <FolderOpen size={14} /> Local Select
+                          <FolderOpen size={14} /> Select History
                         </button>
                         {settings["library.vdjPath"] !== "auto" && (
                           <button
@@ -238,6 +326,44 @@ export function Settings({ isOpen, onClose }: Props) {
                           </button>
                         )}
                       </div>
+
+                      {/* Detailed Error Message */}
+                      {vdjStatus.errorDetails && !vdjStatus.loading && (
+                        <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-[10px] text-red-400 font-medium animate-in slide-in-from-top-1">
+                          <AlertTriangle size={12} className="shrink-0 mt-0.5" />
+                          <span className="break-all">{vdjStatus.errorDetails}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="h-px bg-white/5" />
+
+                  {/* Metadata Database Status */}
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                        Library Database
+                      </label>
+                      <p className="text-[9px] text-slate-600 mt-1">
+                        Source for BPM, Key, and Energy data
+                      </p>
+                    </div>
+                    <div
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wide border transition-all ${
+                        vdjStatus.database.status === "connected"
+                          ? "bg-emerald-500/5 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_-2px_rgba(16,185,129,0.1)]"
+                          : "bg-red-500/5 text-red-400 border-red-500/20"
+                      }`}
+                    >
+                      <div
+                        className={`w-2 h-2 rounded-full ${vdjStatus.database.status === "connected" ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-red-500"}`}
+                      />
+                      {vdjStatus.loading
+                        ? "..."
+                        : vdjStatus.database.status === "connected"
+                          ? `${vdjStatus.database.count} Tracks`
+                          : "Not Linked"}
                     </div>
                   </div>
 

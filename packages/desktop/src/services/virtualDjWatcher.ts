@@ -1,5 +1,6 @@
 import type { TrackInfo } from "@pika/shared";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { settingsRepository } from "../db/repositories/settingsRepository";
 
 const IPC_TIMEOUT_MS = 5000;
@@ -72,6 +73,8 @@ class VirtualDJWatcher {
   private lastTimestamp = 0;
   private listeners: TrackChangeCallback[] = [];
   private visibilityListenerAdded = false;
+  private unlistenFn: UnlistenFn | null = null;
+  private isUsingNative = false;
 
   /**
    * Read and parse the latest track from history using Rust
@@ -141,47 +144,118 @@ class VirtualDJWatcher {
    * Start watching for track changes
    */
   async startWatching(): Promise<void> {
-    if (this.pollingInterval) {
+    if (this.pollingInterval || this.unlistenFn) {
       return;
     }
 
-    const getInterval = () => {
-      // 🛡️ Reliability Audit: Adaptive polling (1s visible, 3s hidden)
-      // Never stop polling to avoid missing tracks in background
-      return typeof document !== "undefined" && document.visibilityState === "hidden" ? 3000 : 1000;
+    try {
+      console.log("[VDJ Watcher] Attempting to start native file system watcher...");
+      const customPath = await settingsRepository.get("library.vdjPath");
+
+      // 1. Try to start native watcher
+      await invoke("start_vdj_watcher", { customPath });
+
+      // 2. Setup event listener
+      this.unlistenFn = await listen<HistoryTrack>("vdj-history-update", (event) => {
+        this.handleNativeUpdate(event.payload);
+      });
+
+      this.isUsingNative = true;
+      console.log("[VDJ Watcher] Native watcher started successfully. Polling disabled.");
+
+      // Initial read to populate state immediately
+      const initial = await this.readLatestTrack();
+      if (initial) {
+        this.lastTrack = initial;
+        this.lastTimestamp = initial.rawTimestamp ?? 0;
+        // Notify immediately if we have a track
+        this.notifyListeners(initial);
+      }
+    } catch (e) {
+      console.warn("[VDJ Watcher] Native watcher failed to start, falling back to polling:", e);
+      this.isUsingNative = false;
+
+      // FALBACK: Start polling (Legacy Logic)
+      const getInterval = () => {
+        return typeof document !== "undefined" && document.visibilityState === "hidden"
+          ? 3000
+          : 1000;
+      };
+
+      console.log(`[VDJ Watcher] Starting legacy polling (Adaptive: ${getInterval()}ms)...`);
+
+      const initial = await this.readLatestTrack();
+      if (initial) {
+        const changed = this.hasTrackChanged(initial);
+        this.lastTrack = initial;
+        this.lastTimestamp = initial.rawTimestamp ?? 0;
+
+        if (changed) {
+          console.log(
+            "[VDJ Watcher] Initial track change detected:",
+            initial.artist,
+            "-",
+            initial.title,
+          );
+          this.notifyListeners(initial);
+        }
+      }
+
+      this.restartPolling(getInterval());
+
+      if (typeof document !== "undefined" && !this.visibilityListenerAdded) {
+        document.addEventListener("visibilitychange", this.handleVisibilityChange);
+        this.visibilityListenerAdded = true;
+      }
+    }
+  }
+
+  /**
+   * Handle update from native watcher
+   */
+  private async handleNativeUpdate(historyTrack: HistoryTrack) {
+    // Convert HistoryTrack to NowPlayingTrack (enrich with BPM/Key if needed)
+    // We reuse readLatestTrack logic partly, or implement enrichment here.
+    // To keep it simple and robust, we can use the historyTrack payload directly if it has enough info,
+    // but we usually need to enrich it with BPM/Key from database lookup.
+
+    // Fast path: Construct basic track
+    let track: NowPlayingTrack = {
+      artist: historyTrack.artist,
+      title: historyTrack.title,
+      filePath: historyTrack.file_path,
+      timestamp: new Date(historyTrack.timestamp * 1000),
+      rawTimestamp: historyTrack.timestamp,
+      // Missing fingerprint/bpm info initially
     };
 
-    console.log(`[VDJ Watcher] Starting to watch (Adaptive: ${getInterval()}ms)...`);
+    // Enrich: Check if we need to fetch metadata
+    // (This matches readLatestTrack logic but triggered by event)
+    if (track.filePath && !track.filePath.startsWith("unknown")) {
+      try {
+        const metadata = await invokeWithTimeout<{
+          bpm: number | null;
+          key: string | null;
+          energy: number | null;
+        } | null>("lookup_vdj_track_metadata", {
+          filePath: track.filePath,
+        });
 
-    // Initial read
-    const initial = await this.readLatestTrack();
-    if (initial) {
-      // 🛡️ FIX: Only notify if track actually changed from last known state
-      // (This prevents phantom recordings on app visibility toggle)
-      const changed = this.hasTrackChanged(initial);
-      this.lastTrack = initial;
-      this.lastTimestamp = initial.rawTimestamp ?? 0;
-
-      if (changed) {
-        console.log(
-          "[VDJ Watcher] Initial track change detected:",
-          initial.artist,
-          "-",
-          initial.title,
-        );
-        this.notifyListeners(initial);
-      } else {
-        console.debug("[VDJ Watcher] Track unchanged on start, skipping notify");
+        if (metadata) {
+          track.bpm = metadata.bpm ?? undefined;
+          track.key = metadata.key ?? undefined;
+          track.energy = metadata.energy ?? undefined;
+        }
+      } catch (e) {
+        // Ignore lookup errors
       }
     }
 
-    // Start polling with current visibility-based interval
-    this.restartPolling(getInterval());
-
-    // 🛡️ Fix: Build-up of event listeners
-    if (typeof document !== "undefined" && !this.visibilityListenerAdded) {
-      document.addEventListener("visibilitychange", this.handleVisibilityChange);
-      this.visibilityListenerAdded = true;
+    if (this.hasTrackChanged(track)) {
+      console.log("[VDJ Watcher] Native update:", track.artist, "-", track.title);
+      this.lastTrack = track;
+      this.lastTimestamp = track.rawTimestamp ?? 0;
+      this.notifyListeners(track);
     }
   }
 
@@ -226,12 +300,22 @@ class VirtualDJWatcher {
    * Stop watching
    */
   stopWatching(): void {
+    // Stop native watcher
+    if (this.unlistenFn) {
+      this.unlistenFn();
+      this.unlistenFn = null;
+      invoke("stop_vdj_watcher").catch(console.error);
+    }
+    this.isUsingNative = false;
+
+    // Stop polling
     if (this.pollingInterval) {
       clearInterval(this.pollingInterval);
       this.pollingInterval = null;
-      this.lastTimestamp = 0;
-      console.log("[VDJ Watcher] Stopped watching");
     }
+
+    this.lastTimestamp = 0;
+    console.log("[VDJ Watcher] Stopped watching");
 
     if (typeof document !== "undefined" && this.visibilityListenerAdded) {
       document.removeEventListener("visibilitychange", this.handleVisibilityChange);

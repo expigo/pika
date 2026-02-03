@@ -225,15 +225,14 @@ const result = await invoke<string>("my_command", { arg: "test" });
 **Implementation:** `src/services/virtualDjWatcher.ts`
 
 **Key points:**
-- Polls `history.m3u` file every 1-3 seconds (adaptive based on app visibility)
-- Detects new tracks by comparing file modification time
-- Calls Rust command `read_virtualdj_history` when file changes detected
-- Handles file locks (VDJ may be writing)
+**Key points:**
+- **Primary:** Native file system watcher (via `notify` crate) for instant updates.
+- **Fallback:** Adaptive polling (1s visible, 3s hidden) if native watcher fails to start.
+- Detects new tracks by listening for `Modify` or `Create` events on `.m3u` files.
+- Calls Rust command `read_virtualdj_history` for file parsing.
 
-**Adaptive polling:**
-```typescript
-const pollingInterval = document.hidden ? 3000 : 1000; // 3s hidden, 1s visible
-```
+**Startup Logic:**
+Watcher initialization is handled via `start_vdj_watcher` command, triggered when the WebSocket connects or visibility changes.
 
 **VDJ File Locations:**
 - **macOS:** `~/Documents/VirtualDJ/History/history.m3u`
