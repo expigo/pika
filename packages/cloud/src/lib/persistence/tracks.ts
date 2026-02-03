@@ -94,6 +94,78 @@ export async function persistTrack(sessionId: string, track: TrackInfo): Promise
 }
 
 /**
+ * Bulk persist tracks to database (for history import)
+ */
+export async function persistTracksBulk(sessionId: string, tracks: TrackInfo[]): Promise<void> {
+  if (tracks.length === 0) return;
+
+  // Wrap in serial queue to ensure order
+  return enqueuePersistence(sessionId, async () => {
+    // Wait for session to be persisted (event-based, with timeout)
+    const sessionReady = await waitForSession(sessionId);
+    if (!sessionReady) {
+      logger.warn("⚠️ Session not ready in time, skipping bulk track persistence", { sessionId });
+      return;
+    }
+
+    if (!persistedSessions.has(sessionId)) {
+      logger.warn("⚠️ Session not found in DB, skipping bulk track persistence", { sessionId });
+      return;
+    }
+
+    try {
+      if (process.env.NODE_ENV === "test") {
+        logger.debug("🧪 TEST MODE: Mocking bulk track persistence", { count: tracks.length });
+        return;
+      }
+
+      // Map tracks to DB values
+      // Note: We use existing passed timestamp if available?
+      // Current TrackInfoSchema doesn't have timestamp.
+      // The DB will use defaultNow() (which is now).
+      // Ideally, history import should preserver timestamps.
+      // But TrackInfo is just metadata.
+      // For now, they will appear as "played just now" in strict DB terms if we don't pass timestamp.
+      // However, `playedTracks` has a `playedAt` defaultNow().
+      // If we want accurate history, we need to pass timestamps.
+      // But `TrackInfo` doesn't have it.
+      // This is a trade-off. They will appear in order, but with concurrent timestamps.
+      // This is acceptable for MVP "list of songs played".
+
+      const values = tracks.map((track) => ({
+        sessionId,
+        artist: track.artist,
+        title: track.title,
+        bpm: track.bpm ? Math.round(track.bpm) : null,
+        key: track.key ?? null,
+        energy: track.energy ? Math.round(track.energy) : null,
+        danceability: track.danceability ? Math.round(track.danceability) : null,
+        brightness: track.brightness ? Math.round(track.brightness) : null,
+        acousticness: track.acousticness ? Math.round(track.acousticness) : null,
+        groove: track.groove ? Math.round(track.groove) : null,
+      }));
+
+      await db.insert(schema.playedTracks).values(values);
+
+      logger.info("💾 Bulk tracks persisted", {
+        sessionId,
+        count: tracks.length,
+      });
+
+      // Update last persisted track key to the last one in the list
+      // to prevents immediate dedup if the DJ plays the last imported song again
+      const lastTrack = tracks[tracks.length - 1];
+      if (lastTrack) {
+        const trackKey = `${lastTrack.artist}:${lastTrack.title}`;
+        lastPersistedTrackKey.set(sessionId, trackKey);
+      }
+    } catch (e) {
+      logger.error("❌ Failed to persist bulk tracks", e);
+    }
+  });
+}
+
+/**
  * Persist like to database with retry logic
  * Handles race condition where like arrives before track is persisted
  */

@@ -1,4 +1,4 @@
-import { LIMITS, MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
+import { LIMITS, MESSAGE_TYPES, logger, type TrackInfo } from "@pika/shared";
 import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { getApiBaseUrl } from "@/lib/api";
@@ -16,7 +16,7 @@ interface UseTrackHistoryReturn {
   history: HistoryTrack[];
   setCurrentTrack: (track: TrackInfo | null) => void;
   clearHistory: () => void;
-  fetchHistory: (sessionId: string, force?: boolean) => Promise<void>;
+  fetchHistory: () => Promise<void>;
   trackHandlers: MessageHandlers;
   isLoading: boolean;
 }
@@ -170,8 +170,22 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
           return prev;
         });
       },
+
+      [MESSAGE_TYPES.HISTORY_SYNCED]: (message: WebSocketMessage) => {
+        const msg = message as unknown as {
+          sessionId: string;
+          count: number;
+        };
+
+        if (sessionId && msg.sessionId !== sessionId) {
+          return;
+        }
+
+        logger.info("[Live] Bulk history synced, refreshing playlist", { count: msg.count });
+        fetchHistory();
+      },
     }),
-    [sessionId, pushToHistory],
+    [sessionId, pushToHistory, fetchHistory],
   );
 
   return {

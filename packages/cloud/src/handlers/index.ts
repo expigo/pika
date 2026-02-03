@@ -23,6 +23,7 @@ import {
   handleEndSession as _handleEndSession,
   handleRegisterSession as _handleRegisterSession,
   handleSendAnnouncement as _handleSendAnnouncement,
+  handleSyncSessionHistory as _handleSyncSessionHistory,
   handleTrackStopped as _handleTrackStopped,
 } from "./dj";
 import {
@@ -84,6 +85,7 @@ export const handleEndSession = safeHandler(_handleEndSession);
 export const handleSendAnnouncement = safeHandler(_handleSendAnnouncement);
 export const handleCancelAnnouncement = safeHandler(_handleCancelAnnouncement);
 export const handleBroadcastMetadata = safeHandler(_handleBroadcastMetadata);
+export const handleSyncSessionHistory = safeHandler(_handleSyncSessionHistory);
 
 // Dancer Handlers
 export const handleSendLike = safeHandler(_handleSendLike);

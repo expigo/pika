@@ -57,7 +57,7 @@ import type { WSContext } from "./ws-context";
 
 // 🛡️ Rate Limiting State
 // Max 1000 concurrent sessions to prevent memory exhaustion (M5)
-const MAX_CONCURRENT_SESSIONS = Number(process.env.MAX_SESSIONS ?? 1000);
+const MAX_CONCURRENT_SESSIONS = Number(process.env["MAX_SESSIONS"] ?? 1000);
 export const lastBroadcastTime = new Map<string, number>();
 
 /**
@@ -594,4 +594,62 @@ export function handleCancelAnnouncement(ctx: WSContext) {
 
   logger.info(`📢❌ Announcement cancelled for session ${cancelSessionId}`);
   if (messageId) sendAck(ws, messageId);
+}
+
+/**
+ * SYNC_SESSION_HISTORY: DJ synchronizes history (imported tracks)
+ */
+export async function handleSyncSessionHistory(ctx: WSContext) {
+  const { message, ws, rawWs, state, messageId } = ctx;
+  const { SyncSessionHistorySchema } = await import("@pika/shared");
+  const msg = parseMessage(SyncSessionHistorySchema, message, ws, messageId);
+  if (!msg) return;
+
+  // 🔐 Security: Verify this connection owns the session
+  if (state.djSessionId !== msg.sessionId) {
+    logger.warn("⚠️ Unauthorized history sync attempt", {
+      owner: state.djSessionId || "none",
+      target: msg.sessionId,
+    });
+    if (messageId) sendNack(ws, messageId, "Unauthorized history sync");
+    return;
+  }
+
+  const session = getSession(msg.sessionId);
+  if (session) {
+    logger.info("📚 Syncing session history", {
+      sessionId: msg.sessionId,
+      trackCount: msg.tracks.length,
+    });
+
+    if (msg.tracks.length > 0) {
+      // 💾 Bulk persist to database
+      await import("../lib/persistence/tracks").then((m) =>
+        m.persistTracksBulk(msg.sessionId, msg.tracks),
+      );
+    }
+
+    // Confirm sync to DJ
+    ws.send(
+      JSON.stringify({
+        type: "HISTORY_SYNCED",
+        sessionId: msg.sessionId,
+        count: msg.tracks.length,
+      }),
+    );
+
+    // 📢 Broadcast sync event to all participants so they can refresh their history
+    rawWs.publish(
+      "live-session",
+      JSON.stringify({
+        type: "HISTORY_SYNCED",
+        sessionId: msg.sessionId,
+        count: msg.tracks.length,
+      }),
+    );
+
+    if (messageId) sendAck(ws, messageId);
+  } else {
+    if (messageId) sendNack(ws, messageId, "Session not found");
+  }
 }

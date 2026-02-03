@@ -68,6 +68,8 @@ export {
   SessionStartedSchema,
   SessionsListSchema,
   SessionValidSchema,
+  SyncSessionHistorySchema,
+  HistorySyncedSchema,
   type Settings,
   SettingsSchema,
   // Poll schemas

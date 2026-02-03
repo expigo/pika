@@ -9,6 +9,8 @@ export interface VdjHistoryTrack {
   title: string;
   file_path: string;
   timestamp: number; // Unix timestamp in seconds
+  bpm?: number;
+  key?: string;
 }
 
 export interface DetectedSession {

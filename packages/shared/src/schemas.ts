@@ -28,11 +28,13 @@ export const MESSAGE_TYPES = {
   SEND_BULK_LIKE: "SEND_BULK_LIKE",
   REMOVE_LIKE: "REMOVE_LIKE",
   VALIDATE_SESSION: "VALIDATE_SESSION",
+  SYNC_SESSION_HISTORY: "SYNC_SESSION_HISTORY",
 
   // Server -> Client
   SESSION_REGISTERED: "SESSION_REGISTERED",
   SESSION_STARTED: "SESSION_STARTED",
   NOW_PLAYING: "NOW_PLAYING",
+  HISTORY_SYNCED: "HISTORY_SYNCED", // Confirmation of history import
   SESSION_ENDED: "SESSION_ENDED",
   SESSIONS_LIST: "SESSIONS_LIST",
   LIKE_RECEIVED: "LIKE_RECEIVED",
@@ -243,6 +245,14 @@ export const ValidateSessionSchema = z.object({
   clientId: z.string().optional(),
 });
 
+export const SyncSessionHistorySchema = z.object({
+  type: z.literal(MESSAGE_TYPES.SYNC_SESSION_HISTORY),
+  sessionId: z.string().min(8).max(64).trim(),
+  tracks: z.array(TrackInfoSchema).max(500),
+  messageId: z.string().optional(),
+  clientId: z.string().optional(),
+});
+
 // --- Server -> Client Messages ---
 
 export const PongSchema = z.object({
@@ -260,6 +270,12 @@ export const SessionValidSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_VALID),
   sessionId: z.string(),
   isValid: z.boolean(),
+});
+
+export const HistorySyncedSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.HISTORY_SYNCED),
+  sessionId: z.string(),
+  count: z.number(),
 });
 
 export const SessionRegisteredSchema = z.object({
@@ -587,6 +603,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   GetSessionsSchema,
   PingSchema,
   ValidateSessionSchema,
+  SyncSessionHistorySchema,
 ]);
 
 export type ClientMessage = z.infer<typeof ClientMessageSchema>;
@@ -625,6 +642,7 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   PongSchema,
   SessionExpiredSchema,
   SessionValidSchema,
+  HistorySyncedSchema,
 ]);
 
 export type ServerMessage = z.infer<typeof ServerMessageSchema>;

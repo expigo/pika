@@ -1,4 +1,4 @@
-import { getTrackKey, MESSAGE_TYPES, parseWebSocketMessage } from "@pika/shared";
+import { getTrackKey, MESSAGE_TYPES, TrackInfo, parseWebSocketMessage } from "@pika/shared";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
@@ -1132,6 +1132,42 @@ export function useLiveSession() {
     [],
   );
 
+  // Sync historical tracks (imported from VDJ) to cloud
+  const syncSessionHistory = useCallback(async (tracks: TrackInfo[]) => {
+    // 🛡️ Fix: Use getState() to avoid stale closures in async flows (e.g. handleImportAndStart)
+    const state = useLiveStore.getState();
+    const currentStatus = state.status;
+    const currentSessionId = state.sessionId;
+
+    // We allow syncing if connecting or live, as message queue handles buffering
+    if ((currentStatus !== "live" && currentStatus !== "connecting") || !currentSessionId) {
+      logger.warn("Live", "Cannot sync history - not live or connecting", {
+        status: currentStatus,
+        sessionId: currentSessionId,
+      });
+      return;
+    }
+
+    if (tracks.length === 0) return;
+
+    // 🛡️ Issue 16 Fix: Batch history sync to respect 500 items limit
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < tracks.length; i += CHUNK_SIZE) {
+      const chunk = tracks.slice(i, i + CHUNK_SIZE);
+      logger.info(
+        "Live",
+        `Syncing history batch ${Math.floor(i / CHUNK_SIZE) + 1} (${chunk.length} tracks)`,
+      );
+
+      // Use reliable delivery for history sync
+      await sendMessage({
+        type: MESSAGE_TYPES.SYNC_SESSION_HISTORY,
+        sessionId: currentSessionId,
+        tracks: chunk,
+      });
+    }
+  }, []);
+
   // Cancel active announcement
   const cancelAnnouncement = useCallback(() => {
     if (!isInLiveMode() || !getStoreSessionId()) {
@@ -1232,6 +1268,7 @@ export function useLiveSession() {
     cancelAnnouncement,
     clearEndedPoll,
     forceSync,
+    syncSessionHistory,
     registerImportedTrack,
   };
 }

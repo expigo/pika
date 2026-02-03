@@ -48,6 +48,7 @@ export function LiveControl() {
     endSet,
     clearNowPlaying,
     registerImportedTrack,
+    syncSessionHistory,
   } = useLiveSession();
   const { djName, setDjName, hasSetDjName, isAuthenticated } = useDjSettings();
   const { detectSession, importTracks } = useVdjHistory();
@@ -198,6 +199,21 @@ export function LiveControl() {
 
       // Start live session IMMEDIATELY with provided name
       await goLive(name, includeCurrentTrack, { sessionId: newSessionId, dbSessionId });
+
+      // Sync imported tracks to cloud history
+      if (tracksToImport.length > 0) {
+        const tracksToSync = tracksToImport.map((t) => ({
+          artist: t.artist,
+          title: t.title,
+          bpm: t.bpm,
+          key: t.key,
+        }));
+        // Fire and forget (errors logged within hook)
+        syncSessionHistory(tracksToSync).catch((e) =>
+          logger.error("Live Control", "History sync failed", e),
+        );
+      }
+
       setDetectedSession(null);
     } catch (error) {
       logger.error("Live Control", "Failed to import and start", error);

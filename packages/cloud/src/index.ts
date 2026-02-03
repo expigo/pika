@@ -323,6 +323,9 @@ app.get(
               // 🛡️ Issue 49 Fix: Bypasses rate limit for metadata-only updates
               await handlers.handleBroadcastMetadata(ctx);
               break;
+            case "SYNC_SESSION_HISTORY":
+              await handlers.handleSyncSessionHistory(ctx);
+              break;
             case "TRACK_STOPPED":
               handlers.handleTrackStopped(ctx);
               break;

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use once_cell::sync::Lazy;
 use std::path::PathBuf;
 use notify::{Config, RecommendedWatcher, RecursiveMode, Watcher, Event, EventKind};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter};
 use std::sync::Mutex;
 
 #[derive(Debug, Deserialize)]
@@ -262,11 +262,13 @@ pub struct HistoryTrack {
     title: String,
     file_path: String,
     timestamp: u64,
+    bpm: Option<f64>,
+    key: Option<String>,
 }
 
 /// Read ALL entries from the VirtualDJ history file (not just the last one)
 #[tauri::command]
-fn read_virtualdj_history_full(
+async fn read_virtualdj_history_full(
     custom_path: Option<String>,
     max_entries: Option<usize>
 ) -> Result<Vec<HistoryTrack>, String> {
@@ -288,6 +290,10 @@ fn read_virtualdj_history_full(
     let content = std::fs::read_to_string(&history_path)
         .map_err(|e| format!("Failed to read history: {}", e))?;
     
+    // Attempt to load VDJ database for metadata enrichment
+    // We don't fail if DB is missing, we just skip enrichment
+    let song_map = get_cached_database(None).await.ok();
+
     let mut tracks = Vec::new();
     let lines: Vec<&str> = content.lines().collect();
     
@@ -317,11 +323,37 @@ fn read_virtualdj_history_full(
             .and_then(|s| s.parse().ok())
             .unwrap_or(0);
         
+        // Metadata enrichment
+        let mut bpm = None;
+        let mut key = None;
+
+        if let Some(ref map) = song_map {
+            // Try explicit path first, then case-insensitive scan if needed (Windows)
+            let file_path = file_path_line.to_string();
+            let song = if cfg!(target_os = "windows") {
+                map.get(&file_path).cloned().or_else(|| {
+                    map.values().find(|s| s.file_path.eq_ignore_ascii_case(&file_path)).cloned()
+                })
+            } else {
+                map.get(&file_path).cloned()
+            };
+
+            if let Some(s) = song {
+               bpm = s.scan.as_ref()
+                    .and_then(|scan| scan.bpm.as_ref())
+                    .and_then(|b| convert_virtualdj_bpm(b))
+                    .and_then(|b_str| b_str.parse::<f64>().ok());
+               key = s.scan.as_ref().and_then(|scan| scan.key.clone());
+            }
+        }
+
         tracks.push(HistoryTrack {
             artist,
             title,
             file_path: file_path_line.to_string(),
             timestamp,
+            bpm,
+            key,
         });
         
         // Respect max_entries limit (default 100)
@@ -408,6 +440,8 @@ fn read_virtualdj_history(custom_path: Option<String>) -> Result<Option<HistoryT
         title,
         file_path,
         timestamp,
+        bpm: None,
+        key: None,
     }))
 }
 
@@ -848,6 +882,8 @@ fn read_virtualdj_history_internal(path: &std::path::Path) -> Result<Option<Hist
         title,
         file_path,
         timestamp,
+        bpm: None,
+        key: None,
     }))
 }
 
