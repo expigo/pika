@@ -29,7 +29,7 @@ The Desktop app is a **three-layer architecture**:
 1. **Frontend → Rust:** Tauri IPC via `invoke()` calls
 2. **Rust → Frontend:** Tauri events via `emit()`
 3. **Frontend → Python:** HTTP requests to sidecar's random port
-4. **Frontend → Cloud:** WebSocket connection to `wss://api.pika.stream`
+4. **Frontend → Cloud:** WebSocket (`wss://`) and REST (`https://`) via `apiClient`
 
 ## Python Sidecar
 
@@ -727,6 +727,19 @@ import { trackRepository } from "../db/repositories/trackRepository";
 import { invoke } from "@tauri-apps/api/core";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { open } from "@tauri-apps/plugin-dialog";
+```
+
+
+**Network Requests:**
+Always use `apiClient.ts` for external HTTP requests (cloud API) to bypass CORS:
+```typescript
+import { apiFetch } from "../services/apiClient";
+
+// Automatically adds auth token and bypasses CORS
+const response = await apiFetch(`${apiUrl}/api/endpoint`, {
+  method: "POST",
+  body: JSON.stringify(data)
+});
 ```
 
 **Check Tauri environment:**

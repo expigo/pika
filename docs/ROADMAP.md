@@ -16,6 +16,11 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
+    *   **Recent Completions (Feb 4, 2026 - v0.4.5 Release):**
+        *   ✅ **CORS Mitigation:** Implemented native `apiClient` to bypass browser restrictions.
+        *   ✅ **History Sync:** Fixed race conditions with deferred sync and reliable batching.
+        *   ✅ **Security:** Hardened fingerprint sync with auth & ownership checks.
+        *   ✅ **Docs:** Updated architecture guides for Go Live flow and Security.
     *   **Recent Completions (Feb 1, 2026 - v0.4.5 Technical Audit):**
         *   ✅ **Realtime Audit:** Verified ACK/NACK reliability protocol and 64KB backpressure protection.
         *   ✅ **Performance Audit:** Verified "Zero-Wakeup" architecture and 22,050Hz analysis downsampling.

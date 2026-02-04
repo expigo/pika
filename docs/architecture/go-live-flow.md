@@ -41,6 +41,14 @@ sequenceDiagram
     UL->>UL: prepareInitialTrackState()
     Note over UL: Sets Hybrid Dedup Masks
     
+    UL->>DB: Store pendingHistorySync (if any)
+    
+    CL-->>UL: SESSION_REGISTERED (Session ID)
+    
+    alt pendingHistorySync exists
+        UL->>CL: SYNC_SESSION_HISTORY (Batch 1..)
+    end
+    
     alt includeCurrentTrack = true
         UL->>CL: BROADCAST_TRACK (Initial)
         UL->>DB: Record Play

@@ -121,7 +121,7 @@ packages/cloud/src/routes/
 | File | Endpoints | Purpose |
 |------|-----------|---------|
 | `auth.ts` | `/api/auth/*` | Register, login, validate, profile |
-| `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap, fingerprint |
+| `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap, fingerprint (Secured with ownership checks) |
 | `stats.ts` | `/api/stats/*` | Top tracks, global stats |
 | `dj.ts` | `/api/dj/*` | DJ profile by slug |
 | `client.ts` | `/api/client/*` | Liked tracks for dancers |

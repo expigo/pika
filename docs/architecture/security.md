@@ -172,6 +172,9 @@ app.use("*", cors({
 }));
 ```
 
+**Desktop Mitigation (v0.4.5):**
+Desktop App uses `apiClient.ts` (Tauri Native Fetch) for all API calls, which bypasses browser CORS restrictions entirely. This allows strict locking down of cloud CORS policies to only trusted web origins.
+
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
 | 🟢 CLOSED | HIGH | Fixed in v0.4.5+ |

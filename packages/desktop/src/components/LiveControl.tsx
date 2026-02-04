@@ -177,7 +177,7 @@ export function LiveControl() {
       // If so, tell goLive to SKIIP broadcasting/recording it (includeCurrentTrack = false).
       // If the DJ started a NEW track since the history scan, we WANT to include it.
 
-      const currentVdjTrack = virtualDjWatcher.getCurrentTrack();
+      const currentVdjTrack = await virtualDjWatcher.readLatestTrack();
       const lastImportedTrack = tracksToImport[tracksToImport.length - 1];
 
       let includeCurrentTrack = true;
