@@ -1,6 +1,6 @@
 import { LIMITS, logger, MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
-import { useCallback, useMemo, useState } from "react";
-import useSWR from "swr";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import useSWR, { mutate as globalMutate } from "swr";
 import { getApiBaseUrl } from "@/lib/api";
 import type { HistoryTrack, MessageHandlers, WebSocketMessage } from "./types";
 
@@ -16,7 +16,7 @@ interface UseTrackHistoryReturn {
   history: HistoryTrack[];
   setCurrentTrack: (track: TrackInfo | null) => void;
   clearHistory: () => void;
-  fetchHistory: () => Promise<void>;
+  fetchHistory: (explicitSessionId?: string) => Promise<void>;
   trackHandlers: MessageHandlers;
   isLoading: boolean;
 }
@@ -24,6 +24,12 @@ interface UseTrackHistoryReturn {
 export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHistoryReturn {
   const [currentTrack, setCurrentTrack] = useState<TrackInfo | null>(null);
   const [localHistory, setLocalHistory] = useState<HistoryTrack[]>([]);
+
+  // Keep a ref of the current sessionId to make handlers referentially stable
+  const sessionIdRef = useRef(sessionId);
+  useEffect(() => {
+    sessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   // SWR for server-side history (H3: Caching & Deduplication)
   const {
@@ -69,10 +75,17 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
     return unique.slice(0, LIMITS.MAX_HISTORY_ITEMS);
   }, [localHistory, serverHistory, currentTrack]);
 
-  const fetchHistory = useCallback(async () => {
-    // SWR handles caching/deduping, but we can force a revalidation if needed
-    await mutate();
-  }, [mutate]);
+  const fetchHistory = useCallback(async (explicitSessionId?: string) => {
+    const sid = explicitSessionId || sessionIdRef.current;
+    if (!sid) return;
+
+    const key = `${getApiBaseUrl()}/api/session/${sid}/history`;
+    logger.debug("[Live] Fetching history", { sessionId: sid, explicit: !!explicitSessionId });
+
+    // If we have an explicit ID, use global mutate to bypass stale state/null keys
+    // We pass the fetcher to ensure it actually runs even if key was null before
+    await globalMutate(key, fetcher(key));
+  }, []);
 
   // Clear history (on session change)
   const clearHistory = useCallback(() => {
@@ -110,7 +123,7 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
           djName?: string;
         };
 
-        if (sessionId && msg.sessionId !== sessionId) {
+        if (sessionIdRef.current && msg.sessionId !== sessionIdRef.current) {
           return;
         }
 
@@ -132,7 +145,7 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
       [MESSAGE_TYPES.TRACK_STOPPED]: (message: WebSocketMessage) => {
         const msg = message as unknown as { sessionId: string };
 
-        if (sessionId && msg.sessionId !== sessionId) {
+        if (sessionIdRef.current && msg.sessionId !== sessionIdRef.current) {
           return;
         }
 
@@ -150,7 +163,7 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
           track: TrackInfo;
         };
 
-        if (sessionId && msg.sessionId !== sessionId) {
+        if (sessionIdRef.current && msg.sessionId !== sessionIdRef.current) {
           return;
         }
 
@@ -177,15 +190,17 @@ export function useTrackHistory({ sessionId }: UseTrackHistoryProps): UseTrackHi
           count: number;
         };
 
-        if (sessionId && msg.sessionId !== sessionId) {
-          return;
-        }
-
-        logger.info("[Live] Bulk history synced, refreshing playlist", { count: msg.count });
-        fetchHistory();
+        // Note: we don't check if msg.sessionId !== sessionId here because
+        // during session transitions, our sessionId state might still be stale.
+        // We trust the message and fetch for the sessionId it explicitly provides.
+        logger.info("[Live] Bulk history synced, refreshing playlist", {
+          sessionId: msg.sessionId,
+          count: msg.count,
+        });
+        fetchHistory(msg.sessionId);
       },
     }),
-    [sessionId, pushToHistory, fetchHistory],
+    [pushToHistory, fetchHistory],
   );
 
   return {

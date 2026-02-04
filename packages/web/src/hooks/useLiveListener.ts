@@ -197,7 +197,7 @@ export function useLiveListener(targetSessionId?: string) {
                 if (targetSession.currentTrack) {
                   setCurrentTrack(targetSession.currentTrack);
                 }
-                fetchHistory();
+                fetchHistory(targetSession.sessionId);
                 setSessionEnded(false);
               }
             } else {
@@ -220,7 +220,7 @@ export function useLiveListener(targetSessionId?: string) {
                     sessionId: session.sessionId,
                   }),
                 );
-                fetchHistory();
+                fetchHistory(session.sessionId);
               }
             }
           }
@@ -248,7 +248,7 @@ export function useLiveListener(targetSessionId?: string) {
                 sessionId: msg.sessionId,
               }),
             );
-            fetchHistory();
+            fetchHistory(msg.sessionId);
           }
           break;
         }
