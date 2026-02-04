@@ -27,7 +27,7 @@ sequenceDiagram
         LC->>User: Show SessionImportModal
         User->>LC: Select Start Point & Name
     else No History
-        LC->>VDJ: getCurrentTrack()
+        LC->>VDJ: readLatestTrack()
         LC->>User: Show Unified Start Modal
         User->>LC: Set Name & Include Preference
     end
@@ -39,7 +39,7 @@ sequenceDiagram
     UL->>VDJ: startWatching()
     
     UL->>UL: prepareInitialTrackState()
-    Note over UL: Sets Hybrid Dedup Masks
+    Note over UL: Sets Dedup Masks (Allows Broadcast, Block DB)
     
     UL->>DB: Store pendingHistorySync (if any)
     
@@ -52,6 +52,9 @@ sequenceDiagram
     alt includeCurrentTrack = true
         UL->>CL: BROADCAST_TRACK (Initial)
         UL->>DB: Record Play
+    else includeCurrentTrack = false (History Overlap)
+        UL->>CL: BROADCAST_TRACK (Initial - Visibility Only)
+        Note over DB: No DB Record (Deduped)
     end
 
     UL-->>LC: Status: LIVE
@@ -62,7 +65,8 @@ sequenceDiagram
 ### 1. Hybrid Deduplication
 To prevent "rolling window" duplicates (where a track is recorded both by history import and the real-time watcher), we use a hybrid mask:
 - **Timestamp Window**: Tracks with the same Artist-Title within a 3-minute window are treated as the same play.
-- **Initialization Mask**: When starting a session, the current track is proactively marked as "processed" in the dedup window to ensure the watcher doesn't record it again immediately.
+- **Timestamp Window**: Tracks with the same Artist-Title within a 3-minute window are treated as the same play.
+- **Initialization Mask**: When starting a session with history overlap, the current track is marked as "processed" to prevent DB recording, but **implicitly allowed** to broadcast so dancers see the "Now Playing" state immediately.
 
 ### 2. Session Gap Detection
 `useVdjHistory` identifies session boundaries by looking for a **30-minute silence** between consecutive tracks. This allows us to offer the user a clean "resume" point if they've been playing for a while before deciding to go live.

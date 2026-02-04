@@ -89,7 +89,6 @@ export function prepareInitialTrackState(
 
   const dedupWindow = Math.floor(Date.now() / TRACK_DEDUP_WINDOW_MS);
   const trackKey = `${initialTrack.artist}-${initialTrack.title}-${dedupWindow}`;
-  const absoluteKey = `${initialTrack.artist}:${initialTrack.title}`;
 
   if (includeCurrentTrack) {
     setSkipInitialTrackBroadcast(false);
@@ -101,9 +100,11 @@ export function prepareInitialTrackState(
     logger.debug("Live", "Skipping initial track (user chose not to include)");
     setSkipInitialTrackBroadcast(true);
 
-    // Mark the initial track as processed so it won't be recorded/broadcast
+    // Mark the initial track as processed so it won't be recorded to DB
+    // BUT we intentionally do NOT set lastBroadcastedTrackKey here.
+    // This allows the watcher to BROADCAST it (so dancers see "Now Playing"),
+    // while the addProcessedTrackKey above prevents double-recording it to DB.
     addProcessedTrackKey(trackKey);
-    setLastBroadcastedTrackKey(absoluteKey);
   }
 }
 
