@@ -12,7 +12,7 @@ Whenever working with any third-party library or something similar, you MUST loo
 
 **Pika!** is an intelligent companion for West Coast Swing DJs that bridges the gap between a DJ's local music library and dancers on the floor. It provides real-time "Now Playing" displays, analytics, and social interaction features.
 
-**Version:** 0.4.2 (Production Ready)
+**Version:** 0.4.4 (Production Ready)
 **License:** Apache-2.0
 
 ## Monorepo Architecture
