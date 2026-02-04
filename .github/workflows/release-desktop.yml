@@ -10,8 +10,39 @@ permissions:
   contents: write
 
 jobs:
+  check-changes:
+    name: Check for Functional Changes
+    runs-on: ubuntu-latest
+    outputs:
+      desktop_changed: ${{ steps.filter.outputs.desktop }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # Compare tag against previous commit to see what changed in this release
+          base: ${{ github.event.before || github.event.base_ref || 'HEAD~1' }}
+          filters: |
+            desktop:
+              - 'packages/desktop/**'
+              - 'packages/shared/**'
+              - '.github/workflows/release-desktop.yml'
+              - '.github/actions/setup-sidecar/**'
+              # Exclude version-bump files to prevent "ghost" releases
+              - '!packages/desktop/package.json'
+              - '!packages/desktop/src-tauri/tauri.conf.json'
+              - '!packages/desktop/src-tauri/Cargo.toml'
+              - '!packages/shared/package.json'
+              - '!packages/shared/src/index.ts'
+
   release:
     name: Build Installer (${{ matrix.os }})
+    needs: check-changes
+    # Build if desktop code actually changed OR if manually triggered
+    if: needs.check-changes.outputs.desktop_changed == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -55,28 +86,25 @@ jobs:
         run: |
           brew install create-dmg
 
-      # 2. Setup Python & Build Sidecar (Reusing logic from build-desktop.yml)
-      # 3. Setup Sidecar (Reusing composite action)
+      # 2. Setup Python & Build Sidecar
       - name: Setup & Build Sidecar
         uses: ./.github/actions/setup-sidecar
 
-      # 4. Build Web App (Next.js/React)
+      # 4. Build Web App dependencies
       - name: Install Node Dependencies
         run: bun install
 
-      # 4. Build Tauri App
+      # 5. Build Tauri App
       - name: Build Tauri App
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           VITE_ENV: ${{ github.ref_type == 'tag' && 'production' || 'staging' }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "Pika! Desktop ${{ github.ref_name }}"
-          releaseBody: "See the assets to download this version and install."
+          releaseBody: "Functional changes detected. New build generated for ${{ github.ref_name }}."
           releaseDraft: true
           prerelease: false
-          projectPath: packages/desktop 
-
-      # Note: tauri-action automatically uploads artifacts to the Release.
+          projectPath: packages/desktop
