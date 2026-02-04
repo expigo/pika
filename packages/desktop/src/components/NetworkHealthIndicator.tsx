@@ -1,5 +1,6 @@
 import { Activity, WifiOff } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { apiFetch } from "../services/apiClient";
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
@@ -28,10 +29,13 @@ export function NetworkHealthIndicator({
     const checkLatency = async () => {
       const start = performance.now();
       try {
-        await fetch(pingEndpoint, {
+        // 🛡️ Issue 15 Fix: Add cache buster to ensure fresh latency reading
+        const url = new URL(pingEndpoint);
+        url.searchParams.set("_t", Date.now().toString());
+
+        await apiFetch(url.toString(), {
           method: "GET",
-          cache: "no-store",
-          signal: AbortSignal.timeout(5000), // 🛡️ Issue 15 Fix: Prevent hanging requests
+          signal: AbortSignal.timeout(5000), // Prevent hanging requests
         });
         const end = performance.now();
         setMeasuredLatency(Math.round(end - start));

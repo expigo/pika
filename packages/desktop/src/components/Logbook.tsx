@@ -32,6 +32,7 @@ import {
 } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
 import { getConfiguredUrls } from "../hooks/useDjSettings";
+import { apiFetch } from "../services/apiClient";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRef } from "react";
 
@@ -255,11 +256,10 @@ export function Logbook() {
       }
 
       const { apiUrl } = getConfiguredUrls();
-      const response = await fetch(
+      const response = await apiFetch(
         `${apiUrl}/api/session/${sessionDetails.session.cloudSessionId}/sync-fingerprints`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ tracks }),
         },
       );

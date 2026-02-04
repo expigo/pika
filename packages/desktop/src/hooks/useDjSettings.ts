@@ -1,15 +1,16 @@
-/**
- * DJ Settings Hook
- * Manages DJ profile settings (name, env, token, etc.) persisted to localStorage
- */
-
-import { fetch } from "@tauri-apps/plugin-http"; // Use Tauri HTTP to bypass CORS
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { TOKEN_FOCUS_REVALIDATION_MIN_MS, TOKEN_REVALIDATION_INTERVAL_MS } from "./live/constants";
-import { PikaEnvironment, URLS } from "@pika/shared";
-
-const STORAGE_KEY = "pika_dj_settings";
+import { apiFetch } from "../services/apiClient";
+import { TOKEN_REVALIDATION_INTERVAL_MS } from "./live/constants";
+import {
+  type DjInfo,
+  type DjSettings,
+  type ServerEnv,
+  getApiBaseUrl,
+  loadSettings,
+  saveSettings,
+  SETTINGS_UPDATED_EVENT,
+} from "../services/settingsService";
 
 // 🛡️ Deduplicate in-flight validation requests
 class TokenValidationManager {
@@ -38,9 +39,8 @@ class TokenValidationManager {
     token: string,
     validator: (t: string) => Promise<DjInfo | null>,
   ): Promise<DjInfo | null> {
-    if (this.pendingRequests.has(token)) {
-      return this.pendingRequests.get(token)!;
-    }
+    const pending = this.pendingRequests.get(token);
+    if (pending) return pending;
 
     const promise = validator(token).finally(() => {
       this.pendingRequests.delete(token);
@@ -53,98 +53,13 @@ class TokenValidationManager {
 
 const validationManager = TokenValidationManager.getInstance();
 
-export type ServerEnv = "dev" | "prod" | "staging";
-
-export interface DjInfo {
-  id: number;
-  displayName: string;
-  email: string;
-  slug: string;
-}
-
-interface DjSettings {
-  djName: string;
-  serverEnv: ServerEnv;
-  authToken: string;
-  djInfo: DjInfo | null;
-  tokenValidatedAt: number | null;
-}
-
-// Environment Detection (Computed Once outside of render)
-const isViteDev = typeof import.meta !== "undefined" && !!import.meta.env?.DEV;
-const isLocalhost =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1" ||
-    window.location.port === "5173" ||
-    window.location.protocol === "tauri:");
-
-const DEFAULT_SERVER_ENV: ServerEnv = isViteDev ? "dev" : "prod";
-
-const DEFAULT_SETTINGS: DjSettings = {
-  djName: "",
-  serverEnv: DEFAULT_SERVER_ENV,
-  authToken: "",
-  djInfo: null,
-  tokenValidatedAt: null,
-};
-
-function loadSettings(): DjSettings {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return { ...DEFAULT_SETTINGS, ...parsed };
-      }
-    }
-  } catch (e) {
-    console.error("Failed to load DJ settings:", e);
-  }
-  return DEFAULT_SETTINGS;
-}
-
-const SETTINGS_UPDATED_EVENT = "pika:settings-updated";
-
-function dispatchSettingsUpdate() {
-  window.dispatchEvent(new Event(SETTINGS_UPDATED_EVENT));
-}
-
-function saveSettings(settings: DjSettings): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    dispatchSettingsUpdate();
-  } catch (e) {
-    console.error("Failed to save DJ settings:", e);
-  }
-}
-
-function mapEnv(env: ServerEnv): PikaEnvironment {
-  switch (env) {
-    case "dev":
-      return "development";
-    case "staging":
-      return "staging";
-    case "prod":
-      return "production";
-    default:
-      return "production";
-  }
-}
-
-function getApiBaseUrl(): string {
-  const settings = loadSettings();
-  return URLS.getApiUrl(mapEnv(settings.serverEnv));
-}
-
 export async function validateTokenWithServer(token: string): Promise<DjInfo | null> {
   if (!token) return null;
   try {
     const baseUrl = getApiBaseUrl();
-    const response = await fetch(`${baseUrl}/api/auth/me`, {
+    const response = await apiFetch(`${baseUrl}/api/auth/me`, {
       headers: {
         Authorization: `Bearer ${token}`,
-        "X-Pika-Client": "pika-desktop",
       },
     });
 
@@ -159,7 +74,7 @@ export async function validateTokenWithServer(token: string): Promise<DjInfo | n
       };
     }
     return null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -223,7 +138,7 @@ export function useDjSettings() {
         });
         return { valid: false, skipped: false };
       }
-    } catch (e) {
+    } catch {
       return { valid: true, skipped: true };
     } finally {
       isRevalidatingRef.current = false;
@@ -314,24 +229,12 @@ export function useDjSettings() {
   };
 }
 
-export function getStoredSettings(): DjSettings {
-  return loadSettings();
-}
-export function getDjName(): string {
-  const settings = loadSettings();
-  return settings.djInfo?.displayName || settings.djName || "DJ";
-}
-export function getAuthToken(): string {
-  return loadSettings().authToken || "";
-}
-export function getDjInfo(): DjInfo | null {
-  return loadSettings().djInfo || null;
-}
-
-export function getConfiguredUrls() {
-  const settings = loadSettings();
-  const env = mapEnv(settings.serverEnv);
-  const wsUrl = URLS.getWsUrl(env);
-  const finalWsUrl = wsUrl.endsWith("/ws") ? wsUrl : `${wsUrl}/ws`;
-  return { wsUrl: finalWsUrl, webUrl: URLS.getWebUrl(env), apiUrl: URLS.getApiUrl(env) };
-}
+// Re-export shared helper functions from settingsService
+export {
+  getStoredSettings,
+  getDjName,
+  getAuthToken,
+  getDjInfo,
+  getConfiguredUrls,
+  getApiBaseUrl,
+} from "../services/settingsService";

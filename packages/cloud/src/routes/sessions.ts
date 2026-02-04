@@ -245,14 +245,8 @@ sessions.get("/:sessionId/recap", async (c) => {
     if (token) {
       const user = await validateToken(token);
       // Only allow if this user OWNS the session or is an admin?
-      // For now, simpler check: is a valid DJ.
-      // Ideally we check user.id === dbSession.djUserId, but dbSession might be null if not loaded yet.
-      // We'll check ownership after loading session.
-      if (user) {
-        // Enforce ownership: Authenticated user must equal the session creator
-        if (dbSession.djUserId === user.id) {
-          isAuthenticated = true;
-        }
+      if (user && dbSession.djUserId === user.id) {
+        isAuthenticated = true;
       }
     }
 
@@ -306,7 +300,7 @@ sessions.get("/:sessionId/recap", async (c) => {
 
       // Map polls with their vote data (no additional queries)
       pollsWithResults = pollsData.map((poll) => {
-        const options = poll.options as string[];
+        const options = (poll.options as string[]) || [];
         const pollVotes = votesByPoll.get(poll.id) || new Map();
         const voteCounts = options.map((_, idx) => pollVotes.get(idx) || 0);
 
@@ -337,16 +331,10 @@ sessions.get("/:sessionId/recap", async (c) => {
     const startTime = dbSession.startedAt;
 
     // Calculate effective end time to prevent "zombie sessions" (forgotten open sessions)
-    // If session is ended in DB, use that.
-    // If not ended: use last track time + 5 minutes (padding).
-    // Fallback to current time only if no tracks exist.
     let endTime: Date;
     if (dbSession.endedAt) {
       endTime = dbSession.endedAt;
     } else if (lastTrack) {
-      // For active/forgotten sessions:
-      // Cap duration at 5 mins after last track start to handle forgotten sessions.
-      // But if current time is BEFORE that cap (i.e. truly active), use current time.
       const cap = new Date(new Date(lastTrack.playedAt).getTime() + 5 * 60 * 1000);
       const now = new Date();
       endTime = now < cap ? now : cap;
@@ -391,9 +379,9 @@ sessions.get("/:sessionId/recap", async (c) => {
 
     // Only include polls if authenticated
     if (isAuthenticated) {
-      response.polls = pollsWithResults;
-      response.totalPolls = pollsWithResults.length;
-      response.totalPollVotes = (pollsWithResults as { totalVotes: number }[]).reduce(
+      response["polls"] = pollsWithResults;
+      response["totalPolls"] = pollsWithResults.length;
+      response["totalPollVotes"] = (pollsWithResults as { totalVotes: number }[]).reduce(
         (sum, p) => sum + p.totalVotes,
         0,
       );
@@ -418,6 +406,18 @@ sessions.get("/:sessionId/recap", async (c) => {
 sessions.post("/:sessionId/sync-fingerprints", async (c) => {
   const sessionId = c.req.param("sessionId");
 
+  // 🔐 Security: Require valid DJ authentication
+  const authHeader = c.req.header("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  if (!token) {
+    return c.json({ error: "Authentication required" }, 401);
+  }
+
+  const user = await validateToken(token);
+  if (!user) {
+    return c.json({ error: "Invalid or expired token" }, 401);
+  }
+
   const body = await c.req.json<{
     tracks: Array<{
       artist: string;
@@ -436,10 +436,29 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
     return c.json({ error: "Invalid request: tracks array required" }, 400);
   }
 
+  // 🔐 Security: Verify session ownership
+  const sessionData = await db
+    .select({ djUserId: schema.sessions.djUserId })
+    .from(schema.sessions)
+    .where(eq(schema.sessions.id, sessionId))
+    .limit(1);
+
+  if (sessionData.length === 0) {
+    return c.json({ error: "Session not found" }, 404);
+  }
+
+  if (sessionData[0].djUserId !== user.id) {
+    logger.warn("🚫 Unauthorized fingerprint sync attempt", {
+      sessionId,
+      userId: user.id,
+      sessionOwnerId: sessionData[0].djUserId,
+    });
+    return c.json({ error: "You do not own this session" }, 403);
+  }
+
   logger.info("🔄 Syncing fingerprints for session", { sessionId, count: body.tracks.length });
 
   try {
-    // 🛡️ P0 Fix: Batch all UPDATEs in a single transaction (eliminates N roundtrips)
     // Filter tracks that have data to update
     const tracksToUpdate = body.tracks.filter((track) => track.bpm || track.key || track.energy);
 
@@ -454,13 +473,13 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
       const updatePromises = tracksToUpdate.map(async (track) => {
         // Build update object with only non-null values
         const updateData: Record<string, unknown> = {};
-        if (track.bpm != null) updateData.bpm = Math.round(track.bpm);
-        if (track.key != null) updateData.key = track.key;
-        if (track.energy != null) updateData.energy = Math.round(track.energy);
-        if (track.danceability != null) updateData.danceability = Math.round(track.danceability);
-        if (track.brightness != null) updateData.brightness = Math.round(track.brightness);
-        if (track.acousticness != null) updateData.acousticness = Math.round(track.acousticness);
-        if (track.groove != null) updateData.groove = Math.round(track.groove);
+        if (track.bpm != null) updateData["bpm"] = Math.round(track.bpm);
+        if (track.key != null) updateData["key"] = track.key;
+        if (track.energy != null) updateData["energy"] = Math.round(track.energy);
+        if (track.danceability != null) updateData["danceability"] = Math.round(track.danceability);
+        if (track.brightness != null) updateData["brightness"] = Math.round(track.brightness);
+        if (track.acousticness != null) updateData["acousticness"] = Math.round(track.acousticness);
+        if (track.groove != null) updateData["groove"] = Math.round(track.groove);
 
         if (Object.keys(updateData).length === 0) {
           return 0;
