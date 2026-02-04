@@ -115,6 +115,11 @@ Value: Core feature for dancer engagement
 // Anonymous: localStorage
 localStorage.setItem('pika:likes', JSON.stringify([...trackIds]));
 
+// ⚠️ PWA PERSISTENCE GAP (Audit Feb 2026):
+// History is currently memory-only (SWR). Refreshing offline loses history.
+// Voting is UI-only. Socket closure drops votes.
+// Implementation fix: Move both to IndexedDB (idb-keyval) pattern from useLikeQueue.
+
 // Registered: Database
 INSERT INTO user_likes (user_id, played_track_id, liked_at);
 

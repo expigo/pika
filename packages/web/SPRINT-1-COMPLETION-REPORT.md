@@ -17,6 +17,8 @@
 | **iOS Support** | ✅ Complete | apple-mobile-web-app-capable + custom instructions |
 | **Install Prompt** | ✅ Exceeded | Smart timing + iOS/Android specific UX |
 | **Asset Caching** | ✅ Exceeded | 54 precached assets + 4 critical routes |
+| **History Sync** | ⚠️ Partial | Memory-only (SWR), lost on refresh/offline |
+| **Voting Queue** | ❌ Missing | UI persists choice, but no offline queuing |
 | **Monitoring** | ✅ Exceeded | Full Sentry integration + analytics |
 | **Documentation** | ✅ Exceeded | Complete implementation guide |
 | **Verification** | ✅ Bonus | Automated PWA compliance checker |
@@ -426,6 +428,8 @@ The custom build pipeline is **original work**:
 1. **No runtime precache updates** - Requires full refresh on deploy (acceptable trade-off)
 2. **No custom worker logic** - Using Serwist defaults (can extend later)
 3. **No analytics on cache hits** - Could add in Sprint 2
+4. **Memory-Only History** - `useTrackHistory` relies on SWR memory cache. Refreshing while offline results in an empty history list. Needs IndexedDB persistence.
+5. **Vote Queue Parity** - Deployment fallback page claims votes are queued, but `useTempoVote` currently drops votes if the socket is closed. Needs `idb-keyval` integration similar to `useLikeQueue`.
 
 ---
 

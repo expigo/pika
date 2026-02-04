@@ -186,7 +186,12 @@ bun run --filter @pika/cloud dev
 **Framework:** Next.js 16 with App Router
 **Styling:** Tailwind 4
 **State:** SWR for data fetching, React Context for session state
-**Offline:** Serwist for service worker, IndexedDB via idb-keyval
+**Offline:** Serwist for service worker, IndexedDB via idb-keyval.
+**Current PWA State (Audit Feb 2026):**
+- ✅ Infrastructure (esbuild pipeline)
+- ✅ Offline Likes (IndexedDB)
+- ❌ Offline History (Memory-only, needs IndexedDB)
+- ❌ Offline Voting (UI-only, needs background queue)
 **Features:**
 - Visibility-aware polling (pauses when backgrounded)
 - Deferred localStorage via event loop yielding

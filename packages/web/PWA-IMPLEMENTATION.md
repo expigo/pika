@@ -318,6 +318,22 @@ packages/web/
 1. **iOS Background Sync:** Not supported. Offline queue flushes on app open.
 2. **iOS Push Notifications:** Requires Web Push API (iOS 16.4+), limited features.
 3. **Static Precache:** Only Next.js output is cached. New deploys require re-download.
+4. **History Persistence:** Currently memory-only. Lost on hard refresh during offline mode.
+5. **Voting Offline Queue:** Not yet implemented. Votes sent during offline/socket-closed state are dropped.
+
+---
+
+## 🔍 PWA Status Audit (Feb 2026)
+
+| Layer | Implementation | Score | Verdict |
+|-------|----------------|-------|---------|
+| **Infrastructure** | Manual Build + esbuild | 10/10 | State of the art stability. Compatible with Sentry. |
+| **Caching** | Serwist + NetworkOnly API | 7/10 | Safe but aggressive. No stale data, but no offline data for history. |
+| **Offline Likes** | IndexedDB + Batch Flush | 9/10 | Gold standard. Survives crashes and refreshes. |
+| **Offline History** | SWR (Memory-only) | 2/10 | Gap. Requires transition to IndexedDB persistence. |
+| **Offline Voting** | LocalStorage (UI only) | 4/10 | Gap. Needs background sync/queuing to prevent dropped votes. |
+
+---
 
 ---
 
