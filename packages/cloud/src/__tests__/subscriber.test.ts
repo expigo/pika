@@ -16,8 +16,9 @@ const mockRawWs = {
 
 describe("handleSubscribe (Issue 48)", () => {
   beforeEach(() => {
-    // Clear sessions via public API
-    getAllSessions().forEach((s) => deleteSession(s.sessionId));
+    getAllSessions().forEach((s) => {
+      deleteSession(s.sessionId);
+    });
     mockWs.send.mockClear();
     mockRawWs.publish.mockClear();
   });

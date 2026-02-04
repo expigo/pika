@@ -33,8 +33,6 @@ const mockDb = {
   onConflictDoNothing: async () => ({}),
   update: () => mockDb,
   set: () => mockDb,
-  // Allow awaiting the chain at any point
-  then: (resolve: Function) => resolve([]),
 };
 
 // Mock database
