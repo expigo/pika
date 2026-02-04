@@ -34,6 +34,7 @@ export {
   EndPollSchema,
   EndSessionSchema,
   GetSessionsSchema,
+  HistorySyncedSchema,
   LikeReceivedSchema,
   // Listener count
   ListenerCountSchema,
@@ -68,13 +69,12 @@ export {
   SessionStartedSchema,
   SessionsListSchema,
   SessionValidSchema,
-  SyncSessionHistorySchema,
-  HistorySyncedSchema,
   type Settings,
   SettingsSchema,
   // Poll schemas
   StartPollSchema,
   SubscribeSchema,
+  SyncSessionHistorySchema,
   TempoFeedbackSchema,
   type TempoPreference,
   TempoResetSchema,
