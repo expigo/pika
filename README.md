@@ -2,7 +2,7 @@
 
 **The Bionic Suit for West Coast Swing DJs.**
 
-**Version:** 0.4.4 (The "Excellence" Hardening Release)
+**Version:** 0.4.5 (The "Excellence" Hardening Release)
 **Status:** ✅ Production Ready (Green)
 **License:** Apache-2.0
 
@@ -21,7 +21,7 @@ We maintain comprehensive documentation in the `docs/` directory:
 *   **[MVP Launch Plan](docs/projects/mvp-launch.md)** (Active Project)
 *   **[Deployment Guide](docs/architecture/deployment.md)**
 *   **[Operations Manual](docs/ops-manual.md)**
-*   **[Audit Recap (v0.4.4)](docs/AUDIT_RECAP.md)**
+*   **[Audit Recap (v0.4.5)](docs/AUDIT_RECAP.md)**
 
 ## 🏗️ System Architecture
 
