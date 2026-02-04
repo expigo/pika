@@ -6,10 +6,11 @@ import { toast } from "sonner";
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { settingsRepository } from "../db/repositories/settingsRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
+import { apiFetch } from "../services/apiClient";
 import { enqueueForAnalysis } from "../services/progressiveAnalysisService";
 import { type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "../services/virtualDjWatcher";
 import { logger } from "../utils/logger";
-import { getAuthToken, getConfiguredUrls, getDjName } from "./useDjSettings";
+import { getAuthToken, getConfiguredUrls, getDjName } from "../services/settingsService";
 
 // Re-export from useLiveStore for backwards compatibility
 export { type LiveSessionStore, type LiveStatus, useLiveStore } from "./useLiveStore";
@@ -60,11 +61,13 @@ import {
   clearProcessedTrackKeys,
   getCurrentPlayId as getStoreCurrentPlayId,
   getDbSessionId as getStoreDbSessionId,
+  getPendingHistorySync,
   getSessionId as getStoreSessionId,
   hasProcessedTrackKey,
   isInLiveMode,
   setLastBroadcastedTrackKey,
   setCurrentPlayId as setStoreCurrentPlayId,
+  setPendingHistorySync,
   shouldSkipInitialTrackBroadcast,
 } from "./live/stateHelpers";
 import { useLiveStore } from "./useLiveStore";
@@ -270,8 +273,12 @@ function handlePollEndedCallback(pollId: number): void {
  * Create the MessageRouterContext with all callbacks
  * Extracted from goLive to improve readability (U3 refactor)
  */
-function createRouterContext(sessionId: string, endSet: () => Promise<void>): MessageRouterContext {
-  return {
+function createRouterContext(
+  sessionId: string,
+  endSet: () => Promise<void>,
+  syncSessionHistory: (tracks: TrackInfo[]) => Promise<void>,
+): MessageRouterContext {
+  const ctx: MessageRouterContext = {
     sessionId,
     onAck: handleAck,
     onNack: handleNack,
@@ -294,6 +301,16 @@ function createRouterContext(sessionId: string, endSet: () => Promise<void>): Me
     },
     onSessionRegistered: (sessionIdFromServer: string) => {
       logger.info("Live", "Session registered", { sessionId: sessionIdFromServer });
+
+      // 🛡️ Fix: Trigger deferred history sync if tracks are stashed
+      const pendingTracks = getPendingHistorySync();
+      if (pendingTracks.length > 0) {
+        logger.info("Live", "Triggering deferred history sync", {
+          count: pendingTracks.length,
+        });
+        ctx.onHistorySync(pendingTracks);
+        setPendingHistorySync([]); // Clear stashed tracks
+      }
     },
     onSessionExpired: (sessionId, reason) => {
       logger.warn("Live", "Session expired", { sessionId, reason });
@@ -310,7 +327,11 @@ function createRouterContext(sessionId: string, endSet: () => Promise<void>): Me
         logger.debug("Live", "Session validation successful", { sessionId });
       }
     },
+    onHistorySync: (tracks) => {
+      syncSessionHistory(tracks).catch((e) => logger.error("Live", "Deferred sync failed", e));
+    },
   };
+  return ctx;
 }
 
 /**
@@ -541,6 +562,42 @@ export function useLiveSession() {
     reset,
   } = useLiveStore();
 
+  // Sync historical tracks (imported from VDJ) to cloud
+  const syncSessionHistory = useCallback(async (tracks: TrackInfo[]) => {
+    // 🛡️ Fix: Use getState() to avoid stale closures in async flows (e.g. handleImportAndStart)
+    const state = useLiveStore.getState();
+    const currentStatus = state.status;
+    const currentSessionId = state.sessionId;
+
+    // We allow syncing if connecting or live, as message queue handles buffering
+    if ((currentStatus !== "live" && currentStatus !== "connecting") || !currentSessionId) {
+      logger.warn("Live", "Cannot sync history - not live or connecting", {
+        status: currentStatus,
+        sessionId: currentSessionId,
+      });
+      return;
+    }
+
+    if (tracks.length === 0) return;
+
+    // 🛡️ Issue 16 Fix: Batch history sync to respect 500 items limit
+    const CHUNK_SIZE = 500;
+    for (let i = 0; i < tracks.length; i += CHUNK_SIZE) {
+      const chunk = tracks.slice(i, i + CHUNK_SIZE);
+      logger.info(
+        "Live",
+        `Syncing history batch ${Math.floor(i / CHUNK_SIZE) + 1} (${chunk.length} tracks)`,
+      );
+
+      // Use reliable delivery for history sync
+      await sendMessage({
+        type: MESSAGE_TYPES.SYNC_SESSION_HISTORY,
+        sessionId: currentSessionId,
+        tracks: chunk,
+      });
+    }
+  }, []);
+
   // Use ref to track if this hook instance has set up the track listener
   const listenerSetupRef = useRef(false);
 
@@ -724,11 +781,10 @@ export function useLiveSession() {
                   "Live",
                   `Syncing fingerprints (Batch ${Math.floor(i / CHUNK_SIZE) + 1})`,
                 );
-                const response = await fetch(
+                const response = await apiFetch(
                   `${apiUrl}/api/session/${sessionIdToSync}/sync-fingerprints`,
                   {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ tracks: chunk }),
                     signal: abortController.signal,
                   },
@@ -784,6 +840,7 @@ export function useLiveSession() {
       sessionName?: string,
       includeCurrentTrack: boolean = true,
       preCreatedSession?: { sessionId: string; dbSessionId: number },
+      historyTracks?: TrackInfo[],
     ) => {
       if (status === "live" || status === "connecting") {
         logger.debug("Live", "Already live or connecting");
@@ -795,6 +852,14 @@ export function useLiveSession() {
       setStatus("connecting");
       setError(null);
       setSessionId(activeSessionId);
+
+      // 🛡️ Fix: Defer history sync until SESSION_REGISTERED
+      if (historyTracks && historyTracks.length > 0) {
+        logger.info("Live", "Stashing imported history for deferred sync", {
+          count: historyTracks.length,
+        });
+        setPendingHistorySync(historyTracks);
+      }
 
       try {
         // Create database session for history tracking (or use existing)
@@ -880,7 +945,7 @@ export function useLiveSession() {
         };
 
         // Initialize message router with callbacks for this session (U3 refactor)
-        messageRouter.setContext(createRouterContext(activeSessionId, endSet));
+        messageRouter.setContext(createRouterContext(activeSessionId, endSet, syncSessionHistory));
 
         // Message handler using O(1) router dispatch
         socket.onmessage = (event) => {
@@ -944,7 +1009,7 @@ export function useLiveSession() {
         setError(error instanceof Error ? error.message : String(error));
       }
     },
-    [status, setStatus, setError, setSessionId, setDbSessionId, setNowPlaying, endSet],
+    [status, setStatus, setError, setSessionId, setDbSessionId, setNowPlaying, endSet, syncSessionHistory],
   );
 
   // Clear now playing
@@ -1132,42 +1197,6 @@ export function useLiveSession() {
     [],
   );
 
-  // Sync historical tracks (imported from VDJ) to cloud
-  const syncSessionHistory = useCallback(async (tracks: TrackInfo[]) => {
-    // 🛡️ Fix: Use getState() to avoid stale closures in async flows (e.g. handleImportAndStart)
-    const state = useLiveStore.getState();
-    const currentStatus = state.status;
-    const currentSessionId = state.sessionId;
-
-    // We allow syncing if connecting or live, as message queue handles buffering
-    if ((currentStatus !== "live" && currentStatus !== "connecting") || !currentSessionId) {
-      logger.warn("Live", "Cannot sync history - not live or connecting", {
-        status: currentStatus,
-        sessionId: currentSessionId,
-      });
-      return;
-    }
-
-    if (tracks.length === 0) return;
-
-    // 🛡️ Issue 16 Fix: Batch history sync to respect 500 items limit
-    const CHUNK_SIZE = 500;
-    for (let i = 0; i < tracks.length; i += CHUNK_SIZE) {
-      const chunk = tracks.slice(i, i + CHUNK_SIZE);
-      logger.info(
-        "Live",
-        `Syncing history batch ${Math.floor(i / CHUNK_SIZE) + 1} (${chunk.length} tracks)`,
-      );
-
-      // Use reliable delivery for history sync
-      await sendMessage({
-        type: MESSAGE_TYPES.SYNC_SESSION_HISTORY,
-        sessionId: currentSessionId,
-        tracks: chunk,
-      });
-    }
-  }, []);
-
   // Cancel active announcement
   const cancelAnnouncement = useCallback(() => {
     if (!isInLiveMode() || !getStoreSessionId()) {
@@ -1268,7 +1297,6 @@ export function useLiveSession() {
     cancelAnnouncement,
     clearEndedPoll,
     forceSync,
-    syncSessionHistory,
     registerImportedTrack,
   };
 }

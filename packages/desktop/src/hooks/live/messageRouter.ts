@@ -12,7 +12,7 @@
  * @package @pika/desktop
  */
 
-import { MESSAGE_TYPES } from "@pika/shared";
+import { MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
 import { logger } from "../../utils/logger";
 import {
   hasMessageType,
@@ -57,6 +57,7 @@ export interface MessageRouterContext {
   onSessionRegistered: (sessionId: string) => void;
   onSessionExpired: (sessionId: string, reason: string) => void;
   onSessionValid: (sessionId: string, isValid: boolean) => void;
+  onHistorySync: (tracks: TrackInfo[]) => void;
 }
 
 // =============================================================================

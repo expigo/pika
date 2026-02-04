@@ -95,16 +95,14 @@ describe("connectionManager", () => {
       timestamp: new Date(),
     };
 
-    it("should prepare state to include current track but prevent double-count", () => {
+    it("should prepare state to include current track but leave it clean for watcher", () => {
       prepareInitialTrackState(mockTrack as unknown as NowPlayingTrack, true);
 
       expect(clearProcessedTrackKeys).toHaveBeenCalled();
       expect(setLastBroadcastedTrackKey).toHaveBeenCalledWith(null);
       expect(setSkipInitialTrackBroadcast).toHaveBeenCalledWith(false);
-      expect(addProcessedTrackKey).toHaveBeenCalledWith(
-        expect.stringContaining("Test Artist-Test Track"),
-      );
-      expect(setLastBroadcastedTrackKey).toHaveBeenCalledWith("Test Artist:Test Track");
+      // Processed track key should NOT be added (Issue #2 fix)
+      expect(addProcessedTrackKey).not.toHaveBeenCalled();
     });
 
     it("should prepare state to skip initial track", () => {

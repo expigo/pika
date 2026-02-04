@@ -6,7 +6,7 @@
  */
 
 import { create } from "zustand";
-import { logger } from "@pika/shared";
+import { logger, type TrackInfo } from "@pika/shared";
 import type { NowPlayingTrack } from "../services/virtualDjWatcher";
 
 export type LiveStatus = "offline" | "connecting" | "live" | "error";
@@ -57,6 +57,9 @@ export interface LiveSessionStore {
 
   // Played tracks in current session (for repeat prevention)
   playedTrackKeys: Set<string>;
+
+  // Pending history tracks to sync after session registration
+  pendingHistorySync: TrackInfo[];
 
   // ===========================================================================
   // Internal State (consolidated from module-level variables)
@@ -121,6 +124,7 @@ export interface LiveSessionStore {
   decrementLiveLikes: () => void;
   addPlayedTrack: (trackKey: string) => void;
   clearPlayedTracks: () => void;
+  setPendingHistorySync: (tracks: TrackInfo[]) => void;
   reset: () => void;
 
   // Internal state actions
@@ -150,6 +154,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   endedPoll: null,
   liveLikes: 0,
   playedTrackKeys: new Set<string>(),
+  pendingHistorySync: [],
 
   // Internal state defaults
   lastBroadcastedTrackKey: null,
@@ -191,6 +196,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
       return { playedTrackKeys: newSet };
     }),
   clearPlayedTracks: () => set({ playedTrackKeys: new Set() }),
+  setPendingHistorySync: (pendingHistorySync) => set({ pendingHistorySync }),
 
   // Internal state actions
   setLastBroadcastedTrackKey: (lastBroadcastedTrackKey) => set({ lastBroadcastedTrackKey }),
@@ -231,6 +237,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
       endedPoll: null,
       liveLikes: 0,
       playedTrackKeys: new Set(),
+      pendingHistorySync: [],
       // Reset internal state too
       lastBroadcastedTrackKey: null,
       processedTrackKeys: new Set(),

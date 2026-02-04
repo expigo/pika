@@ -9,6 +9,7 @@
  */
 
 import { useLiveStore } from "../useLiveStore";
+import type { TrackInfo } from "@pika/shared";
 
 // ============================================================================
 // Session State Helpers
@@ -183,6 +184,24 @@ export function getPendingLikeInfo(): { count: number; trackTitle: string | null
  */
 export function setPendingLikeInfo(info: { count: number; trackTitle: string | null }): void {
   useLiveStore.getState().setPendingLikeInfo(info);
+}
+
+// ============================================================================
+// History Sync Helpers
+// ============================================================================
+
+/**
+ * Get pending history tracks to sync after session registration
+ */
+export function getPendingHistorySync(): TrackInfo[] {
+  return useLiveStore.getState().pendingHistorySync;
+}
+
+/**
+ * Set pending history tracks to sync after session registration
+ */
+export function setPendingHistorySync(tracks: TrackInfo[]): void {
+  useLiveStore.getState().setPendingHistorySync(tracks);
 }
 
 // ============================================================================

@@ -189,15 +189,31 @@ describe("useLiveStore", () => {
       expect(useLiveStore.getState().currentPlayId).toBe(100);
     });
 
-    it("should clear session IDs on reset", () => {
+    it("should clear session IDs and pending sync on reset", () => {
       useLiveStore.getState().setSessionId("test");
       useLiveStore.getState().setDbSessionId(1);
       useLiveStore.getState().setCurrentPlayId(10);
+      useLiveStore.getState().setPendingHistorySync([{ artist: "A", title: "T" }]);
       useLiveStore.getState().reset();
 
       expect(useLiveStore.getState().sessionId).toBeNull();
       expect(useLiveStore.getState().dbSessionId).toBeNull();
       expect(useLiveStore.getState().currentPlayId).toBeNull();
+      expect(useLiveStore.getState().pendingHistorySync).toEqual([]);
+    });
+  });
+
+  describe("history sync management", () => {
+    it("should set and get pending history sync tracks", () => {
+      const tracks = [{ artist: "Artist 1", title: "Track 1" }];
+      useLiveStore.getState().setPendingHistorySync(tracks);
+      expect(useLiveStore.getState().pendingHistorySync).toEqual(tracks);
+    });
+
+    it("should clear pending history sync tracks", () => {
+      useLiveStore.getState().setPendingHistorySync([{ artist: "A", title: "T" }]);
+      useLiveStore.getState().setPendingHistorySync([]);
+      expect(useLiveStore.getState().pendingHistorySync).toEqual([]);
     });
   });
 

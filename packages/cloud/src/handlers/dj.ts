@@ -639,14 +639,16 @@ export async function handleSyncSessionHistory(ctx: WSContext) {
     );
 
     // 📢 Broadcast sync event to all participants so they can refresh their history
-    rawWs.publish(
-      "live-session",
-      JSON.stringify({
-        type: "HISTORY_SYNCED",
-        sessionId: msg.sessionId,
-        count: msg.tracks.length,
-      }),
-    );
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
+      rawWs.publish(
+        "live-session",
+        JSON.stringify({
+          type: "HISTORY_SYNCED",
+          sessionId: msg.sessionId,
+          count: msg.tracks.length,
+        }),
+      );
+    }
 
     if (messageId) sendAck(ws, messageId);
   } else {
