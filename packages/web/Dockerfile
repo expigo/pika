@@ -57,11 +57,11 @@ COPY --from=builder /app/packages/web/.next /app/packages/web/.next
 COPY --from=builder /app/packages/web/public /app/packages/web/public
 
 # Install only production dependencies (optional but better)
-WORKDIR /app
+WORKDIR /app/packages/web
 # Note: Next.js standalone build is even better, but this is a good first step.
 
 ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
-CMD ["bun", "--filter", "@pika/web", "run", "start"]
+CMD ["bun", "/app/node_modules/next/dist/bin/next", "start"]
