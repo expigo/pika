@@ -22,6 +22,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_key }}
           port: ${{ secrets.VPS_PORT }}
+          command_timeout: 20m
           script: |
             set -e
             echo "🚀 Starting Staging Deployment..."

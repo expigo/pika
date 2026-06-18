@@ -6,6 +6,11 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
+  experimental: {
+    // Limit CPU usage and worker threads during Docker build to prevent VPS memory exhaustion
+    cpus: process.env.DOCKER_BUILD ? 1 : undefined,
+    workerThreads: process.env.DOCKER_BUILD ? false : undefined,
+  }
 };
 
 export default withSentryConfig(nextConfig, {

@@ -23,6 +23,7 @@ jobs:
           # We use a key instead of password for security
           key: ${{ secrets.VPS_key }} 
           port: ${{ secrets.VPS_PORT }}
+          command_timeout: 20m
           script: |
             set -e
             echo "🚀 Starting Deployment..."

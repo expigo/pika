@@ -40,6 +40,7 @@ ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
 
 # Build the web app
 WORKDIR /app/packages/web
+ENV DOCKER_BUILD=1
 RUN bun run build
 
 # --- Stage 2: Runtime ---
