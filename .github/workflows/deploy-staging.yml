@@ -48,8 +48,28 @@ jobs:
             # We use project-name 'pika-staging' to avoid conflict with prod default project
             docker compose -f docker-compose.staging.yml -p pika-staging down
             docker compose -f docker-compose.staging.yml -p pika-staging up -d --build --force-recreate
-            
-            # 3. Prune old images
+
+            # 3. Verify services became healthy — fail the deploy (red) if not.
+            # Reuses the in-container healthchecks defined in docker-compose.staging.yml,
+            # so a crash-looping container can no longer pass as a "successful" deploy.
+            echo "🩺 Waiting for containers to report healthy..."
+            HEALTHY=0
+            for i in $(seq 1 30); do
+              CLOUD=$(docker inspect --format '{{.State.Health.Status}}' pika-staging-cloud 2>/dev/null || echo missing)
+              WEB=$(docker inspect --format '{{.State.Health.Status}}' pika-staging-web 2>/dev/null || echo missing)
+              echo "  attempt $i/30 — cloud=$CLOUD web=$WEB"
+              if [ "$CLOUD" = "healthy" ] && [ "$WEB" = "healthy" ]; then HEALTHY=1; break; fi
+              sleep 4
+            done
+            if [ "$HEALTHY" -ne 1 ]; then
+              echo "❌ Services did not become healthy in time. Diagnostics:"
+              docker compose -f docker-compose.staging.yml -p pika-staging ps || true
+              docker compose -f docker-compose.staging.yml -p pika-staging logs --tail=60 web cloud || true
+              exit 1
+            fi
+            echo "✅ Staging services healthy"
+
+            # 4. Prune old images
             docker image prune -f
-            
+
             echo "✅ Staging Deployment Complete!"

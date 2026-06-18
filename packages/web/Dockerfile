@@ -55,13 +55,17 @@ COPY --from=builder /app/packages/shared /app/packages/shared
 COPY --from=builder /app/packages/web/package.json /app/packages/web/
 COPY --from=builder /app/packages/web/.next /app/packages/web/.next
 COPY --from=builder /app/packages/web/public /app/packages/web/public
+# Bun uses an isolated (pnpm-style) layout: `next` lives in the root
+# node_modules/.bun store and is only symlinked into the web package's
+# node_modules. We must copy that directory so `next` resolves at runtime.
+COPY --from=builder /app/packages/web/node_modules /app/packages/web/node_modules
 
-# Install only production dependencies (optional but better)
 WORKDIR /app/packages/web
-# Note: Next.js standalone build is even better, but this is a good first step.
 
 ENV NODE_ENV=production
 ENV PORT=3000
 
 EXPOSE 3000
-CMD ["bun", "/app/node_modules/next/dist/bin/next", "start"]
+# Runs the web package's `start` script (`next start`). Resolves `next` from
+# packages/web/node_modules/.bin — no workspace filter / hardcoded path needed.
+CMD ["bun", "run", "start"]

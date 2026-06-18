@@ -27,4 +27,7 @@ ENV NODE_ENV=production
 WORKDIR /app/packages/cloud
 
 EXPOSE 3001
-CMD ["bun", "run", "src/index.ts"]
+# `start:prod` runs `drizzle-kit migrate` (idempotent, ~seconds) before booting,
+# so the DB schema is always in sync with the deployed code. A failed migration
+# aborts startup (fail-loud) rather than serving against a stale schema.
+CMD ["bun", "run", "start:prod"]
