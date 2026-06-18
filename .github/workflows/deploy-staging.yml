@@ -23,6 +23,7 @@ jobs:
           key: ${{ secrets.VPS_key }}
           port: ${{ secrets.VPS_PORT }}
           script: |
+            set -e
             echo "🚀 Starting Staging Deployment..."
             
             # Ensure the directory exists (create if first run)

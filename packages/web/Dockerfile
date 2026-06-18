@@ -7,6 +7,8 @@ COPY package.json bun.lock ./
 # Copy workspace package files for dependency resolution
 COPY packages/shared/package.json packages/shared/
 COPY packages/web/package.json packages/web/
+COPY packages/cloud/package.json packages/cloud/
+COPY packages/desktop/package.json packages/desktop/
 
 # Install dependencies
 RUN bun install --frozen-lockfile

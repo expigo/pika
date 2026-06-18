@@ -24,6 +24,7 @@ jobs:
           key: ${{ secrets.VPS_key }} 
           port: ${{ secrets.VPS_PORT }}
           script: |
+            set -e
             echo "🚀 Starting Deployment..."
             cd /opt/pika/pika
             
