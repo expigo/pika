@@ -49,6 +49,7 @@ WORKDIR /app
 # Copy necessary files from builder
 # We need the node_modules, the built .next folder, and the package files
 COPY --from=builder /app/package.json /app/bun.lock ./
+COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/packages/shared /app/packages/shared
 COPY --from=builder /app/packages/web/package.json /app/packages/web/
 COPY --from=builder /app/packages/web/.next /app/packages/web/.next

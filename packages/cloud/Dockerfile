@@ -18,6 +18,7 @@ FROM oven/bun:latest AS runtime
 WORKDIR /app
 
 COPY --from=builder /app/package.json /app/bun.lock ./
+COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/packages/shared /app/packages/shared
 COPY --from=builder /app/packages/cloud /app/packages/cloud
 
