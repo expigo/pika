@@ -37,7 +37,7 @@ This document outlines the security architecture of Pika!, including implemented
                     │  - Origin IP hidden behind Cloudflare Tunnel (WAF/DDoS) │
                     │  - No inbound ports open on VPS firewall (except SSH) │
                     │  - Docker network isolation (Services on private net)   │
-                    │  - Containers bind to 0.4.6.1 for SSH Tunneling ONLY   │
+                    │  - Containers bind to 127.0.0.1 for SSH Tunneling ONLY   │
                     └───────────────────────────────────────┘
 ```
 
@@ -259,7 +259,7 @@ export function middleware(request: NextRequest) {
 | Origin IP Hidden | Cloudflare Tunnel | ✅ |
 | SSL/TLS | Cloudflare Edge (Auto-renew) | ✅ |
 | Container Isolation | Docker network | ✅ |
-| Port Binding | `0.4.6.1` only | ✅ |
+| Port Binding | `127.0.0.1` only | ✅ |
 | SSH Access | Key-based only | ✅ |
 
 ### 6.2 Secrets Management

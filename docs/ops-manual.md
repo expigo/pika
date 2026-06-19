@@ -54,54 +54,54 @@ bun run --filter @pika/cloud dev # Re-runs all migrations from scratch
 
 ## � Git Strategy & Workflow
 
-**Recommended Branching:**
-*   `main` — **Production Code.** Always deployable.
-*   `dev` — **Integration.** Where features are merged before release.
-*   `feat/xyz` — **Feature Branches.** For specific tasks (e.g., `feat/auth-system`).
+**Branches → Environments (push-to-deploy):**
+*   `main` — **Production.** Push triggers `deploy.yml` → prod.
+*   `staging` — **Staging.** Push triggers `deploy-staging.yml` → staging.
+*   `feat/xyz` — **Feature branches** for specific tasks.
 
-**Typical Workflow:**
-1.  **Local Dev:** `git checkout -b feat/dj-auth` → Code → Test `npm run dev`.
-2.  **Save:** `git push origin feat/dj-auth`.
-3.  **Merge:** Open PR on GitHub → Merge to `main`.
-4.  **Deploy:** SSH to VPS → `git pull` → `docker compose ... restart`.
+**Typical Workflow (solo, no PRs required):**
+1.  **Local Dev:** work on `staging` (or a feature branch) → `bun run dev`.
+2.  **Deploy to staging:** `git push origin staging` → CI builds images → VPS pulls → health-gated.
+3.  **Verify:** wait for the green Actions run + check `https://staging.pika.stream`.
+4.  **Promote to prod:** fast-forward `main` to the verified `staging` commit, then `git push origin main`.
+
+> Deployment is **automated** — you do **not** SSH in to deploy. See
+> [`architecture/deployment.md`](./architecture/deployment.md) for the full pipeline.
 
 ---
 
 ## �🌍 Production Environment (VPS)
 
-### 🚀 Deployment Workflow (Git-based)
+### 🚀 Deployment (Automated — push to deploy)
 
-Since source code is synced via GitHub:
+Deployment is handled by GitHub Actions. **You do not build or pull by hand.**
 
-1.  **Local Machine:** Commit and push changes.
-    ```bash
-    git add .
-    git commit -m "Fix: Update API URLs"
-    git push origin main
-    ```
+```bash
+# Just push to the environment branch:
+git push origin main       # → deploy.yml: builds images in CI → GHCR → VPS pulls → health-gated
+# git push origin staging  # → deploy-staging.yml: same flow for staging
+```
 
-2.  **VPS (SSH):** Pull changes and restart services.
-    ```bash
-    ssh root@anna179.mikrus.xyz -p 10223
-    cd /opt/pika/pika
-    
-    # Get latest code
-    git pull origin main
-    
-    # Restart Services (rebuilds if necessary)
-    # Note: 'web' rebuilds on start due to the command in docker-compose
-    docker compose -f docker-compose.prod.yml restart cloud web
-    
-    # IF you changed dependencies (package.json), force a rebuild:
-    docker compose -f docker-compose.prod.yml up -d --build
-    ```
+Watch the run in the GitHub **Actions** tab. The deploy goes **red** if the health check fails.
+
+**Manual override (emergency only)** — re-pull the latest images on the VPS without a push:
+```bash
+ssh root@anna179.mikrus.xyz -p <port>
+cd /opt/pika/pika
+docker login ghcr.io -u expigo            # if not already logged in
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+> ⚠️ The VPS no longer builds images. **Never** run `docker compose ... up --build` on it — it's a
+> 1-vCPU/4 GB box where a Next build takes ~18 min and risks OOM. Builds happen in CI only.
 
 ### 🐳 Docker Management
 
-**Force Rebuild & Restart Everything (The "Fix It" Button):**
+**Re-pull & Recreate Everything (The "Fix It" Button):**
 ```bash
-# Rebuilds images and recreates containers
-docker compose -f docker-compose.prod.yml up -d --build --force-recreate
+# Pull the latest images from GHCR and recreate containers (NO on-box build)
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d --force-recreate
 ```
 
 **View Status:**
@@ -146,7 +146,7 @@ We run a dedicated stack for internal metrics and public status.
     ```
 
 ### 3. Cloudflare Tunnel Configuration (Domain Map)
-Since ports are bound to `0.4.6.1` for security, you MUST connect them via Cloudflare Tunnel.
+Since ports are bound to `127.0.0.1` for security, you MUST connect them via Cloudflare Tunnel.
 
 **In Cloudflare Dashboard (Zero Trust > Access > Tunnels):**
 
@@ -194,7 +194,7 @@ You can connect your **local** Drizzle Studio to the **production** database sec
     cd packages/cloud
     
     # ⚠️ Important: Overwrite DB URL to localhost for the session
-    DATABASE_URL="postgres://pika:pika_password@0.4.6.1:5432/pika_prod" bun run db:studio
+    DATABASE_URL="postgres://pika:pika_password@127.0.0.1:5432/pika_prod" bun run db:studio
     ```
 
 3.  **Browse:** Open `https://local.drizzle.studio` in your browser. You now have full read/write access to production data.
@@ -235,19 +235,12 @@ git commit -m "feat(db): add xyz table"
 git push origin main
 
 # ═══════════════════════════════════════════════════════════════
-# PRODUCTION: After deploying code with schema changes
+# PRODUCTION: migrations run AUTOMATICALLY on deploy
 # ═══════════════════════════════════════════════════════════════
-
-ssh root@anna179.mikrus.xyz -p 10223
-cd /opt/pika/pika
-git pull origin main
-
-# Rebuild containers (gets new migration files)
-docker compose -f docker-compose.prod.yml up -d --build
-
-# Run migrations
-docker compose -f docker-compose.prod.yml exec cloud \
-  sh -c "cd /app/packages/cloud && bun run db:migrate"
+# The cloud image entrypoint is `bun run start:prod` (= drizzle-kit migrate, then start),
+# so committing your migration files and pushing is all that's needed:
+git push origin main      # CI builds + VPS pulls; cloud migrates on boot.
+# A failed migration aborts startup and the deploy health-gate goes RED.
 ```
 
 **Key Rules:**
@@ -258,25 +251,21 @@ docker compose -f docker-compose.prod.yml exec cloud \
 | Review generated SQL before applying | Skip the review step |
 | Run migrations after every deploy | Assume schema is up to date |
 
-### 🚨 Production Warning: The Race Condition
-**Problem:** If you deploy new code (expecting new columns) *before* running migrations, the app will crash on startup.
-**Solution:** Use the **Entrypoint Migration** pattern.
-1.  Update `package.json` to run migrations before start:
-    ```json
-    "scripts": {
-      "start:prod": "bun run db:migrate && bun run src/index.ts"
-    }
-    ```
-2.  Or use a `run_once` container in `docker-compose.prod.yml` that runs `bun run db:migrate` before the main app starts.
+### ✅ Schema/Code Race Condition — Solved (Entrypoint Migration)
+**Problem (historical):** deploying new code that expects new columns *before* migrations ran
+would crash the app on startup.
 
-3. Or add CI Pipeline Step (Deploy Phase) Add a step in deploy.yml after the pull but before the restart.
-    ```
-    # In deploy.yml ssh script:
-    git pull origin main
-    # Run migration using a temporary container or exec if container is up
-    docker compose -f docker-compose.prod.yml run --rm cloud bun run db:migrate
-    docker compose -f docker-compose.prod.yml up -d --build --force-recreate
-    ```
+**Solution (in place):** the cloud image runs `start:prod` = `drizzle-kit migrate` **then** start,
+so the schema is always migrated before the server serves. A failed migration aborts startup and is
+caught by the deploy health-gate (deploy goes red).
+
+> **One-time caveat:** migrate-on-boot fails if the DB already has the schema but an *empty*
+> `drizzle.__drizzle_migrations` table (legacy `db:push` setups). Confirm it's populated first:
+> ```bash
+> docker compose -f docker-compose.prod.yml exec db \
+>   psql -U pika -d pika_prod -c "SELECT count(*) FROM drizzle.__drizzle_migrations;"
+> ```
+> If empty, run `db:baseline` once (see Troubleshooting below) before the first migrate-on-boot deploy.
 
 ### 🆘 Troubleshooting Migrations
 
@@ -627,5 +616,5 @@ docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
 
 ---
 
-*Last Updated: February 1, 2026 (v0.4.6)*
+*Last Updated: June 19, 2026 (v0.4.6) — deployment moved to CI → GHCR → VPS pull (see `architecture/deployment.md`).*
 

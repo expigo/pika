@@ -1,0 +1,13 @@
+version: 2
+updates:
+  # Keep GitHub Actions current — and, once you've SHA-pinned them (e.g. `npx pinact run`),
+  # Dependabot bumps the pinned SHA + version comment when a new release ships. One grouped PR/week.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns: ["*"]

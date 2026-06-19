@@ -3,44 +3,118 @@ name: Deploy to Production
 on:
   push:
     branches:
-      - "main"
+      - main
     paths-ignore:
       - 'docs/**'
       - '**.md'
       - 'LICENSE'
       - '.gitignore'
 
+# Never interrupt an in-flight deploy; queue the next one instead.
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write # push images to GHCR
+
 jobs:
-  deploy:
-    name: Deploy to VPS
+  # ---------------------------------------------------------------------------
+  # 1. Build the images on a fast GitHub runner and push to GHCR (the 1-vCPU
+  #    VPS can't build Next.js, and we must NOT load the live prod host).
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build & Push Images
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & push cloud image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/cloud/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/expigo/pika-cloud:prod
+            ghcr.io/expigo/pika-cloud:${{ github.sha }}
+          cache-from: type=gha,scope=cloud
+          cache-to: type=gha,mode=max,scope=cloud
+
+      - name: Build & push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: packages/web/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/expigo/pika-web:prod
+            ghcr.io/expigo/pika-web:${{ github.sha }}
+          # NEXT_PUBLIC_* are baked into the client bundle at build time → prod-specific image.
+          build-args: |
+            NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
+            NEXT_PUBLIC_CLOUD_API_URL=https://api.pika.stream
+            NEXT_PUBLIC_ENV=production
+            NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+            NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
+            SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          # SENTRY_AUTH_TOKEN is a real secret (source-map upload) — BuildKit secret, not a layer.
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+  # ---------------------------------------------------------------------------
+  # 2. Deploy: the VPS pulls the prebuilt images and recreates changed services.
+  #    GHCR auth uses the run-scoped GITHUB_TOKEN — no manual login / PAT.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to VPS (Production)
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
-          # We use a key instead of password for security
-          key: ${{ secrets.VPS_key }} 
+          key: ${{ secrets.VPS_key }}
           port: ${{ secrets.VPS_PORT }}
-          # Web build (next build, 1-CPU capped) takes ~18min on the VPS; 20m was too tight.
-          # NOTE: the durable fix is to build images in CI and pull on the VPS (see deploy notes).
-          command_timeout: 40m
+          command_timeout: 10m
+          envs: GHCR_TOKEN,GHCR_USER
           script: |
             set -e
-            echo "🚀 Starting Deployment..."
+            echo "🚀 Starting Production Deployment (pull prebuilt images)..."
+
             cd /opt/pika/pika
-            
-            # 1. Get latest code
+
+            # 1. Get latest compose/config
             git fetch origin main
             git reset --hard origin/main
-            
-            # 2. Rebuild and Restart Cloud & Web
-            # We don't restart DB (pika-db) to avoid downtime, unless manual intervention needed
-            docker compose -f docker-compose.prod.yml up -d --build --force-recreate cloud web
 
-            # 3. Verify services became healthy — fail the deploy (red) if not.
-            # Reuses the in-container healthchecks defined in docker-compose.prod.yml.
+            # 2. Authenticate to GHCR and pull the freshly-built images
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            docker compose -f docker-compose.prod.yml pull
+
+            # 3. Recreate only services whose image changed (db is left running)
+            docker compose -f docker-compose.prod.yml up -d
+
+            # 4. Verify services became healthy — fail the deploy (red) if not.
             echo "🩺 Waiting for containers to report healthy..."
             HEALTHY=0
             for i in $(seq 1 30); do
@@ -54,11 +128,11 @@ jobs:
               echo "❌ Services did not become healthy in time. Diagnostics:"
               docker compose -f docker-compose.prod.yml ps || true
               docker compose -f docker-compose.prod.yml logs --tail=60 web cloud || true
+              docker logout ghcr.io || true
               exit 1
             fi
-            echo "✅ Production services healthy"
 
-            # 4. Prune old images to save space on your 150GB disk
+            # 5. Cleanup
+            docker logout ghcr.io || true
             docker image prune -f
-
-            echo "✅ Deployment Complete!"
+            echo "✅ Production Deployment Complete!"

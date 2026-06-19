@@ -19,9 +19,9 @@ services:
       retries: 5
 
   cloud:
-    build:
-      context: .
-      dockerfile: packages/cloud/Dockerfile
+    # Built & pushed by the "Deploy to Production" workflow (GHCR). The VPS only
+    # pulls — it never builds (1 vCPU / 4 GB can't build Next, and it's the live host).
+    image: ghcr.io/expigo/pika-cloud:prod
     container_name: pika-cloud
     environment:
       - DATABASE_URL=postgres://pika:${POSTGRES_PASSWORD:-pika_secure_change_me}@db:5432/pika_prod
@@ -44,19 +44,13 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      # Grace window so the on-boot `drizzle-kit migrate` doesn't trip a false unhealthy.
+      start_period: 20s
 
   web:
-    build:
-      context: .
-      dockerfile: packages/web/Dockerfile
-      args:
-        - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
-        - NEXT_PUBLIC_CLOUD_API_URL=https://api.pika.stream
-        - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
-        - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
-        - SENTRY_DSN=${SENTRY_DSN}
-        - SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
-        - NEXT_PUBLIC_ENV=production
+    # Built & pushed by the "Deploy to Production" workflow (GHCR), with the
+    # NEXT_PUBLIC_* baked in there. The VPS only pulls — it never builds.
+    image: ghcr.io/expigo/pika-web:prod
     container_name: pika-web
     environment:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
@@ -64,7 +58,6 @@ services:
       - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
       - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
       - SENTRY_DSN=${SENTRY_DSN}
-      - SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
       - SENTRY_ENVIRONMENT=production
       - NEXT_PUBLIC_ENV=production
       - PORT=3000
@@ -79,6 +72,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
 volumes:
   postgres_data:
