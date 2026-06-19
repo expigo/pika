@@ -38,9 +38,11 @@ ENV NEXT_PUBLIC_ENV=$NEXT_PUBLIC_ENV
 ENV SENTRY_DSN=$SENTRY_DSN
 ENV SENTRY_AUTH_TOKEN=$SENTRY_AUTH_TOKEN
 
-# Build the web app
+# Build the web app.
+# NOTE: we intentionally do NOT set DOCKER_BUILD=1 here. That env throttled the
+# build to 1 CPU (a workaround for the 1-vCPU VPS). Builds now run on GitHub
+# runners (multi-core), so we let Next use all available cores for speed.
 WORKDIR /app/packages/web
-ENV DOCKER_BUILD=1
 RUN bun run build
 
 # --- Stage 2: Runtime ---

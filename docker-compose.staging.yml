@@ -18,9 +18,9 @@ services:
       retries: 5
 
   cloud:
-    build:
-      context: .
-      dockerfile: packages/cloud/Dockerfile
+    # Image is built & pushed by the "Deploy to Staging" workflow (GHCR). The
+    # VPS only pulls — it never builds (1 vCPU / 4 GB can't build Next sanely).
+    image: ghcr.io/expigo/pika-cloud:staging
     container_name: pika-staging-cloud
     environment:
       - DATABASE_URL=postgres://${DB_USER:-pika}:${DB_PASSWORD}@db:5432/${DB_NAME:-pika_staging}
@@ -45,17 +45,9 @@ services:
       retries: 3
 
   web:
-    build:
-      context: .
-      dockerfile: packages/web/Dockerfile
-      args:
-        - NEXT_PUBLIC_CLOUD_WS_URL=wss://staging-api.pika.stream/ws
-        - NEXT_PUBLIC_CLOUD_API_URL=https://staging-api.pika.stream
-        - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
-        - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
-        - SENTRY_DSN=${SENTRY_DSN}
-        - SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
-        - NEXT_PUBLIC_ENV=staging
+    # Image is built & pushed by the "Deploy to Staging" workflow (GHCR), with
+    # the NEXT_PUBLIC_* baked in there. The VPS only pulls — it never builds.
+    image: ghcr.io/expigo/pika-web:staging
     container_name: pika-staging-web
     environment:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://staging-api.pika.stream/ws
