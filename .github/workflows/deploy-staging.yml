@@ -70,7 +70,10 @@ jobs:
             NEXT_PUBLIC_VAPID_PUBLIC_KEY=${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
             NEXT_PUBLIC_SENTRY_DSN=${{ secrets.NEXT_PUBLIC_SENTRY_DSN }}
             SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
+          # SENTRY_AUTH_TOKEN is a real secret (source-map upload) — pass it as a
+          # BuildKit secret so it is never baked into an image layer.
+          secrets: |
+            sentry_auth_token=${{ secrets.SENTRY_AUTH_TOKEN }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,mode=max,scope=web
 
