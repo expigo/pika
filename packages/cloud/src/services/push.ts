@@ -5,9 +5,9 @@ import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
 
 // Core Architecture: Initialization logic
-const publicKey = process.env.VAPID_PUBLIC_KEY;
-const privateKey = process.env.VAPID_PRIVATE_KEY;
-const subject = process.env.VAPID_SUBJECT || "mailto:admin@pika.stream";
+const publicKey = process.env["VAPID_PUBLIC_KEY"];
+const privateKey = process.env["VAPID_PRIVATE_KEY"];
+const subject = process.env["VAPID_SUBJECT"] || "mailto:admin@pika.stream";
 
 if (publicKey && privateKey) {
   try {

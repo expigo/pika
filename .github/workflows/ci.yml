@@ -1,17 +1,28 @@
 name: CI
 
+# Run the quality gate on both deploy branches (and PRs into them), so lint/type
+# errors surface on staging BEFORE they're promoted to main — not after.
 on:
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "staging" ]
   push:
-    branches: [ "main" ]
+    branches: [ "main", "staging" ]
+
+# Don't pile up redundant runs on rapid pushes to the same branch.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   check:
     name: Type Check & Build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v1
@@ -19,7 +30,7 @@ jobs:
           bun-version: latest
 
       - name: Install Dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       # Global Lint (Faster & Covers everything)
       - name: Global Lint (Biome)

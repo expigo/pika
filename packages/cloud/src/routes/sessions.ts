@@ -443,15 +443,16 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
     .where(eq(schema.sessions.id, sessionId))
     .limit(1);
 
-  if (sessionData.length === 0) {
+  const sessionRow = sessionData[0];
+  if (!sessionRow) {
     return c.json({ error: "Session not found" }, 404);
   }
 
-  if (sessionData[0].djUserId !== user.id) {
+  if (sessionRow.djUserId !== user.id) {
     logger.warn("🚫 Unauthorized fingerprint sync attempt", {
       sessionId,
       userId: user.id,
-      sessionOwnerId: sessionData[0].djUserId,
+      sessionOwnerId: sessionRow.djUserId,
     });
     return c.json({ error: "You do not own this session" }, 403);
   }

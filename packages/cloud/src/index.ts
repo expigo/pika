@@ -23,9 +23,9 @@ import { sessions as sessionsRoutes } from "./routes/sessions";
 import { stats as statsRoutes } from "./routes/stats";
 
 // Initialize Sentry for production error monitoring
-if (process.env.NODE_ENV === "production" || process.env.SENTRY_DSN) {
+if (process.env.NODE_ENV === "production" || process.env["SENTRY_DSN"]) {
   Sentry.init({
-    dsn: process.env.SENTRY_DSN,
+    dsn: process.env["SENTRY_DSN"],
     environment: process.env.NODE_ENV || "production",
     release: `pika-cloud@${PIKA_VERSION}`,
     tracesSampleRate: 0.1,
@@ -207,7 +207,7 @@ const csrfCheck = async (c: Context, next: Next) => {
 // ============================================================================
 
 const wsConnectionAttempts = new Map<string, { count: number; resetAt: number }>();
-const WS_RATE_LIMIT = Number(process.env.WS_RATE_LIMIT ?? LIMITS.WS_CONNECT_RATE_LIMIT_MAX);
+const WS_RATE_LIMIT = Number(process.env["WS_RATE_LIMIT"] ?? LIMITS.WS_CONNECT_RATE_LIMIT_MAX);
 const WS_RATE_WINDOW = LIMITS.WS_CONNECT_RATE_LIMIT_WINDOW;
 
 setInterval(() => {
@@ -480,12 +480,12 @@ app.get("/", (c) => {
 // Start Server
 // ============================================================================
 
-const port = Number(process.env.PORT ?? 3001);
-const hostname = process.env.HOST ?? "0.0.0.0";
+const port = Number(process.env["PORT"] ?? 3001);
+const hostname = process.env["HOST"] ?? "0.0.0.0";
 
 logger.info(`🚀 Pika! Cloud server starting on http://${hostname}:${port}`);
 logger.info(`📡 WebSocket endpoint: ws://${hostname}:${port}/ws`);
-logger.info(`💾 Database: ${process.env.DATABASE_URL ? "configured" : "localhost (default)"}`);
+logger.info(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "localhost (default)"}`);
 
 /**
  * Debounced broadcast of listener counts (Heartbeat).
@@ -576,7 +576,6 @@ async function gracefulShutdown(signal: string) {
     // Close database connection pool
     try {
       logger.info("🔌 Closing database connection pool...");
-      // @ts-expect-error - client is postgres.js instance
       await client.end({ timeout: 2 });
       logger.info("  ✅ Database connection pool closed");
     } catch (e) {
