@@ -43,6 +43,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      # Grace window so the on-boot `drizzle-kit migrate` doesn't trip a false unhealthy.
+      start_period: 20s
 
   web:
     # Image is built & pushed by the "Deploy to Staging" workflow (GHCR), with
@@ -55,7 +57,6 @@ services:
       - NEXT_PUBLIC_VAPID_PUBLIC_KEY=${NEXT_PUBLIC_VAPID_PUBLIC_KEY}
       - NEXT_PUBLIC_SENTRY_DSN=${NEXT_PUBLIC_SENTRY_DSN}
       - SENTRY_DSN=${SENTRY_DSN}
-      - SENTRY_AUTH_TOKEN=${SENTRY_AUTH_TOKEN}
       - SENTRY_ENVIRONMENT=staging
       - NEXT_PUBLIC_ENV=staging
       - NODE_ENV=production
@@ -71,6 +72,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 20s
 
 volumes:
   postgres_staging_data:

@@ -27,8 +27,9 @@ jobs:
   build:
     name: Build & Push Images
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: docker/setup-buildx-action@v3
 
@@ -86,6 +87,7 @@ jobs:
     name: Deploy to VPS (Staging)
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
