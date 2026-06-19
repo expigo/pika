@@ -22,7 +22,9 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_key }}
           port: ${{ secrets.VPS_PORT }}
-          command_timeout: 20m
+          # Web build (next build, 1-CPU capped) takes ~18min on the VPS; 20m was too tight.
+          # NOTE: the durable fix is to build images in CI and pull on the VPS (see deploy notes).
+          command_timeout: 40m
           script: |
             set -e
             echo "🚀 Starting Staging Deployment..."
