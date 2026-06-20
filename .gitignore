@@ -148,6 +148,14 @@ ENV/
 env.bak/
 venv.bak/
 
+# --- Pika ops ---
+# Monitoring runs from /opt/pika/monitoring now; only the compose is version-controlled here,
+# so never track its data dirs / local backups (prevents committing DB files by accident).
+docker/monitoring/*
+!docker/monitoring/compose.yaml
+# Local env backups (.env itself is already ignored above)
+.env.bak
+
 # Spyder project settings
 .spyderproject
 .spyproject
