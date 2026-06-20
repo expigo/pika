@@ -12,10 +12,11 @@ updates:
       github-actions:
         patterns: ["*"]
 
-  # Keep pinned Docker image tags current (e.g. beszel:0.18.7) via weekly PRs.
-  # Note: Dependabot can only bump *specific* version tags, not floating ones
-  # (`:2`, `:latest`) — pin those to exact versions to get update PRs.
-  - package-ecosystem: "docker"
+  # Keep the monitoring compose's pinned image tags current (e.g. beszel:0.18.7) via weekly PRs.
+  # Uses "docker-compose" (GA Feb 2025) — it scans compose.yaml; the "docker" ecosystem only
+  # scans Dockerfiles (that mismatch caused the earlier "No Dockerfiles found" error).
+  # Dependabot bumps *specific* tags, not floating ones (`:2`, `:latest`) — pin those for PRs.
+  - package-ecosystem: "docker-compose"
     directory: "/docker/monitoring"
     schedule:
       interval: "weekly"
