@@ -31,6 +31,7 @@ import {
 } from "../lib/polls";
 import { parseMessage, sendAck, sendNack } from "../lib/protocol";
 import { getSession, refreshSessionActivity } from "../lib/sessions";
+import { getSessionTopic } from "../lib/topics";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
 
@@ -93,10 +94,10 @@ export async function handleStartPoll(ctx: WSContext) {
   sessionActivePoll.set(msg.sessionId, pollId);
   refreshSessionActivity(msg.sessionId);
 
-  // Broadcast poll arrival to all listeners
+  // Broadcast poll arrival to this session's listeners
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      "live-session",
+      getSessionTopic(msg.sessionId),
       JSON.stringify({
         type: "POLL_STARTED",
         sessionId: msg.sessionId,
@@ -126,9 +127,10 @@ export async function handleStartPoll(ctx: WSContext) {
         const winnerIndex = totalVotes > 0 ? poll.votes.indexOf(Math.max(...poll.votes)) : 0;
         if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
           rawWs.publish(
-            "live-session",
+            getSessionTopic(msg.sessionId),
             JSON.stringify({
               type: "POLL_ENDED",
+              sessionId: msg.sessionId,
               pollId,
               results: poll.votes,
               totalVotes,
@@ -173,9 +175,10 @@ export async function handleEndPoll(ctx: WSContext) {
     // Broadcast results
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(poll.sessionId),
         JSON.stringify({
           type: "POLL_ENDED",
+          sessionId: poll.sessionId,
           pollId: msg.pollId,
           results: poll.votes,
           totalVotes,
@@ -219,9 +222,10 @@ export async function handleCancelPoll(ctx: WSContext) {
     // For cancelled polls, send 0 results
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(poll.sessionId),
         JSON.stringify({
           type: "POLL_ENDED",
+          sessionId: poll.sessionId,
           pollId: msg.pollId,
           results: poll.options.map(() => 0),
           totalVotes: 0,
@@ -277,10 +281,10 @@ export async function handleVoteOnPoll(ctx: WSContext) {
 
     const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
 
-    // Broadcast live update to DJ (and potentially others)
+    // Broadcast live update to this session's DJ (and potentially others)
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(poll.sessionId),
         JSON.stringify({
           type: "POLL_UPDATE",
           pollId: msg.pollId,

@@ -246,9 +246,11 @@ cd packages/cloud && bun add redis
 - [ ] Health check endpoint includes Redis status
 - [ ] Basic GET/SET operations working
 
-### Sprint 1.2: Multi-Topic Pub/Sub Architecture
+### Sprint 1.2: Multi-Topic Pub/Sub Architecture — ✅ SHIPPED (June 2026)
 
-**Current Problem:** Single `"live-session"` topic broadcasts to ALL clients.
+> **Shipped ahead of Redis**, on the current single instance, using Bun's native in-memory pub/sub (Redis is NOT required). Actual implementation lives in [`packages/cloud/src/lib/topics.ts`](../../packages/cloud/src/lib/topics.ts): a global `live-session` discovery topic plus one `session:{id}` topic per session. DJ subscribes on `REGISTER_SESSION`, dancers on `SUBSCRIBE`. Cross-session isolation is proven by [`packages/cloud/test/topic-isolation.test.ts`](../../packages/cloud/test/topic-isolation.test.ts). The sketch below is the original proposal (final names: `session:{id}`, not `topic:session:`; stage/event topics remain future work).
+
+**Problem (RESOLVED):** Single `"live-session"` topic broadcast to ALL clients.
 
 **Solution:** Topic-per-context routing:
 ```
@@ -316,9 +318,9 @@ export async function handleBroadcastTrack(ctx: WSContext) {
 ```
 
 **Acceptance Criteria:**
-- [ ] Clients only receive messages for subscribed sessions
-- [ ] Subscribing to session A doesn't receive session B updates
-- [ ] Load test: 100 sessions, 1000 clients, correct routing
+- [x] Clients only receive messages for subscribed sessions
+- [x] Subscribing to session A doesn't receive session B updates (covered by `topic-isolation.test.ts`)
+- [ ] Load test: 100 sessions, 1000 clients, correct routing *(deferred — unit/integration-proven; large-scale load test still pending)*
 
 ### Sprint 1.3: Session State Migration to Redis
 

@@ -38,7 +38,7 @@ Pika! is built as a **Local-First, Cloud-Synced** system using a **Bun Workspace
     *   *Note:* Pika! uses a **Lazy Load** strategy. It populates its database only when tracks are played, ensuring fast startup without full library imports.
 2.  **Analysis:** If the track is new, it's sent to the Python sidecar. Analysis results (BPM, Key, Energy) are saved to local SQLite.
 3.  **Broadcast:** `useLiveSession.ts` (Desktop) sends a `BROADCAST_TRACK` message with a unique `messageId`.
-4.  **Relay:** `handleBroadcastTrack` (Cloud) verifies the nonce, enqueues the DB write in the `PersistenceQueue`, and publishes to the `live-session` channel.
+4.  **Relay:** `handleBroadcastTrack` (Cloud) verifies the nonce, enqueues the DB write in the `PersistenceQueue`, and publishes to the session's per-session topic (`session:{id}`).
 5.  **Reception:** `useLiveListener.ts` (Web) receives the message via WebSocket and updates the React state.
 6.  **Engagement:** Dancers click "Like". The request is queued in **IndexedDB** if offline, or sent immediately to Cloud for real-time broadcast to the DJ's **LiveHUD**.
 

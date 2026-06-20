@@ -11,6 +11,8 @@ const mockWs = {
 
 const mockRawWs = {
   publish: mock(() => {}),
+  subscribe: mock(() => {}),
+  unsubscribe: mock(() => {}),
   getBufferedAmount: mock(() => 0),
 } as any;
 

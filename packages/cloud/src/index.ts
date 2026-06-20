@@ -10,6 +10,7 @@ import {
 import * as Sentry from "@sentry/bun";
 import type { ServerWebSocket } from "bun";
 import { sql } from "drizzle-orm";
+import type { Context, Next } from "hono";
 import { Hono } from "hono";
 import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
@@ -70,6 +71,7 @@ import {
   getSessionCount,
   getSessionIds,
 } from "./lib/sessions";
+import { DISCOVERY_TOPIC, getSessionTopic } from "./lib/topics";
 
 // WS type alias removed (unused)
 
@@ -82,14 +84,37 @@ const connectionLastActivity = new Map<ServerWebSocket, number>();
 const IDLE_CONNECTION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Returns an open WebSocket to use for broadcasting.
- * Prefers DJ connections if available, as they are usually more stable.
+ * The Bun `Server` instance, captured from the Hono request context on the
+ * first request (see {@link captureBunServer}). Used for server-INITIATED
+ * broadcasts: the listener-count heartbeat, stale-session cleanup, and
+ * graceful shutdown.
+ *
+ * We deliberately use `server.publish()` here instead of a borrowed client
+ * socket's `ws.publish()`: per Bun's pub/sub semantics, `ws.publish()` excludes
+ * the publishing socket, which would silently drop the message for one connected
+ * client. `server.publish()` reaches every subscriber of the topic.
+ *
+ * Minimal structural type — we only ever call `.publish()`. Avoids coupling to
+ * Bun's generic `Server<WebSocketData>` type.
  */
-function getBroadcaster(): ServerWebSocket | null {
-  for (const ws of activeConnections) {
-    if (ws.readyState === 1) return ws; // 1 = OPEN
+interface Broadcaster {
+  publish(topic: string, data: string, compress?: boolean): number;
+}
+let bunServer: Broadcaster | null = null;
+
+/**
+ * Capture the Bun `Server` from the Hono context. Hono passes the Bun Server as
+ * the 2nd argument of `fetch`, surfaced on `c.env` (possibly nested under
+ * `c.env.server` depending on adapter wiring). Idempotent and cheap.
+ */
+function captureBunServer(c: Context): void {
+  if (bunServer) return;
+  const env: unknown = c.env;
+  const candidate =
+    env && typeof env === "object" && "server" in env ? (env as { server: unknown }).server : env;
+  if (candidate && typeof (candidate as { publish?: unknown }).publish === "function") {
+    bunServer = candidate as Broadcaster;
   }
-  return null;
 }
 
 // 🧹 M3 & M5 Fix: Global Cleanup Intervals
@@ -121,23 +146,21 @@ setInterval(() => {
   }
 
   const removedIds = cleanupStaleSessions(); // Default thresholds: Idle 4h, Age 8h, Hard 24h
-  const broadcaster = getBroadcaster();
-  if (removedIds.length > 0 && broadcaster) {
+  if (removedIds.length > 0 && bunServer) {
     for (const sessionId of removedIds) {
       try {
-        // 1. Notify Dancers
-        broadcaster.publish(
-          "live-session",
+        // Notify everyone on the discovery topic that the session is gone:
+        // in-session dancers show "session over", lobby browsers drop it.
+        bunServer.publish(
+          DISCOVERY_TOPIC,
           JSON.stringify({
             type: "SESSION_ENDED",
             sessionId: sessionId,
           }),
         );
 
-        // 2. Notify DJ (Broadcast to the specific session topic)
-        // DJs also subscribe to live-session, but they might need a specific message
-        broadcaster.publish(
-          "live-session",
+        bunServer.publish(
+          DISCOVERY_TOPIC,
           JSON.stringify({
             type: "SESSION_EXPIRED",
             sessionId: sessionId,
@@ -186,8 +209,6 @@ app.use(
 );
 
 // CSRF protection: Require X-Pika-Client header on state-changing requests
-import type { Context, Next } from "hono";
-
 const VALID_CLIENTS = ["pika-web", "pika-desktop", "pika-e2e"] as const;
 
 const csrfCheck = async (c: Context, next: Next) => {
@@ -251,6 +272,8 @@ app.get(
     return next();
   },
   upgradeWebSocket((c) => {
+    // Capture the Bun Server for server-initiated broadcasts (heartbeat/cleanup/shutdown).
+    captureBunServer(c);
     const ip = getClientIp(c);
     const state: handlers.WSConnectionState = {
       clientId: null,
@@ -493,8 +516,7 @@ logger.info(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "loca
  * Only broadcasts for a session if the count has actually changed.
  */
 setInterval(() => {
-  const broadcaster = getBroadcaster();
-  if (!broadcaster) return;
+  if (!bunServer) return;
 
   for (const sessionId of getSessionIds()) {
     const currentCount = getListenerCount(sessionId);
@@ -503,8 +525,9 @@ setInterval(() => {
     if (currentCount !== lastBroadcasted) {
       cachedListenerCounts.set(sessionId, currentCount);
       try {
-        broadcaster.publish(
-          "live-session",
+        // Route each session's count to its own topic — no longer O(sessions × all clients).
+        bunServer.publish(
+          getSessionTopic(sessionId),
           JSON.stringify({ type: "LISTENER_COUNT", sessionId, count: currentCount }),
         );
         // L10: Silence listener logs
@@ -541,11 +564,10 @@ async function gracefulShutdown(signal: string) {
 
   try {
     // Broadcast shutdown message to all connected clients
-    const broadcaster = getBroadcaster();
-    if (broadcaster) {
+    if (bunServer) {
       try {
-        broadcaster.publish(
-          "live-session",
+        bunServer.publish(
+          DISCOVERY_TOPIC,
           JSON.stringify({
             type: "SERVER_SHUTDOWN",
             message: "Server is shutting down for maintenance",

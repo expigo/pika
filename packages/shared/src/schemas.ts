@@ -334,6 +334,7 @@ export const SessionsListSchema = z.object({
 
 export const LikeReceivedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.LIKE_RECEIVED),
+  sessionId: z.string().optional(), // Session this like belongs to (routing + client-side verification)
   payload: z.object({
     track: TrackInfoSchema,
   }),
@@ -341,6 +342,7 @@ export const LikeReceivedSchema = z.object({
 
 export const LikeRemovedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.LIKE_REMOVED),
+  sessionId: z.string().optional(), // Session this unlike belongs to (routing + client-side verification)
   payload: z.object({
     track: TrackInfoSchema,
   }),
@@ -455,6 +457,7 @@ export const PollUpdateSchema = z.object({
 export const PollEndedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.POLL_ENDED),
   pollId: z.number(),
+  sessionId: z.string().optional(), // Session this poll belonged to (routing + client-side verification)
   results: z.array(z.number()), // Final vote count per option
   totalVotes: z.number(),
   winnerIndex: z.number(), // Index of option with most votes

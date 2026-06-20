@@ -19,6 +19,7 @@ import { clearSessionPolls } from "../lib/polls";
 import { logSessionEvent } from "../lib/protocol";
 import { deleteSession, getSession } from "../lib/sessions";
 import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
+import { DISCOVERY_TOPIC } from "../lib/topics";
 import { lastBroadcastTime } from "./dj";
 import { checkBackpressure } from "./utility";
 import type { WSConnectionState } from "./ws-context";
@@ -29,8 +30,11 @@ import type { WSConnectionState } from "./ws-context";
 export function handleOpen(rawWs: ServerWebSocket) {
   logger.debug("🔌 Client connected");
 
-  // Subscribe all clients to the live-session channel
-  rawWs.subscribe("live-session");
+  // Subscribe every client to the global discovery ("lobby") topic. This carries
+  // only rare lifecycle events (session started/ended/expired, shutdown).
+  // High-frequency session traffic flows over per-session topics instead, which
+  // clients join via SUBSCRIBE (dancers) or REGISTER_SESSION (DJs).
+  rawWs.subscribe(DISCOVERY_TOPIC);
 }
 
 /**
@@ -82,11 +86,12 @@ export function handleClose(ws: { raw: unknown }, state: WSConnectionState) {
       cleanupSessionQueue(djSessionId);
       clearLastPersistedTrackKey(djSessionId);
 
-      // Broadcast session ended to all listeners
+      // Broadcast session ended on the discovery topic so both in-session
+      // dancers and lobby browsers learn the session is over.
       const rawWs = ws.raw as ServerWebSocket;
       if (checkBackpressure(rawWs, clientId || undefined).canSend) {
         rawWs.publish(
-          "live-session",
+          DISCOVERY_TOPIC,
           JSON.stringify({
             type: "SESSION_ENDED",
             sessionId: djSessionId,

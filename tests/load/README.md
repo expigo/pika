@@ -29,6 +29,37 @@ SESSION_ID=<your-session-id> k6 run --env SCENARIO=big tests/load/load-test.js
 | Big | `--env SCENARIO=big` | 300 | 22 min | Competition weekend |
 | Stress | `--env SCENARIO=stress` | 500 | 17 min | Breaking point test |
 
+## Multi-Session Capacity Test (festival / fan-out)
+
+`load-test.js` drives a **single** session. To validate the **per-session topic
+routing** — fan-out efficiency and cross-session isolation — at festival scale,
+use the multi-session pair. It spreads dancers across N concurrent sessions and
+**fails the run if any dancer receives another session's traffic**
+(`cross_session_leaks == 0`).
+
+```bash
+# 1. Start the server with a high WS connect-rate limit (one IP, many VUs)
+WS_RATE_LIMIT=1000000 NODE_ENV=development PORT=3001 MAX_SESSIONS=1000 \
+  bun run --filter @pika/cloud start
+
+# 2. Register N DJ sessions that broadcast tracks (separate terminal)
+NUM_SESSIONS=10 WS_URL=ws://localhost:3001/ws bun run tests/load/multi-session-dj-driver.ts
+
+# 3. Drive 1000 dancers across those sessions (separate terminal)
+WS_URL=ws://localhost:3001/ws NUM_SESSIONS=10 TARGET=1000 HOLD=150s \
+  k6 run tests/load/capacity-multi-session.js
+```
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NUM_SESSIONS` | `10` | Concurrent sessions; dancers spread via `__VU % NUM_SESSIONS` |
+| `TARGET` | `1000` | Peak concurrent dancers across all sessions |
+| `HOLD` | `180s` | Hold duration at peak |
+
+**Verified (June 2026, 14-core dev box):** 1000 dancers × 10 sessions → 100%
+connection success, **0 cross-session leaks** across 4.17M delivered messages,
+server ~12% of one core / ~180 MB RSS, connect p95 2.7ms.
+
 ## Environment Variables
 
 | Variable | Default | Description |

@@ -51,6 +51,7 @@ import {
   updateSessionTrack,
 } from "../lib/sessions";
 import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
+import { DISCOVERY_TOPIC, getSessionTopic } from "../lib/topics";
 import { PushService } from "../services/push";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
@@ -147,6 +148,11 @@ export async function handleRegisterSession(ctx: WSContext) {
 
   setSession(sessionId, session);
 
+  // Subscribe this DJ connection to its own per-session topic so it receives
+  // session-scoped traffic from dancers (likes, reactions, tempo, poll votes).
+  // Idempotent: safe to call again on reconnect (client re-sends REGISTER_SESSION).
+  rawWs.subscribe(getSessionTopic(sessionId));
+
   logger.info("🎧 DJ going live", {
     djName,
     sessionId,
@@ -169,10 +175,10 @@ export async function handleRegisterSession(ctx: WSContext) {
 
   if (messageId) sendAck(ws, messageId);
 
-  // Broadcast to all subscribers
+  // Broadcast on the discovery topic so lobby browsers see the new session appear.
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      "live-session",
+      DISCOVERY_TOPIC,
       JSON.stringify({
         type: "SESSION_STARTED",
         sessionId,
@@ -243,10 +249,10 @@ export async function handleBroadcastTrack(ctx: WSContext) {
         // Clear tempo votes for this session
         clearTempoVotes(msg.sessionId);
 
-        // Broadcast to all clients to reset their tempo vote UI
+        // Broadcast to this session's clients to reset their tempo vote UI
         if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
           rawWs.publish(
-            "live-session",
+            getSessionTopic(msg.sessionId),
             JSON.stringify({
               type: "TEMPO_RESET",
               sessionId: msg.sessionId,
@@ -263,10 +269,10 @@ export async function handleBroadcastTrack(ctx: WSContext) {
       sessionId: msg.sessionId,
     });
 
-    // Broadcast new track to all connected clients
+    // Broadcast new track to this session's subscribers
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(msg.sessionId),
         JSON.stringify({
           type: "NOW_PLAYING",
           sessionId: msg.sessionId,
@@ -339,7 +345,7 @@ export async function handleBroadcastMetadata(ctx: WSContext) {
     // Uses METADATA_UPDATED type which clients should handle by merging into current state
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(msg.sessionId),
         JSON.stringify({
           type: "METADATA_UPDATED",
           sessionId: msg.sessionId,
@@ -385,7 +391,7 @@ export function handleTrackStopped(ctx: WSContext) {
 
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(msg.sessionId),
         JSON.stringify({
           type: "TRACK_STOPPED",
           sessionId: msg.sessionId,
@@ -447,10 +453,15 @@ export function handleEndSession(ctx: WSContext) {
     cleanupSessionQueue(msg.sessionId);
     clearLastPersistedTrackKey(msg.sessionId);
 
-    // Broadcast end session (best effort)
+    // Drop this DJ connection's subscription to the (now dead) session topic.
+    // The connection stays open and may register a new session later.
+    rawWs.unsubscribe(getSessionTopic(msg.sessionId));
+
+    // Broadcast end session on the discovery topic (best effort) so both
+    // in-session dancers and lobby browsers learn the session is over.
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        DISCOVERY_TOPIC,
         JSON.stringify({
           type: "SESSION_ENDED",
           sessionId: msg.sessionId,
@@ -504,7 +515,7 @@ export function handleSendAnnouncement(ctx: WSContext) {
 
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      "live-session",
+      getSessionTopic(announcementSessionId),
       JSON.stringify({
         type: "ANNOUNCEMENT_RECEIVED",
         sessionId: announcementSessionId,
@@ -584,7 +595,7 @@ export function handleCancelAnnouncement(ctx: WSContext) {
 
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      "live-session",
+      getSessionTopic(cancelSessionId),
       JSON.stringify({
         type: "ANNOUNCEMENT_CANCELLED",
         sessionId: cancelSessionId,
@@ -638,10 +649,10 @@ export async function handleSyncSessionHistory(ctx: WSContext) {
       }),
     );
 
-    // 📢 Broadcast sync event to all participants so they can refresh their history
+    // 📢 Broadcast sync event to this session's participants so they refresh history
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(msg.sessionId),
         JSON.stringify({
           type: "HISTORY_SYNCED",
           sessionId: msg.sessionId,

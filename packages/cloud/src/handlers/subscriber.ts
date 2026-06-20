@@ -11,10 +11,11 @@
  */
 
 import { logger, SubscribeSchema } from "@pika/shared";
-import { addListener, getListenerCount } from "../lib/listeners";
+import { addListener, getListenerCount, removeListener } from "../lib/listeners";
 import { getActivePoll, sessionActivePoll } from "../lib/polls";
 import { parseMessage, sendAck } from "../lib/protocol";
 import { getAllSessions, getSession } from "../lib/sessions";
+import { getSessionTopic } from "../lib/topics";
 import type { WSContext } from "./ws-context";
 
 /**
@@ -34,25 +35,39 @@ export function handleSubscribe(ctx: WSContext) {
     availableSessions: allSessions.map((s) => ({ id: s.sessionId, dj: s.djName })),
   });
 
-  // Only log if this is a new subscription (not a repeat)
+  // Determine "new listener" BEFORE mutating state.isListener below, so the
+  // once-per-connection listener accounting stays correct.
   const isNewSubscription = !state.isListener && state.clientId && targetSession;
   if (isNewSubscription) {
     logger.info("👀 New listener for session", { sessionId: targetSession });
   }
 
-  // Mark this connection as a listener
+  // 🔀 Join the target session's per-session topic so this connection receives
+  // ONLY that session's high-frequency traffic. subscribe() is idempotent (Bun
+  // subscriptions are a set), so this is safe on repeat SUBSCRIBE / reconnect.
+  // If this same connection was on a different session, leave it first.
+  if (targetSession && state.clientId) {
+    if (state.subscribedSessionId && state.subscribedSessionId !== targetSession) {
+      rawWs.unsubscribe(getSessionTopic(state.subscribedSessionId));
+      removeListener(state.subscribedSessionId, state.clientId);
+    }
+    rawWs.subscribe(getSessionTopic(targetSession));
+    state.subscribedSessionId = targetSession;
+  }
+
+  // Mark this connection as a listener and count it exactly once per connection.
   if (isNewSubscription && targetSession && state.clientId) {
     state.isListener = true;
-    state.subscribedSessionId = targetSession;
     const isNewUniqueClient = addListener(targetSession, state.clientId);
 
     const count = getListenerCount(targetSession);
     logger.debug(`👥 Listener count for ${targetSession}: ${count}`);
 
-    // Only broadcast if unique client count changed
+    // Only broadcast if unique client count changed. Published to the session
+    // topic; the new joiner gets its own count via the direct send below.
     if (isNewUniqueClient) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(targetSession),
         JSON.stringify({
           type: "LISTENER_COUNT",
           sessionId: targetSession,

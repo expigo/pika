@@ -53,6 +53,8 @@ mock.module("../src/db", () => ({
 const mockWs = {
   send: mock(),
   publish: mock(),
+  subscribe: mock(),
+  unsubscribe: mock(),
   getBufferedAmount: () => 0,
 } as any;
 

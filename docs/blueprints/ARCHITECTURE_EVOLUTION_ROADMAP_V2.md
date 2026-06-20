@@ -420,7 +420,7 @@ Priority: Medium
 
 ## Phase 1: Infrastructure Foundation (REVISED: 1 week, was 2 weeks)
 
-**Goal:** Redis + Multi-topic pub/sub
+**Goal:** Redis + Multi-topic pub/sub — *multi-topic ✅ shipped ahead of Redis (in-memory Bun pub/sub); see Sprint 1.2*
 **Complexity Reduction:** No data migration needed (not live)
 
 ### Sprint 1.1: Redis Client Integration (1 day)
@@ -447,32 +447,21 @@ export async function initRedis() {
 
 ---
 
-### Sprint 1.2: Multi-Topic Pub/Sub (2 days)
+### Sprint 1.2: Multi-Topic Pub/Sub (2 days) — ✅ SHIPPED (June 2026)
 
-**Problem:** Single `"live-session"` topic broadcasts to ALL clients
-**Solution:** Topic-per-context routing
+**Problem:** Single `"live-session"` topic broadcast to ALL clients → cross-session leakage (likes/polls) and O(all clients) fan-out.
 
-```typescript
-// packages/cloud/src/lib/topics.ts
-export const TOPIC_PREFIX = {
-  SESSION: 'topic:session:',
-  STAGE: 'topic:stage:',
-  EVENT: 'topic:event:',
-  SYSTEM: 'topic:system'
-} as const;
+**Shipped solution — decoupled from Redis.** Implemented on the current single instance using Bun's native in-memory pub/sub; Redis (Sprints 1.1/1.3) is NOT a prerequisite. See [`packages/cloud/src/lib/topics.ts`](../../packages/cloud/src/lib/topics.ts):
 
-export function getSessionTopic(sessionId: string): string {
-  return `${TOPIC_PREFIX.SESSION}${sessionId}`;
-}
+*   `live-session` — global **discovery / "lobby"** topic; every connection subscribes on open; carries lifecycle events only (`SESSION_STARTED/ENDED/EXPIRED`, `SERVER_SHUTDOWN`).
+*   `session:{id}` — one topic **per live session**; carries all high-frequency traffic. DJ joins on `REGISTER_SESSION`; dancers on `SUBSCRIBE` (and leave the old topic when switching).
+*   Server-initiated broadcasts (heartbeat/cleanup/shutdown) use `server.publish()` (reaches all); handler broadcasts use `ws.publish()` (excludes the sender → no self-echo).
 
-export function getStageTopic(stageId: string): string {
-  return `${TOPIC_PREFIX.STAGE}${stageId}`;
-}
-```
+> Final naming is `session:{id}` (not the originally-sketched `topic:session:` prefix), and `live-session` is retained as the discovery topic for client back-compat. Stage/event topics remain future work.
 
 **Acceptance Criteria:**
-- [ ] Clients only receive messages for subscribed topics
-- [ ] Test: 100 sessions, 1000 clients, correct routing
+- [x] Clients only receive messages for their subscribed session
+- [x] Subscribing to session A does not receive session B updates — proven by [`packages/cloud/test/topic-isolation.test.ts`](../../packages/cloud/test/topic-isolation.test.ts)
 
 ---
 

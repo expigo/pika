@@ -2,8 +2,8 @@
 
 This document describes the technical implementation of the synchronization layer between the **Desktop** app (the source of truth) and the **Cloud** server (the distribution layer).
 
-**Last Updated:** February 1, 2026 (v0.4.6)
-**Audit Status:** 100% Verified against v0.4.6 codebase.
+**Last Updated:** June 20, 2026 (v0.4.6)
+**Audit Status:** Verified against codebase. Broadcasting uses per-session pub/sub topics (see §2 "Pub/Sub Topic Routing").
 
 ## 1. Design Philosophy: "Local First, Cloud Second"
 
@@ -34,6 +34,23 @@ The connection is established via WebSockets (`wss://`).
 *   **Library:** Bun's native `ServerWebSocket` via Hono integration.
 *   **State:** In-memory `activeSessions` Map.
 *   **Scaling:** Currently single-instance. (Future work: Redis adapter for multi-instance support).
+
+#### Pub/Sub Topic Routing
+
+Broadcasting is split across two kinds of Bun pub/sub topics (defined in [`src/lib/topics.ts`](../../packages/cloud/src/lib/topics.ts)):
+
+| Topic | Who subscribes | Carries |
+|-------|----------------|---------|
+| `live-session` (discovery / "lobby") | **every** connection, on open | Rare lifecycle events only: `SESSION_STARTED`, `SESSION_ENDED`, `SESSION_EXPIRED`, `SERVER_SHUTDOWN` |
+| `session:{id}` (per-session) | dancers on `SUBSCRIBE`; the DJ on `REGISTER_SESSION` | **All** high-frequency, session-scoped traffic: `NOW_PLAYING`, `METADATA_UPDATED`, `TRACK_STOPPED`, `LIKE_RECEIVED`/`LIKE_REMOVED`, `REACTION_RECEIVED`, `TEMPO_FEEDBACK`/`TEMPO_RESET`, `ANNOUNCEMENT_*`, `POLL_*`, `LISTENER_COUNT`, `HISTORY_SYNCED` |
+
+**Why:** routing per-session traffic to per-session topics makes cross-session delivery *impossible* (no client-side `sessionId` filtering required) and collapses fan-out from O(all clients) to O(clients in that session).
+
+**Publish semantics (important):**
+*   **Handler broadcasts** (originated by a client message) use `ws.publish(topic, …)`, which *excludes the originating socket* — so a DJ doesn't get its own `NOW_PLAYING` echoed and a dancer doesn't get its own like echoed back.
+*   **Server-initiated broadcasts** (the 2 s listener-count heartbeat, stale-session cleanup, graceful shutdown) use `server.publish(topic, …)`, which reaches *every* subscriber. The Bun `Server` is captured from the Hono context on the first request.
+
+> Bun topics are in-memory and per-instance — correct for the current single-instance deployment, and they map 1:1 onto Redis pub/sub channels when multi-instance scaling lands.
 
 ## 3. The Offline Queue Mechanism
 

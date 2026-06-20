@@ -27,6 +27,7 @@ import { deletePersistedLike, persistLike } from "../lib/persistence/tracks";
 import { parseMessage, sendAck, sendNack } from "../lib/protocol";
 import { getSessionIds, hasSession } from "../lib/sessions";
 import { getTempoFeedback, recordTempoVote } from "../lib/tempo";
+import { getSessionTopic } from "../lib/topics";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
 
@@ -125,12 +126,14 @@ export async function handleSendLike(ctx: WSContext) {
     logger.error("❌ Failed to persist like", e),
   );
 
-  // Broadcast the like to all subscribers (including the DJ)
+  // Broadcast the like to this session's subscribers (including the DJ).
+  // sessionId is included so clients can defensively verify routing.
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      "live-session",
+      getSessionTopic(likeSessionId),
       JSON.stringify({
         type: "LIKE_RECEIVED",
+        sessionId: likeSessionId,
         payload: { track },
       }),
     );
@@ -170,12 +173,13 @@ export async function handleRemoveLike(ctx: WSContext) {
     logger.error("❌ Failed to delete persisted like", e),
   );
 
-  // Broadcast the removal to all subscribers (including the DJ)
+  // Broadcast the removal to this session's subscribers (including the DJ).
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      "live-session",
+      getSessionTopic(sessionId),
       JSON.stringify({
         type: MESSAGE_TYPES.LIKE_REMOVED,
+        sessionId,
         payload: { track },
       }),
     );
@@ -216,12 +220,13 @@ export async function handleSendBulkLike(ctx: WSContext) {
     recordLike(likeSessionId, state.clientId, track);
     persistLike(track, likeSessionId, state.clientId).catch(() => {});
 
-    // Broadcast individually to DJ/Subscribers so regular animations/events fire
+    // Broadcast individually to this session's DJ/subscribers so animations fire
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(likeSessionId),
         JSON.stringify({
           type: "LIKE_RECEIVED",
+          sessionId: likeSessionId,
           payload: { track },
         }),
       );
@@ -240,10 +245,10 @@ export function handleSendReaction(ctx: WSContext) {
   if (!msg) return;
 
   if (msg.reaction === "thank_you") {
-    // Broadcast reaction to all subscribers
+    // Broadcast reaction to this session's subscribers
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        "live-session",
+        getSessionTopic(msg.sessionId),
         JSON.stringify({
           type: "REACTION_RECEIVED",
           sessionId: msg.sessionId,
@@ -301,10 +306,10 @@ export function handleSendTempoRequest(ctx: WSContext) {
   // Get updated aggregates
   const feedback = getTempoFeedback(targetSessionId);
 
-  // Broadcast updated aggregates to all subscribers
+  // Broadcast updated aggregates to this session's subscribers
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      "live-session",
+      getSessionTopic(targetSessionId),
       JSON.stringify({
         type: "TEMPO_FEEDBACK",
         sessionId: targetSessionId,
