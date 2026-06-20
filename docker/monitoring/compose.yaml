@@ -3,7 +3,8 @@
 
 services:
   beszel-agent:
-    image: henrygd/beszel-agent
+    # Pinned for reproducibility (Dependabot proposes bumps). Keep agent + hub on the SAME version.
+    image: henrygd/beszel-agent:0.18.7
     container_name: beszel-agent
     restart: unless-stopped
     network_mode: host
@@ -20,7 +21,7 @@ services:
       HUB_URL: https://monitor.pika.stream
 
   beszel-hub:
-    image: "henrygd/beszel:latest"
+    image: "henrygd/beszel:0.18.7"
     container_name: "beszel-hub"
     restart: unless-stopped
     ports:
@@ -30,7 +31,11 @@ services:
 
   # Public Status Page & Incident Monitoring
   uptime-kuma:
-    image: louislam/uptime-kuma:1
+    # ⚠️ v2 is a MAJOR upgrade: BACK UP ./uptime-kuma-data first — the first 2.x
+    # start performs a ONE-WAY SQLite schema migration (you can't roll back to v1
+    # against the migrated data dir). `:latest` is dead in v2 — must use :2 (or a
+    # specific tag like :2.1.x; pin it once you've confirmed the version in the UI).
+    image: louislam/uptime-kuma:2
     container_name: uptime-kuma
     restart: unless-stopped
     ports:

@@ -11,3 +11,13 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+
+  # Keep pinned Docker image tags current (e.g. beszel:0.18.7) via weekly PRs.
+  # Note: Dependabot can only bump *specific* version tags, not floating ones
+  # (`:2`, `:latest`) — pin those to exact versions to get update PRs.
+  - package-ecosystem: "docker"
+    directory: "/docker/monitoring"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "chore"

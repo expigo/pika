@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: pika-staging-db
+    mem_limit: 384m # staging is secondary — keep it from crowding prod on the 4 GB host
     environment:
       POSTGRES_USER: ${DB_USER:-pika}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
@@ -22,6 +23,7 @@ services:
     # VPS only pulls — it never builds (1 vCPU / 4 GB can't build Next sanely).
     image: ghcr.io/expigo/pika-cloud:staging
     container_name: pika-staging-cloud
+    mem_limit: 384m
     environment:
       - DATABASE_URL=postgres://${DB_USER:-pika}:${DB_PASSWORD}@db:5432/${DB_NAME:-pika_staging}
       - NODE_ENV=production
@@ -51,6 +53,7 @@ services:
     # the NEXT_PUBLIC_* baked in there. The VPS only pulls — it never builds.
     image: ghcr.io/expigo/pika-web:staging
     container_name: pika-staging-web
+    mem_limit: 512m
     environment:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://staging-api.pika.stream/ws
       - NEXT_PUBLIC_CLOUD_API_URL=https://staging-api.pika.stream

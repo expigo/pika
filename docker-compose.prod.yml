@@ -2,6 +2,7 @@ services:
   db:
     image: postgres:16-alpine
     container_name: pika-db
+    mem_limit: 512m # cap so no single container can exhaust the shared 4 GB host
     environment:
       POSTGRES_USER: pika
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pika_secure_change_me}
@@ -23,6 +24,7 @@ services:
     # pulls — it never builds (1 vCPU / 4 GB can't build Next, and it's the live host).
     image: ghcr.io/expigo/pika-cloud:prod
     container_name: pika-cloud
+    mem_limit: 512m # Bun server; sits well under this in normal use
     environment:
       - DATABASE_URL=postgres://pika:${POSTGRES_PASSWORD:-pika_secure_change_me}@db:5432/pika_prod
       - NODE_ENV=production
@@ -52,6 +54,9 @@ services:
     # NEXT_PUBLIC_* baked in there. The VPS only pulls — it never builds.
     image: ghcr.io/expigo/pika-web:prod
     container_name: pika-web
+    # Caps the slow RSS growth: a leak gets OOM-killed + auto-restarted (restart:
+    # unless-stopped) instead of slowly starving prod off the 4 GB box.
+    mem_limit: 768m
     environment:
       - NEXT_PUBLIC_CLOUD_WS_URL=wss://api.pika.stream/ws
       - NEXT_PUBLIC_CLOUD_API_URL=https://api.pika.stream
