@@ -5,7 +5,7 @@ services:
     mem_limit: 512m # cap so no single container can exhaust the shared 4 GB host
     environment:
       POSTGRES_USER: pika
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-pika_secure_change_me}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in prod .env}
       POSTGRES_DB: pika_prod
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -26,7 +26,7 @@ services:
     container_name: pika-cloud
     mem_limit: 512m # Bun server; sits well under this in normal use
     environment:
-      - DATABASE_URL=postgres://pika:${POSTGRES_PASSWORD:-pika_secure_change_me}@db:5432/pika_prod
+      - DATABASE_URL=postgres://pika:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in prod .env}@db:5432/pika_prod
       - NODE_ENV=production
       - PORT=3001
       - VAPID_PUBLIC_KEY=${VAPID_PUBLIC_KEY}

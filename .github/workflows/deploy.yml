@@ -9,6 +9,7 @@ on:
       - '**.md'
       - 'LICENSE'
       - '.gitignore'
+      - '.github/dependabot.yml' # bot config — must not trigger an app redeploy
 
 # Never interrupt an in-flight deploy; queue the next one instead.
 concurrency:
