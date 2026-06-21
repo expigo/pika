@@ -1,7 +1,7 @@
 # Pika! Developer Handover & Technical Guide
 
-**Date:** February 1, 2026
-**Version:** 0.4.0 ("Onboarding & Intelligence" Release)
+**Date:** June 2026
+**Version:** 0.4.7 ("Excellence" Hardening Release)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
 
@@ -129,6 +129,12 @@ We chose Tauri over Electron for lighter resource usage (critical for DJs runnin
     *   **Portal Architecture:** All modals (`Dialog`, `SessionImport`, `DuplicateWarning`) now render via `createPortal` to `document.body`, eliminating z-index/transform clipping issues.
     *   **Context-Aware UI:** "Currently Playing" indicators in import lists and smart gap detection (>10m) in track previews.
     *   **One-Step Go Live:** Merged Session Name input into the Import/Skip flow for a frictionless start.
+*   **Real-Time & Resilience Hardening (v0.4.5–0.4.7):**
+    *   **Per-Session Topics:** WebSocket fan-out moved from one global topic to `session:{id}` topics (+ a `live-session` discovery/lobby topic). Cross-session leakage is now impossible and fan-out is O(clients in session). See `lib/topics.ts`.
+    *   **Tolerant Track Schema:** `TrackInfoSchema` normalizes null / out-of-range metrics to `undefined` instead of rejecting, so unanalyzed tracks broadcast (previously a silent drop blocked "Go Live"). Invalid messages now get a `NACK` instead of a silent drop.
+    *   **Connection Resilience:** Client treats only intentional/4xxx/1013 closes as terminal (transient `1000`/`1006` reconnect via `closePolicy.ts`); the shared socket is ref-counted across the two `useLiveSession` mounts. Server adds a **DJ-reconnect grace period** (`scheduleDjReap`/`reapSession`, ~45s) so a brief DJ drop no longer flickers dancers with `SESSION_ENDED`/`SESSION_STARTED`.
+    *   **WKWebView Mitigation:** `perMessageDeflate` disabled on the Bun server (WebKit resets compressed `ws://localhost` frames). Offline queue is scoped to the current session (no stale cross-session replay).
+    *   **Web Dev OOM Fix:** Hoisted `tailwindcss` to the root and gated `withSentryConfig` to production so `next dev` no longer hits a Turbopack recompile loop.
 
 ---
 
@@ -271,4 +277,4 @@ Users often restart the app during a gig. Auto-importing history without validat
 
 ---
 
-*Last Updated: February 1, 2026 (v0.4.0 - Onboarding & Intelligence Release)*
+*Last Updated: June 2026 (v0.4.7 - "Excellence" Hardening Release)*

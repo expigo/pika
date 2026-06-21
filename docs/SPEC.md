@@ -1,4 +1,4 @@
-# Pika! Technical Specification (v0.4.0)
+# Pika! Technical Specification (v0.4.7)
 
 Welcome to Pika!. This document serves as the authoritative technical reference for the Pika! ecosystem, designed for onboarding developers and AI agents.
 
@@ -55,13 +55,13 @@ Pika! adheres to a "Premium First" design philosophy:
 ## 6. Security Mandates
 - **Authentication:** BCrypt hashing for passwords. SHA-256 with per-token salt for API tokens.
 - **Rate Limiting:** Enforced on Auth endpoints (5/15min) and Engagement actions (e.g., likes/polls).
-- **CSRF:** Strict `X-Requested-With` header validation and custom CORS policies.
+- **CSRF:** Multi-layered — `X-Requested-With: Pika` on auth endpoints (`routes/auth.ts`) and `X-Pika-Client` on all state-changing requests (`index.ts`), plus custom CORS policies.
 - **Audit Logs:** Metadata sanitization in Sentry (PII scrubbing) and structured logging via `@pika/shared/logger`.
 - **Environment:** Critical secrets (`DATABASE_URL`, `SENTRY_AUTH_TOKEN`, `VAPID_KEYS`) must be configured in `.env` per package.
 
 ---
 
-## 6. Development Workflow
+## 7. Development Workflow
 
 ### 6.1. Package Management
 Pika! uses **Bun Workspaces**. Run commands from the root:
@@ -74,11 +74,11 @@ bun --filter @pika/desktop tauri dev # Run only the Desktop dev server
 
 ### 6.2. Standards
 - **Linting:** Biome (`bun run lint`).
-- **Testing:** Bun Test (Cloud), Vitest (Desktop/Web). **450+ tests** total.
+- **Testing:** Bun Test (Cloud), Vitest (Desktop). **670+ tests** total (319 cloud, 328 desktop, 24 shared).
 - **Logging:** Always use the shared `logger`. Avoid `console.log` in production-ready code.
 
 ### 6.3. Versioning
-We follow Semantic Versioning. The current stable version is **v0.4.0 (Onboarding & Intelligence)**.
+We follow Semantic Versioning. The current stable version is **v0.4.7 (Excellence Hardening)**.
 
 ---
 
@@ -86,4 +86,4 @@ We follow Semantic Versioning. The current stable version is **v0.4.0 (Onboardin
 For deployment, monitoring, and scaling instructions, refer to the `docs/ops-manual.md`. For the future roadmap, see `docs/ROADMAP.md`.
 
 ---
-**Document Status:** v0.4.0 Finalized | **Net Score:** 11/10 🚀
+**Document Status:** v0.4.7 | **Net Score:** 11/10 🚀

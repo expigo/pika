@@ -39,7 +39,6 @@ const targets = [
   { path: "docs/architecture/security.md", type: "md" },
   { path: "docs/architecture/performance-guide.md", type: "md" },
   { path: "docs/architecture/logbook-data.md", type: "md" },
-  { path: "docs/projects/phase3-audit.md", type: "md" },
   { path: "docs/architecture/cloud-modules.md", type: "md" },
   { path: "docs/architecture/social-signals.md", type: "md" },
   { path: "docs/architecture/realtime-infrastructure.md", type: "md" },

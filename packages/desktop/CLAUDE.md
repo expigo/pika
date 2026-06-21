@@ -448,7 +448,7 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 316 verified tests (Vitest)
+**Current coverage:** 328 passing tests (Vitest, +1 skipped)
 
 ### Test Files
 

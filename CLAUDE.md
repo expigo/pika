@@ -12,7 +12,7 @@ Whenever working with any third-party library or something similar, you MUST loo
 
 **Pika!** is an intelligent companion for West Coast Swing DJs that bridges the gap between a DJ's local music library and dancers on the floor. It provides real-time "Now Playing" displays, analytics, and social interaction features.
 
-**Version:** 0.4.5 (Production Ready)
+**Version:** 0.4.7 (Production Ready)
 **License:** Apache-2.0
 
 ## Monorepo Architecture
@@ -89,11 +89,11 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of Feb 2026):** 614 verified tests total
-- Desktop: 316 tests (Vitest)
-- Cloud: 283 tests (Bun)
-- Shared: 15 tests (Bun)
-- Web: Test infrastructure exists but no test script in package.json yet
+**Test Coverage (as of June 2026):** 671 passing tests total
+- Desktop: 328 tests (Vitest, +1 skipped)
+- Cloud: 319 tests (Bun)
+- Shared: 24 tests (Bun)
+- Web: test files exist (`src/__tests__/`) but no `test` script wired yet
 
 ### Code Quality
 
@@ -226,7 +226,7 @@ chore: bump version to 0.4.0
 - Use `parseMessage<T>()` in Cloud handlers for type-safe parsing
 
 ### Testing Philosophy
-- **513 verified tests** across all packages (231 desktop, 267 cloud, 15 shared)
+- **671 passing tests** across all packages (328 desktop, 319 cloud, 24 shared)
 - Test files colocated with source: `*.test.ts` or `__tests__/` directories
 - Use Vitest for TS/JS, pytest for Python
 - Aim for 100% coverage of critical paths (connection lifecycle, history import)

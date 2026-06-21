@@ -1,4 +1,6 @@
-**Last Verification:** February 1, 2026 (v0.4.6 Final)
+> ⚠️ **ARCHIVED / HISTORICAL (Feb 2026 point-in-time audit record).** For the current roadmap see [ROADMAP.md](ROADMAP.md) and [blueprints/ARCHITECTURE_EVOLUTION_ROADMAP_V2.md](blueprints/ARCHITECTURE_EVOLUTION_ROADMAP_V2.md).
+
+**Last Verification:** February 1, 2026 (v0.4.7 Final)
 **Maintained By:** Engineering Team (Historical Audit Record)
 
 ---
@@ -20,12 +22,12 @@ This roadmap consolidates findings from deep code audits across all 4 packages (
 - **High Issues:** 0 ✅
 - **Medium Issues:** 0 (resolved or documented)
 - **Test Coverage:** 614 Verified Unit Tests (+ E2E) ✅
-- **Observability:** Full-stack Sentry + PII scrubbing (v0.4.6) ✅
-- **Performance:** Zero-waste battery + SWR caching (v0.4.6) ✅
-- **Resilience:** Backpressure + Persistence Queues (v0.4.6) ✅
-- [x] **Hardening:** CSP Externalization + DB Cascades (v0.4.6) ✅
-- [x] **UX Fidelity:** Structural "Thank You" Framing + Welcome-Back Burst (v0.4.6) ✅
-- [x] **Logic Refactor:** Unified "Go Live" flow + Reliable VDJ history sync (v0.4.6) ✅
+- **Observability:** Full-stack Sentry + PII scrubbing (v0.4.7) ✅
+- **Performance:** Zero-waste battery + SWR caching (v0.4.7) ✅
+- **Resilience:** Backpressure + Persistence Queues (v0.4.7) ✅
+- [x] **Hardening:** CSP Externalization + DB Cascades (v0.4.7) ✅
+- [x] **UX Fidelity:** Structural "Thank You" Framing + Welcome-Back Burst (v0.4.7) ✅
+- [x] **Logic Refactor:** Unified "Go Live" flow + Reliable VDJ history sync (v0.4.7) ✅
 
 ---
 
@@ -305,7 +307,7 @@ Add to all message schemas:
 ```typescript
 const BaseMessageSchema = z.object({
   type: z.string(),
-  version: z.literal("0.4.6").optional(),
+  version: z.literal("0.4.7").optional(),
   timestamp: z.number().optional(),
 });
 ```
@@ -562,7 +564,7 @@ export const metadata: Metadata = {
   - message: `.max(200)` (`shared/src/schemas.ts:396`)
   - options[]: `.min(1).max(100)` (`shared/src/schemas.ts:290`)
 - [x] Protocol version in all messages
-  - `version: z.literal("0.4.6").optional()` (`shared/src/schemas.ts:136,144`)
+  - `version: z.literal("0.4.7").optional()` (`shared/src/schemas.ts:136,144`)
 - [x] Numeric constraints enforced
   - bpm: `.min(0).max(300)` / `.min(40).max(300)` (`shared/src/schemas.ts:65,84`)
 - [x] String length limits active
@@ -602,10 +604,10 @@ export const metadata: Metadata = {
 - [x] Performance benchmarks met (indexes, batch operations)
 - [x] Security audit passed (auth, rate limiting, input validation)
 
-- [x] Documentation fully updated (v0.4.6)
+- [x] Documentation fully updated (v0.4.7)
 
 ### Phase 3 Hardening Complete When: ✅ VERIFIED (2026-01-25)
-- [x] Observability (v0.4.6): Full-stack Sentry reporting on all packages.
+- [x] Observability (v0.4.7): Full-stack Sentry reporting on all packages.
 - [x] Privacy: PII scrubbing (Cookies, Headers, IP) confirmed active.
 - [x] Battery (H1): Visibilitychange verified stopping poll/WS activity.
 - [x] Latency (H2): Deferred localStorage hits yielding to main thread.
