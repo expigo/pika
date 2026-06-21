@@ -68,8 +68,10 @@ describe("VirtualDJWatcher", () => {
     // Simulate event
     await eventCallback({ payload: mockTrack });
 
-    // Flush promises to allow async handleNativeUpdate to finish
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Flush promises to allow async handleNativeUpdate to finish.
+    // Under fake timers a real setTimeout(0) never fires, so advance + flush
+    // microtasks via the timer-aware helper instead.
+    await vi.advanceTimersByTimeAsync(0);
 
     // Verify listener notified
     expect(listener).toHaveBeenCalledWith(
@@ -103,11 +105,10 @@ describe("VirtualDJWatcher", () => {
     // Verify native failed but caught
     expect(mockInvoke).toHaveBeenCalledWith("start_vdj_watcher", expect.anything());
 
-    // Simulate poll tick
-    vi.advanceTimersByTime(1000);
-
-    // Flush promises to let the async interval callback run
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Simulate poll tick AND flush the async interval callback's microtasks.
+    // (advanceTimersByTimeAsync fires the timer and awaits pending promises;
+    // a plain setTimeout(0) flush would hang under fake timers.)
+    await vi.advanceTimersByTimeAsync(1000);
 
     // Verify polling read occurred and listener notified
     expect(mockInvoke).toHaveBeenCalledWith("read_virtualdj_history", expect.anything());

@@ -19,7 +19,10 @@ const _mockDbChain = () => {
   return new Proxy({}, handler);
 };
 
-// More specific mock for DB to control return values
+// More specific mock for DB to control return values.
+// `then` makes the chain itself awaitable → resolves to [] for queries that do
+// NOT end in `.limit()` (e.g. recap's batched `.where()`/`.groupBy()` aggregates),
+// while `.limit()` stays independently spy-able for row results.
 const mockDb = {
   select: () => mockDb,
   from: () => mockDb,
@@ -33,6 +36,8 @@ const mockDb = {
   onConflictDoNothing: async () => ({}),
   update: () => mockDb,
   set: () => mockDb,
+  // Awaiting a non-terminal chain resolves to an empty result set.
+  then: (resolve: (value: unknown) => void) => resolve([]),
 };
 
 // Mock database
