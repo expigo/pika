@@ -23,13 +23,24 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  // For all available options, see:
-  // https://github.com/getsentry/sentry-webpack-plugin#options
+// Only wrap with Sentry for production builds. In `next dev` (Turbopack), the
+// Sentry plugin injects a parallel webpack resolution pass that, in this Bun
+// isolated-install monorepo, cannot resolve the `tailwindcss` bare specifier
+// from the repo root and sends Turbopack into an unbounded recompile/retry loop
+// that exhausts RAM (see vercel/next.js#92978). Gating to production removes the
+// dual-bundler pass in dev entirely; Sentry remains fully active in prod builds.
+const config =
+  process.env.NODE_ENV === "production"
+    ? withSentryConfig(nextConfig, {
+        // For all available options, see:
+        // https://github.com/getsentry/sentry-webpack-plugin#options
 
-  // Suppresses source map uploading logs during bundling
-  silent: true,
-  org: "pika",
-  project: "web",
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-});
+        // Suppresses source map uploading logs during bundling
+        silent: true,
+        org: "pika",
+        project: "web",
+        authToken: process.env.SENTRY_AUTH_TOKEN,
+      })
+    : nextConfig;
+
+export default config;
