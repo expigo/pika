@@ -7,10 +7,15 @@
  * @package @pika/desktop
  */
 
-import { toast } from "sonner";
 import { TIMEOUTS } from "@pika/shared";
+import { toast } from "sonner";
 import { offlineQueueRepository } from "../../db/repositories/offlineQueueRepository";
+import { getSessionId } from "./stateHelpers";
 import { DEFAULT_QUEUE_FLUSH_CONFIG, type QueueFlushConfig } from "./types";
+
+// Queued messages older than this are purged on flush rather than replayed — the
+// offline queue only buffers the CURRENT session across a brief reconnect.
+const QUEUE_MAX_AGE_SECONDS = 6 * 60 * 60;
 
 // ============================================================================
 // Module State
@@ -90,6 +95,12 @@ export async function flushQueue(): Promise<void> {
 
     const idsToDelete: number[] = [];
     let consecutiveFailures = 0;
+    let purged = 0;
+
+    // Only the CURRENT session's messages should be replayed. Anything from a
+    // previous session (or with no session) is stale and must be purged, not sent.
+    const currentSessionId = getSessionId();
+    const nowSeconds = Math.floor(Date.now() / 1000);
 
     // Process queue sequentially with exponential backoff
     for (let i = 0; i < queue.length; i++) {
@@ -110,6 +121,18 @@ export async function flushQueue(): Promise<void> {
 
       if (!item.payload) {
         idsToDelete.push(item.id);
+        continue;
+      }
+
+      // 🧹 Purge stale / foreign-session messages instead of replaying them into
+      // the current session (prevents an old session's tracks/history from being
+      // re-broadcast, and clears entries that would otherwise loop forever).
+      const payloadSessionId = (item.payload as { sessionId?: string }).sessionId;
+      const isForeign = !payloadSessionId || payloadSessionId !== currentSessionId;
+      const isStale = nowSeconds - item.createdAt > QUEUE_MAX_AGE_SECONDS;
+      if (isForeign || isStale) {
+        idsToDelete.push(item.id); // delete without sending
+        purged++;
         continue;
       }
 
@@ -143,10 +166,12 @@ export async function flushQueue(): Promise<void> {
       }
     }
 
-    // Clean up successfully sent messages
+    // Clean up flushed + purged messages
     if (idsToDelete.length > 0) {
       await offlineQueueRepository.deleteMany(idsToDelete);
-      console.log(`[Queue] Removed ${idsToDelete.length} flushed messages from DB`);
+      console.log(
+        `[Queue] Cleared ${idsToDelete.length} messages from DB (${purged} stale/foreign purged)`,
+      );
     }
   } catch (e) {
     console.error("[Queue] Failed to flush queue:", e);

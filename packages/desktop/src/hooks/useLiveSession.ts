@@ -1,4 +1,4 @@
-import { getTrackKey, MESSAGE_TYPES, TrackInfo, parseWebSocketMessage } from "@pika/shared";
+import { getTrackKey, MESSAGE_TYPES, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
@@ -8,9 +8,9 @@ import { settingsRepository } from "../db/repositories/settingsRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
 import { apiFetch } from "../services/apiClient";
 import { enqueueForAnalysis } from "../services/progressiveAnalysisService";
+import { getAuthToken, getConfiguredUrls, getDjName } from "../services/settingsService";
 import { type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "../services/virtualDjWatcher";
 import { logger } from "../utils/logger";
-import { getAuthToken, getConfiguredUrls, getDjName } from "../services/settingsService";
 
 // Re-export from useLiveStore for backwards compatibility
 export { type LiveSessionStore, type LiveStatus, useLiveStore } from "./useLiveStore";
@@ -32,12 +32,14 @@ import {
   sendMessage,
   setMessageSenderSocket,
   setQueueSocketInstance,
-  startVirtualDJWatcher,
   setSocketInstance as setReliabilitySocket,
+  startVirtualDJWatcher,
 } from "./live";
+import { isTerminalClose } from "./live/closePolicy";
 // Import constants
 import {
   CONNECTION_TIMEOUT_MS,
+  FINGERPRINT_SYNC_TIMEOUT_MS,
   GHOST_FILE_PREFIX,
   LIKE_STORAGE_DEBOUNCE_MS,
   MAX_ANNOUNCEMENT_DURATION_SECONDS,
@@ -52,22 +54,21 @@ import {
   MIN_RECONNECTION_DELAY_MS,
   OPTIMISTIC_POLL_ID,
   TRACK_DEDUP_WINDOW_MS,
-  FINGERPRINT_SYNC_TIMEOUT_MS,
 } from "./live/constants";
 import { type MessageRouterContext, messageRouter } from "./live/messageRouter";
 // Import state helpers for store-based state access
 import {
   addProcessedTrackKey,
   clearProcessedTrackKeys,
+  getPendingHistorySync,
   getCurrentPlayId as getStoreCurrentPlayId,
   getDbSessionId as getStoreDbSessionId,
-  getPendingHistorySync,
   getSessionId as getStoreSessionId,
   hasProcessedTrackKey,
   isInLiveMode,
   setLastBroadcastedTrackKey,
-  setCurrentPlayId as setStoreCurrentPlayId,
   setPendingHistorySync,
+  setCurrentPlayId as setStoreCurrentPlayId,
   shouldSkipInitialTrackBroadcast,
 } from "./live/stateHelpers";
 import { useLiveStore } from "./useLiveStore";
@@ -80,6 +81,17 @@ export { subscribeToReactions } from "./live";
 // =============================================================================
 
 let socketInstance: ReconnectingWebSocket | null = null;
+
+// True only when the client itself is ending the session (DJ "End Set" or final
+// app teardown). Lets onclose distinguish an intentional close from a transient
+// drop — see isTerminalClose / closePolicy.ts.
+let intentionalClose = false;
+
+// Ref-count of mounted useLiveSession instances (App + LiveControl). The shared
+// socket is torn down only when the LAST instance unmounts, so a single
+// component remount (StrictMode / HMR / re-render) can no longer kill a live
+// session.
+let hookMountCount = 0;
 
 // Re-track likes PER playId to prevent attribution to wrong track
 const pendingLikesByPlayId = new Map<number, number>();
@@ -680,14 +692,29 @@ export function useLiveSession() {
     };
   }, [handleTrackChange]);
 
-  // 🧹 M6 Fix: Cleanup socket on unmount to prevent leaks
+  // 🧹 Ref-counted teardown (M6/H6 fix, hardened).
+  // useLiveSession is mounted by more than one component (App + LiveControl) and
+  // they share the module-level `socketInstance`. Tearing the socket down on
+  // EACH instance's unmount meant a single component remount (StrictMode / HMR /
+  // re-render) killed a live session. Instead we tear down only when the LAST
+  // instance unmounts (genuine app teardown).
   useEffect(() => {
+    hookMountCount++;
     return () => {
+      hookMountCount--;
+      if (hookMountCount > 0) return; // another instance still owns the socket
+      logger.debug("Live", "Last useLiveSession unmounted — tearing down socket");
+      intentionalClose = true; // real teardown, not a transient blip
       if (socketInstance) {
-        logger.debug("Live", "Cleaning up socket on unmount");
         socketInstance.close();
         socketInstance = null;
       }
+      clearPendingMessages();
+      if (likeStorageTimer) {
+        clearTimeout(likeStorageTimer);
+        likeStorageTimer = null;
+      }
+      messageRouter.clearContext();
     };
   }, []);
 
@@ -726,6 +753,9 @@ export function useLiveSession() {
   // End set - disconnect and stop watching
   const endSet = useCallback(async () => {
     logger.info("Live", "Ending set");
+
+    // This is a deliberate teardown — mark it so onclose does not try to reconnect.
+    intentionalClose = true;
 
     // Send end session message and close socket
     if (socketInstance) {
@@ -849,6 +879,10 @@ export function useLiveSession() {
 
       const activeSessionId = preCreatedSession?.sessionId || generateSessionId();
 
+      // Starting a fresh session — clear any prior intentional-close flag so a
+      // transient drop in this session is allowed to reconnect.
+      intentionalClose = false;
+
       setStatus("connecting");
       setError(null);
       setSessionId(activeSessionId);
@@ -968,14 +1002,18 @@ export function useLiveSession() {
           // 🛡️ Issue 32 Fix: Clear pending messages on disconnect to prevent stuck promises
           clearPendingMessages();
 
-          // 🛡️ Issue 41 Fix: Don't reconnect on fatal errors (4000-4999) or normal closure (1000)
-          const isFatalClose = event.code === 1000 || (event.code >= 4000 && event.code < 5000);
-
-          if (isFatalClose) {
-            logger.warn("Live", "Session ended by server (fatal close code)", {
+          // Terminal close = stop reconnecting (DJ ended the set, app teardown,
+          // or an app-defined fatal code). A normal close (1000) or a transient
+          // drop (1006, "network connection lost") is NOT terminal — let
+          // ReconnectingWebSocket recover. Server-intentional termination
+          // arrives separately as the SESSION_EXPIRED message. See closePolicy.ts.
+          if (isTerminalClose(event.code, intentionalClose)) {
+            logger.warn("Live", "Session closed (terminal)", {
               code: event.code,
               reason: event.reason,
+              intentional: intentionalClose,
             });
+            intentionalClose = false;
             // Stop reconnection attempts properly
             socket.close(); // Ensure closure
             setStatus("offline");
@@ -985,7 +1023,10 @@ export function useLiveSession() {
             return;
           }
 
+          // Transient drop: keep the session alive and let RWS reconnect.
+          // Do NOT call socket.close() here — that would cancel reconnection.
           if (isInLiveMode()) {
+            logger.info("Live", "Connection dropped, reconnecting…", { code: event.code });
             setStatus("connecting");
             setError("Reconnecting...");
           }
@@ -1009,7 +1050,16 @@ export function useLiveSession() {
         setError(error instanceof Error ? error.message : String(error));
       }
     },
-    [status, setStatus, setError, setSessionId, setDbSessionId, setNowPlaying, endSet, syncSessionHistory],
+    [
+      status,
+      setStatus,
+      setError,
+      setSessionId,
+      setDbSessionId,
+      setNowPlaying,
+      endSet,
+      syncSessionHistory,
+    ],
   );
 
   // Clear now playing
@@ -1248,26 +1298,7 @@ export function useLiveSession() {
     toast.success("State synced!");
   }, []);
 
-  // Cleanup on unmount - close socket and clear router to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      // Close socket if still open
-      if (socketInstance) {
-        logger.debug("Live", "Cleaning up socket on unmount");
-        socketInstance.close();
-        socketInstance = null;
-      }
-      // Clear pending message timeouts (H6 fix)
-      clearPendingMessages();
-      // Clear like storage timer
-      if (likeStorageTimer) {
-        clearTimeout(likeStorageTimer);
-        likeStorageTimer = null;
-      }
-      // Clear message router context
-      messageRouter.clearContext();
-    };
-  }, []);
+  // (socket/router/timer teardown is handled by the ref-counted effect above)
 
   // Get activePoll, endedPoll, and liveLikes from store
   const { activePoll, activeAnnouncement, endedPoll, liveLikes, clearEndedPoll } = useLiveStore();
