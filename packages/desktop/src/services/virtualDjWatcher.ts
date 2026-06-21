@@ -24,25 +24,35 @@ export interface NowPlayingTrack extends TrackInfo {
 }
 
 /**
+ * Normalize an optional numeric metric to a valid number or `undefined`.
+ * Mirrors the server's TrackInfoSchema predicate so the desktop never emits
+ * null / NaN / out-of-range values (unanalyzed tracks, odd VirtualDJ bpm),
+ * which would otherwise be silently rejected by the cloud's validation.
+ */
+function normalizeMetric(value: unknown, min: number, max: number): number | undefined {
+  const n = typeof value === "string" ? Number.parseFloat(value) : value;
+  return typeof n === "number" && Number.isFinite(n) && n >= min && n <= max ? n : undefined;
+}
+
+/**
  * Convert NowPlayingTrack to TrackInfo for WebSocket messages.
- * Includes fingerprint data if available.
+ * Includes fingerprint data if available. All metrics are normalized so a
+ * missing/null/out-of-range value becomes `undefined` rather than an invalid
+ * payload (see TrackInfoSchema in @pika/shared).
  */
 export function toTrackInfo(track: NowPlayingTrack): TrackInfo {
   return {
     artist: track.artist,
     title: track.title,
-    // Core metrics (Ensure BPM is a number for shared schema validation)
-    bpm:
-      typeof track.bpm === "string"
-        ? Number.parseFloat(track.bpm) || undefined
-        : (track.bpm as number | undefined),
-    key: track.key,
-    // Fingerprint metrics (if available on track)
-    energy: track.energy,
-    danceability: track.danceability,
-    brightness: track.brightness,
-    acousticness: track.acousticness,
-    groove: track.groove,
+    // Core metrics (valid bpm 40-300; null / out-of-range → undefined)
+    bpm: normalizeMetric(track.bpm, 40, 300),
+    key: typeof track.key === "string" && track.key.trim().length > 0 ? track.key : undefined,
+    // Fingerprint metrics (0-100 scale; null / out-of-range → undefined)
+    energy: normalizeMetric(track.energy, 0, 100),
+    danceability: normalizeMetric(track.danceability, 0, 100),
+    brightness: normalizeMetric(track.brightness, 0, 100),
+    acousticness: normalizeMetric(track.acousticness, 0, 100),
+    groove: normalizeMetric(track.groove, 0, 100),
   };
 }
 

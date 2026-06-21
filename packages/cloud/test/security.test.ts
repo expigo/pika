@@ -67,24 +67,31 @@ describe("Security: Schema Validation", () => {
       expect(result.success).toBe(false);
     });
 
-    test("rejects BPM below 40", () => {
+    // NOTE: Optional metrics use tolerant normalization (drop-to-undefined)
+    // instead of hard rejection, so a single bad/absent value from an
+    // unanalyzed track can never invalidate the whole BROADCAST_TRACK message
+    // (the desktop session-start bug). The security property is preserved: an
+    // out-of-range value is neutralized to `undefined` and never reaches the DB.
+    test("neutralizes BPM below 40 (→ undefined, does not reject)", () => {
       const result = TrackInfoSchema.safeParse({
         title: "Title",
         artist: "Artist",
         bpm: 39,
       });
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.bpm).toBeUndefined();
     });
 
-    test("rejects BPM above 300", () => {
+    test("neutralizes BPM above 300 (→ undefined, does not reject)", () => {
       const result = TrackInfoSchema.safeParse({
         title: "Title",
         artist: "Artist",
         bpm: 301,
       });
 
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      if (result.success) expect(result.data.bpm).toBeUndefined();
     });
 
     test("accepts valid BPM range", () => {
@@ -95,22 +102,25 @@ describe("Security: Schema Validation", () => {
       });
 
       expect(result.success).toBe(true);
+      if (result.success) expect(result.data.bpm).toBe(128);
     });
 
-    test("rejects energy outside 0-100 range", () => {
+    test("neutralizes energy outside 0-100 range (→ undefined)", () => {
       const lowResult = TrackInfoSchema.safeParse({
         title: "Title",
         artist: "Artist",
         energy: -1,
       });
-      expect(lowResult.success).toBe(false);
+      expect(lowResult.success).toBe(true);
+      if (lowResult.success) expect(lowResult.data.energy).toBeUndefined();
 
       const highResult = TrackInfoSchema.safeParse({
         title: "Title",
         artist: "Artist",
         energy: 101,
       });
-      expect(highResult.success).toBe(false);
+      expect(highResult.success).toBe(true);
+      if (highResult.success) expect(highResult.data.energy).toBeUndefined();
     });
 
     test("trims whitespace from strings", () => {
@@ -424,22 +434,26 @@ describe("Security: Numeric Boundaries", () => {
         expect(result.success).toBe(true);
       });
 
-      test(`${field} rejects -1`, () => {
+      // Tolerant normalization: out-of-range is neutralized to undefined
+      // (never persisted) rather than rejecting the whole message.
+      test(`${field} neutralizes -1 (→ undefined)`, () => {
         const result = TrackInfoSchema.safeParse({
           title: "Title",
           artist: "Artist",
           [field]: -1,
         });
-        expect(result.success).toBe(false);
+        expect(result.success).toBe(true);
+        if (result.success) expect((result.data as Record<string, unknown>)[field]).toBeUndefined();
       });
 
-      test(`${field} rejects 101`, () => {
+      test(`${field} neutralizes 101 (→ undefined)`, () => {
         const result = TrackInfoSchema.safeParse({
           title: "Title",
           artist: "Artist",
           [field]: 101,
         });
-        expect(result.success).toBe(false);
+        expect(result.success).toBe(true);
+        if (result.success) expect((result.data as Record<string, unknown>)[field]).toBeUndefined();
       });
     }
   });

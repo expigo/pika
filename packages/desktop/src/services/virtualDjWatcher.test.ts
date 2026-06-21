@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { virtualDjWatcher } from "./virtualDjWatcher";
+import { type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "./virtualDjWatcher";
 
 // Mock Tauri APIs
 const mockInvoke = vi.fn();
@@ -128,5 +128,47 @@ describe("VirtualDJWatcher", () => {
 
     expect(unlistenFn).toHaveBeenCalled();
     expect(mockInvoke).toHaveBeenCalledWith("stop_vdj_watcher");
+  });
+});
+
+describe("toTrackInfo — outgoing payload normalization", () => {
+  const base = (over: Partial<NowPlayingTrack>): NowPlayingTrack => ({
+    artist: "A",
+    title: "T",
+    filePath: "/x.mp3",
+    timestamp: new Date(),
+    ...over,
+  });
+
+  it("passes through valid metrics", () => {
+    const r = toTrackInfo(base({ bpm: 96, key: "Am", energy: 70, groove: 55 }));
+    expect(r.bpm).toBe(96);
+    expect(r.key).toBe("Am");
+    expect(r.energy).toBe(70);
+    expect(r.groove).toBe(55);
+  });
+
+  it("coerces null metrics to undefined (unanalyzed track)", () => {
+    const r = toTrackInfo(
+      base({
+        bpm: null as unknown as number,
+        key: null as unknown as string,
+        energy: null as unknown as number,
+        danceability: null as unknown as number,
+      }),
+    );
+    expect(r.bpm).toBeUndefined();
+    expect(r.key).toBeUndefined();
+    expect(r.energy).toBeUndefined();
+    expect(r.danceability).toBeUndefined();
+  });
+
+  it("drops out-of-range bpm to undefined", () => {
+    expect(toTrackInfo(base({ bpm: 0 })).bpm).toBeUndefined();
+    expect(toTrackInfo(base({ bpm: 999 })).bpm).toBeUndefined();
+  });
+
+  it("parses numeric-string bpm", () => {
+    expect(toTrackInfo(base({ bpm: "128" as unknown as number })).bpm).toBe(128);
   });
 });

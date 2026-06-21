@@ -343,3 +343,44 @@ describe("Lifecycle & subscription routing", () => {
     expectSessionTopic(rawWs, sessionId, "LISTENER_COUNT");
   });
 });
+
+// ============================================================================
+// Regression: unanalyzed track (null/out-of-range metrics) must NOT be dropped
+// (the desktop "session goes offline / ACK timeout" bug)
+// ============================================================================
+
+describe("BROADCAST_TRACK with null/out-of-range metrics is accepted and ACKed", () => {
+  it("broadcasts NOW_PLAYING and ACKs a track with null fingerprint + null bpm/key", async () => {
+    const sessionId = "session_nullmetrics";
+    live(sessionId);
+    const rawWs = makeRawWs();
+    await handleBroadcastTrack(
+      djCtx(
+        rawWs,
+        {
+          type: "BROADCAST_TRACK",
+          sessionId,
+          messageId: "nm1",
+          track: {
+            artist: "A",
+            title: "T",
+            bpm: null,
+            key: null,
+            energy: null,
+            danceability: null,
+            brightness: null,
+            acousticness: null,
+            groove: null,
+          },
+        },
+        sessionId,
+      ),
+    );
+
+    // Not silently dropped: it reached the session topic …
+    expectSessionTopic(rawWs, sessionId, "NOW_PLAYING");
+    // … and the reliable send was acknowledged (no ACK timeout on the client).
+    expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('"type":"ACK"'));
+    expect(mockWs.send).toHaveBeenCalledWith(expect.stringContaining('"messageId":"nm1"'));
+  });
+});

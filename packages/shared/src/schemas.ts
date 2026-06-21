@@ -64,21 +64,42 @@ export const MESSAGE_TYPES = {
 } as const;
 
 /**
+ * Tolerant optional numeric metric.
+ *
+ * Accepts number | numeric-string | null | undefined and normalizes anything
+ * that is non-finite, null, or outside [min, max] to `undefined`. It never
+ * throws, so a single bad/absent metric (e.g. an unanalyzed track's null
+ * fingerprint, or an implausible VirtualDJ bpm) can no longer invalidate the
+ * whole message. Inferred type stays `number | undefined`.
+ */
+const optionalMetric = (min: number, max: number) =>
+  z.preprocess((v) => {
+    const n = typeof v === "string" ? Number(v) : v;
+    return typeof n === "number" && Number.isFinite(n) && n >= min && n <= max ? n : undefined;
+  }, z.number().optional());
+
+/** Tolerant optional key string: null / empty / over-long → undefined. */
+const optionalKey = z.preprocess(
+  (v) => (typeof v === "string" && v.trim().length > 0 && v.length <= 10 ? v : undefined),
+  z.string().optional(),
+);
+
+/**
  * Basic track info for WebSocket messages
  * Includes optional fingerprint data for analytics
  */
 export const TrackInfoSchema = z.object({
   title: z.string().min(1).max(500).trim(),
   artist: z.string().min(1).max(500).trim(),
-  // Core metrics
-  bpm: z.number().min(40).max(300).optional(),
-  key: z.string().max(10).optional(),
-  // Fingerprint metrics (all 0-100 scale)
-  energy: z.number().min(0).max(100).optional(),
-  danceability: z.number().min(0).max(100).optional(),
-  brightness: z.number().min(0).max(100).optional(),
-  acousticness: z.number().min(0).max(100).optional(),
-  groove: z.number().min(0).max(100).optional(),
+  // Core metrics (valid bpm 40-300; null / out-of-range → undefined)
+  bpm: optionalMetric(40, 300),
+  key: optionalKey,
+  // Fingerprint metrics (all 0-100 scale; null / out-of-range → undefined)
+  energy: optionalMetric(0, 100),
+  danceability: optionalMetric(0, 100),
+  brightness: optionalMetric(0, 100),
+  acousticness: optionalMetric(0, 100),
+  groove: optionalMetric(0, 100),
 });
 
 export type TrackInfo = z.infer<typeof TrackInfoSchema>;
@@ -142,7 +163,7 @@ export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
 export const RegisterSessionSchema = z.object({
   type: z.literal(MESSAGE_TYPES.REGISTER_SESSION),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().trim().min(8).max(64).optional(),
   djName: z
     .string()
@@ -158,7 +179,7 @@ export const RegisterSessionSchema = z.object({
 
 export const BroadcastTrackSchema = z.object({
   type: z.literal(MESSAGE_TYPES.BROADCAST_TRACK),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
   track: TrackInfoSchema,
   messageId: z.string().optional(),
@@ -175,7 +196,7 @@ export const BroadcastMetadataSchema = z.object({
 
 export const TrackStoppedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.TRACK_STOPPED),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
   messageId: z.string().optional(),
   clientId: z.string().optional(),
@@ -183,7 +204,7 @@ export const TrackStoppedSchema = z.object({
 
 export const EndSessionSchema = z.object({
   type: z.literal(MESSAGE_TYPES.END_SESSION),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
   messageId: z.string().optional(),
   clientId: z.string().optional(),
@@ -191,7 +212,7 @@ export const EndSessionSchema = z.object({
 
 export const SubscribeSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SUBSCRIBE),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim().optional(), // Session to subscribe to (for listener tracking)
   clientId: z.string().min(8).max(256).trim().optional(), // Client identifier (for unique listener count)
   messageId: z.string().optional(),
@@ -280,7 +301,7 @@ export const HistorySyncedSchema = z.object({
 
 export const SessionRegisteredSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_REGISTERED),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().trim().min(8).max(64),
   djName: z
     .string()
@@ -294,14 +315,14 @@ export const SessionRegisteredSchema = z.object({
 
 export const SessionStartedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_STARTED),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
   djName: z.string().min(1).max(100).trim(),
 });
 
 export const NowPlayingSchema = z.object({
   type: z.literal(MESSAGE_TYPES.NOW_PLAYING),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
   djName: z.string().min(1).max(100).trim(),
   track: TrackInfoSchema,
@@ -309,7 +330,7 @@ export const NowPlayingSchema = z.object({
 
 export const SessionEndedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_ENDED),
-  version: z.literal("0.3.0").optional(),
+  version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
 });
 
