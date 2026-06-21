@@ -41,6 +41,7 @@ import {
 } from "../lib/persistence/tracks";
 import { logSessionEvent, parseMessage, sendAck, sendNack } from "../lib/protocol";
 import {
+  cancelDjReap,
   clearSessionTrack,
   deleteSession,
   getSession,
@@ -103,6 +104,12 @@ export async function handleRegisterSession(ctx: WSContext) {
 
   const sessionId = msg.sessionId || `session_${Date.now()}`;
   const requestedDjName = msg.djName || "DJ";
+
+  // Reconnect within the DJ grace window? Cancel the pending teardown and treat
+  // this as a continuation of the existing session — we must NOT re-broadcast
+  // SESSION_STARTED (that would flicker the lobby / in-session dancers). A pending
+  // reap timer OR a still-live session both indicate a reconnect.
+  const reconnected = cancelDjReap(sessionId) || !!getSession(sessionId);
 
   // 🛡️ M5 Fix: Prevent unbounded session growth
   // Check limit BEFORE creating new session (unless it's a reconnect to existing)
@@ -176,7 +183,9 @@ export async function handleRegisterSession(ctx: WSContext) {
   if (messageId) sendAck(ws, messageId);
 
   // Broadcast on the discovery topic so lobby browsers see the new session appear.
-  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
+  // Skip on reconnect-within-grace: the session never ended for dancers/lobby, so
+  // re-announcing it would cause a visible flicker.
+  if (!reconnected && checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
       DISCOVERY_TOPIC,
       JSON.stringify({
@@ -421,6 +430,9 @@ export function handleEndSession(ctx: WSContext) {
     if (messageId) sendNack(ws, messageId, "Unauthorized end session");
     return;
   }
+
+  // Explicit End Set is intentional — cancel any pending reconnect-grace reap.
+  cancelDjReap(msg.sessionId);
 
   const session = getSession(msg.sessionId);
   if (session) {

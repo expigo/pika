@@ -41,9 +41,52 @@ export interface LiveSession {
 
 const activeSessions = new Map<string, LiveSession>();
 
+// DJ-reconnect grace: when a DJ socket drops we defer teardown via a timer so a
+// quick reconnect (the WebView drops `ws://localhost` periodically) keeps the
+// session alive and invisible to dancers. Keyed by sessionId.
+const djReapTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 // ============================================================================
 // Operations
 // ============================================================================
+
+/**
+ * Schedule a deferred session teardown ("reap") after the DJ disconnects.
+ * No-op if the session no longer exists or a reap is already pending.
+ */
+export function scheduleDjReap(sessionId: string, ms: number, onReap: () => void): void {
+  if (!activeSessions.has(sessionId)) return; // already gone (e.g. explicit End Set)
+  if (djReapTimers.has(sessionId)) return; // already scheduled
+  const timer = setTimeout(() => {
+    djReapTimers.delete(sessionId);
+    onReap();
+  }, ms);
+  // Don't keep the process alive solely for a pending reap.
+  if (typeof timer === "object" && timer && "unref" in timer) {
+    (timer as { unref: () => void }).unref();
+  }
+  djReapTimers.set(sessionId, timer);
+  logger.debug("⏳ [SESSIONS] DJ reap scheduled", { sessionId, ms });
+}
+
+/**
+ * Cancel a pending DJ reap (the DJ reconnected within the grace window, or the
+ * session was ended explicitly).
+ * @returns true if a reap was pending (i.e. this was a reconnect-within-grace).
+ */
+export function cancelDjReap(sessionId: string): boolean {
+  const timer = djReapTimers.get(sessionId);
+  if (!timer) return false;
+  clearTimeout(timer);
+  djReapTimers.delete(sessionId);
+  logger.debug("✅ [SESSIONS] DJ reap cancelled (reconnected)", { sessionId });
+  return true;
+}
+
+/** Whether a DJ reap is currently pending for a session (for tests/diagnostics). */
+export function hasPendingDjReap(sessionId: string): boolean {
+  return djReapTimers.has(sessionId);
+}
 
 /**
  * Get a session by ID

@@ -61,10 +61,12 @@ if (process.env.NODE_ENV === "production" || process.env["SENTRY_DSN"]) {
 }
 
 import * as handlers from "./handlers";
+import { type Broadcaster, setBroadcaster } from "./lib/broadcaster";
 import { cachedListenerCounts } from "./lib/cache";
 import { cleanupStaleListeners, getListenerCount } from "./lib/listeners";
 import { cleanupSessionQueue } from "./lib/persistence/queue";
 import { clearLastPersistedTrackKey } from "./lib/persistence/tracks";
+import { sendNack } from "./lib/protocol";
 import {
   cleanupStaleSessions,
   getAllSessions,
@@ -97,9 +99,6 @@ const IDLE_CONNECTION_TIMEOUT = 5 * 60 * 1000; // 5 minutes
  * Minimal structural type — we only ever call `.publish()`. Avoids coupling to
  * Bun's generic `Server<WebSocketData>` type.
  */
-interface Broadcaster {
-  publish(topic: string, data: string, compress?: boolean): number;
-}
 let bunServer: Broadcaster | null = null;
 
 /**
@@ -114,6 +113,9 @@ function captureBunServer(c: Context): void {
     env && typeof env === "object" && "server" in env ? (env as { server: unknown }).server : env;
   if (candidate && typeof (candidate as { publish?: unknown }).publish === "function") {
     bunServer = candidate as Broadcaster;
+    // Share it so deferred/server-initiated broadcasts (e.g. the DJ-reconnect
+    // grace reap in lifecycle.ts) can publish after a connection is gone.
+    setBroadcaster(bunServer);
   }
 }
 
@@ -304,10 +306,23 @@ app.get(
           const json = JSON.parse(data);
           const result = WebSocketMessageSchema.safeParse(json);
           if (!result.success) {
+            const issue = result.error.issues[0];
             logger.warn("⚠️ Message validation failed", {
               type: json.type,
               issues: result.error.issues,
             });
+            // 🛡️ Don't silently drop: NACK reliable messages so the client gets
+            // an explicit failure instead of an opaque ACK timeout.
+            if (typeof json?.messageId === "string") {
+              const where = issue?.path?.join(".");
+              sendNack(
+                ws,
+                json.messageId,
+                `Invalid ${json?.type ?? "message"}: ${issue?.message ?? "validation failed"}${
+                  where ? ` (${where})` : ""
+                }`,
+              );
+            }
             return;
           }
 
@@ -626,6 +641,9 @@ export default {
   fetch: app.fetch,
   websocket: {
     ...websocket,
-    perMessageDeflate: true, // L6: WS Compression check
+    // Disabled: WebKit/WKWebView (the Tauri desktop WebView) drops `ws://localhost`
+    // connections mid-stream when permessage-deflate is on. Compression saves
+    // almost nothing on these small JSON frames over LAN/localhost.
+    perMessageDeflate: false,
   },
 };
