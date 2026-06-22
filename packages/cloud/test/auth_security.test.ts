@@ -37,6 +37,7 @@ const mockDb = {
   update: () => mockDb,
   set: () => mockDb,
   // Awaiting a non-terminal chain resolves to an empty result set.
+  // biome-ignore lint/suspicious/noThenProperty: intentional thenable mock for drizzle chains
   then: (resolve: (value: unknown) => void) => resolve([]),
 };
 

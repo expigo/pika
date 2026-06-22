@@ -29,6 +29,7 @@ import type { WSConnectionState } from "./ws-context";
 // ~1s; deferring teardown keeps the session live and invisible to dancers.
 // A genuine departure (app closed) ends the session after this delay.
 // Overridable via env for ops tuning / tests.
+// biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 const DJ_RECONNECT_GRACE_MS = Number(process.env["DJ_RECONNECT_GRACE_MS"] ?? 45_000);
 
 /**

@@ -1,7 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { useLiveStore } from "../useLiveStore";
-import { messageRouter } from "../live/messageRouter";
-import { MESSAGE_TYPES } from "@pika/shared";
 
 // Mock dependencies
 vi.mock("reconnecting-websocket");

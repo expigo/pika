@@ -1,7 +1,7 @@
 name: CI
 
-# Run the quality gate on both deploy branches (and PRs into them), so lint/type
-# errors surface on staging BEFORE they're promoted to main — not after.
+# Quality gate on both deploy branches (and PRs into them), so lint/type/test
+# failures surface on staging BEFORE they're promoted to main — not after.
 on:
   pull_request:
     branches: [ "main", "staging" ]
@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   check:
-    name: Type Check & Build
+    name: Lint, Types & Tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -32,16 +32,65 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
-      # Global Lint (Faster & Covers everything)
-      - name: Global Lint (Biome)
+      # Lint (Biome — fast; desktop is excluded via .biomeignore)
+      - name: Lint (Biome)
         run: bun run lint
 
-      # Type Check Cloud
-      - name: Type Check Cloud
-        run: bun run --filter @pika/cloud typecheck
-      
-      # Web Build & Type Check
+      # Type check every package (desktop + shared were previously unchecked in CI)
+      - name: Type Check (cloud / shared / desktop)
+        run: |
+          bun run --filter @pika/cloud typecheck
+          bun run --filter @pika/shared typecheck
+          bun run --filter @pika/desktop typecheck
+
       - name: Type Check & Build Web
         run: |
           bun run --filter @pika/web typecheck
           bun run --filter @pika/web build
+
+      # Unit tests (mocked — no external services needed)
+      - name: Unit Tests (cloud / shared / desktop)
+        run: |
+          bun run --filter @pika/cloud test
+          bun run --filter @pika/shared test
+          bun run --filter @pika/desktop test
+
+  integration:
+    name: DB Integration (Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pika
+          POSTGRES_PASSWORD: pika
+          POSTGRES_DB: pika_cloud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pika -d pika_cloud"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://pika:pika@localhost:5432/pika_cloud
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      # Apply the migration baseline, then run the gated integration suite against
+      # real Postgres — this is what would have caught the missing like-constraint
+      # and the migration drift the audit found.
+      - name: Migrate
+        run: bun run --filter @pika/cloud db:migrate
+
+      - name: Cloud DB integration tests
+        run: bun run --filter @pika/cloud test:integration

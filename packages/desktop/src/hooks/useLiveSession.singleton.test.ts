@@ -44,11 +44,10 @@ describe("useLiveSession Singleton Pattern", () => {
     setupListener();
     expect(watcherListeners.length).toBe(1); // Should still be 1!
 
-    // Cleanup
-    if (watcherUnsubscribe) {
-      watcherUnsubscribe();
-      watcherUnsubscribe = null;
-    }
+    // Cleanup. watcherUnsubscribe is mutated inside setupListener(), invisible to
+    // TS's flow analysis — cast to restore its real type before calling.
+    (watcherUnsubscribe as (() => void) | null)?.();
+    watcherUnsubscribe = null;
     expect(watcherListeners.length).toBe(0);
   });
 });

@@ -99,7 +99,6 @@ class VirtualDJWatcher {
   private listeners: TrackChangeCallback[] = [];
   private visibilityListenerAdded = false;
   private unlistenFn: UnlistenFn | null = null;
-  private isUsingNative = false;
 
   /**
    * Read and parse the latest track from history using Rust
@@ -185,7 +184,6 @@ class VirtualDJWatcher {
         this.handleNativeUpdate(event.payload);
       });
 
-      this.isUsingNative = true;
       console.log("[VDJ Watcher] Native watcher started successfully. Polling disabled.");
 
       // Initial read to populate state immediately
@@ -203,7 +201,6 @@ class VirtualDJWatcher {
       }
     } catch (e) {
       console.warn("[VDJ Watcher] Native watcher failed to start, falling back to polling:", e);
-      this.isUsingNative = false;
 
       // FALBACK: Start polling (Legacy Logic)
       const getInterval = () => {
@@ -336,7 +333,6 @@ class VirtualDJWatcher {
       this.unlistenFn = null;
       invoke("stop_vdj_watcher").catch(console.error);
     }
-    this.isUsingNative = false;
 
     // Stop polling
     if (this.pollingInterval) {

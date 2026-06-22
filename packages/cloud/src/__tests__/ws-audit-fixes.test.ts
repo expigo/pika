@@ -260,7 +260,6 @@ describe("Poll Timer Unref (P0 Fix)", () => {
     // Create a mock timer with unref tracking
     let unrefCalled = false;
     const mockTimer = setTimeout(() => {}, 1000) as unknown as Timer;
-    const originalUnref = mockTimer.unref;
     mockTimer.unref = () => {
       unrefCalled = true;
       return mockTimer;

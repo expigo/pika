@@ -48,10 +48,12 @@
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@tauri-apps/cli": "^2",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
     "@vitest/coverage-v8": "^4.0.17",
+    "better-sqlite3": "^12.11.1",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^27.4.0",
     "tailwindcss": "^4.1.18",

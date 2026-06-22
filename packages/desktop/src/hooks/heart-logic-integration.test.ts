@@ -24,7 +24,7 @@ let likeStorageTimer: ReturnType<typeof setTimeout> | null = null;
 let flushedCount = 0;
 
 async function mockFlushAllPendingLikes() {
-  for (const [playId, count] of pendingLikesByPlayId.entries()) {
+  for (const count of pendingLikesByPlayId.values()) {
     if (count !== 0) {
       // Simulate API call to update likes in DB
       flushedCount += count;
