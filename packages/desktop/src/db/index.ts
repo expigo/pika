@@ -152,15 +152,9 @@ async function initializeDb(): Promise<void> {
       // Index already exists
     }
 
-    // 🛡️ Issue 18 Fix: Composite index for high-performance track history lookups
-    try {
-      await sqliteInstance.execute(
-        `CREATE INDEX IF NOT EXISTS idx_plays_track_played ON plays(track_id, played_at DESC);`,
-      );
-      console.log("Migration: Created composite index idx_plays_track_played");
-    } catch (e) {
-      console.error("❌ Migration Failed (idx_plays_track_played):", e);
-    }
+    // Note: idx_plays_track_played is created in the Sprint 2 performance-index
+    // block below — AFTER the `plays` table exists. Creating it here (before the
+    // table) silently failed on fresh installs, leaving the index absent.
 
     // Migration: Add tags column for custom tagging feature (Phase 2)
     try {
@@ -312,6 +306,8 @@ async function initializeDb(): Promise<void> {
         "CREATE INDEX IF NOT EXISTS idx_plays_track_id ON plays(track_id);",
         "CREATE INDEX IF NOT EXISTS idx_plays_reaction ON plays(reaction);",
         "CREATE INDEX IF NOT EXISTS idx_plays_played_at ON plays(played_at);",
+        // Composite index for high-performance track history lookups (Issue 18).
+        "CREATE INDEX IF NOT EXISTS idx_plays_track_played ON plays(track_id, played_at DESC);",
 
         // Session sorting/filtering
         "CREATE INDEX IF NOT EXISTS idx_sessions_ended_at ON sessions(ended_at);",
@@ -353,37 +349,31 @@ export async function getSqlite() {
   return sqliteInstance;
 }
 
-// Helper function to convert snake_case to camelCase
-function snakeToCamel(str: string): string {
-  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
-}
-
-// Map row column names from snake_case to camelCase
-function mapRowColumns(row: Record<string, unknown>): Record<string, unknown> {
-  const mapped: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row)) {
-    mapped[snakeToCamel(key)] = value;
-  }
-  return mapped;
-}
-
-// Create drizzle instance - lazy initialization
+// Create drizzle instance backed by the Tauri SQL plugin.
 function createDrizzle(): SqliteRemoteDatabase<typeof schema> {
   return drizzle(
     async (sql, params, method) => {
       const sqlite = await getSqlite();
       try {
-        // For write operations (INSERT, UPDATE, DELETE), use execute()
-        // For read operations (SELECT), use select()
+        // Writes (INSERT/UPDATE/DELETE): execute(); no result rows to map.
         if (method === "run") {
           await sqlite.execute(sql, params);
           return { rows: [] };
         }
 
+        // Reads: @tauri-apps/plugin-sql returns name-keyed objects, but drizzle's
+        // sqlite-proxy contract requires POSITIONAL value arrays — drizzle maps
+        // columns itself by index (mapResultRow uses row[columnIndex]). Returning
+        // objects makes every field resolve to `undefined`. Object.values preserves
+        // SELECT-column order, which is the order drizzle expects.
         const rows: Record<string, unknown>[] = await sqlite.select(sql, params);
-        // Map column names from snake_case to camelCase for Drizzle
-        const mappedRows = rows.map(mapRowColumns);
-        return { rows: mappedRows };
+        const valueRows = rows.map((row) => Object.values(row));
+
+        // `get` expects a single row's value array; `all`/`values` expect array-of-arrays.
+        if (method === "get") {
+          return { rows: valueRows[0] ?? [] };
+        }
+        return { rows: valueRows };
       } catch (e: unknown) {
         console.error("Error from sqlite proxy server: ", e);
         throw e;
@@ -393,7 +383,7 @@ function createDrizzle(): SqliteRemoteDatabase<typeof schema> {
   );
 }
 
-// Export db getter - creates instance on first use
+// Single shared drizzle instance (lazy). `db` and `getDb()` return the same one.
 export function getDb(): SqliteRemoteDatabase<typeof schema> {
   if (!dbInstance) {
     dbInstance = createDrizzle();
@@ -401,5 +391,5 @@ export function getDb(): SqliteRemoteDatabase<typeof schema> {
   return dbInstance;
 }
 
-// For backward compatibility - export db as a getter
-export const db = createDrizzle();
+// Convenience export — identical instance to getDb().
+export const db = getDb();

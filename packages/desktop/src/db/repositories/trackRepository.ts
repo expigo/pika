@@ -119,23 +119,30 @@ export const trackRepository = {
         analyzed: false,
       }));
 
-      // Use upsert: update metadata on conflict, but preserve analyzed data
-      await db
-        .insert(tracks)
-        .values(values)
-        .onConflictDoUpdate({
-          target: tracks.filePath,
-          set: {
-            // Use excluded.* to reference the new values being inserted
-            artist: sql`excluded.artist`,
-            title: sql`excluded.title`,
-            trackKey: sql`excluded.track_key`,
-            bpm: sql`excluded.bpm`,
-            key: sql`excluded.key`,
-            duration: sql`excluded.duration`,
-            // Do NOT update: analyzed, energy, fingerprint (preserve analysis data)
-          },
-        });
+      // Atomic upsert keyed on track_key (= artist::title). Two different files
+      // with the same artist/title — or blank metadata — share a track_key, so we
+      // must conflict on track_key (not file_path) to dedupe them rather than throw
+      // on the UNIQUE(track_key) index. Wrapped so one bad chunk can't abort import.
+      try {
+        await db
+          .insert(tracks)
+          .values(values)
+          .onConflictDoUpdate({
+            target: tracks.trackKey,
+            set: {
+              // Use excluded.* to reference the new values being inserted
+              artist: sql`excluded.artist`,
+              title: sql`excluded.title`,
+              trackKey: sql`excluded.track_key`,
+              bpm: sql`excluded.bpm`,
+              key: sql`excluded.key`,
+              duration: sql`excluded.duration`,
+              // Do NOT update: analyzed, energy, fingerprint (preserve analysis data)
+            },
+          });
+      } catch (e) {
+        logger.error("[Repository] Failed to import a track chunk; continuing", e);
+      }
     }
 
     return true;
@@ -218,7 +225,9 @@ export const trackRepository = {
     const { getTrackKey } = await import("@pika/shared");
     const trackKey = getTrackKey(track.artist ?? "", track.title ?? "");
 
-    // S0.3.2 Fix: Use atomic UPSERT (ON CONFLICT) to prevent TOCTOU races
+    // S0.3.2 Fix: Use atomic UPSERT (ON CONFLICT) to prevent TOCTOU races.
+    // COALESCE(excluded.x, x) intentionally preserves existing metadata when the
+    // incoming value is null — re-inserting a track without metadata must not wipe it.
     await sqlite.execute(
       `INSERT INTO tracks (file_path, artist, title, bpm, key, track_key, analyzed) 
        VALUES (?, ?, ?, ?, ?, ?, 0)
@@ -328,11 +337,20 @@ export const trackRepository = {
 
     try {
       const sqlite = await getSqlite();
-      const placeholders = ids.map(() => "?").join(",");
-      const result = await sqlite.execute(`DELETE FROM tracks WHERE id IN (${placeholders})`, ids);
-
+      // Chunk to stay under SQLite's bound-parameter limit (default 999).
+      const CHUNK_SIZE = 500;
+      let deleted = 0;
+      for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+        const chunk = ids.slice(i, i + CHUNK_SIZE);
+        const placeholders = chunk.map(() => "?").join(",");
+        const result = await sqlite.execute(
+          `DELETE FROM tracks WHERE id IN (${placeholders})`,
+          chunk,
+        );
+        deleted += (result as { rowsAffected?: number }).rowsAffected ?? 0;
+      }
       console.log(`Batch deleted ${ids.length} tracks`);
-      return (result as { rowsAffected?: number }).rowsAffected ?? 0;
+      return deleted;
     } catch (e) {
       console.error("Failed to batch delete tracks:", e);
       return 0;

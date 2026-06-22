@@ -10,6 +10,11 @@ export const tracks = sqliteTable("tracks", {
   artist: text("artist"),
   title: text("title"),
 
+  // Raw (unnormalized) artist/title as read from VirtualDJ before cleanup (Ghost Data fix).
+  // Exists in the runtime DB via ALTER; declared here to keep schema.ts in sync.
+  rawArtist: text("raw_artist"),
+  rawTitle: text("raw_title"),
+
   // Core analysis metrics
   bpm: real("bpm"),
   energy: real("energy"),

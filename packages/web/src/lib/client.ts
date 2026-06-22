@@ -16,8 +16,8 @@ export function getOrCreateClientId(): string {
 
   let clientId = localStorage.getItem(CLIENT_ID_KEY);
   if (!clientId) {
-    // Generate a UUID-like ID
-    clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
+    // Collision-resistant identity (replaces Date.now()+Math.random()).
+    clientId = `client_${crypto.randomUUID()}`;
     localStorage.setItem(CLIENT_ID_KEY, clientId);
   }
   return clientId;

@@ -5,64 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1767653253214,
-      "tag": "0000_nervous_hannibal_king",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1767877990586,
-      "tag": "0001_brief_inhumans",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1767909000000,
-      "tag": "0002_schema_recovery",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1768143913786,
-      "tag": "0003_first_infant_terrible",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1768143969973,
-      "tag": "0004_shiny_thunderbolts",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1768244603106,
-      "tag": "0005_awesome_bucky",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "7",
-      "when": 1768434805968,
-      "tag": "0006_grey_black_tarantula",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "7",
-      "when": 1769455987813,
-      "tag": "0007_lumpy_luminals",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "7",
-      "when": 1769600167579,
-      "tag": "0008_ambiguous_amazoness",
+      "when": 1782142072541,
+      "tag": "0000_bent_proemial_gods",
       "breakpoints": true
     }
   ]

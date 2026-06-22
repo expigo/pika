@@ -3,8 +3,8 @@
  * Handles persistence of app settings to SQLite.
  */
 
+import { type Settings, SettingsSchema } from "@pika/shared";
 import { eq } from "drizzle-orm";
-import { SettingsSchema, type Settings } from "@pika/shared";
 import { db } from "..";
 import { settings } from "../schema";
 
@@ -92,7 +92,9 @@ export const settingsRepository = {
         const validation = fieldSchema.safeParse(parsed);
 
         if (validation.success) {
-          loaded[key] = validation.data as AppSettings[SettingKey]; // Safe cast after validation
+          // Cast via a writable record: TS can't prove a union-keyed write is safe,
+          // but we've just validated the value against this key's schema.
+          (loaded as Record<string, unknown>)[key] = validation.data;
         } else {
           console.warn(`Settings validation failed for ${key} in getAll:`, validation.error);
         }
@@ -113,26 +115,20 @@ export const settingsRepository = {
   async setMany(updates: Partial<AppSettings>): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
 
-    // 🛡️ Issue 19 Fix: Wrap batch updates in a transaction
-    // This reduces overhead and ensures atomicity for multi-setting changes
-    await db.transaction(async (tx) => {
-      for (const [key, value] of Object.entries(updates)) {
-        await tx
-          .insert(settings)
-          .values({
-            key,
-            value: JSON.stringify(value),
-            updatedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: settings.key,
-            set: {
-              value: JSON.stringify(value),
-              updatedAt: now,
-            },
-          });
-      }
-    });
+    // Sequential idempotent upserts. We deliberately avoid db.transaction(): over
+    // the Tauri sqlx pool a proxy BEGIN/COMMIT can span different connections, so it
+    // provides no real atomicity. Settings keys are independent and each upsert is
+    // individually atomic — a partial write is safely re-applied on the next save.
+    for (const [key, value] of Object.entries(updates)) {
+      const jsonValue = JSON.stringify(value);
+      await db
+        .insert(settings)
+        .values({ key, value: jsonValue, updatedAt: now })
+        .onConflictDoUpdate({
+          target: settings.key,
+          set: { value: jsonValue, updatedAt: now },
+        });
+    }
   },
 
   /**

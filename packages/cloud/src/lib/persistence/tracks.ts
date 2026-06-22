@@ -194,12 +194,18 @@ export async function persistLike(
         .limit(1);
 
       if (playedTrack) {
-        // 2. Insert the like with strict Foreign Key
-        await db.insert(schema.likes).values({
-          sessionId: sessionId,
-          clientId: clientId ?? null,
-          playedTrackId: playedTrack.id,
-        });
+        // 2. Insert the like with strict Foreign Key.
+        // onConflictDoNothing leans on the unique_like_idempotency constraint to
+        // swallow duplicate (session, client, track) likes durably — across server
+        // restarts and bulk/offline flush, where the in-memory likes.ts guard can't.
+        await db
+          .insert(schema.likes)
+          .values({
+            sessionId: sessionId,
+            clientId: clientId ?? null,
+            playedTrackId: playedTrack.id,
+          })
+          .onConflictDoNothing();
         logger.info("💾 Like persisted", {
           title: track.title,
           clientId: clientId?.substring(0, 8),
