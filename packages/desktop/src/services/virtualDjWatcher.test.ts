@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "./virtualDjWatcher";
+import { isTrackFresh, type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "./virtualDjWatcher";
 
 // Mock Tauri APIs
 const mockInvoke = vi.fn();
@@ -23,6 +23,9 @@ vi.mock("../db/repositories/settingsRepository", () => ({
 describe("VirtualDJWatcher", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    // Anchor the fake clock to a realistic time so freshness checks (isTrackFresh)
+    // behave like production; tests use `Math.floor(Date.now()/1000)` for "now".
+    vi.setSystemTime(new Date("2026-06-22T12:00:00Z"));
     mockInvoke.mockReset();
     mockListen.mockReset();
   });
@@ -91,7 +94,9 @@ describe("VirtualDJWatcher", () => {
           artist: "Poll Artist",
           title: "Poll Title",
           file_path: "/path/poll.mp3",
-          timestamp: 1000,
+          // Fresh timestamp: the initial read only emits a track that is recent
+          // enough to be "currently playing" (isTrackFresh / INITIAL_TRACK_FRESHNESS_MS).
+          timestamp: Math.floor(Date.now() / 1000),
         });
       return Promise.resolve(null);
     });
@@ -117,6 +122,31 @@ describe("VirtualDJWatcher", () => {
         artist: "Poll Artist",
       }),
     );
+  }, 10000);
+
+  it("does NOT notify on a stale initial track (VDJ idle/closed)", async () => {
+    // Native fails → polling. The latest history entry is 20 minutes old, i.e. the
+    // last thing VDJ played before it was closed — NOT a currently-playing track.
+    const staleTs = Math.floor((Date.now() - 20 * 60 * 1000) / 1000);
+    mockInvoke.mockImplementation((cmd) => {
+      if (cmd === "start_vdj_watcher") return Promise.reject("Native watcher failed");
+      if (cmd === "read_virtualdj_history")
+        return Promise.resolve({
+          artist: "Stale Artist",
+          title: "Stale Title",
+          file_path: "/path/stale.mp3",
+          timestamp: staleTs,
+        });
+      return Promise.resolve(null);
+    });
+
+    const listener = vi.fn();
+    virtualDjWatcher.onTrackChange(listener);
+
+    await virtualDjWatcher.startWatching();
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(listener).not.toHaveBeenCalled();
   }, 10000);
 
   it("should stop watcher correctly", async () => {
@@ -171,5 +201,22 @@ describe("toTrackInfo — outgoing payload normalization", () => {
 
   it("parses numeric-string bpm", () => {
     expect(toTrackInfo(base({ bpm: "128" as unknown as number })).bpm).toBe(128);
+  });
+});
+
+describe("isTrackFresh — initial-track liveness gate", () => {
+  it("treats a recent timestamp as fresh (currently playing)", () => {
+    const now = Math.floor(Date.now() / 1000);
+    expect(isTrackFresh({ rawTimestamp: now })).toBe(true);
+  });
+
+  it("treats an old timestamp as stale (VDJ idle/closed)", () => {
+    const twentyMinAgo = Math.floor((Date.now() - 20 * 60 * 1000) / 1000);
+    expect(isTrackFresh({ rawTimestamp: twentyMinAgo })).toBe(false);
+  });
+
+  it("treats a missing timestamp as stale", () => {
+    expect(isTrackFresh({})).toBe(false);
+    expect(isTrackFresh(null)).toBe(false);
   });
 });

@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  AlertTriangle,
   Check,
   Edit3,
   Gauge,
@@ -19,20 +18,13 @@ import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getListenerUrl, getLocalIp, getRecapUrl } from "../config";
-import { createDatabaseSession } from "../hooks/live/connectionManager";
+import { createDatabaseSession, detectInitialTrack } from "../hooks/live/connectionManager";
 import { generateSessionId } from "../hooks/live/trackBroadcast";
 import { useDjSettings } from "../hooks/useDjSettings";
 import { useLiveSession } from "../hooks/useLiveSession";
-import { type DetectedSession, type VdjHistoryTrack, useVdjHistory } from "../hooks/useVdjHistory";
-import { virtualDjWatcher } from "../services/virtualDjWatcher";
+import { type DetectedSession, useVdjHistory } from "../hooks/useVdjHistory";
 import { logger } from "../utils/logger";
-import { SessionImportModal } from "./SessionImportModal";
-
-interface PendingTrack {
-  artist: string;
-  title: string;
-  isStale: boolean; // True if track timestamp is old (might not be currently playing)
-}
+import { type StartOptions, StartSessionModal } from "./StartSessionModal";
 
 export function LiveControl() {
   const {
@@ -53,19 +45,21 @@ export function LiveControl() {
   const { detectSession, importTracks } = useVdjHistory();
 
   const [showQR, setShowQR] = useState(false);
-  const [showNameModal, setShowNameModal] = useState(false);
   const [showDjNamePrompt, setShowDjNamePrompt] = useState(false);
   const [showEditDjName, setShowEditDjName] = useState(false);
-  const [pendingTrack, setPendingTrack] = useState<PendingTrack | null>(null);
-  const [sessionName, setSessionName] = useState("");
   const [djNameInput, setDjNameInput] = useState("");
   const [lastSessionId, setLastSessionId] = useState<string | null>(null);
   const [recapCopied, setRecapCopied] = useState(false);
   const [localIp, setLocalIp] = useState<string | null>(null);
+  const [isDetectingHistory, setIsDetectingHistory] = useState(false);
 
-  // VDJ Import State
-  const [detectedSession, setDetectedSession] = useState<DetectedSession | null>(null);
-  const [showImportModal, setShowImportModal] = useState(false);
+  // Single "Start Session" modal context (null = closed). Replaces the old
+  // duplicate-warning → import → name modal chain.
+  const [startModal, setStartModal] = useState<{
+    currentTrack: { artist: string; title: string } | null;
+    detectedSession: DetectedSession | null;
+    overlap: { id: number; name: string | null }[] | null;
+  } | null>(null);
 
   // Fetch local IP once on mount for QR codes
   useEffect(() => {
@@ -75,10 +69,6 @@ export function LiveControl() {
   // Generate QR URL only if we have a session (uses local IP if available for LAN testing)
   const qrUrl = sessionId ? getListenerUrl(sessionId, djName, localIp) : null;
   const recapUrl = lastSessionId ? getRecapUrl(lastSessionId, djName, localIp) : null;
-
-  const [isDetectingHistory, setIsDetectingHistory] = useState(false);
-
-  // ...
 
   const handleGoLiveClick = async () => {
     if (isSessionActive) {
@@ -92,172 +82,85 @@ export function LiveControl() {
         setDjNameInput("");
         setShowDjNamePrompt(true);
       } else {
-        setIsDetectingHistory(true);
-        try {
-          await checkForVdjHistory();
-        } finally {
-          setIsDetectingHistory(false);
-        }
+        await openStartModal();
       }
     }
   };
 
-  const [showDuplicateWarningModal, setShowDuplicateWarningModal] = useState(false);
-  const [overlappingSessions, setOverlappingSessions] = useState<
-    { id: number; name: string | null }[] | null
-  >(null);
-
-  // ... (inside checkForVdjHistory)
-  const checkForVdjHistory = async () => {
-    const session = await detectSession();
-
-    if (session && session.tracks.length > 0) {
-      // 🛡️ Fix 3: Check for overlap with existing sessions to prevent duplicates
-      const firstTrackTime = session.tracks[0].timestamp;
-      const lastTrackTime = session.tracks[session.tracks.length - 1].timestamp;
-
-      try {
-        const { sessionRepository } = await import("../db/repositories/sessionRepository");
-
-        const existingSessions = await sessionRepository.getSessionsInTimeRange(
-          firstTrackTime,
-          lastTrackTime,
-        );
-
-        if (existingSessions.length > 0) {
-          // 🛡️ Fix Scenario 5: Block import with explicit warning
-          setOverlappingSessions(existingSessions);
-          setDetectedSession(session);
-          setShowDuplicateWarningModal(true);
-          return;
-        }
-      } catch (e) {
-        logger.warn("Live Control", "Failed to check session overlap", e);
-      }
-
-      logger.info("Live Control", `Detected ${session.tracks.length} tracks in VDJ history`);
-      setDetectedSession(session);
-      setShowImportModal(true);
-    } else {
-      checkForCurrentTrack();
-    }
-  };
-
-  const handleImportAndStart = async (
-    tracks: VdjHistoryTrack[],
-    startIndex = 0,
-    sessionName?: string,
-  ) => {
+  /**
+   * Gather everything the Start modal needs, then open it:
+   * - the genuinely-playing current track (staleness-gated; null when VDJ idle/closed)
+   * - an optional earlier set (tracks before a 30-min gap)
+   * - whether that earlier set overlaps an existing local session (duplicate risk)
+   */
+  const openStartModal = async () => {
+    setIsDetectingHistory(true);
     try {
-      setShowImportModal(false);
-      // Use provided name or default
-      const name = sessionName?.trim() || `Live Set ${new Date().toLocaleDateString()}`;
+      const fresh = await detectInitialTrack();
+      const detected = await detectSession();
 
-      // Create IDs
-      const newSessionId = generateSessionId();
-      const dbSessionId = await createDatabaseSession(name, newSessionId);
-
-      const tracksToImport = tracks.slice(startIndex);
-      logger.info("Live Control", `Starting import of ${tracksToImport.length} tracks`);
-      toast.info("Importing track history...");
-
-      // Import tracks
-      // 🛡️ Fix 1: Register imported tracks in the internal dedup state
-      // This is crucial: we prevented the module-level recordPlay from re-recording these
-      // if they are still playing or re-played shortly.
-      // We pass the registration callback directly to importTracks so it only runs on success
-      const imported = await importTracks(tracks, dbSessionId, startIndex, registerImportedTrack);
-
-      if (imported > 0) {
-        toast.success(`Imported ${imported} tracks from VirtualDJ`);
-      }
-
-      // 🛡️ Fix 2: Smart Current Track Handling
-      // Check if the actual *currently playing* track was just imported.
-      // If so, tell goLive to SKIIP broadcasting/recording it (includeCurrentTrack = false).
-      // If the DJ started a NEW track since the history scan, we WANT to include it.
-
-      const currentVdjTrack = await virtualDjWatcher.readLatestTrack();
-      const lastImportedTrack = tracksToImport[tracksToImport.length - 1];
-
-      let includeCurrentTrack = true;
-      if (currentVdjTrack && lastImportedTrack) {
-        // Normalize strings for comparison
-        const isSameTrack =
-          currentVdjTrack.artist?.toLowerCase() === lastImportedTrack.artist.toLowerCase() &&
-          currentVdjTrack.title?.toLowerCase() === lastImportedTrack.title.toLowerCase();
-
-        if (isSameTrack) {
-          logger.info(
-            "Live Control",
-            "Current track was just imported, skipping duplicate broadcast",
-          );
-          includeCurrentTrack = false;
+      let overlap: { id: number; name: string | null }[] | null = null;
+      if (detected && detected.tracks.length > 0) {
+        try {
+          const { sessionRepository } = await import("../db/repositories/sessionRepository");
+          const first = detected.tracks[0].timestamp;
+          const last = detected.tracks[detected.tracks.length - 1].timestamp;
+          const existing = await sessionRepository.getSessionsInTimeRange(first, last);
+          overlap = existing.length > 0 ? existing : null;
+        } catch (e) {
+          logger.warn("Live Control", "Failed to check session overlap", e);
         }
       }
 
-      const tracksToSync = tracksToImport.map((t) => ({
-        artist: t.artist,
-        title: t.title,
-        bpm: t.bpm,
-        key: t.key,
-      }));
-
-      // Start live session IMMEDIATELY with provided name
-      await goLive(
-        name,
-        includeCurrentTrack,
-        { sessionId: newSessionId, dbSessionId },
-        tracksToSync,
-      );
-
-      setDetectedSession(null);
-    } catch (error) {
-      logger.error("Live Control", "Failed to import and start", error);
-      toast.error("Failed to import session");
-      // Fallback to normal flow
-      checkForCurrentTrack();
-    }
-  };
-
-  const handleSkipImport = (sessionName?: string) => {
-    setShowImportModal(false);
-    setDetectedSession(null);
-
-    // If name provided (via "Start Fresh" in modal), we still check for current track
-    // but we can pre-set the session name.
-    if (sessionName) {
-      setSessionName(sessionName.trim());
-    }
-
-    checkForCurrentTrack();
-  };
-
-  // Check if there's a track playing and prioritize immediate naming
-  const checkForCurrentTrack = () => {
-    const currentTrack = virtualDjWatcher.getCurrentTrack();
-
-    // Set default name if not already set (e.g. via Skip History flow)
-    if (!sessionName) {
-      setSessionName(`Live Set ${new Date().toLocaleDateString()}`);
-    }
-
-    if (currentTrack) {
-      // Check if track is stale (older than 10 minutes)
-      const STALE_THRESHOLD_MS = 10 * 60 * 1000;
-      const trackTime = currentTrack.timestamp?.getTime() ?? 0;
-      const isStale = Date.now() - trackTime > STALE_THRESHOLD_MS;
-
-      setPendingTrack({
-        artist: currentTrack.artist,
-        title: currentTrack.title,
-        isStale,
+      setStartModal({
+        currentTrack: fresh ? { artist: fresh.artist, title: fresh.title } : null,
+        detectedSession: detected,
+        overlap,
       });
-    } else {
-      setPendingTrack(null);
+    } finally {
+      setIsDetectingHistory(false);
     }
+  };
 
-    setShowNameModal(true);
+  const handleStart = async (opts: StartOptions) => {
+    setStartModal(null);
+    const name = opts.name.trim() || `Live Set ${new Date().toLocaleDateString()}`;
+
+    try {
+      if (opts.importEarlier) {
+        // Backfill the earlier set, then go live. registerImportedTrack seeds the
+        // dedup state so the live watcher won't re-record the just-imported tracks.
+        const newSessionId = generateSessionId();
+        const dbSessionId = await createDatabaseSession(name, newSessionId);
+        toast.info("Importing track history...");
+
+        const imported = await importTracks(
+          opts.importEarlier.tracks,
+          dbSessionId,
+          opts.importEarlier.startIndex,
+          registerImportedTrack,
+        );
+        if (imported > 0) {
+          toast.success(`Imported ${imported} tracks from VirtualDJ`);
+        }
+
+        const tracksToSync = opts.importEarlier.tracks
+          .slice(opts.importEarlier.startIndex)
+          .map((t) => ({ artist: t.artist, title: t.title, bpm: t.bpm, key: t.key }));
+
+        await goLive(
+          name,
+          opts.includeCurrentTrack,
+          { sessionId: newSessionId, dbSessionId },
+          tracksToSync,
+        );
+      } else {
+        await goLive(name, opts.includeCurrentTrack);
+      }
+    } catch (error) {
+      logger.error("Live Control", "Failed to start session", error);
+      toast.error("Failed to start session");
+    }
   };
 
   const handleDjNameSubmit = () => {
@@ -266,9 +169,9 @@ export function LiveControl() {
       setDjName(name);
       setShowDjNamePrompt(false);
       setShowEditDjName(false);
-      // If this was the initial prompt, check history then track
+      // If this was the initial prompt, continue into the Start flow
       if (!hasSetDjName) {
-        void checkForVdjHistory();
+        void openStartModal();
       }
     }
   };
@@ -288,20 +191,6 @@ export function LiveControl() {
 
   const handleDismissRecap = () => {
     setLastSessionId(null);
-  };
-
-  const handleStartSession = (includeTrack: boolean) => {
-    // Pass the pending track decision to goLive
-    goLive(sessionName.trim() || undefined, includeTrack);
-    setShowNameModal(false);
-    setSessionName("");
-    setPendingTrack(null);
-  };
-
-  const handleCancelSession = () => {
-    setShowNameModal(false);
-    setSessionName("");
-    setPendingTrack(null);
   };
 
   return (
@@ -525,266 +414,17 @@ export function LiveControl() {
           document.body,
         )}
 
-      {/* Duplicate Session Warning Modal */}
-      {showDuplicateWarningModal &&
-        overlappingSessions &&
-        detectedSession &&
-        createPortal(
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md">
-            <div className="w-full max-w-md bg-slate-900 border border-amber-500/50 rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto flex flex-col">
-              <div className="p-6 space-y-6">
-                <div className="flex items-center gap-3 text-amber-500 shrink-0">
-                  <AlertTriangle size={28} />
-                  <h2 className="text-2xl font-bold text-white leading-tight">
-                    Duplicate Session Detected
-                  </h2>
-                </div>
-
-                <div className="space-y-4">
-                  {/* Track Preview Context */}
-                  <div className="bg-slate-950/50 rounded-xl p-3 border border-slate-800">
-                    <div className="flex justify-between items-center mb-2">
-                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                        Found {detectedSession.tracks.length} Tracks
-                      </span>
-                      <span className="text-xs text-slate-500 tabular-nums">
-                        {(() => {
-                          const now = Date.now();
-                          const endTime = detectedSession.endTime.getTime();
-                          const minutesAgo = Math.floor((now - endTime) / 60000);
-
-                          if (minutesAgo < 60) {
-                            return `${minutesAgo}m ago`;
-                          }
-                          const hoursAgo = Math.floor(minutesAgo / 60);
-                          const remainingMins = minutesAgo % 60;
-                          return `${hoursAgo}h ${remainingMins}m ago`;
-                        })()} •{" "}
-                        {detectedSession.startTime.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}{" "}
-                        -{" "}
-                        {detectedSession.endTime.toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    <div className="space-y-1.5">
-                      {detectedSession.tracks.slice(0, 3).map((t) => (
-                        <div
-                          key={t.timestamp}
-                          className="text-sm text-slate-300 truncate font-medium flex items-center gap-2"
-                        >
-                          <span className="w-1 h-1 rounded-full bg-slate-600 shrink-0" />
-                          <span>
-                            {t.artist} - <span className="text-slate-400">{t.title}</span>
-                          </span>
-                        </div>
-                      ))}
-                      {detectedSession.tracks.length > 3 && (
-                        <div className="text-xs text-slate-500 italic pl-3">
-                          + {detectedSession.tracks.length - 3} more...
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <p className="text-slate-300 leading-relaxed">
-                    It looks like you've already imported the tracks above into{" "}
-                    <strong>
-                      {overlappingSessions[0].name || `Session #${overlappingSessions[0].id}`}
-                    </strong>
-                    {overlappingSessions.length > 1 &&
-                      ` and ${overlappingSessions.length - 1} other(s)`}
-                    .
-                  </p>
-
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2">
-                    <p className="text-sm font-semibold text-amber-500 flex items-start gap-2">
-                      <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                      What happens if I "Import Anyway"?
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      You will create a <strong>new session</strong> with the same tracks, resulting
-                      in double records in your history.
-                    </p>
-                    <p className="text-sm font-semibold text-emerald-500 flex items-start gap-2 mt-3">
-                      <Check size={16} className="shrink-0 mt-0.5" />
-                      Recommended Action
-                    </p>
-                    <p className="text-xs text-slate-400">
-                      Choose <strong>Start New Session</strong> to ignore the history and start
-                      fresh from this moment.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3 pt-2 shrink-0">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDuplicateWarningModal(false);
-                      // Start fresh: prioritizes immediate naming + track check
-                      checkForCurrentTrack();
-                    }}
-                    className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-lg shadow-emerald-500/20"
-                  >
-                    Start New Session (Recommended)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDuplicateWarningModal(false);
-                      setShowImportModal(true); // Allow import anyway
-                    }}
-                    className="px-6 py-2 text-slate-500 hover:text-amber-400 text-sm font-medium border border-slate-800 hover:border-amber-500/30 rounded-lg transition-all"
-                  >
-                    Import Anyway (Creates Duplicates)
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowDuplicateWarningModal(false);
-                      setDetectedSession(null);
-                    }}
-                    className="px-6 py-3 text-slate-500 hover:text-slate-300 text-sm"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {/* Session Import Modal */}
-      {showImportModal && detectedSession && (
-        <SessionImportModal
-          detectedSession={detectedSession}
-          currentTrack={virtualDjWatcher.getCurrentTrack()}
-          onImport={handleImportAndStart}
-          onSkip={handleSkipImport}
-          onCancel={() => {
-            setShowImportModal(false);
-            setDetectedSession(null);
-          }}
+      {/* Unified Start Session Modal */}
+      {startModal && (
+        <StartSessionModal
+          currentTrack={startModal.currentTrack}
+          detectedSession={startModal.detectedSession}
+          overlap={startModal.overlap}
+          defaultName={`Live Set ${new Date().toLocaleDateString()}`}
+          onStart={handleStart}
+          onCancel={() => setStartModal(null)}
         />
       )}
-
-      {/* Unified Start Session Modal */}
-      {showNameModal &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={() => handleCancelSession()}
-          >
-            <div
-              className="w-full max-w-md bg-slate-900 border border-slate-700/50 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="p-8 space-y-8">
-                <div className="flex items-center gap-3 text-pika-accent">
-                  <Radio size={28} className="animate-pulse" />
-                  <h3 className="text-2xl font-bold text-white tracking-tight">
-                    Start New Session
-                  </h3>
-                </div>
-
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
-                    Set Title
-                  </label>
-                  <input
-                    type="text"
-                    value={sessionName}
-                    onChange={(e) => setSessionName(e.target.value)}
-                    placeholder="e.g. Friday Night Social"
-                    className="w-full bg-slate-950 border border-slate-700 rounded-2xl px-5 py-4 text-white placeholder:text-slate-600 focus:border-pika-accent outline-none transition-all font-bold text-lg"
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleStartSession(pendingTrack !== null);
-                      if (e.key === "Escape") handleCancelSession();
-                    }}
-                  />
-                </div>
-
-                {pendingTrack && (
-                  <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 ml-1">
-                      Currently Playing
-                    </label>
-                    <div className="p-4 bg-slate-950 border border-slate-800 rounded-2xl flex items-center gap-4">
-                      <div className="w-10 h-10 bg-pika-accent/10 rounded-xl flex items-center justify-center shrink-0">
-                        <Music2 size={20} className="text-pika-accent" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-white truncate">
-                          {pendingTrack.title}
-                        </p>
-                        <p className="text-xs text-slate-500 truncate">{pendingTrack.artist}</p>
-                      </div>
-                    </div>
-                    {pendingTrack.isStale && (
-                      <div className="flex items-start gap-2.5 p-3 bg-amber-500/5 border border-amber-500/10 rounded-xl text-amber-500/80 text-[10px] leading-relaxed font-medium">
-                        <AlertTriangle size={14} className="shrink-0 mt-0.5" />
-                        <span>
-                          Warning: This track was detected as starting over 10m ago and might be
-                          from a past set.
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex flex-col gap-3 pt-2">
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => handleCancelSession()}
-                      className="flex-1 px-6 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-2xl transition-all border border-slate-700 uppercase text-xs tracking-widest"
-                    >
-                      Cancel
-                    </button>
-                    {pendingTrack ? (
-                      <button
-                        type="button"
-                        onClick={() => handleStartSession(true)}
-                        className="flex-[2] px-6 py-4 bg-pika-accent hover:bg-pika-accent-light text-white font-black rounded-2xl transition-all shadow-xl shadow-pika-accent/20 flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
-                      >
-                        <Radio size={16} />
-                        Include Track & Go Live
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleStartSession(false)}
-                        className="flex-[2] px-6 py-4 bg-pika-accent hover:bg-pika-accent-light text-white font-black rounded-2xl transition-all shadow-xl shadow-pika-accent/20 flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
-                      >
-                        <Radio size={16} />
-                        Go Live Now
-                      </button>
-                    )}
-                  </div>
-                  {pendingTrack && (
-                    <button
-                      type="button"
-                      onClick={() => handleStartSession(false)}
-                      className="w-full py-3 text-slate-500 hover:text-slate-300 text-[10px] font-black uppercase tracking-widest transition-colors"
-                    >
-                      Ignore Track & Start Fresh
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
 
       {/* QR Code Button (only when connected live) */}
       {isSessionActive && isCloudConnected && sessionId && (

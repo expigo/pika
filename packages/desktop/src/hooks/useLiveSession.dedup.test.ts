@@ -106,3 +106,55 @@ describe("useLiveSession Hybrid Deduplication", () => {
     expect(recordPlayLogic(track2)).toBe("DEDUPED_ABSOLUTE");
   });
 });
+
+/**
+ * Initial-track suppression on a "fresh / don't include" start.
+ * Mirrors prepareInitialTrackState (skip path seeds the broadcast-dedup key) +
+ * handleTrackChange's leading guard (consumes the flag once) in
+ * connectionManager.ts / useLiveSession.ts.
+ */
+describe("Initial track suppression (fresh start, not included)", () => {
+  let skip: boolean;
+  let lastBroadcastKey: string | null;
+  const broadcastKey = (t: { artist: string; title: string }) => `${t.artist}:${t.title}`;
+
+  // prepareInitialTrackState
+  function prepare(initial: { artist: string; title: string } | null, include: boolean) {
+    lastBroadcastKey = null;
+    skip = false;
+    if (!initial) return;
+    if (!include) {
+      skip = true;
+      lastBroadcastKey = broadcastKey(initial);
+    }
+  }
+
+  // handleTrackChange's leading guard: true ⇒ track fully suppressed (no show/record/broadcast).
+  function isSuppressed(track: { artist: string; title: string }): boolean {
+    if (skip && lastBroadcastKey === broadcastKey(track)) {
+      skip = false; // consumed once
+      return true;
+    }
+    return false;
+  }
+
+  it("suppresses the initial track once, then lets later tracks through", () => {
+    const initial = { artist: "DJ X", title: "Last Song" };
+    prepare(initial, false);
+
+    expect(isSuppressed(initial)).toBe(true); // watcher's initial emission swallowed
+    expect(isSuppressed(initial)).toBe(false); // flag consumed; not suppressed again
+    expect(isSuppressed({ artist: "DJ X", title: "Next Song" })).toBe(false); // new track flows
+  });
+
+  it("does not suppress when the current track is included", () => {
+    const initial = { artist: "DJ X", title: "Last Song" };
+    prepare(initial, true);
+    expect(isSuppressed(initial)).toBe(false);
+  });
+
+  it("no-op on a clean start (no current track)", () => {
+    prepare(null, false);
+    expect(isSuppressed({ artist: "DJ X", title: "Whatever" })).toBe(false);
+  });
+});

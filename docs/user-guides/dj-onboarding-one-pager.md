@@ -72,7 +72,7 @@ Every set you play is archived in your **Showcase** (Profile).
 
 *   **"Track Not Showing":** Remember the **30-second rule**. The track must play for at least 30s in your DJ software before Pika! picks it up.
 *   **Internet Drops:** Don't panic. The Desktop App has an **Offline Queue**. It will "buffer" your tracks and upload them as soon as you reconnect. The dancers won't miss a beat.
-*   **Duplicate Sessions:** If the app asks to "Import Anyway," only do it if you had a crash. Otherwise, always start a "New Session" to keep your history clean.
+*   **Duplicate Sessions:** If the Start screen warns that your earlier set was already imported, leave **"Add my earlier set"** off (start fresh). Only add it again if you had a crash and it didn't sync.
 
 ---
 

@@ -249,20 +249,24 @@ Watcher initialization is handled via `start_vdj_watcher` command, triggered whe
 
 **Files:**
 - `src/hooks/useVdjHistory.ts` - Detection logic
-- `src/components/SessionImportModal.tsx` - UI for selecting session start
+- `src/components/StartSessionModal.tsx` - Single "Start Session" modal (title + optional "start with current track" + optional "add earlier set")
 
-### Deduplication
+### Deduplication & initial-track handling
 
-**Challenge:** Prevent recording the same track twice (from history import AND live watcher).
+**Challenge:** Prevent recording the same track twice (history import vs. live watcher), and never treat a stale `history.m3u` line as "now playing".
 
-**Solution:** Hybrid deduplication in `useLiveSession.ts`
-- **Time window:** Tracks with same Artist-Title within **1 minute** = duplicate
-- **Constant:** `TRACK_DEDUP_WINDOW_MS = 60000` (src/hooks/live/constants.ts:20)
-- **Initialization mask:** Current track is marked "processed" before watcher starts
+**Hybrid dedup in `useLiveSession.ts`:**
+- **Window:** same Artist-Title within 1 min (`TRACK_DEDUP_WINDOW_MS = 60000`, src/hooks/live/constants.ts).
+- **Absolute interval:** same Artist-Title blocked 2 min (`MIN_REPLAY_INTERVAL_MS`) — survives a 60s-window rollover.
+- **Import overlap:** `registerImportedTrack()` stops a just-imported track (still on the decks) from being re-recorded.
 
-**Critical for debugging:** If you see "phantom" duplicate detections, check this 60-second window.
+**Liveness gate (`services/virtualDjWatcher.ts`):** the last history line persists after VDJ closes, so it counts as "now playing" only if fresh — `isTrackFresh()` / `INITIAL_TRACK_FRESHNESS_MS` (15 min). `detectInitialTrack()` returns `null` when stale, and the watcher's initial emission is freshness-gated → a closed/idle VDJ yields **no current track** (clean start).
 
-**Tests:** `src/hooks/useLiveSession.dedup.test.ts`
+**Fresh / "don't include":** `prepareInitialTrackState()` (skip path) + `handleTrackChange()`'s leading guard fully suppress the initial track — no "Now Playing", broadcast, or DB record.
+
+**Critical for debugging:** phantom now-playing on a fresh session → freshness gate; duplicate plays → 60s window / 2-min interval.
+
+**Tests:** `src/hooks/useLiveSession.dedup.test.ts`, `src/services/virtualDjWatcher.test.ts`. See [go-live flow](../../docs/architecture/go-live-flow.md).
 
 ### Metadata Enrichment
 
@@ -448,7 +452,7 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 328 passing tests (Vitest, +1 skipped)
+**Current coverage:** 337 passing tests (Vitest, +1 skipped)
 
 ### Test Files
 

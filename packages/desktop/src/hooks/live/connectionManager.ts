@@ -9,6 +9,7 @@
 
 import { sessionRepository } from "../../db/repositories/sessionRepository";
 import {
+  isTrackFresh,
   type NowPlayingTrack,
   toTrackInfo,
   virtualDjWatcher,
@@ -52,7 +53,15 @@ export async function createDatabaseSession(
  */
 export async function detectInitialTrack(): Promise<NowPlayingTrack | null> {
   logger.debug("Live", "Detecting initial VirtualDJ track");
-  return virtualDjWatcher.readLatestTrack();
+  const track = await virtualDjWatcher.readLatestTrack();
+  // A stale last-history entry means VDJ is idle/closed → there is no current track.
+  if (track && !isTrackFresh(track)) {
+    logger.info("Live", "Latest VDJ track is stale — treating as no current track", {
+      title: track.title,
+    });
+    return null;
+  }
+  return track;
 }
 
 /**
@@ -100,10 +109,11 @@ export function prepareInitialTrackState(
     logger.debug("Live", "Skipping initial track (user chose not to include)");
     setSkipInitialTrackBroadcast(true);
 
-    // Mark the initial track as processed so it won't be recorded to DB
-    // BUT we intentionally do NOT set lastBroadcastedTrackKey here.
-    // This allows the watcher to BROADCAST it (so dancers see "Now Playing"),
-    // while the addProcessedTrackKey above prevents double-recording it to DB.
+    // Full suppression. Seed the broadcast-dedup key so the watcher's initial
+    // emission is NOT broadcast to dancers/cloud (broadcastTrack dedups on this key),
+    // and mark it processed so it isn't recorded to the local logbook. handleTrackChange
+    // matches this same key to also suppress the desktop "Now Playing" UI.
+    setLastBroadcastedTrackKey(`${initialTrack.artist}:${initialTrack.title}`);
     addProcessedTrackKey(trackKey);
   }
 }

@@ -89,8 +89,8 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of June 2026):** 671 passing tests total
-- Desktop: 328 tests (Vitest, +1 skipped)
+**Test Coverage (as of June 2026):** 680 passing tests total
+- Desktop: 337 tests (Vitest, +1 skipped)
 - Cloud: 319 tests (Bun)
 - Shared: 24 tests (Bun)
 - Web: test files exist (`src/__tests__/`) but no `test` script wired yet
@@ -126,7 +126,7 @@ bun run db:migrate
 bun run db:push  # ⚠️ Use only for rapid prototyping
 ```
 
-**Important:** Migration files in `packages/cloud/drizzle/*.sql` MUST be committed. They are idempotent (use `IF NOT EXISTS`).
+**Important:** Migration files in `packages/cloud/drizzle/*.sql` MUST be committed. The history was squashed to a single generated baseline (`0000_*`) in June 2026 (pre-launch, disposable data); evolve the schema with `db:generate` + `db:migrate` only — never `db:push` against a shared/prod DB.
 
 If you encounter migration conflicts locally:
 ```bash
@@ -226,7 +226,7 @@ chore: bump version to 0.4.0
 - Use `parseMessage<T>()` in Cloud handlers for type-safe parsing
 
 ### Testing Philosophy
-- **671 passing tests** across all packages (328 desktop, 319 cloud, 24 shared)
+- **680 passing tests** across all packages (337 desktop, 319 cloud, 24 shared)
 - Test files colocated with source: `*.test.ts` or `__tests__/` directories
 - Use Vitest for TS/JS, pytest for Python
 - Aim for 100% coverage of critical paths (connection lifecycle, history import)

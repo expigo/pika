@@ -60,6 +60,7 @@ import { type MessageRouterContext, messageRouter } from "./live/messageRouter";
 import {
   addProcessedTrackKey,
   clearProcessedTrackKeys,
+  getLastBroadcastedTrackKey,
   getPendingHistorySync,
   getCurrentPlayId as getStoreCurrentPlayId,
   getDbSessionId as getStoreDbSessionId,
@@ -68,6 +69,7 @@ import {
   isInLiveMode,
   setLastBroadcastedTrackKey,
   setPendingHistorySync,
+  setSkipInitialTrackBroadcast,
   setCurrentPlayId as setStoreCurrentPlayId,
   shouldSkipInitialTrackBroadcast,
 } from "./live/stateHelpers";
@@ -616,6 +618,20 @@ export function useLiveSession() {
   // Handle track changes from VirtualDJ
   const handleTrackChange = useCallback(
     async (track: NowPlayingTrack) => {
+      // Full-suppress the masked initial track on a "fresh / don't include" start:
+      // do not show, record, or broadcast it. Matched by the broadcast-dedup key
+      // seeded in prepareInitialTrackState; consumed once so later tracks flow normally.
+      if (
+        shouldSkipInitialTrackBroadcast() &&
+        getLastBroadcastedTrackKey() === `${track.artist}:${track.title}`
+      ) {
+        setSkipInitialTrackBroadcast(false);
+        logger.debug("Live", "Suppressed initial track (fresh start, not included)", {
+          title: track.title,
+        });
+        return;
+      }
+
       // Update UI immediately with track info
       setNowPlaying(track);
 

@@ -5,6 +5,21 @@ import { settingsRepository } from "../db/repositories/settingsRepository";
 
 const IPC_TIMEOUT_MS = 5000;
 
+/**
+ * Max age of the latest VirtualDJ history entry for it to count as "currently
+ * playing". `history.m3u` is an append-only log — its last line is the last-played
+ * track and persists even after VDJ is closed. Anything older than this means VDJ
+ * is idle/closed and there is NO current track (prevents a phantom "Now Playing"
+ * on go-live). Generous enough to cover long intros/outros.
+ */
+export const INITIAL_TRACK_FRESHNESS_MS = 15 * 60 * 1000;
+
+/** Whether a track's history timestamp is recent enough to be "currently playing". */
+export function isTrackFresh(track: { rawTimestamp?: number } | null): boolean {
+  if (!track?.rawTimestamp) return false;
+  return Date.now() - track.rawTimestamp * 1000 <= INITIAL_TRACK_FRESHNESS_MS;
+}
+
 // 🛡️ Issue 27 Fix: Timeout wrapper for IPC calls
 async function invokeWithTimeout<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const timeout = new Promise<never>((_, reject) =>
@@ -178,8 +193,13 @@ class VirtualDJWatcher {
       if (initial) {
         this.lastTrack = initial;
         this.lastTimestamp = initial.rawTimestamp ?? 0;
-        // Notify immediately if we have a track
-        this.notifyListeners(initial);
+        // Only emit the last history entry as "now playing" if it is fresh. A stale
+        // entry means VDJ is idle/closed — emitting it would be a phantom track.
+        if (isTrackFresh(initial)) {
+          this.notifyListeners(initial);
+        } else {
+          console.log("[VDJ Watcher] Initial track is stale, not notifying:", initial.title);
+        }
       }
     } catch (e) {
       console.warn("[VDJ Watcher] Native watcher failed to start, falling back to polling:", e);
@@ -200,7 +220,7 @@ class VirtualDJWatcher {
         this.lastTrack = initial;
         this.lastTimestamp = initial.rawTimestamp ?? 0;
 
-        if (changed) {
+        if (changed && isTrackFresh(initial)) {
           console.log(
             "[VDJ Watcher] Initial track change detected:",
             initial.artist,
