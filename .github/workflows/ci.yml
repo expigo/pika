@@ -49,11 +49,12 @@ jobs:
           bun run --filter @pika/web build
 
       # Unit tests (mocked — no external services needed)
-      - name: Unit Tests (cloud / shared / desktop)
+      - name: Unit Tests (cloud / shared / desktop / web)
         run: |
           bun run --filter @pika/cloud test
           bun run --filter @pika/shared test
           bun run --filter @pika/desktop test
+          bun run --filter @pika/web test
 
   integration:
     name: DB Integration (Postgres)

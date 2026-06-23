@@ -19,6 +19,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getOrCreateClientId } from "@/lib/client";
 import {
+  ackHandlers,
   type ConnectionStatus,
   combineHandlers,
   type HistoryTrack,
@@ -142,6 +143,9 @@ export function useLiveListener(targetSessionId?: string) {
   const featureHandlers = useMemo(
     () =>
       combineHandlers(
+        // ackHandlers is a stable module constant — routes server ACK/NACK to the
+        // ackRegistry waiters (used by the offline-like flush).
+        ackHandlers,
         pollHandlers,
         tempoHandlers,
         announcementHandlers,

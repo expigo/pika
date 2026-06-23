@@ -2,9 +2,9 @@
  * Barrel export for live hooks
  */
 
-export * from "./messageRouter";
-
 // Utilities
+export * from "./ackRegistry";
+export * from "./messageRouter";
 export * from "./storage";
 // Types
 export * from "./types";

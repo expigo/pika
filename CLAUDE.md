@@ -189,7 +189,7 @@ bun run --filter @pika/cloud dev
 **Offline:** Serwist for service worker, IndexedDB via idb-keyval.
 **Current PWA State (Audit Feb 2026):**
 - ✅ Infrastructure (esbuild pipeline)
-- ✅ Offline Likes (IndexedDB)
+- ✅ Offline Likes (IndexedDB, ACK-gated flush — queue cleared only on server ACK; idempotent retry)
 - ❌ Offline History (Memory-only, needs IndexedDB)
 - ❌ Offline Voting (UI-only, needs background queue)
 **Features:**

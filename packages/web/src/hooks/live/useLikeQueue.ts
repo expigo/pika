@@ -4,12 +4,13 @@
  * Uses localStorage for liked tracks state (already works well)
  */
 
-import { getTrackKey, LIMITS, logger, MESSAGE_TYPES, type TrackInfo } from "@pika/shared";
+import { getTrackKey, LIMITS, logger, MESSAGE_TYPES, TIMEOUTS, type TrackInfo } from "@pika/shared";
 import { del, get, keys, set } from "idb-keyval";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
 import { getOrCreateClientId } from "@/lib/client";
+import { filterOutFlushed, generateMessageId, pendingLikeId, waitForAck } from "./ackRegistry";
 import { getStoredLikes, persistLikes } from "./storage";
 
 interface UseLikeQueueProps {
@@ -75,6 +76,7 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   const lastLikeTimeRef = useRef<number>(0);
   const consecutiveLikesRef = useRef<number>(0);
   const idbSaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFlushingRef = useRef(false);
 
   /**
    * Optimization: Debounced IndexedDB writes to reduce background churn
@@ -185,39 +187,67 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
     [likedTracks],
   );
 
-  // Flush pending likes when reconnecting
+  // Flush pending likes when reconnecting.
+  // W1: ACK-gated + idempotent. We clear IndexedDB only after the server ACKs the
+  // batch (WebSocket.send() buffers bytes but neither awaits delivery nor throws on a
+  // mid-flight drop, so an immediate clear lost likes on flaky wifi). On no-ACK
+  // (timeout/NACK) the queue is kept and the next reconnect re-flushes — safe because
+  // the server dedupes via unique_like_idempotency (no dup rows or hearts).
   const flushPendingLikes = useCallback(async () => {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN || !sessionId) {
       return;
     }
 
-    const pending = [...pendingLikesRef.current];
-    if (pending.length === 0) return;
+    // The reconnect effect fires on every transition to "connected" — guard against
+    // overlapping flushes racing the same batch.
+    if (isFlushingRef.current) return;
 
-    logger.info("[Likes] Flushing pending likes via batch", { count: pending.length });
+    const batch = [...pendingLikesRef.current];
+    if (batch.length === 0) return;
 
+    isFlushingRef.current = true;
     try {
+      const messageId = generateMessageId();
+      const flushedIds = new Set(batch.map(pendingLikeId));
+
+      logger.info("[Likes] Flushing pending likes via batch", { count: batch.length });
+
       socket.send(
         JSON.stringify({
           type: MESSAGE_TYPES.SEND_BULK_LIKE,
           clientId: getOrCreateClientId(),
-          sessionId: sessionId,
+          sessionId,
+          messageId,
           payload: {
-            tracks: pending.map((p) => p.track),
+            tracks: batch.map((p) => p.track),
           },
         }),
       );
 
-      logger.info("[Likes] Successfully sent batch of likes", { count: pending.length });
+      const acked = await waitForAck(messageId, TIMEOUTS.ACK_TIMEOUT);
+      if (!acked) {
+        logger.warn("[Likes] Bulk-like flush not acknowledged; keeping queue for retry", {
+          count: batch.length,
+        });
+        return;
+      }
 
-      // Clear pending
-      pendingLikesRef.current = [];
-      setPendingCount(0);
+      // Remove exactly the ACKed batch; likes queued during the await (a re-drop
+      // mid-flush) survive for the next flush.
+      pendingLikesRef.current = filterOutFlushed(pendingLikesRef.current, flushedIds);
+      setPendingCount(pendingLikesRef.current.length);
       if (idbSaveTimeoutRef.current) clearTimeout(idbSaveTimeoutRef.current);
-      await savePendingToIDB(sessionId, []);
+      await savePendingToIDB(sessionId, pendingLikesRef.current);
+
+      logger.info("[Likes] Bulk-like flush acknowledged", {
+        flushed: batch.length,
+        remaining: pendingLikesRef.current.length,
+      });
     } catch (e) {
       logger.error("[Likes] Failed to flush pending likes batch", e);
+    } finally {
+      isFlushingRef.current = false;
     }
   }, [socketRef, sessionId]);
 

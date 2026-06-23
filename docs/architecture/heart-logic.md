@@ -34,7 +34,7 @@ sequenceDiagram
 ### From Dancer -> Server
 - **`SEND_LIKE`**: Sent when a user taps the heart.
 - **`REMOVE_LIKE`**: Sent when a user taps the heart again to "undo".
-- **`SEND_BULK_LIKE`**: Sent upon reconnection to sync likes made while offline.
+- **`SEND_BULK_LIKE`**: Sent upon reconnection to sync likes made while offline. Carries a `messageId`; the client clears its IndexedDB queue only after the matching `ACK` (see *Offline Queue* below).
 
 ### From Server -> Client (Broadcasting)
 - **`LIKE_RECEIVED`**: Broadcast to all session subscribers (usually the DJ only cares).
@@ -62,7 +62,7 @@ This ensures that at the database level, a dancer can only "Heart" a specific tr
 
 ### Mobile Web (Dancer)
 - **Optimistic UI**: The heart icon fills immediately.
-- **Offline Queue**: Likes are stored in IndexedDB if the connection is lost and synced via `SEND_BULK_LIKE` when back online.
+- **Offline Queue (ACK-gated)**: Likes are stored in IndexedDB if the connection is lost and flushed via `SEND_BULK_LIKE` on reconnect. The IndexedDB entry is removed **only after the server ACKs** the batch (`hooks/live/ackRegistry.ts`); an un-ACKed flush (timeout/NACK) is kept and retried on the next reconnect. `WebSocket.send()` only buffers bytes and doesn't throw on a mid-flight drop, so clearing before the ACK silently lost likes on flaky wifi. Re-flush is safe via the idempotency constraint above.
 - **Rate Limiting**: Users are restricted to a maximum number of likes per minute to prevent botting.
 
 ### Desktop App (DJ)

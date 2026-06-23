@@ -86,7 +86,7 @@ To handle network drops without data loss, the Desktop app implements a persiste
     *   Max delay: 2000ms
     *   Concurrent flush guard: Operation ID based locking
     *   Failure handling: Stops after 3 consecutive failures (retries on next reconnect)
-*   **Mobile Note:** The Web App uses IndexedDB (`idb-keyval`) for offline "Like" queueing with similar logic.
+*   **Mobile Note:** The Web App uses IndexedDB (`idb-keyval`) for offline "Like" queueing. The reconnect flush is **ACK-gated** — it sends `SEND_BULK_LIKE` with a `messageId` and clears IndexedDB only after the server `ACK` (`packages/web/src/hooks/live/ackRegistry.ts`). An un-ACKed batch (timeout/NACK) is kept and re-flushed on the next reconnect; this is safe because the server dedupes via `unique_like_idempotency`. (`WebSocket.send()` only buffers bytes, so clearing before the ACK lost likes on flaky venue wifi.)
 
 > [!NOTE]
 > Only critical messages (like `BROADCAST_TRACK`) are queued. Ephemeral messages (like "typing indicators" or high-frequency updates) may be dropped to prevent flood on reconnection.
