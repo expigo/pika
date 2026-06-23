@@ -28,6 +28,17 @@ interface Props {
   onCancel: () => void;
 }
 
+/** Human "time since" for the earlier set's most recent track (e.g. "20h ago"). */
+function formatTimeAgo(date: Date): string {
+  const sec = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000));
+  if (sec < 90) return "just now";
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.round(hr / 24)}d ago`;
+}
+
 /**
  * One modal for going live. Replaces the previous duplicate-warning → import →
  * name modal chain. Title is always shown; "Start with this track" appears only
@@ -50,9 +61,7 @@ export function StartSessionModal({
   const earlierTracks = detectedSession?.tracks ?? [];
   const hasEarlierSet = earlierTracks.length > 0;
   const selectedTracks = earlierTracks.slice(selectedStartIndex);
-  const earlierDurationMin = detectedSession
-    ? Math.round((detectedSession.endTime.getTime() - detectedSession.startTime.getTime()) / 60000)
-    : 0;
+  const earlierEndedAgo = detectedSession ? formatTimeAgo(detectedSession.endTime) : null;
   const hasOverlap = !!overlap && overlap.length > 0;
 
   const handleStart = () => {
@@ -168,7 +177,7 @@ export function StartSessionModal({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-white">Add my earlier set</p>
                     <p className="text-xs text-slate-400">
-                      {earlierTracks.length} tracks · ~{earlierDurationMin}m before now
+                      {earlierTracks.length} tracks · last played {earlierEndedAgo}
                     </p>
                   </div>
                 </div>
