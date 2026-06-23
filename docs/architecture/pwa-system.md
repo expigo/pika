@@ -117,6 +117,18 @@ Mobile browsers freeze background tabs. When a user unlocks their phone after 20
 3.  **Force Reconnect:** Destroy old socket, create new one.
 4.  **Optimistic Refresh:** Re-fetch `/active-session` API.
 
+### 4.3 LocalStorage Hygiene (Quota Safety)
+Two localStorage structures sit *outside* the IndexedDB action queue and would otherwise
+grow unbounded toward the ~5 MB origin quota:
+
+*   `pika_liked_tracks_v2` — per-session liked-track keys (re-fills hearts on revisit).
+*   `pika_tempo_{session}_{track}` — per-track tempo vote.
+
+`cleanupStaleLocalStorage()` (`hooks/live/storage.ts`, run once per session from
+`useLikeQueue`) caps the liked-tracks map to the last **30 sessions** (LRU) and drops
+`pika_tempo_*` keys belonging to other sessions. `/my-likes` reads likes from the
+**server**, so pruning this client-side cache is lossless.
+
 ---
 
 ## 5. Updates & Lifecycle
