@@ -41,7 +41,14 @@ bun run db:migrate
 # bun run db:push  # ⚠️ Use only for rapid prototyping
 ```
 
-**Important:** Migration files in `drizzle/*.sql` MUST be committed to git. These are the source of truth for database schema. Starting from v0.4.7, migrations are **Idempotent** (using `IF NOT EXISTS`), making them safe to run against existing databases without crashing.
+**Important:** Migration files in `drizzle/*.sql` MUST be committed to git — they are the source of truth for the schema.
+
+> ⚠️ **The migration history was squashed (June 2026, pre-launch).** The old `0000–0008` files
+> (a drifted `db:push`→`db:baseline`→`migrate` hybrid) were collapsed into **one clean baseline**
+> `drizzle/0000_*.sql`, generated from `schema.ts`. It is a plain `CREATE TABLE …` (**not**
+> `IF NOT EXISTS`), so it **assumes a fresh database** — applying it onto a DB that still holds the
+> old schema fails with `relation "…" already exists`. Evolve the schema **append-only** from here
+> (`db:generate`, never `db:push`). Read **[Database migrations: pre-launch vs post-launch](#database-migrations-pre-launch-vs-post-launch)** before touching any deployed DB.
 
 **Local Desynchronization (The "Fix" for Migration Conflicts):**
 If you ever encounter an `ECONNRESET` or a `relation already exists` error during local startup, it means your local Docker volume is out of sync with the Git history.
@@ -251,6 +258,37 @@ git push origin main      # CI builds + VPS pulls; cloud migrates on boot.
 | Review generated SQL before applying | Skip the review step |
 | Run migrations after every deploy | Assume schema is up to date |
 
+### Database migrations: pre-launch vs post-launch
+
+The migration history was **squashed to a single baseline** in June 2026 (`drizzle/0000_*.sql`,
+generated from `schema.ts`). It is a plain `CREATE TABLE …` and assumes an **empty** database — so
+the rules differ sharply depending on where we are in the product lifecycle.
+
+**🟢 PRE-LAUNCH — now (schema still being refined; all data disposable):**
+- To pick up the squashed/changed baseline on an environment that still has an older schema,
+  **reset it** (drops all data; the cloud container re-applies the baseline on next boot):
+  ```bash
+  bash scripts/reset-db.sh staging   # on the VPS, from /opt/pika/pika-staging
+  bash scripts/reset-db.sh prod      # before / at the first prod promotion
+  ```
+- Locally: `docker compose down -v && docker compose up -d postgres`, then `bun run --filter @pika/cloud dev`.
+- **Every environment is an independent DB and must be reset once** after a squash, or
+  `migrate-on-boot` crash-loops with `relation "…" already exists`. Resetting staging does **not**
+  reset prod — do both.
+
+**🔴 POST-LAUNCH — after the first real event (data must survive):**
+- **You can no longer drop the database.** No more squashes, no `reset-db.sh`, no `db:push` — ever.
+- Evolve the schema **append-only**: `db:generate` a new migration → review the SQL → commit → push.
+  `start:prod` applies it on the next deploy; a failed migration aborts startup and reds the deploy.
+- Migrations must be **safe against existing data**. For a new `UNIQUE` / `NOT NULL` / `CHECK`,
+  write the migration to clean or backfill first (e.g. de-duplicate rows **before** `ADD CONSTRAINT`) —
+  a bare constraint add fails if live data violates it.
+- Never edit a migration that has already run anywhere; always fix-forward with a new one.
+- Take a backup before a risky migration (see *Backup & Restore* below).
+
+> The single most important rule: **the disposable-data window closes at go-live.** Treat the first
+> real event as the point of no return for the database.
+
 ### ✅ Schema/Code Race Condition — Solved (Entrypoint Migration)
 **Problem (historical):** deploying new code that expects new columns *before* migrations ran
 would crash the app on startup.
@@ -259,41 +297,34 @@ would crash the app on startup.
 so the schema is always migrated before the server serves. A failed migration aborts startup and is
 caught by the deploy health-gate (deploy goes red).
 
-> **One-time caveat:** migrate-on-boot fails if the DB already has the schema but an *empty*
-> `drizzle.__drizzle_migrations` table (legacy `db:push` setups). Confirm it's populated first:
-> ```bash
-> docker compose -f docker-compose.prod.yml exec db \
->   psql -U pika -d pika_prod -c "SELECT count(*) FROM drizzle.__drizzle_migrations;"
-> ```
-> If empty, run `db:baseline` once (see Troubleshooting below) before the first migrate-on-boot deploy.
+> **One-time caveat (the June-2026 squash):** the single baseline assumes a **fresh** DB. Any
+> environment whose Postgres still holds the **pre-squash** schema (the old `0000–0008` hashes in
+> `drizzle.__drizzle_migrations`) fails migrate-on-boot with `relation "…" already exists` and
+> crash-loops the cloud container. While pre-launch (data disposable), reset that environment once
+> with `bash scripts/reset-db.sh <staging|prod>` — see
+> [pre-launch vs post-launch](#database-migrations-pre-launch-vs-post-launch).
 
 ### 🆘 Troubleshooting Migrations
 
-**"Relation already exists" Error:**
+**`relation "…" already exists` (cloud crash-loops on deploy):**
 ```
-PostgresError: relation "sessions" already exists
+PostgresError: relation "dj_users" already exists
 ```
-This means migration files are trying to create tables that already exist (usually because `db:push` was used before migrations).
+The baseline is being applied onto a DB that already holds the (pre-squash) schema — its
+`__drizzle_migrations` lacks the new baseline hash, so `drizzle-kit migrate` re-runs the
+`CREATE TABLE`s and aborts (which fails `start:prod` → container restart-loop → red deploy).
 
-**Fix: Run Baseline Script (One-time)**
-```bash
-docker compose -f docker-compose.prod.yml exec cloud bun run db:baseline
-```
-This marks existing migrations as "already applied" in the migrations journal.
+- **Pre-launch (data disposable) — reset the environment:**
+  ```bash
+  bash scripts/reset-db.sh staging      # or: prod
+  ```
+  (drops the schema; the cloud container re-applies the clean baseline on its next boot.)
+- **Post-launch (data must survive) — do NOT reset.** Mark the baseline as applied so migrate skips
+  the `CREATE`s, then apply only the genuine delta by hand. See
+  [pre-launch vs post-launch](#database-migrations-pre-launch-vs-post-launch).
 
-Then retry:
-```bash
-docker compose -f docker-compose.prod.yml exec cloud bun run db:migrate
-```
-
-**"Migration file not found" Error:**
-```bash
-# Someone used db:push instead of db:generate. Fix by:
-# 1. Create the missing SQL file locally
-# 2. Or: Mark migration as applied manually:
-docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
-  "INSERT INTO drizzle.__drizzle_migrations (hash, created_at) VALUES ('0000_name', EXTRACT(EPOCH FROM NOW())::BIGINT * 1000);"
-```
+> The old `db:baseline` script (and the `db:push`→baseline→migrate hybrid) was **removed** in the
+> June-2026 squash; don't look for it.
 
 **Check Migration Status:**
 ```bash
@@ -306,49 +337,23 @@ docker compose -f docker-compose.prod.yml exec cloud bun -e "
 "
 ```
 
-### 🧪 Testing Critical Migrations (Integration Test)
+### 🧪 Testing migrations & schema (automated)
 
-When modifying existing tables with data (e.g., adding `NOT NULL` columns), run this Integration Test to prove the migration logic works without data loss.
+The schema + constraints are covered by a **real-Postgres integration test** —
+`packages/cloud/src/__tests__/db.integration.test.ts` — which runs in CI (the
+**DB Integration (Postgres)** job) and asserts the baseline enforces `unique_like_idempotency`,
+the `chk_*` ranges, and FK cascades. The desktop SQLite stack has an equivalent
+(`packages/desktop/src/db/offlineQueue.integration.test.ts`).
 
-**1. Start Ephemeral DB:**
+Run the cloud one locally against the dev DB:
 ```bash
-docker run --name pika-test-db -e POSTGRES_PASSWORD=test -p 5434:5432 -d postgres:17-alpine
+cd packages/cloud
+bun run db:migrate
+bun run test:integration   # = RUN_DB_TESTS=1 bun test src/__tests__/db.integration.test.ts
 ```
-
-**2. Seed Data (Pre-Migration State):**
-```bash
-# Apply only base migrations (0000-0002) - Temporarily hide new files
-mkdir -p packages/cloud/drizzle_hold
-mv packages/cloud/drizzle/0003*.sql packages/cloud/drizzle_hold/
-# Note: You might need to temporarily edit meta/_journal.json too
-
-DATABASE_URL=postgres://postgres:test@localhost:5434/postgres bun run db:migrate
-
-# Insert mock data (Old Schema)
-docker exec pika-test-db psql -U postgres -d postgres -c "INSERT INTO sessions (id, dj_name, started_at) VALUES ('s1', 'DJ', NOW()); INSERT INTO played_tracks (id, session_id, artist, title, played_at) VALUES (1, 's1', 'A', 'T', NOW()); INSERT INTO likes (session_id, track_artist, track_title) VALUES ('s1', 'A', 'T');"
-```
-
-**3. Apply New Migration:**
-```bash
-# Restore files
-mv packages/cloud/drizzle_hold/*.sql packages/cloud/drizzle/
-
-# Run migration
-DATABASE_URL=postgres://postgres:test@localhost:5434/postgres bun run db:migrate
-```
-
-**4. Verify Data (Post-Migration State):**
-```bash
-# Check if data survived and transformed correctly
-docker exec pika-test-db psql -U postgres -d postgres -c "SELECT * FROM likes;"
-# Expect: played_track_id to be populated
-```
-
-**5. Cleanup:**
-```bash
-docker rm -f pika-test-db
-rmdir packages/cloud/drizzle_hold
-```
+For a data-preserving migration (e.g. adding a `NOT NULL` column to a populated table), add a case
+that seeds the old shape, migrates, and asserts the data transformed correctly — far more reliable
+than the old manual "hide the SQL files / edit `_journal.json`" dance.
 
 ### 🔌 Connecting to Prod DB
 

@@ -101,8 +101,11 @@ Staging uses a separate database (`pika_staging`) that can be reset freely.
 
 `deploy.yml` (push to `main`) targets Production with the same structure, prod build-args and
 `:prod` image tags.
-> ⚠️ **Status:** Production is mid-migration to this GHCR pull model. Before the first
-> migrate-on-boot prod deploy, confirm `drizzle.__drizzle_migrations` is populated (see ops-manual).
+> ⚠️ **One-time (June-2026 squash):** the migration history was collapsed to a single baseline that
+> assumes a **fresh** DB. A staging/prod Postgres still holding the **pre-squash** schema crash-loops
+> migrate-on-boot with `relation "…" already exists`. While pre-launch (data disposable), reset it
+> once — `bash scripts/reset-db.sh <staging|prod>` — see ops-manual →
+> *Database migrations: pre-launch vs post-launch*.
 
 ## 6. Configuration Management
 
