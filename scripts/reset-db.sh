@@ -45,7 +45,9 @@ echo "→ stopping app containers (db stays up)…"
 $DC stop cloud web || true
 
 echo "→ dropping schema on '$DB'…"
-$DC exec -T -e PGPASSWORD="${DB_PASSWORD:-}" db \
+# staging .env uses DB_PASSWORD; prod .env uses POSTGRES_PASSWORD. (Local socket auth is
+# usually `trust` in the postgres image, so this is belt-and-suspenders.)
+$DC exec -T -e PGPASSWORD="${DB_PASSWORD:-${POSTGRES_PASSWORD:-}}" db \
   psql -U "$DB_USER" -d "$DB" \
   -c "DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; DROP SCHEMA IF EXISTS drizzle CASCADE;"
 
