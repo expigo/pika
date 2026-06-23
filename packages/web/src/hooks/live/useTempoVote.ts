@@ -84,7 +84,13 @@ export function useTempoVote({
         logger.debug("[Tempo] Cleared vote");
       } else {
         setTempoVote(preference);
-        if (storageKey) localStorage.setItem(storageKey, preference);
+        if (storageKey) {
+          try {
+            localStorage.setItem(storageKey, preference);
+          } catch (e) {
+            logger.error("[Tempo] Failed to persist vote", e);
+          }
+        }
         logger.debug("[Tempo] Sent request", { preference });
       }
 

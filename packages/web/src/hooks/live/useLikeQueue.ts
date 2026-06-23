@@ -11,7 +11,7 @@ import type ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
 import { getOrCreateClientId } from "@/lib/client";
 import { filterOutFlushed, generateMessageId, pendingLikeId, waitForAck } from "./ackRegistry";
-import { getStoredLikes, persistLikes } from "./storage";
+import { cleanupStaleLocalStorage, getStoredLikes, persistLikes } from "./storage";
 
 interface UseLikeQueueProps {
   sessionId: string | null;
@@ -112,6 +112,10 @@ export function useLikeQueue({ sessionId, socketRef }: UseLikeQueueProps): UseLi
   // Load likes and pending from storage when session changes
   useEffect(() => {
     if (!sessionId) return;
+
+    // Bound localStorage growth (cap liked-sessions map + drop other sessions'
+    // tempo keys) so the PWA can't hit QuotaExceeded over many events.
+    cleanupStaleLocalStorage(sessionId);
 
     // Load liked tracks from localStorage
     const stored = getStoredLikes(sessionId);
