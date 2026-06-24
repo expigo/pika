@@ -25,29 +25,40 @@ import {
 import { hasLikedTrack, recordLike, removeLike } from "../lib/likes";
 import { deletePersistedLike, persistLike } from "../lib/persistence/tracks";
 import { parseMessage, sendAck, sendNack } from "../lib/protocol";
+import { ClientRateLimiter } from "../lib/rate-limit";
 import { getSessionIds, hasSession } from "../lib/sessions";
 import { getTempoFeedback, recordTempoVote } from "../lib/tempo";
 import { getSessionTopic } from "../lib/topics";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
 
-// 🛡️ Rate Limiting: ClientID -> Array of timestamps
-const clientLikeHistory = new Map<string, number[]>();
-const LIKE_RATE_LIMIT = LIMITS.LIKE_RATE_LIMIT_MAX;
-const LIKE_WINDOW_MS = LIMITS.LIKE_RATE_LIMIT_WINDOW;
+// 🛡️ Per-client rate limiters for amplifying dancer messages. Each inbound
+// message fans out to the whole session topic, so a single socket must be
+// bounded. Keyed by clientId — index.ts locks clientId per-connection, so it
+// can't be rotated to evade the limit, and we reject messages with no clientId.
+const likeLimiter = new ClientRateLimiter(
+  LIMITS.LIKE_RATE_LIMIT_MAX,
+  LIMITS.LIKE_RATE_LIMIT_WINDOW,
+);
+const reactionLimiter = new ClientRateLimiter(
+  LIMITS.REACTION_RATE_LIMIT_MAX,
+  LIMITS.REACTION_RATE_LIMIT_WINDOW,
+);
+const tempoLimiter = new ClientRateLimiter(
+  LIMITS.TEMPO_RATE_LIMIT_MAX,
+  LIMITS.TEMPO_RATE_LIMIT_WINDOW,
+);
+const bulkLikeLimiter = new ClientRateLimiter(
+  LIMITS.BULK_LIKE_RATE_LIMIT_MAX,
+  LIMITS.BULK_LIKE_RATE_LIMIT_WINDOW,
+);
 
-// 🧹 Periodic cleanup for dormant clients (Every 5m)
+const allLimiters = [likeLimiter, reactionLimiter, tempoLimiter, bulkLikeLimiter];
+
+// 🧹 Periodic cleanup for dormant clients
 setInterval(() => {
-  const now = Date.now();
   let cleared = 0;
-  for (const [clientId, history] of clientLikeHistory.entries()) {
-    // If the newest like is older than the window, the whole history is stale
-    const newest = history[history.length - 1];
-    if (!newest || now - newest > LIKE_WINDOW_MS) {
-      clientLikeHistory.delete(clientId);
-      cleared++;
-    }
-  }
+  for (const limiter of allLimiters) cleared += limiter.cleanup();
   if (cleared > 0) {
     logger.info("🧹 Rate Limit Cleanup completed", { clearedClients: cleared });
   }
@@ -87,18 +98,10 @@ export async function handleSendLike(ctx: WSContext) {
   }
 
   // 🛡️ Rate Limiting
-  const now = Date.now();
-  let history = clientLikeHistory.get(state.clientId) || [];
-  // Prune history
-  history = history.filter((t) => now - t < LIKE_WINDOW_MS);
-
-  if (history.length >= LIKE_RATE_LIMIT) {
+  if (!likeLimiter.check(state.clientId)) {
     if (messageId) sendNack(ws, messageId, "Rate limit exceeded (max 10/min)");
     return;
   }
-
-  history.push(now);
-  clientLikeHistory.set(state.clientId, history);
 
   // 🔐 Security: Check for duplicate likes
   if (hasLikedTrack(likeSessionId, state.clientId, track)) {
@@ -204,6 +207,15 @@ export async function handleSendBulkLike(ctx: WSContext) {
     return;
   }
 
+  // 🛡️ Rate limit the flush frequency. Each bulk call can fan out up to
+  // MAX_BATCH broadcasts, so cap how often a client may flush. Legit offline
+  // reconnects flush once; the ACK-gated client queue re-sends on NACK, and the
+  // server dedupes via unique_like_idempotency, so a throttled flush is safe.
+  if (!bulkLikeLimiter.check(state.clientId)) {
+    if (messageId) sendNack(ws, messageId, "Rate limit exceeded (bulk like)");
+    return;
+  }
+
   logger.info(`📦 Bulk likes received (${tracks.length})`, {
     clientId: state.clientId,
     sessionId: likeSessionId,
@@ -244,6 +256,18 @@ export function handleSendReaction(ctx: WSContext) {
   const msg = parseMessage(SendReactionSchema, message, ws, messageId);
   if (!msg) return;
 
+  // Require clientId so the per-client rate limit can't be evaded by omitting it.
+  if (!state.clientId) {
+    if (messageId) sendNack(ws, messageId, "Client ID required for reactions");
+    return;
+  }
+
+  // 🛡️ Rate limit: reactions broadcast to the whole session topic.
+  if (!reactionLimiter.check(state.clientId)) {
+    if (messageId) sendNack(ws, messageId, "Rate limit exceeded (reactions)");
+    return;
+  }
+
   if (msg.reaction === "thank_you") {
     // Broadcast reaction to this session's subscribers
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
@@ -282,6 +306,12 @@ export function handleSendTempoRequest(ctx: WSContext) {
   if (!state.clientId) {
     logger.warn("⚠️ Tempo request rejected: no clientId provided");
     if (messageId) sendNack(ws, messageId, "Client ID required for tempo requests");
+    return;
+  }
+
+  // 🛡️ Rate limit: tempo votes broadcast aggregates to the whole session topic.
+  if (!tempoLimiter.check(state.clientId)) {
+    if (messageId) sendNack(ws, messageId, "Rate limit exceeded (tempo)");
     return;
   }
 

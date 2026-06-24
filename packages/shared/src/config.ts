@@ -50,7 +50,21 @@ export const LIMITS = {
   AUTH_RATE_LIMIT_MAX: 5,
   LIKE_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
   LIKE_RATE_LIMIT_MAX: 10,
-  WS_CONNECT_RATE_LIMIT_MAX: 20, // per minute
+  // Per-client (clientId) limits on amplifying dancer messages — each fans out
+  // to the whole session topic, so they must be bounded to prevent broadcast
+  // amplification from a single scripted socket.
+  REACTION_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
+  REACTION_RATE_LIMIT_MAX: 15,
+  TEMPO_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
+  TEMPO_RATE_LIMIT_MAX: 12,
+  BULK_LIKE_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
+  BULK_LIKE_RATE_LIMIT_MAX: 5,
+  // Per-IP cap on WebSocket *connection* attempts. NOTE: this is keyed on the
+  // client IP (CF-Connecting-IP / X-Forwarded-For), so an entire venue behind one
+  // NAT shares a single bucket. Keep it generous enough to survive a venue-wide
+  // reconnect storm — real abuse protection comes from the idle-connection reaper
+  // and the per-client message limits above, not this. Tune via WS_RATE_LIMIT env.
+  WS_CONNECT_RATE_LIMIT_MAX: 120, // per minute, per IP
   WS_CONNECT_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
 
   // Data Size
