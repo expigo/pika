@@ -327,13 +327,28 @@ export const trackRepository = {
 
 ### Migrations
 
-**Note:** Desktop uses SQLite, so migrations are handled differently than Cloud (PostgreSQL).
+`schema.ts` is the **single source of truth**. Migrations are drizzle-kit-generated and
+applied at runtime through the sqlite-proxy by `src/db/migrator.ts` (drizzle's own migrator
+needs Node `fs`, which the Tauri WebView lacks — so the SQL is Vite-bundled via
+`import.meta.glob('?raw')`). State is tracked in `__drizzle_migrations`.
 
-Currently using direct schema changes via Drizzle. If you need migrations:
+**To change the schema:**
 ```bash
-bun run db:generate  # Generates migration SQL
-bun run db:migrate   # Applies migrations
+# 1. Edit src/db/schema.ts
+bun run db:generate   # → src/db/migrations/000N_*.sql  (COMMIT these)
+# 2. The new migration applies automatically on next app start (runMigrations).
 ```
+
+**Key behaviours (see `migrator.ts` + `migrator.integration.test.ts`):**
+- **Baseline-adopt:** a pre-existing hand-rolled DB (a `tracks` table but no
+  `__drizzle_migrations`) is recorded at the `0000` baseline *without re-running it* — its
+  data and schema are untouched. So existing installs upgrade losslessly.
+- **Idempotent:** CREATEs run as `IF NOT EXISTS` (tauri-plugin-sql's pool can't guarantee a
+  `BEGIN/COMMIT` is atomic), so a partial failure is safe to re-run.
+- **Fail-fast:** a migration error throws (no swallow-and-continue), so a broken DB surfaces
+  loudly instead of running on a half-built schema.
+- Adding indexes/FKs: declare them in `schema.ts` (drizzle-sqlite has no per-column index
+  `DESC` — a plain index serves both directions).
 
 ## Key Hooks
 
@@ -452,7 +467,7 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 338 passing tests (Vitest, +1 skipped)
+**Current coverage:** 342 passing tests (Vitest, +1 skipped)
 
 ### Test Files
 
