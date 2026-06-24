@@ -6,16 +6,17 @@
  * @created 2026-01-21
  *
  * PURPOSE:
- * Tests database persistence logic for sessions, tracks, likes, and tempo votes.
- * Uses mocks since we can't hit the real database in unit tests.
+ * Fast, DB-free checks of the persistence *logic* for sessions, tracks, likes, and
+ * tempo votes. These mirror the real algorithms with local copies so the unit suite
+ * needs no Postgres — a logic smoke test, NOT coverage of the shipped functions.
  *
- * PRODUCTION LOCATION:
- * - ensureSessionPersisted (line 461)
- * - persistSession (line 485)
- * - persistTrack (line 518)
- * - persistLike (line 580)
- * - persistTempoVotes (line 640)
- * - endSessionInDb (line 670)
+ * Real-module coverage (the actual inserts/dedup/idempotency in lib/persistence/*.ts,
+ * incl. the C3 buffer-and-flush) lives in db.integration.test.ts — gated behind
+ * RUN_DB_TESTS and run against real Postgres in CI.
+ *
+ * Production code:
+ * - lib/persistence/sessions.ts — persistSession, ensureSessionPersisted, endSessionInDb
+ * - lib/persistence/tracks.ts   — persistTrack, persistTracksBulk, persistLike, persistTempoVotes
  */
 
 import { beforeEach, describe, expect, test } from "bun:test";
