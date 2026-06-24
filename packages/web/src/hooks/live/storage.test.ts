@@ -9,7 +9,14 @@
  */
 
 import { beforeEach, describe, expect, test } from "bun:test";
-import { cleanupStaleLocalStorage, getStoredLikes, persistLikes } from "./storage";
+import {
+  cleanupStaleLocalStorage,
+  clearStoredSessionId,
+  getStoredLikes,
+  getStoredSessionId,
+  persistLikes,
+  persistSessionId,
+} from "./storage";
 
 // Mirrors the real Storage surface storage.ts uses (incl. length + key()).
 class MockStorage {
@@ -111,5 +118,26 @@ describe("cleanupStaleLocalStorage — tempo sweep", () => {
     cleanupStaleLocalStorage("s5");
     const raw = (g.localStorage as MockStorage).getItem("pika_liked_tracks_v2") ?? "{}";
     expect(Object.keys(JSON.parse(raw)).length).toBeLessThanOrEqual(MAX_LIKED_SESSIONS);
+  });
+});
+
+describe("session-id storage", () => {
+  test("persist / get / clear round-trip", () => {
+    expect(getStoredSessionId()).toBeNull();
+    persistSessionId("sess-xyz");
+    expect(getStoredSessionId()).toBe("sess-xyz");
+    clearStoredSessionId();
+    expect(getStoredSessionId()).toBeNull();
+  });
+});
+
+describe("getStoredLikes resilience", () => {
+  test("returns an empty set for a null sessionId", () => {
+    expect(getStoredLikes(null).size).toBe(0);
+  });
+
+  test("returns an empty set when the stored JSON is malformed", () => {
+    (g.localStorage as MockStorage).setItem("pika_liked_tracks_v2", "{not valid json");
+    expect(getStoredLikes("sess").size).toBe(0);
   });
 });

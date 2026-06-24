@@ -13,7 +13,9 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { MESSAGE_TYPES, type WebSocketMessage } from "@pika/shared";
 import {
+  ackHandlers,
   clearAllAcks,
   filterOutFlushed,
   generateMessageId,
@@ -21,6 +23,10 @@ import {
   resolveAck,
   waitForAck,
 } from "./ackRegistry";
+
+// The router hands these plain objects; only `.messageId` is read.
+const serverMsg = (type: string, messageId: string) =>
+  ({ type, messageId }) as unknown as WebSocketMessage;
 
 beforeEach(() => clearAllAcks());
 afterEach(() => clearAllAcks());
@@ -82,5 +88,27 @@ describe("filterOutFlushed", () => {
     const t1Again = { track: { artist: "A", title: "One" }, timestamp: 99 };
     const flushed = new Set([pendingLikeId(t1)]);
     expect(filterOutFlushed([t1, t1Again], flushed)).toEqual([t1Again]);
+  });
+});
+
+describe("ackHandlers (router → registry)", () => {
+  test("ACK resolves the matching waiter to true", async () => {
+    const p = waitForAck("m-ack", 1000);
+    ackHandlers[MESSAGE_TYPES.ACK]?.(serverMsg(MESSAGE_TYPES.ACK, "m-ack"));
+    expect(await p).toBe(true);
+  });
+
+  test("NACK resolves the matching waiter to false", async () => {
+    const p = waitForAck("m-nack", 1000);
+    ackHandlers[MESSAGE_TYPES.NACK]?.(serverMsg(MESSAGE_TYPES.NACK, "m-nack"));
+    expect(await p).toBe(false);
+  });
+});
+
+describe("clearAllAcks", () => {
+  test("resolves any in-flight waiters to false", async () => {
+    const p = waitForAck("m-pending", 1000);
+    clearAllAcks();
+    expect(await p).toBe(false);
   });
 });
