@@ -452,7 +452,7 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 337 passing tests (Vitest, +1 skipped)
+**Current coverage:** 338 passing tests (Vitest, +1 skipped)
 
 ### Test Files
 

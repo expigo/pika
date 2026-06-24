@@ -89,11 +89,11 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of June 2026):** 680 passing tests total
-- Desktop: 337 tests (Vitest, +1 skipped)
-- Cloud: 319 tests (Bun)
+**Test Coverage (as of June 2026):** 766 passing tests total (+ 11 gated DB-integration)
+- Desktop: 338 tests (Vitest, +1 skipped)
+- Cloud: 325 unit tests (Bun) + 11 integration (`test:integration`, gated `RUN_DB_TESTS`, real Postgres — exercises the real `persist*` functions incl. the C3 buffer-and-flush)
 - Shared: 24 tests (Bun)
-- Web: test files exist (`src/__tests__/`) but no `test` script wired yet
+- Web: 79 tests (Bun) — now wired (`test` script) and CI-gated
 
 ### Code Quality
 
@@ -227,9 +227,10 @@ chore: bump version to 0.4.0
 - Use `parseMessage<T>()` in Cloud handlers for type-safe parsing
 
 ### Testing Philosophy
-- **680 passing tests** across all packages (337 desktop, 319 cloud, 24 shared)
+- **766 passing tests** across all packages (338 desktop, 325 cloud, 79 web, 24 shared) + 11 gated DB-integration
 - Test files colocated with source: `*.test.ts` or `__tests__/` directories
-- Use Vitest for TS/JS, pytest for Python
+- Use Vitest (desktop) / `bun test` (cloud, web, shared) for TS/JS, pytest for Python
+- DB-touching code: real-Postgres coverage lives in `*.integration.test.ts`, gated by `RUN_DB_TESTS` and run in CI's integration job (the unit suites mock the DB). Logic mirrored in unit tests (e.g. `db-persistence.test.ts`) is a fast smoke check, *not* coverage of the shipped functions.
 - Aim for 100% coverage of critical paths (connection lifecycle, history import)
 
 ### Security Requirements
