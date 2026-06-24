@@ -96,7 +96,7 @@ We will use the **"Modern Standard"** approach for Next.js 15 (App Router).
 *   **Risk:** Aggressive caching breaks new deployments.
     *   *Mitigation:* Configure SW to check for updates on every navigation (`skipWaiting: true`).
 *   **Risk:** Storage quota exceeded.
-    *   *Mitigation:* `idb-keyval` is tiny. We only store text JSON (votes). Clean up old sessions on load.
+    *   *Mitigation:* Bounded by design — the localStorage liked-tracks map is capped to the last 30 sessions and stale `pika_tempo_*` keys are swept per session (`hooks/live/storage.ts`); the IndexedDB pending-likes queue self-prunes (7-day sweep).
 
 ---
 

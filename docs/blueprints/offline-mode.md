@@ -36,7 +36,7 @@ We approach offline resilience in layers, from simplest (software) to most compl
 **Strategy:** The app never "crashes" or shows a dinosaur; it just waits.
 *   **Core Technology: Progressive Web App (PWA)**
     *   **The Shell:** Cached HTML/CSS/JS means the app **opens instantly** even in airplane mode.
-    *   **"Store & Forward":** Likes/Votes are stored in `localStorage` queue (already implemented) and auto-synced when signal returns.
+    *   **"Store & Forward":** Likes are queued in **IndexedDB** (`idb-keyval`) and flushed **ACK-gated** when signal returns (the queue is cleared only after the server confirms). Tempo votes are live-only — not queued offline.
     *   **"Signal Lost" UI:** If the DJ's heartbeat is missing for >2 mins, user sees explicit "Waiting for Signal" UI instead of stale song data.
 *   **New Capabilities Unlocked:**
     *   **Installability:** "Add to Home Screen" prevents "lost tab" syndrome.
