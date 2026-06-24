@@ -13,6 +13,7 @@ This is the central index for the Pika! project, tracking active development, fu
 
 ## 📂 Active Projects
 *   **[MVP Launch Plan](projects/mvp-launch.md)** - *High Priority*
+*   **[Persistence Hardening Backlog](persistence-hardening-backlog.md)** - *Deferred storage-layer work; C-tier resilience (W1/W2/C3) done, remainder is signal-driven. Consult when an event/usage/bug gives the signal.*
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
