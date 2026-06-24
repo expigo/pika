@@ -49,7 +49,8 @@ const sessionActivePoll = new Map<string, number>();
 // Map: pollId -> Timer reference (for auto-end timers)
 const pollTimers = new Map<number, Timer>();
 
-// Auto-increment poll ID
+// In-memory id source for the createPoll() TEST helper below. NOT used at runtime —
+// production poll ids come from the DB (createPollInDb → serial).
 let nextPollId = 1;
 
 // ============================================================================
@@ -109,8 +110,9 @@ export function hasActivePoll(sessionId: string): boolean {
 }
 
 /**
- * Create a new poll for a session
- * @returns the new poll ID, or null if session already has an active poll
+ * TEST-ONLY in-memory poll factory (seeds activePolls + sessionActivePoll). Production polls are
+ * created via createPollInDb() + handleStartPoll using DB-assigned ids — this is never called at
+ * runtime; it stays here because robustness.test.ts + handler-topic-routing.test.ts import it.
  */
 export function createPoll(
   sessionId: string,
