@@ -23,6 +23,51 @@ import { persistedSessions, waitForSession } from "./sessions";
 // Track last persisted track per session for deduplication
 export const lastPersistedTrackKey = new Map<string, string>();
 
+// C3: plays that arrived before their session row was persisted (the go-live race,
+// where BROADCAST_TRACK is processed while REGISTER_SESSION's insert is still in
+// flight). Buffered here instead of being silently dropped, then flushed once the
+// session is ready. Normally empty — only used during that brief window.
+const pendingTracksBuffer = new Map<string, TrackInfo[]>();
+const MAX_PENDING_TRACKS = 200;
+
+function bufferPendingTrack(sessionId: string, track: TrackInfo): void {
+  const buf = pendingTracksBuffer.get(sessionId) ?? [];
+  if (buf.length >= MAX_PENDING_TRACKS) {
+    // Loud, not silent — a full buffer means the session never persisted.
+    logger.error("❌ Pending-track buffer full; dropping oldest play", { sessionId });
+    buf.shift();
+  }
+  buf.push(track);
+  pendingTracksBuffer.set(sessionId, buf);
+}
+
+/**
+ * Flush plays buffered before the session row existed. Called once persistSession
+ * succeeds (REGISTER_SESSION handler). Re-runs persistTrack now that the session is
+ * ready, so the normal insert + dedup path applies, in original play order.
+ */
+export async function flushPendingTracks(sessionId: string): Promise<void> {
+  const buf = pendingTracksBuffer.get(sessionId);
+  if (!buf || buf.length === 0) return;
+  pendingTracksBuffer.delete(sessionId);
+  logger.info("⏳→💾 Flushing buffered plays", { sessionId, count: buf.length });
+  for (const track of buf) {
+    await persistTrack(sessionId, track);
+  }
+}
+
+/** Drop buffered plays for a session (session persist failed, or session ended). */
+export function discardPendingTracks(sessionId: string): void {
+  if (pendingTracksBuffer.delete(sessionId)) {
+    logger.error("❌ Discarded buffered plays (session not persisted)", { sessionId });
+  }
+}
+
+/** Test/observability: number of plays currently buffered for a session. */
+export function getPendingTrackCount(sessionId: string): number {
+  return pendingTracksBuffer.get(sessionId)?.length ?? 0;
+}
+
 // ============================================================================
 // Operations
 // ============================================================================
@@ -39,13 +84,14 @@ export async function persistTrack(sessionId: string, track: TrackInfo): Promise
 
     // Wait for session to be persisted (event-based, with timeout)
     const sessionReady = await waitForSession(sessionId);
-    if (!sessionReady) {
-      logger.warn("⚠️ Session not ready in time, skipping track persistence", { sessionId });
-      return;
-    }
-
-    if (!persistedSessions.has(sessionId)) {
-      logger.warn("⚠️ Session not found in DB, skipping track persistence", { sessionId });
+    if (!sessionReady || !persistedSessions.has(sessionId)) {
+      // C3: don't silently drop the play — buffer it. flushPendingTracks() runs
+      // once the session row is persisted (from the REGISTER_SESSION handler).
+      bufferPendingTrack(sessionId, track);
+      logger.warn("⏳ Session not ready; play buffered for flush", {
+        sessionId,
+        title: track.title,
+      });
       return;
     }
 
@@ -103,13 +149,13 @@ export async function persistTracksBulk(sessionId: string, tracks: TrackInfo[]):
   return enqueuePersistence(sessionId, async () => {
     // Wait for session to be persisted (event-based, with timeout)
     const sessionReady = await waitForSession(sessionId);
-    if (!sessionReady) {
-      logger.warn("⚠️ Session not ready in time, skipping bulk track persistence", { sessionId });
-      return;
-    }
-
-    if (!persistedSessions.has(sessionId)) {
-      logger.warn("⚠️ Session not found in DB, skipping bulk track persistence", { sessionId });
+    if (!sessionReady || !persistedSessions.has(sessionId)) {
+      // C3: buffer the batch instead of dropping it; flushed on session-ready.
+      for (const track of tracks) bufferPendingTrack(sessionId, track);
+      logger.warn("⏳ Session not ready; buffered plays for flush", {
+        sessionId,
+        count: tracks.length,
+      });
       return;
     }
 
@@ -309,4 +355,6 @@ export function clearLastPersistedTrackKey(sessionId: string): void {
   if (lastPersistedTrackKey.has(sessionId)) {
     lastPersistedTrackKey.delete(sessionId);
   }
+  // C3: also drop any plays still buffered for this session so they can't leak.
+  pendingTracksBuffer.delete(sessionId);
 }

@@ -36,6 +36,8 @@ import { cleanupSessionQueue } from "../lib/persistence/queue";
 import { endSessionInDb, persistedSessions, persistSession } from "../lib/persistence/sessions";
 import {
   clearLastPersistedTrackKey,
+  discardPendingTracks,
+  flushPendingTracks,
   persistTempoVotes,
   persistTrack,
 } from "../lib/persistence/tracks";
@@ -167,8 +169,18 @@ export async function handleRegisterSession(ctx: WSContext) {
   });
 
   // 💾 Persist to database (async, but state is already set for cleanup)
-  await persistSession(sessionId, djName, djUserId);
+  const sessionPersisted = await persistSession(sessionId, djName, djUserId);
   logger.debug(`✅ Session ready for polls: ${sessionId}`);
+
+  // C3: flush any plays that arrived before the session row landed (go-live race).
+  // Fire-and-forget so it doesn't delay the SESSION_REGISTERED / ACK response.
+  if (sessionPersisted) {
+    flushPendingTracks(sessionId).catch((e) =>
+      logger.error("❌ Failed to flush buffered plays", e),
+    );
+  } else {
+    discardPendingTracks(sessionId);
+  }
 
   // Confirm registration to the client
   ws.send(

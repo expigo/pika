@@ -147,6 +147,7 @@ Since the Desktop app periodically polls VirtualDJ (every 1-2s), it may detect t
 
 ### Server-Side (Cloud)
 *   **lastPersistedTrackKey Map (v0.4.7):** In-memory Map tracks the last persisted track per session. Skips duplicate `persistTrack()` calls.
+*   **Go-live buffer (C3):** A play broadcast before its session row is persisted (the `REGISTER_SESSION`→`BROADCAST_TRACK` race) is buffered (`pendingTracksBuffer`, `lib/persistence/tracks.ts`) and flushed once `persistSession` succeeds — so a slow session insert never *silently* drops a play. Replaces the prior `waitForSession` timeout-drop.
 *   **Nonce Tracking:** `checkAndRecordNonce()` prevents duplicate message processing within 5-minute window.
 
 ### ⚠️ Known Limitation: Server Restart Edge Case
