@@ -41,7 +41,14 @@ const mockDb = {
   then: (resolve: (value: unknown) => void) => resolve([]),
 };
 
-// Mock database
+// Mock database.
+// ⚠️ bun's mock.module is PROCESS-GLOBAL and is NOT restored between test files (unlike the
+// spyOn() mocks below, which we mockRestore()). This db mock therefore leaks into every file
+// that runs after this one. It is harmless for the normal `bun test` run — no unit test hits a
+// real DB (persist* short-circuits on NODE_ENV==="test") — but it WOULD break the real-DB
+// queries in db.integration.test.ts if that ran in the same process, which is exactly why the
+// integration suite is gated and run in isolation (see its header). Don't add real-DB-dependent
+// assertions to this file; put those in db.integration.test.ts instead.
 mock.module("../src/db", () => ({
   db: mockDb,
   schema: {
