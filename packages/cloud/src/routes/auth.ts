@@ -6,7 +6,7 @@
  */
 
 import { LIMITS, logger, slugify } from "@pika/shared";
-import { eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
@@ -102,6 +102,47 @@ async function validateToken(
     logger.error("Token validation error", e);
     return null;
   }
+}
+
+// ============================================================================
+// Token hygiene & timing-attack defense
+// ============================================================================
+
+/**
+ * Cap on stored tokens per DJ. Login mints a fresh token each time (multi-device
+ * support), so without a cap the `dj_tokens` rows — and the set of simultaneously
+ * valid credentials — grow unbounded. We keep the newest N and evict the rest.
+ */
+const MAX_TOKENS_PER_USER = 10;
+
+/**
+ * Constant bcrypt hash used to equalize login response time on the
+ * "email not found" path. Without it only the email-exists path pays the bcrypt
+ * cost, turning response latency into a user-enumeration oracle. Computed once,
+ * lazily, then cached.
+ */
+let dummyPasswordHashPromise: Promise<string> | null = null;
+function getDummyPasswordHash(): Promise<string> {
+  if (!dummyPasswordHashPromise) {
+    dummyPasswordHashPromise = hashPassword("pika-dummy-password-for-constant-time-compare");
+  }
+  return dummyPasswordHashPromise;
+}
+
+/**
+ * Keep only the newest MAX_TOKENS_PER_USER tokens for a user; delete the rest.
+ */
+async function pruneUserTokens(djUserId: number): Promise<void> {
+  const tokens = await db
+    .select({ id: schema.djTokens.id })
+    .from(schema.djTokens)
+    .where(eq(schema.djTokens.djUserId, djUserId))
+    .orderBy(desc(schema.djTokens.createdAt));
+
+  if (tokens.length <= MAX_TOKENS_PER_USER) return;
+
+  const stale = tokens.slice(MAX_TOKENS_PER_USER).map((t) => t.id);
+  await db.delete(schema.djTokens).where(inArray(schema.djTokens.id, stale));
 }
 
 // ============================================================================
@@ -247,12 +288,12 @@ auth.post("/login", authLimiter, async (c) => {
       .where(eq(schema.djUsers.email, email.toLowerCase()))
       .limit(1);
 
-    if (users.length === 0) {
-      return c.json({ error: "Invalid email or password" }, 401);
-    }
-
     const user = users[0];
     if (!user) {
+      // Equalize response time with the valid-account path: run a bcrypt verify
+      // against a dummy hash so latency doesn't leak whether the email exists
+      // (user enumeration defense).
+      await verifyPassword(password, await getDummyPasswordHash());
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
@@ -271,6 +312,9 @@ auth.post("/login", authLimiter, async (c) => {
       token: tokenHash,
       name: "Default",
     });
+
+    // Bound stored tokens per user (multi-device friendly, but not unbounded).
+    await pruneUserTokens(user.id);
 
     logger.info("✅ DJ logged in", { displayName: user.displayName, email: user.email });
 
