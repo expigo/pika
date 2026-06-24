@@ -1,11 +1,12 @@
 import { zValidator } from "@hono/zod-validator";
 import { logger } from "@pika/shared";
-import { desc, eq, isNull } from "drizzle-orm";
+import { desc, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
-import { djTokens, pushSubscriptions } from "../db/schema";
+import { pushSubscriptions } from "../db/schema";
+import { validateToken } from "../lib/auth";
 import { PushService } from "../services/push";
 
 export const push = new Hono();
@@ -97,14 +98,13 @@ push.post("/send", zValidator("json", SendSchema), async (c) => {
     return c.json({ error: "Invalid token format" }, 401);
   }
 
-  // Explicit query to avoid Drizzle inference issues
-  const tokenRecords = await db.select().from(djTokens).where(eq(djTokens.token, token)).limit(1);
-
-  if (tokenRecords.length === 0) {
+  // Tokens are stored SHA-256-hashed — validateToken hashes the incoming token
+  // before lookup. (The prior code compared the raw token to the hashed column,
+  // so this endpoint never authenticated a real DJ.)
+  const dj = await validateToken(token);
+  if (!dj) {
     return c.json({ error: "Invalid token" }, 401);
   }
-
-  // We know it's valid now. Can fetch DJ info if needed later.
 
   const { payload, filter } = c.req.valid("json");
   const finalPayload = typeof payload === "string" ? payload : JSON.stringify(payload);
