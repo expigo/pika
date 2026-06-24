@@ -25,6 +25,7 @@ import {
   activePolls,
   endPoll,
   getActivePoll,
+  hasActivePoll,
   recordPollVote,
   sessionActivePoll,
   setPollTimer,
@@ -65,6 +66,16 @@ export async function handleStartPoll(ctx: WSContext) {
   if (options.some((opt) => opt.length === 0 || opt.length > 100)) {
     logger.warn("⚠️ Poll rejected: Invalid option length");
     if (messageId) sendNack(ws, messageId, "Poll options must be 1-100 characters");
+    return;
+  }
+
+  // 🛡️ One active poll per session: reject a concurrent START_POLL so the first poll
+  // isn't orphaned in activePolls with a live auto-end timer (and no stray POLL_ENDED).
+  if (hasActivePoll(msg.sessionId)) {
+    logger.warn("⚠️ Poll rejected: session already has an active poll", {
+      sessionId: msg.sessionId,
+    });
+    if (messageId) sendNack(ws, messageId, "A poll is already active — end it first");
     return;
   }
 
