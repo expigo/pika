@@ -142,15 +142,18 @@ sessions.get("/:sessionId/history", async (c) => {
 });
 
 /**
- * GET /:sessionId/recap
- * Get full session recap (all tracks + metadata)
+ * Build the recap payload for a session. Returns null when the session does not
+ * exist (→ 404). Poll data is included ONLY for the authenticated owner.
+ *
+ * The five independent reads (session, tracks, total likes, per-track likes,
+ * tempo votes) run in parallel — previously six sequential awaits.
  */
-sessions.get("/:sessionId/recap", async (c) => {
-  const sessionId = c.req.param("sessionId");
-
-  try {
-    // Get session metadata from database (activeSessions is cleared when session ends)
-    const sessionData = await db
+async function buildRecap(
+  sessionId: string,
+  token: string | null,
+): Promise<Record<string, unknown> | null> {
+  const [sessionData, tracks, likesResult, trackLikesData, tempoVotesData] = await Promise.all([
+    db
       .select({
         id: schema.sessions.id,
         djUserId: schema.sessions.djUserId,
@@ -160,12 +163,8 @@ sessions.get("/:sessionId/recap", async (c) => {
       })
       .from(schema.sessions)
       .where(eq(schema.sessions.id, sessionId))
-      .limit(1);
-
-    const dbSession = sessionData[0];
-
-    // Get all tracks for this session (including fingerprint for analytics)
-    const tracks = await db
+      .limit(1),
+    db
       .select({
         id: schema.playedTracks.id,
         artist: schema.playedTracks.artist,
@@ -182,40 +181,14 @@ sessions.get("/:sessionId/recap", async (c) => {
       .from(schema.playedTracks)
       .where(eq(schema.playedTracks.sessionId, sessionId))
       .orderBy(schema.playedTracks.playedAt)
-      .limit(LIMITS.MAX_RECAP_ITEMS); // L7: Standardized cap
-
-    if (!dbSession) {
-      logger.info("Recap not found", { sessionId });
-      return c.json({ error: "Session not found" }, 404);
-    }
-
-    // Get total likes count for this session
-    const likesResult = await db
-      .select({ count: count() })
-      .from(schema.likes)
-      .where(eq(schema.likes.sessionId, sessionId));
-
-    const totalLikes = likesResult[0]?.count || 0;
-
-    // Get per-track like counts (Batched query to avoid N+1)
-    const trackLikesData = await db
-      .select({
-        playedTrackId: schema.likes.playedTrackId,
-        count: count(),
-      })
+      .limit(LIMITS.MAX_RECAP_ITEMS), // L7: Standardized cap
+    db.select({ count: count() }).from(schema.likes).where(eq(schema.likes.sessionId, sessionId)),
+    db
+      .select({ playedTrackId: schema.likes.playedTrackId, count: count() })
       .from(schema.likes)
       .where(eq(schema.likes.sessionId, sessionId))
-      .groupBy(schema.likes.playedTrackId);
-
-    const trackLikeCounts = new Map<number, number>();
-    for (const item of trackLikesData) {
-      if (item.playedTrackId) {
-        trackLikeCounts.set(item.playedTrackId, item.count);
-      }
-    }
-
-    // Get per-track tempo votes
-    const tempoVotesData = await db
+      .groupBy(schema.likes.playedTrackId),
+    db
       .select({
         trackArtist: schema.tempoVotes.trackArtist,
         trackTitle: schema.tempoVotes.trackTitle,
@@ -224,170 +197,188 @@ sessions.get("/:sessionId/recap", async (c) => {
         fasterCount: schema.tempoVotes.fasterCount,
       })
       .from(schema.tempoVotes)
-      .where(eq(schema.tempoVotes.sessionId, sessionId));
+      .where(eq(schema.tempoVotes.sessionId, sessionId)),
+  ]);
 
-    const trackTempoVotes = new Map<string, { slower: number; perfect: number; faster: number }>();
-    for (const tv of tempoVotesData) {
-      trackTempoVotes.set(`${tv.trackArtist}:${tv.trackTitle}`, {
-        slower: tv.slowerCount,
-        perfect: tv.perfectCount,
-        faster: tv.fasterCount,
-      });
-    }
+  const dbSession = sessionData[0];
+  if (!dbSession) return null;
 
-    // Verify auth token (Conditional Access)
-    // If DJ is authenticated, they get full data including polls/votes.
-    // If Public/Unauthenticated, they get track list but NO poll data (privacy).
-    const authHeader = c.req.header("Authorization");
-    const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
-    let isAuthenticated = false;
+  const totalLikes = likesResult[0]?.count || 0;
 
-    if (token) {
-      const user = await validateToken(token);
-      // Only allow if this user OWNS the session or is an admin?
-      if (user && dbSession.djUserId === user.id) {
-        isAuthenticated = true;
-      }
-    }
+  const trackLikeCounts = new Map<number, number>();
+  for (const item of trackLikesData) {
+    if (item.playedTrackId) trackLikeCounts.set(item.playedTrackId, item.count);
+  }
 
-    // Get polls for this session (only if authenticated)
-    let pollsWithResults: unknown[] = [];
-    if (isAuthenticated) {
-      const pollsData = await db
+  const trackTempoVotes = new Map<string, { slower: number; perfect: number; faster: number }>();
+  for (const tv of tempoVotesData) {
+    trackTempoVotes.set(`${tv.trackArtist}:${tv.trackTitle}`, {
+      slower: tv.slowerCount,
+      perfect: tv.perfectCount,
+      faster: tv.fasterCount,
+    });
+  }
+
+  // Conditional access: only the session OWNER gets poll data (privacy).
+  let isAuthenticated = false;
+  if (token) {
+    const user = await validateToken(token);
+    if (user && dbSession.djUserId === user.id) isAuthenticated = true;
+  }
+
+  let pollsWithResults: unknown[] = [];
+  if (isAuthenticated) {
+    const pollsData = await db
+      .select({
+        id: schema.polls.id,
+        question: schema.polls.question,
+        options: schema.polls.options,
+        status: schema.polls.status,
+        startedAt: schema.polls.startedAt,
+        endedAt: schema.polls.endedAt,
+        currentTrackArtist: schema.polls.currentTrackArtist,
+        currentTrackTitle: schema.polls.currentTrackTitle,
+      })
+      .from(schema.polls)
+      .where(eq(schema.polls.sessionId, sessionId));
+
+    // 🛡️ P0 Fix: Single batched query for all poll vote counts (eliminates N+1)
+    const pollIds = pollsData.map((p) => p.id);
+    let allVotes: { pollId: number; optionIndex: number; count: number }[] = [];
+
+    if (pollIds.length > 0) {
+      allVotes = await db
         .select({
-          id: schema.polls.id,
-          question: schema.polls.question,
-          options: schema.polls.options,
-          status: schema.polls.status,
-          startedAt: schema.polls.startedAt,
-          endedAt: schema.polls.endedAt,
-          currentTrackArtist: schema.polls.currentTrackArtist,
-          currentTrackTitle: schema.polls.currentTrackTitle,
+          pollId: schema.pollVotes.pollId,
+          optionIndex: schema.pollVotes.optionIndex,
+          count: count(),
         })
-        .from(schema.polls)
-        .where(eq(schema.polls.sessionId, sessionId));
-
-      // 🛡️ P0 Fix: Single batched query for all poll vote counts (eliminates N+1)
-      const pollIds = pollsData.map((p) => p.id);
-      let allVotes: { pollId: number; optionIndex: number; count: number }[] = [];
-
-      if (pollIds.length > 0) {
-        // Use IN clause for batch query
-        allVotes = await db
-          .select({
-            pollId: schema.pollVotes.pollId,
-            optionIndex: schema.pollVotes.optionIndex,
-            count: count(),
-          })
-          .from(schema.pollVotes)
-          .where(
-            sql`${schema.pollVotes.pollId} IN (${sql.join(
-              pollIds.map((id) => sql`${id}`),
-              sql`, `,
-            )})`,
-          )
-          .groupBy(schema.pollVotes.pollId, schema.pollVotes.optionIndex);
-      }
-
-      // Build vote counts map: pollId -> optionIndex -> count
-      const votesByPoll = new Map<number, Map<number, number>>();
-      for (const v of allVotes) {
-        if (!votesByPoll.has(v.pollId)) {
-          votesByPoll.set(v.pollId, new Map());
-        }
-        votesByPoll.get(v.pollId)!.set(v.optionIndex, v.count);
-      }
-
-      // Map polls with their vote data (no additional queries)
-      pollsWithResults = pollsData.map((poll) => {
-        const options = (poll.options as string[]) || [];
-        const pollVotes = votesByPoll.get(poll.id) || new Map();
-        const voteCounts = options.map((_, idx) => pollVotes.get(idx) || 0);
-
-        const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
-        const winnerIndex = totalVotes > 0 ? voteCounts.indexOf(Math.max(...voteCounts)) : -1;
-
-        return {
-          id: poll.id,
-          question: poll.question,
-          options,
-          votes: voteCounts,
-          totalVotes,
-          winnerIndex,
-          winner: winnerIndex >= 0 ? options[winnerIndex] : null,
-          startedAt: poll.startedAt,
-          endedAt: poll.endedAt,
-          // Track context: what was playing when poll was created
-          currentTrack:
-            poll.currentTrackArtist && poll.currentTrackTitle
-              ? { artist: poll.currentTrackArtist, title: poll.currentTrackTitle }
-              : null,
-        };
-      });
+        .from(schema.pollVotes)
+        .where(
+          sql`${schema.pollVotes.pollId} IN (${sql.join(
+            pollIds.map((id) => sql`${id}`),
+            sql`, `,
+          )})`,
+        )
+        .groupBy(schema.pollVotes.pollId, schema.pollVotes.optionIndex);
     }
 
-    // Calculate session stats
-    const lastTrack = tracks[tracks.length - 1];
-    const startTime = dbSession.startedAt;
-
-    // Calculate effective end time to prevent "zombie sessions" (forgotten open sessions)
-    let endTime: Date;
-    if (dbSession.endedAt) {
-      endTime = dbSession.endedAt;
-    } else if (lastTrack) {
-      const cap = new Date(new Date(lastTrack.playedAt).getTime() + 5 * 60 * 1000);
-      const now = new Date();
-      endTime = now < cap ? now : cap;
-    } else {
-      endTime = new Date();
+    // Build vote counts map: pollId -> optionIndex -> count
+    const votesByPoll = new Map<number, Map<number, number>>();
+    for (const v of allVotes) {
+      let optionCounts = votesByPoll.get(v.pollId);
+      if (!optionCounts) {
+        optionCounts = new Map();
+        votesByPoll.set(v.pollId, optionCounts);
+      }
+      optionCounts.set(v.optionIndex, v.count);
     }
 
-    // Response object
-    const response: Record<string, unknown> = {
-      sessionId,
-      djName: dbSession?.djName || "DJ",
-      startedAt: startTime?.toISOString(),
-      endedAt: endTime?.toISOString(),
-      trackCount: tracks.length,
-      totalLikes,
-      tracks: tracks.map((t, index) => {
-        const tempoData = trackTempoVotes.get(`${t.artist}:${t.title}`);
-        return {
-          position: index + 1,
-          artist: t.artist,
-          title: t.title,
-          bpm: t.bpm,
-          key: t.key,
-          // Fingerprint data
-          energy: t.energy,
-          danceability: t.danceability,
-          brightness: t.brightness,
-          acousticness: t.acousticness,
-          groove: t.groove,
-          playedAt: t.playedAt,
-          likes: trackLikeCounts.get(t.id) || 0,
-          tempo: tempoData
-            ? {
-                slower: tempoData.slower,
-                perfect: tempoData.perfect,
-                faster: tempoData.faster,
-              }
+    pollsWithResults = pollsData.map((poll) => {
+      const options = (poll.options as string[]) || [];
+      const pollVotes = votesByPoll.get(poll.id) || new Map();
+      const voteCounts = options.map((_, idx) => pollVotes.get(idx) || 0);
+
+      const totalVotes = voteCounts.reduce((a, b) => a + b, 0);
+      const winnerIndex = totalVotes > 0 ? voteCounts.indexOf(Math.max(...voteCounts)) : -1;
+
+      return {
+        id: poll.id,
+        question: poll.question,
+        options,
+        votes: voteCounts,
+        totalVotes,
+        winnerIndex,
+        winner: winnerIndex >= 0 ? options[winnerIndex] : null,
+        startedAt: poll.startedAt,
+        endedAt: poll.endedAt,
+        currentTrack:
+          poll.currentTrackArtist && poll.currentTrackTitle
+            ? { artist: poll.currentTrackArtist, title: poll.currentTrackTitle }
             : null,
-        };
-      }),
-    };
+      };
+    });
+  }
 
-    // Only include polls if authenticated
-    if (isAuthenticated) {
-      response["polls"] = pollsWithResults;
-      response["totalPolls"] = pollsWithResults.length;
-      response["totalPollVotes"] = (pollsWithResults as { totalVotes: number }[]).reduce(
-        (sum, p) => sum + p.totalVotes,
-        0,
-      );
+  // Effective end time prevents "zombie sessions" (forgotten open sessions).
+  const lastTrack = tracks[tracks.length - 1];
+  let endTime: Date;
+  if (dbSession.endedAt) {
+    endTime = dbSession.endedAt;
+  } else if (lastTrack) {
+    const cap = new Date(new Date(lastTrack.playedAt).getTime() + 5 * 60 * 1000);
+    const now = new Date();
+    endTime = now < cap ? now : cap;
+  } else {
+    endTime = new Date();
+  }
+
+  const response: Record<string, unknown> = {
+    sessionId,
+    djName: dbSession.djName || "DJ",
+    startedAt: dbSession.startedAt?.toISOString(),
+    endedAt: endTime?.toISOString(),
+    trackCount: tracks.length,
+    totalLikes,
+    tracks: tracks.map((t, index) => {
+      const tempoData = trackTempoVotes.get(`${t.artist}:${t.title}`);
+      return {
+        position: index + 1,
+        artist: t.artist,
+        title: t.title,
+        bpm: t.bpm,
+        key: t.key,
+        energy: t.energy,
+        danceability: t.danceability,
+        brightness: t.brightness,
+        acousticness: t.acousticness,
+        groove: t.groove,
+        playedAt: t.playedAt,
+        likes: trackLikeCounts.get(t.id) || 0,
+        tempo: tempoData
+          ? { slower: tempoData.slower, perfect: tempoData.perfect, faster: tempoData.faster }
+          : null,
+      };
+    }),
+  };
+
+  if (isAuthenticated) {
+    response["polls"] = pollsWithResults;
+    response["totalPolls"] = pollsWithResults.length;
+    response["totalPollVotes"] = (pollsWithResults as { totalVotes: number }[]).reduce(
+      (sum, p) => sum + p.totalVotes,
+      0,
+    );
+  }
+
+  return response;
+}
+
+/**
+ * GET /:sessionId/recap
+ * Get full session recap (all tracks + metadata).
+ *
+ * The authenticated owner view (includes polls) is always computed fresh. The
+ * public/unauthenticated view is cached briefly to absorb repeated hits on this
+ * otherwise unrate-limited endpoint — ended sessions are immutable, and a few
+ * seconds of staleness on a still-live recap is harmless (the live view is WS).
+ */
+sessions.get("/:sessionId/recap", async (c) => {
+  const sessionId = c.req.param("sessionId");
+  const authHeader = c.req.header("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+
+  try {
+    const payload = token
+      ? await buildRecap(sessionId, token)
+      : await withCache(`recap-public:${sessionId}`, 15_000, () => buildRecap(sessionId, null));
+
+    if (!payload) {
+      logger.info("Recap not found", { sessionId });
+      return c.json({ error: "Session not found" }, 404);
     }
 
-    return c.json(response);
+    return c.json(payload);
   } catch (e) {
     logger.error("Failed to fetch recap", e, { sessionId });
     return c.json({ error: "Failed to fetch recap" }, 500);
