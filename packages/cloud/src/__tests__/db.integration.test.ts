@@ -11,10 +11,17 @@
  *
  * Locally:  bun run db:migrate && RUN_DB_TESTS=1 bun test src/__tests__/db.integration.test.ts
  * CI:       a Postgres service + db:migrate, then RUN_DB_TESTS=1.
+ *
+ * ⚠️ Run this file IN ISOLATION (which `bun run test:integration` does). Do NOT enable the
+ * gate across the whole suite (`RUN_DB_TESTS=1 bun test`): other unit files mock the DB
+ * module process-globally (test/auth_security.test.ts → mock.module("../src/db")), and bun
+ * does not scope or restore mock.module between files — so these real-DB queries would hit
+ * that leaked mock and fail. The unit suite and this integration file are separate CI jobs.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { client, db, schema } from "../db";
+import { hashToken } from "../lib/auth";
 import { closePollInDb, createPollInDb, recordPollVoteInDb } from "../lib/persistence/polls";
 import {
   endSessionInDb,
@@ -32,6 +39,11 @@ import {
   persistTrack,
   persistTracksBulk,
 } from "../lib/persistence/tracks";
+import { auth as authRoute } from "../routes/auth";
+import { dj as djRoute } from "../routes/dj";
+import { push as pushRoute } from "../routes/push";
+import { sessions as sessionsRoute } from "../routes/sessions";
+import { stats as statsRoute } from "../routes/stats";
 
 const RUN = !!process.env.RUN_DB_TESTS;
 const suite = RUN ? describe : describe.skip;
@@ -252,5 +264,255 @@ suite("DB integration (real Postgres)", () => {
         .where(eq(schema.playedTracks.sessionId, sid));
       expect(rows.length).toBe(1);
     }, 15000); // allow for the waitForSession buffer timeout
+  });
+
+  // ==========================================================================
+  // 3. REST routes against real Postgres (covers the shipped route code that the
+  //    unit suite can only test via mocks/in-memory paths).
+  // ==========================================================================
+
+  describe("REST routes (real Postgres)", () => {
+    const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    let xff = 0;
+    const authHeaders = (extra: Record<string, string> = {}) => ({
+      "Content-Type": "application/json",
+      "X-Forwarded-For": `itest-ip-${xff++}`, // unique → own authLimiter bucket
+      ...extra,
+    });
+    const register = (email: string, displayName: string, password = "validpassword123") =>
+      authRoute.request("/register", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ email, password, displayName }),
+      });
+
+    // --- auth -----------------------------------------------------------------
+
+    test("auth: register issues a pk_dj_ token; duplicate email → 409", async () => {
+      const email = `reg_${uniq()}@itest.dev`;
+      const res = await register(email, `Reg ${uniq()}`);
+      expect(res.status).toBe(201);
+      const body = (await res.json()) as { token?: string };
+      expect(typeof body.token).toBe("string");
+      expect(body.token?.startsWith("pk_dj_")).toBe(true);
+
+      const dup = await register(email, `Reg ${uniq()}`);
+      expect(dup.status).toBe(409);
+
+      await db.delete(schema.djUsers).where(eq(schema.djUsers.email, email.toLowerCase()));
+    });
+
+    test("auth: login succeeds for valid creds; unknown email → 401 (timing path, no throw)", async () => {
+      const email = `login_${uniq()}@itest.dev`;
+      await register(email, `Login ${uniq()}`);
+
+      const ok = await authRoute.request("/login", {
+        method: "POST",
+        headers: authHeaders({ "X-Requested-With": "Pika" }),
+        body: JSON.stringify({ email, password: "validpassword123" }),
+      });
+      expect(ok.status).toBe(200);
+      expect(typeof ((await ok.json()) as { token?: string }).token).toBe("string");
+
+      const bad = await authRoute.request("/login", {
+        method: "POST",
+        headers: authHeaders({ "X-Requested-With": "Pika" }),
+        body: JSON.stringify({ email: `nobody_${uniq()}@itest.dev`, password: "validpassword123" }),
+      });
+      expect(bad.status).toBe(401);
+
+      await db.delete(schema.djUsers).where(eq(schema.djUsers.email, email.toLowerCase()));
+    });
+
+    test("auth: login caps stored tokens at the 10 newest per user", async () => {
+      const email = `cap_${uniq()}@itest.dev`;
+      expect((await register(email, `Cap ${uniq()}`)).status).toBe(201);
+      const [user] = await db
+        .select({ id: schema.djUsers.id })
+        .from(schema.djUsers)
+        .where(eq(schema.djUsers.email, email.toLowerCase()));
+      const userId = user?.id;
+      if (userId === undefined) throw new Error("user not created");
+
+      // Insert 11 extra tokens (→ 12 with the register token), oldest-first by createdAt.
+      const base = Date.now();
+      const inserted: string[] = [];
+      for (let i = 0; i < 11; i++) {
+        const tok = `cap_tok_${i}_${uniq()}`;
+        inserted.push(tok);
+        await db.insert(schema.djTokens).values({
+          djUserId: userId,
+          token: tok,
+          name: "x",
+          createdAt: new Date(base - (20 - i) * 1000),
+        });
+      }
+      const before = await db
+        .select()
+        .from(schema.djTokens)
+        .where(eq(schema.djTokens.djUserId, userId));
+      expect(before.length).toBe(12);
+
+      // One login mints a 13th token then prunes to the 10 newest.
+      const res = await authRoute.request("/login", {
+        method: "POST",
+        headers: authHeaders({ "X-Requested-With": "Pika" }),
+        body: JSON.stringify({ email, password: "validpassword123" }),
+      });
+      expect(res.status).toBe(200);
+
+      const after = await db
+        .select()
+        .from(schema.djTokens)
+        .where(eq(schema.djTokens.djUserId, userId))
+        .orderBy(desc(schema.djTokens.createdAt));
+      const tokens = after.map((t) => t.token);
+      expect(after.length).toBe(10);
+      expect(tokens).not.toContain(inserted[0]); // 3 oldest evicted
+      expect(tokens).not.toContain(inserted[1]);
+      expect(tokens).toContain(inserted[10]); // newest extra kept
+
+      await db.delete(schema.djUsers).where(eq(schema.djUsers.id, userId));
+    });
+
+    // --- push (fix #4: hashed-token auth) -------------------------------------
+
+    test("push: /send authenticates a hashed token and 401s a bogus one", async () => {
+      const [u] = await db
+        .insert(schema.djUsers)
+        .values({
+          email: `push_${uniq()}@itest.dev`,
+          passwordHash: "x",
+          displayName: "Push DJ",
+          slug: `push-${uniq()}`,
+        })
+        .returning({ id: schema.djUsers.id });
+      const userId = u?.id;
+      if (userId === undefined) throw new Error("push user not created");
+      const rawToken = `pk_dj_${uniq()}`;
+      await db
+        .insert(schema.djTokens)
+        .values({ djUserId: userId, token: await hashToken(rawToken), name: "x" });
+
+      const ok = await pushRoute.request("/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${rawToken}` },
+        body: JSON.stringify({ payload: "hi", filter: "debug" }),
+      });
+      expect(ok.status).toBe(200);
+      expect(((await ok.json()) as { success?: boolean }).success).toBe(true);
+
+      const bad = await pushRoute.request("/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer not-a-real-token" },
+        body: JSON.stringify({ payload: "hi", filter: "debug" }),
+      });
+      expect(bad.status).toBe(401);
+
+      await db.delete(schema.djUsers).where(eq(schema.djUsers.id, userId));
+    });
+
+    // --- sessions: recap + history (validates the Promise.all buildRecap) ------
+
+    test("sessions: recap parallel-aggregates tracks, likes and tempo; history returns rows", async () => {
+      const sid = `recap_${uniq()}`;
+      await db.insert(schema.sessions).values({ id: sid, djName: "Recap DJ", endedAt: new Date() });
+      const [t1] = await db
+        .insert(schema.playedTracks)
+        .values({ sessionId: sid, artist: "A", title: "One" })
+        .returning({ id: schema.playedTracks.id });
+      await db.insert(schema.playedTracks).values({ sessionId: sid, artist: "A", title: "Two" });
+      const trackId = t1?.id;
+      if (trackId === undefined) throw new Error("track not created");
+      await db
+        .insert(schema.likes)
+        .values({ sessionId: sid, clientId: "c1", playedTrackId: trackId });
+      await db
+        .insert(schema.likes)
+        .values({ sessionId: sid, clientId: "c2", playedTrackId: trackId });
+      await db.insert(schema.tempoVotes).values({
+        sessionId: sid,
+        trackArtist: "A",
+        trackTitle: "One",
+        slowerCount: 1,
+        perfectCount: 2,
+        fasterCount: 0,
+      });
+
+      const res = await sessionsRoute.request(`/${sid}/recap`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        trackCount: number;
+        totalLikes: number;
+        tracks: Array<{ title: string; likes: number; tempo: unknown }>;
+      };
+      expect(body.trackCount).toBe(2);
+      expect(body.totalLikes).toBe(2);
+      const one = body.tracks.find((t) => t.title === "One");
+      expect(one?.likes).toBe(2);
+      expect(one?.tempo).toEqual({ slower: 1, perfect: 2, faster: 0 });
+
+      const hist = await sessionsRoute.request(`/${sid}/history`);
+      expect(hist.status).toBe(200);
+      expect(((await hist.json()) as unknown[]).length).toBe(2);
+
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
+    });
+
+    // --- stats: corrected /global contract (no fictional topDJs) --------------
+
+    test("stats: /global returns numeric totals and no topDJs field", async () => {
+      const res = await statsRoute.request("/global");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        totalSessions: number;
+        totalTracks: number;
+        totalLikes: number;
+        topDJs?: unknown;
+      };
+      expect(typeof body.totalSessions).toBe("number");
+      expect(typeof body.totalTracks).toBe("number");
+      expect(typeof body.totalLikes).toBe("number");
+      expect(body.topDJs).toBeUndefined();
+    });
+
+    // --- dj: bounded + cached profile -----------------------------------------
+
+    test("dj: profile returns the DJ's sessions with track counts", async () => {
+      const slug = `dj-${uniq()}`;
+      const [u] = await db
+        .insert(schema.djUsers)
+        .values({
+          email: `dj_${uniq()}@itest.dev`,
+          passwordHash: "x",
+          displayName: "Prof DJ",
+          slug,
+        })
+        .returning({ id: schema.djUsers.id });
+      const userId = u?.id;
+      if (userId === undefined) throw new Error("dj user not created");
+      const sid = `djprof_${uniq()}`;
+      await db
+        .insert(schema.sessions)
+        .values({ id: sid, djName: "Prof DJ", djUserId: userId, endedAt: new Date() });
+      await db.insert(schema.playedTracks).values([
+        { sessionId: sid, artist: "A", title: "x1" },
+        { sessionId: sid, artist: "A", title: "x2" },
+      ]);
+
+      const res = await djRoute.request(`/${slug}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        djName: string;
+        totalTracks: number;
+        sessions: Array<{ trackCount: number }>;
+      };
+      expect(body.djName).toBe("Prof DJ");
+      expect(body.totalTracks).toBe(2);
+      expect(body.sessions[0]?.trackCount).toBe(2);
+
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
+      await db.delete(schema.djUsers).where(eq(schema.djUsers.id, userId));
+    });
   });
 });
