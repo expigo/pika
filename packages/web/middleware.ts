@@ -2,25 +2,27 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 /**
- * Next.js Middleware for Security Headers
- * Adds Content-Security-Policy and other security headers to all page responses.
+ * Next.js Middleware for Security Headers.
+ * Adds a Content-Security-Policy + standard security headers to all page responses.
  *
- * Deferred hardening (tracked, intentionally NOT done here to stay low-risk):
- *  - script-src still allows 'unsafe-inline' + 'unsafe-eval'. The `x-nonce` generated
- *    below is currently INERT — it is not referenced by the CSP and nothing consumes it.
- *    Moving to a nonce-based script-src (dropping 'unsafe-inline', and 'unsafe-eval' in
- *    production) needs a prod-build verification pass, so it is a separate follow-up.
- *  - img-src still allows any https: host; tighten once external image origins are known.
+ * script-src: 'unsafe-eval' is dropped in production (Next's prod build doesn't need it) and kept
+ * only in dev for Turbopack HMR; 'unsafe-inline' stays. A nonce-based CSP to also drop
+ * 'unsafe-inline' was deliberately NOT adopted — per Next's docs it forces DYNAMIC RENDERING of
+ * every page (a real perf cost for the static marketing pages) for marginal gain, given the app
+ * avoids dangerouslySetInnerHTML and already ships a restrictive CSP.
+ *
+ * Known-loose, low-priority: img-src still allows any https: host — tighten once external image
+ * origins are known.
  */
 export function middleware(_request: NextRequest) {
-  // Reserved for a future nonce-based CSP (see note above). Currently inert.
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  // Next's production build doesn't need eval; keep it only in dev for Turbopack HMR.
+  const isDev = process.env.NODE_ENV !== "production";
 
   // Content Security Policy
   const csp = [
     "default-src 'self'",
     // No external <script> hosts are loaded (Sentry is bundled; GA is unused → removed).
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
     "style-src 'self' 'unsafe-inline'", // Needed for styled-jsx and Tailwind
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:", // next/font self-hosts — no external font origins needed
@@ -40,20 +42,16 @@ export function middleware(_request: NextRequest) {
   // Set CSP Header
   response.headers.set("Content-Security-Policy", csp);
 
-  // Set Nonce for Next.js to use in components (currently inert — see note)
-  response.headers.set("x-nonce", nonce);
-
   // Additional security headers
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
   response.headers.set("X-XSS-Protection", "1; mode=block");
   // Lock down powerful features the app never uses (push uses the Notifications API,
-  // which Permissions-Policy does not gate, so this is safe).
-  response.headers.set(
-    "Permissions-Policy",
-    "camera=(), microphone=(), geolocation=(), browsing-topics=()",
-  );
+  // which Permissions-Policy does not gate, so this is safe). `browsing-topics` is omitted:
+  // it's a Chromium-only Topics-API directive that logs an "Unrecognized feature" warning in
+  // other browsers for negligible benefit.
+  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
 
   // HSTS — only meaningful over HTTPS, so production only (browsers ignore it on
   // http://localhost regardless, but gating keeps dev/self-signed setups clean).
