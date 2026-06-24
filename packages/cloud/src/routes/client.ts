@@ -7,12 +7,29 @@
  * Extracted from index.ts for modularity.
  */
 
-import { logger } from "@pika/shared";
+import { LIMITS, logger } from "@pika/shared";
 import { desc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
+import { rateLimiter } from "hono-rate-limiter";
 import { db, schema } from "../db";
 
 const client = new Hono();
+
+// 🛡️ This endpoint is unauthenticated and runs ~2 DB queries per call. The clientId is the
+// dancer's only identity — a 122-bit `client_<uuid>` bearer id over anonymous, low-sensitivity
+// data (public songs liked in public sessions) — so it can't be guessed/enumerated. We don't add
+// auth (there is no dancer account); we IP-rate-limit instead, to protect the DB from scraping.
+client.use(
+  "/:clientId/likes",
+  rateLimiter({
+    windowMs: LIMITS.CLIENT_LIKES_RATE_LIMIT_WINDOW,
+    limit: LIMITS.CLIENT_LIKES_RATE_LIMIT_MAX,
+    standardHeaders: "draft-6",
+    keyGenerator: (c) =>
+      c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown",
+    handler: (c) => c.json({ error: "Too many requests, please try again later" }, 429),
+  }),
+);
 
 /**
  * GET /:clientId/likes

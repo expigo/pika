@@ -59,6 +59,13 @@ export const LIMITS = {
   TEMPO_RATE_LIMIT_MAX: 12,
   BULK_LIKE_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
   BULK_LIKE_RATE_LIMIT_MAX: 5,
+  // Per-IP cap on the public client-likes endpoint (2 DB queries/call) — guards the DB from
+  // scraping/abuse. The clientId itself is a 122-bit unguessable bearer id over anonymous data.
+  CLIENT_LIKES_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
+  CLIENT_LIKES_RATE_LIMIT_MAX: 30,
+  // Per-session cap on push-broadcast announcements (each fans out to every subscriber's device).
+  ANNOUNCEMENT_PUSH_RATE_LIMIT_WINDOW: 5 * 60 * 1000, // 5 min
+  ANNOUNCEMENT_PUSH_RATE_LIMIT_MAX: 2,
   // Per-IP cap on WebSocket *connection* attempts. NOTE: this is keyed on the
   // client IP (CF-Connecting-IP / X-Forwarded-For), so an entire venue behind one
   // NAT shares a single bucket. Keep it generous enough to survive a venue-wide

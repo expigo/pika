@@ -18,6 +18,7 @@ import {
   BroadcastTrackSchema,
   CancelAnnouncementSchema,
   EndSessionSchema,
+  LIMITS,
   logger,
   PIKA_VERSION,
   RegisterSessionSchema,
@@ -42,6 +43,7 @@ import {
   persistTrack,
 } from "../lib/persistence/tracks";
 import { logSessionEvent, parseMessage, sendAck, sendNack } from "../lib/protocol";
+import { ClientRateLimiter } from "../lib/rate-limit";
 import {
   cancelDjReap,
   clearSessionTrack,
@@ -64,6 +66,13 @@ import type { WSContext } from "./ws-context";
 const MAX_CONCURRENT_SESSIONS = Number(process.env["MAX_SESSIONS"] ?? 1000);
 export const lastBroadcastTime = new Map<string, number>();
 
+// 🛡️ Per-session limiter for push-broadcast announcements (each push fans out to every
+// subscriber's device). Keyed by sessionId; cleaned up in cleanupRateLimits() below.
+const announcementPushLimiter = new ClientRateLimiter(
+  LIMITS.ANNOUNCEMENT_PUSH_RATE_LIMIT_MAX,
+  LIMITS.ANNOUNCEMENT_PUSH_RATE_LIMIT_WINDOW,
+);
+
 /**
  * 🛡️ Issue 21 Fix: TTL Cleanup for rate-limit map
  * Removes entries older than 1 hour to prevent unbounded memory growth
@@ -83,6 +92,8 @@ export function cleanupRateLimits() {
   if (count > 0) {
     logger.debug(`🧹 [CLEANUP] Removed ${count} stale rate-limit entries`);
   }
+
+  announcementPushLimiter.cleanup();
 }
 
 /**
@@ -558,8 +569,13 @@ export function handleSendAnnouncement(ctx: WSContext) {
     push: msg.push,
   });
 
-  // Broadcast Push Notifications to all mobile devices
-  if (msg.push) {
+  // Broadcast Push Notifications to all mobile devices (rate-limited per session — each push
+  // fans out to every subscriber's device; the in-session banner above is unthrottled).
+  if (msg.push && !announcementPushLimiter.check(announcementSessionId)) {
+    logger.warn("⏳ Announcement push rate-limited; banner sent, push skipped", {
+      sessionId: announcementSessionId,
+    });
+  } else if (msg.push) {
     (async () => {
       try {
         const targets = await db
