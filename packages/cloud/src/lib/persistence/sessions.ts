@@ -42,23 +42,27 @@ export async function waitForSession(sessionId: string, timeoutMs = 4000): Promi
   if (process.env.NODE_ENV === "test") return true;
 
   return new Promise<boolean>((resolve) => {
+    // Wrap the resolver so resolving early (via signalSessionReady) also clears the timeout —
+    // otherwise a satisfied wait leaves a dangling timer firing up to `timeoutMs` later.
+    const settle = (value: boolean) => {
+      clearTimeout(timer);
+      resolve(value);
+    };
+
+    const timer = setTimeout(() => {
+      const waiters = sessionWaiters.get(sessionId);
+      if (waiters) {
+        const idx = waiters.indexOf(settle);
+        if (idx !== -1) waiters.splice(idx, 1);
+      }
+      resolve(false); // Timeout (no clearTimeout needed — already firing)
+    }, timeoutMs);
+
     // Add to waiters
     if (!sessionWaiters.has(sessionId)) {
       sessionWaiters.set(sessionId, []);
     }
-    sessionWaiters.get(sessionId)?.push(resolve);
-
-    // Set timeout
-    setTimeout(() => {
-      const waiters = sessionWaiters.get(sessionId);
-      if (waiters) {
-        const idx = waiters.indexOf(resolve);
-        if (idx !== -1) {
-          waiters.splice(idx, 1);
-          resolve(false); // Timeout
-        }
-      }
-    }, timeoutMs);
+    sessionWaiters.get(sessionId)?.push(settle);
   });
 }
 

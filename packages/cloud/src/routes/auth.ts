@@ -12,6 +12,7 @@ import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
 import * as schema from "../db/schema";
+import { generateToken, hashPassword, hashToken, validateToken, verifyPassword } from "../lib/auth";
 
 const auth = new Hono();
 
@@ -28,81 +29,7 @@ const authLimiter = rateLimiter({
 // Email validation schema
 const emailSchema = z.string().email();
 
-// ============================================================================
-// Helper Functions
-// ============================================================================
-
-/**
- * Generate secure random token
- */
-function generateToken(): string {
-  return `pk_dj_${crypto.randomUUID().replace(/-/g, "")}`;
-}
-
-/**
- * Hash password using Bun's built-in bcrypt
- */
-async function hashPassword(password: string): Promise<string> {
-  return await Bun.password.hash(password, {
-    algorithm: "bcrypt",
-    cost: 10,
-  });
-}
-
-/**
- * Hash token for storage (fast SHA-256 for API tokens)
- */
-async function hashToken(token: string): Promise<string> {
-  const hash = new Bun.CryptoHasher("sha256");
-  hash.update(token);
-  return hash.digest("hex");
-}
-
-/**
- * Verify password against hash
- */
-async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return await Bun.password.verify(password, hash);
-}
-
-/**
- * Validate token and return DJ user
- */
-async function validateToken(
-  token: string,
-): Promise<{ id: number; displayName: string; email: string; slug: string } | null> {
-  try {
-    const tokenHash = await hashToken(token);
-
-    const result = await db
-      .select({
-        id: schema.djUsers.id,
-        displayName: schema.djUsers.displayName,
-        email: schema.djUsers.email,
-        slug: schema.djUsers.slug,
-      })
-      .from(schema.djTokens)
-      .innerJoin(schema.djUsers, eq(schema.djTokens.djUserId, schema.djUsers.id))
-      .where(eq(schema.djTokens.token, tokenHash))
-      .limit(1);
-
-    if (result.length === 0) return null;
-
-    const user = result[0];
-    if (!user) return null;
-
-    // Update last used timestamp (fire-and-forget)
-    db.update(schema.djTokens)
-      .set({ lastUsed: new Date() })
-      .where(eq(schema.djTokens.token, tokenHash))
-      .catch(() => {});
-
-    return user;
-  } catch (e) {
-    logger.error("Token validation error", e);
-    return null;
-  }
-}
+// Token/password helpers live in ../lib/auth (single source of truth) and are imported above.
 
 // ============================================================================
 // Token hygiene & timing-attack defense
@@ -402,4 +329,4 @@ auth.post("/regenerate-token", authLimiter, async (c) => {
 });
 
 // Export for use in main app and for testing
-export { auth, validateToken, hashToken, generateToken };
+export { auth };

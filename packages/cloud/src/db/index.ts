@@ -21,7 +21,9 @@ const RESOLVED_DATABASE_URL = DATABASE_URL || "postgres://pika:pika@localhost:54
 
 // Create the postgres.js connection
 const client = postgres(RESOLVED_DATABASE_URL, {
-  max: 10, // Connection pool size
+  // Connection pool size. This is a scaling ceiling: it must stay <= Postgres `max_connections`
+  // (shared across all app instances). Tune via DB_POOL_MAX when scaling out.
+  max: Number(process.env["DB_POOL_MAX"] ?? 10),
   idle_timeout: 60,
   connect_timeout: 30,
   // Runaway-query protection — sent as Postgres connection parameters on connect.
