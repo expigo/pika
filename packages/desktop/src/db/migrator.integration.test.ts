@@ -9,7 +9,7 @@
  */
 import BetterSqlite3 from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { runMigrations } from "./migrator";
+import { applyMigrations, idempotent, type Migration, runMigrations } from "./migrator";
 
 type Bdb = BetterSqlite3.Database;
 
@@ -179,5 +179,74 @@ describe("desktop migrator", () => {
     await runMigrations(asSqlite(bdb));
     await runMigrations(asSqlite(bdb));
     expect(appliedTags(bdb)).toEqual(["0000_black_unicorn"]);
+  });
+});
+
+// The engine, driven with synthetic migrations — covers the forward-migration path (0001+)
+// that the real (single-baseline) suite above can't reach yet but which runs the first time
+// the schema changes.
+describe("migrator engine (synthetic migrations)", () => {
+  let bdb: Bdb;
+  beforeEach(() => {
+    bdb = new BetterSqlite3(":memory:");
+  });
+  afterEach(() => {
+    bdb.close();
+  });
+
+  const baseline: Migration = {
+    tag: "0000_base",
+    sql: "CREATE TABLE `foo` (`id` integer PRIMARY KEY AUTOINCREMENT NOT NULL, `a` text);--> statement-breakpoint\nCREATE INDEX `idx_foo_a` ON `foo` (`a`);",
+  };
+  const forward: Migration = { tag: "0001_add_b", sql: "ALTER TABLE `foo` ADD COLUMN `b` text;" };
+
+  it("applies a forward migration (0001) in order on a fresh DB", async () => {
+    await applyMigrations(asSqlite(bdb), [baseline, forward]);
+    expect(columnSet(bdb, "foo")).toEqual(["a", "b", "id"]);
+    expect(indexExists(bdb, "idx_foo_a")).toBe(true);
+    expect(appliedTags(bdb)).toEqual(["0000_base", "0001_add_b"]);
+  });
+
+  it("applies only the pending migration when the DB is already at 0000", async () => {
+    await applyMigrations(asSqlite(bdb), [baseline]);
+    await applyMigrations(asSqlite(bdb), [baseline, forward]); // 0000 skipped, 0001 applied
+    expect(columnSet(bdb, "foo")).toEqual(["a", "b", "id"]);
+    expect(appliedTags(bdb)).toEqual(["0000_base", "0001_add_b"]);
+  });
+
+  it("re-applies safely after a crash-before-record (idempotent CREATE)", async () => {
+    await applyMigrations(asSqlite(bdb), [baseline]);
+    // Simulate a crash after the statements ran but before the tag was recorded.
+    bdb.prepare("DELETE FROM __drizzle_migrations WHERE tag = ?").run("0000_base");
+    // Must not throw — CREATE TABLE/INDEX re-run as IF NOT EXISTS.
+    await applyMigrations(asSqlite(bdb), [baseline]);
+    expect(appliedTags(bdb)).toEqual(["0000_base"]);
+    expect(columnSet(bdb, "foo")).toEqual(["a", "id"]);
+  });
+
+  it("baseline-adopts a legacy DB AND then applies a forward migration to it", async () => {
+    bdb.exec(LEGACY_DDL);
+    const adoptBaseline: Migration = { tag: "0000_base", sql: "CREATE TABLE tracks (id integer);" };
+    const alterTracks: Migration = { tag: "0001_extra", sql: "ALTER TABLE tracks ADD COLUMN extra text;" };
+
+    await applyMigrations(asSqlite(bdb), [adoptBaseline, alterTracks]);
+
+    expect(appliedTags(bdb)).toEqual(["0000_base", "0001_extra"]);
+    expect(columnSet(bdb, "tracks")).toContain("extra"); // forward migration hit the adopted table
+  });
+
+  it("idempotent() makes CREATEs safe and leaves other statements untouched", () => {
+    expect(idempotent("CREATE TABLE `x` (`id` integer)")).toBe(
+      "CREATE TABLE IF NOT EXISTS `x` (`id` integer)",
+    );
+    expect(idempotent("CREATE UNIQUE INDEX `i` ON `x` (`a`)")).toBe(
+      "CREATE UNIQUE INDEX IF NOT EXISTS `i` ON `x` (`a`)",
+    );
+    expect(idempotent("CREATE INDEX `i` ON `x` (`a`)")).toBe(
+      "CREATE INDEX IF NOT EXISTS `i` ON `x` (`a`)",
+    );
+    expect(idempotent("ALTER TABLE `x` ADD COLUMN `b` text")).toBe(
+      "ALTER TABLE `x` ADD COLUMN `b` text",
+    );
   });
 });

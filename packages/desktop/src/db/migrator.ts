@@ -10,7 +10,7 @@ const migrationModules = import.meta.glob<string>("./migrations/*.sql", {
   import: "default",
 });
 
-interface Migration {
+export interface Migration {
   tag: string;
   sql: string;
 }
@@ -26,7 +26,7 @@ const MIGRATIONS: Migration[] = Object.entries(migrationModules)
  * idempotent rather than wrapping a transaction — a partially-applied migration is then safe
  * to re-run, mirroring the prior hand-rolled DDL. (drizzle-kit emits plain CREATE.)
  */
-function idempotent(statement: string): string {
+export function idempotent(statement: string): string {
   return statement
     .replace(/^CREATE TABLE /i, "CREATE TABLE IF NOT EXISTS ")
     .replace(/^CREATE (UNIQUE )?INDEX /i, (_m, unique) => `CREATE ${unique ?? ""}INDEX IF NOT EXISTS `);
@@ -43,6 +43,15 @@ function idempotent(statement: string): string {
  * a half-built schema (unlike the prior swallow-and-continue init).
  */
 export async function runMigrations(sqlite: Sqlite): Promise<void> {
+  await applyMigrations(sqlite, MIGRATIONS);
+}
+
+/**
+ * Core apply loop, parameterised over the migration list (the production entry,
+ * `runMigrations`, passes the Vite-globbed baseline). Exposed so the engine — baseline-
+ * adopt, forward migrations, idempotent retry — can be tested with synthetic migrations.
+ */
+export async function applyMigrations(sqlite: Sqlite, migrations: Migration[]): Promise<void> {
   await sqlite.execute(
     "CREATE TABLE IF NOT EXISTS __drizzle_migrations (tag TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)",
   );
@@ -51,12 +60,12 @@ export async function runMigrations(sqlite: Sqlite): Promise<void> {
   const applied = new Set(rows.map((r) => r.tag));
 
   // Baseline-adopt an existing hand-rolled schema so we never re-create its tables.
-  if (applied.size === 0 && MIGRATIONS.length > 0) {
+  if (applied.size === 0 && migrations.length > 0) {
     const legacy = await sqlite.select<{ name: string }[]>(
       "SELECT name FROM sqlite_master WHERE type='table' AND name='tracks'",
     );
     if (legacy.length > 0) {
-      const baseline = MIGRATIONS[0].tag;
+      const baseline = migrations[0].tag;
       await sqlite.execute("INSERT INTO __drizzle_migrations (tag, applied_at) VALUES (?, ?)", [
         baseline,
         Date.now(),
@@ -66,7 +75,7 @@ export async function runMigrations(sqlite: Sqlite): Promise<void> {
     }
   }
 
-  for (const migration of MIGRATIONS) {
+  for (const migration of migrations) {
     if (applied.has(migration.tag)) continue;
 
     const statements = migration.sql
