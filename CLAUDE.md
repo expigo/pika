@@ -89,8 +89,8 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of June 2026):** 770 passing tests total (+ 11 gated DB-integration)
-- Desktop: 342 tests (Vitest, +1 skipped)
+**Test Coverage (as of June 2026):** 775 passing tests total (+ 11 gated DB-integration)
+- Desktop: 347 tests (Vitest, +1 skipped)
 - Cloud: 325 unit tests (Bun) + 11 integration (`test:integration`, gated `RUN_DB_TESTS`, real Postgres — exercises the real `persist*` functions incl. the C3 buffer-and-flush)
 - Shared: 24 tests (Bun)
 - Web: 79 tests (Bun) — now wired (`test` script) and CI-gated
@@ -227,7 +227,7 @@ chore: bump version to 0.4.0
 - Use `parseMessage<T>()` in Cloud handlers for type-safe parsing
 
 ### Testing Philosophy
-- **770 passing tests** across all packages (342 desktop, 325 cloud, 79 web, 24 shared) + 11 gated DB-integration
+- **775 passing tests** across all packages (347 desktop, 325 cloud, 79 web, 24 shared) + 11 gated DB-integration
 - Test files colocated with source: `*.test.ts` or `__tests__/` directories
 - Use Vitest (desktop) / `bun test` (cloud, web, shared) for TS/JS, pytest for Python
 - DB-touching code: real-Postgres coverage lives in `*.integration.test.ts`, gated by `RUN_DB_TESTS` and run in CI's integration job (the unit suites mock the DB). Logic mirrored in unit tests (e.g. `db-persistence.test.ts`) is a fast smoke check, *not* coverage of the shipped functions.
@@ -305,14 +305,20 @@ lib/                # Utilities (api.ts, client.ts)
 7. Implement sender in Desktop or Web client
 8. Write integration tests
 
-### Adding a New Database Table
+### Adding a New Database Table / Column
 
-1. Add table schema to `packages/[cloud|desktop]/src/db/schema.ts`
-2. Generate migration: `bun run db:generate`
-3. Review generated SQL in `drizzle/*.sql`
-4. Apply migration: `bun run db:migrate`
-5. Create repository file if needed (e.g., `sessionRepository.ts`)
-6. Write tests for repository methods
+1. Add the table/column to `packages/[cloud|desktop]/src/db/schema.ts` (the source of truth).
+2. Generate the migration: `bun run db:generate` — **commit the generated SQL.**
+   - Cloud → `packages/cloud/drizzle/*.sql`
+   - Desktop → `packages/desktop/src/db/migrations/*.sql` (+ `meta/`)
+3. Review the generated SQL.
+4. Apply it:
+   - **Cloud (Postgres):** `bun run db:migrate`.
+   - **Desktop (SQLite):** nothing to run — `src/db/migrator.ts` applies committed migrations at
+     app start (Vite-bundled, tracked in `__drizzle_migrations`). See `packages/desktop/CLAUDE.md`
+     → *Migrations*.
+5. Create a repository file if needed (e.g., `sessionRepository.ts`).
+6. Write tests for repository methods.
 
 ### Debugging VirtualDJ Integration
 
@@ -347,9 +353,12 @@ Comprehensive docs in `docs/` directory:
 - Check environment variables (DATABASE_URL)
 
 ### Database migration errors
-- For local dev: `docker compose down -v` then restart
-- For production: Never use `db:push`, always use `db:migrate`
-- Migrations are idempotent - safe to re-run
+- **Cloud (Postgres):** For local dev: `docker compose down -v` then restart. For production:
+  never use `db:push`, always use `db:migrate`. Migrations are idempotent — safe to re-run.
+- **Desktop (SQLite):** the app's `migrator.ts` runs migrations at startup and fail-fasts (no
+  silent swallow). If a DB is wedged in dev, delete it (`~/Library/Application Support/
+  com.pika.desktop/pika.db`) — pre-launch data is disposable. Inspect applied state via the
+  `__drizzle_migrations` table. Existing DBs are baseline-adopted (no data loss).
 
 ### Tests failing
 - Run single test file: `bun test [file-path]`
