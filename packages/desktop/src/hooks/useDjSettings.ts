@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { apiFetch } from "../services/apiClient";
-import { TOKEN_REVALIDATION_INTERVAL_MS } from "./live/constants";
 import {
   type DjInfo,
   type DjSettings,
-  type ServerEnv,
   getApiBaseUrl,
   loadSettings,
-  saveSettings,
   SETTINGS_UPDATED_EVENT,
+  type ServerEnv,
+  saveSettings,
 } from "../services/settingsService";
+import { TOKEN_REVALIDATION_INTERVAL_MS } from "./live/constants";
 
 // 🛡️ Deduplicate in-flight validation requests
 class TokenValidationManager {
@@ -84,6 +84,24 @@ export function useDjSettings() {
   const [isValidating, setIsValidating] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Mirror the latest committed settings so callbacks can read them synchronously
+  // (without a functional updater). saveSettings() must run from the event handler,
+  // NEVER inside a setState updater: React executes updaters during the render
+  // phase, and saveSettings synchronously dispatches SETTINGS_UPDATED_EVENT, which
+  // would setState sibling useDjSettings instances mid-render ("Cannot update a
+  // component while rendering a different component").
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+
+  // Apply a change locally, persist it, and broadcast to sibling instances — once,
+  // from the caller's event handler rather than from inside an updater.
+  const applySettings = useCallback((patch: (prev: DjSettings) => DjSettings) => {
+    const next = patch(settingsRef.current);
+    settingsRef.current = next;
+    setSettingsState(next);
+    saveSettings(next);
+  }, []);
+
   useEffect(() => {
     const handleUpdate = () => {
       const fresh = loadSettings();
@@ -117,25 +135,17 @@ export function useDjSettings() {
         validateTokenWithServer,
       );
       if (djInfo) {
-        setSettingsState((prev) => {
-          const newSettings = { ...prev, tokenValidatedAt: Date.now() };
-          saveSettings(newSettings);
-          return newSettings;
-        });
+        applySettings((prev) => ({ ...prev, tokenValidatedAt: Date.now() }));
         return { valid: true, skipped: false };
       } else {
         toast.error("Session expired. Please re-authenticate.", { icon: "🔑" });
-        setSettingsState((prev) => {
-          const newSettings = {
-            ...prev,
-            authToken: "",
-            djInfo: null,
-            tokenValidatedAt: null,
-            djName: "",
-          };
-          saveSettings(newSettings);
-          return newSettings;
-        });
+        applySettings((prev) => ({
+          ...prev,
+          authToken: "",
+          djInfo: null,
+          tokenValidatedAt: null,
+          djName: "",
+        }));
         return { valid: false, skipped: false };
       }
     } catch {
@@ -144,7 +154,7 @@ export function useDjSettings() {
       isRevalidatingRef.current = false;
       validationManager.setValidating(false);
     }
-  }, []);
+  }, [applySettings]);
 
   useEffect(() => {
     if (!settings.authToken) return;
@@ -154,63 +164,56 @@ export function useDjSettings() {
     return () => clearInterval(intervalId);
   }, [settings.authToken, revalidateToken]);
 
-  const setDjName = useCallback((djName: string) => {
-    setSettingsState((prev) => {
-      const newSettings = { ...prev, djName };
-      saveSettings(newSettings);
-      return newSettings;
-    });
-  }, []);
+  const setDjName = useCallback(
+    (djName: string) => {
+      applySettings((prev) => ({ ...prev, djName }));
+    },
+    [applySettings],
+  );
 
-  const setServerEnv = useCallback((serverEnv: ServerEnv) => {
-    setSettingsState((prev) => {
-      const newSettings = {
+  const setServerEnv = useCallback(
+    (serverEnv: ServerEnv) => {
+      applySettings((prev) => ({
         ...prev,
         serverEnv,
         authToken: "",
         djInfo: null,
         djName: "",
         tokenValidatedAt: null,
-      };
-      saveSettings(newSettings);
-      return newSettings;
-    });
-  }, []);
+      }));
+    },
+    [applySettings],
+  );
 
-  const setAuthToken = useCallback(async (authToken: string): Promise<boolean> => {
-    setValidationError(null);
-    if (!authToken) {
-      setSettingsState((prev) => {
-        const newSettings = { ...prev, authToken: "", djInfo: null, tokenValidatedAt: null };
-        saveSettings(newSettings);
-        return newSettings;
-      });
-      return true;
-    }
-    setIsValidating(true);
-    try {
-      const djInfo = await validationManager.validate(authToken, validateTokenWithServer);
-      if (djInfo) {
-        setSettingsState((prev) => {
-          const newSettings = {
+  const setAuthToken = useCallback(
+    async (authToken: string): Promise<boolean> => {
+      setValidationError(null);
+      if (!authToken) {
+        applySettings((prev) => ({ ...prev, authToken: "", djInfo: null, tokenValidatedAt: null }));
+        return true;
+      }
+      setIsValidating(true);
+      try {
+        const djInfo = await validationManager.validate(authToken, validateTokenWithServer);
+        if (djInfo) {
+          applySettings((prev) => ({
             ...prev,
             authToken,
             djInfo,
             djName: djInfo.displayName,
             tokenValidatedAt: Date.now(),
-          };
-          saveSettings(newSettings);
-          return newSettings;
-        });
-        return true;
-      } else {
-        setValidationError("Invalid token.");
-        return false;
+          }));
+          return true;
+        } else {
+          setValidationError("Invalid token.");
+          return false;
+        }
+      } finally {
+        setIsValidating(false);
       }
-    } finally {
-      setIsValidating(false);
-    }
-  }, []);
+    },
+    [applySettings],
+  );
 
   return {
     djName: settings.djName,
@@ -231,10 +234,10 @@ export function useDjSettings() {
 
 // Re-export shared helper functions from settingsService
 export {
-  getStoredSettings,
-  getDjName,
-  getAuthToken,
-  getDjInfo,
-  getConfiguredUrls,
   getApiBaseUrl,
+  getAuthToken,
+  getConfiguredUrls,
+  getDjInfo,
+  getDjName,
+  getStoredSettings,
 } from "../services/settingsService";
