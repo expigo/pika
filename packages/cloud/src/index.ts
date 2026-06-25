@@ -66,6 +66,7 @@ if (process.env.NODE_ENV === "production" || process.env["SENTRY_DSN"]) {
 import * as handlers from "./handlers";
 import { type Broadcaster, setBroadcaster } from "./lib/broadcaster";
 import { cachedListenerCounts } from "./lib/cache";
+import { activeConnections } from "./lib/connection-registry";
 import { cleanupStaleListeners, getListenerCount } from "./lib/listeners";
 import { cleanupSessionQueue } from "./lib/persistence/queue";
 import { clearLastPersistedTrackKey } from "./lib/persistence/tracks";
@@ -83,8 +84,8 @@ import { DISCOVERY_TOPIC } from "./lib/topics";
 
 // WS type alias removed (unused)
 
-// Connection Registry for reliable global broadcasts
-const activeConnections = new Set<ServerWebSocket>();
+// Connection Registry for reliable global broadcasts. Lives in lib/connection-registry so the
+// admin overview can read the count without importing index.ts (cycle).
 
 // 🛡️ P0 Fix: Track last activity time per connection for idle timeout
 // Connections without PING for 5 minutes will be closed
