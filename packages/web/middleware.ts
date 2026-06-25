@@ -28,7 +28,8 @@ export function middleware(_request: NextRequest) {
     "font-src 'self' data:", // next/font self-hosts — no external font origins needed
     // api.github.com: download page fetches the latest release. *.ingest.de.sentry.io:
     // Sentry error reporting (was missing → errors were silently CSP-blocked in prod).
-    "connect-src 'self' https://api.github.com https://*.github.com https://*.githubusercontent.com wss://api.pika.stream https://api.pika.stream wss://staging-api.pika.stream https://staging-api.pika.stream https://*.sentry.io https://*.ingest.de.sentry.io ws://localhost:* http://localhost:*",
+    // Dev also allows 127.0.0.1 (the local Track D web-DJ flow runs cloud+web on 127.0.0.1).
+    `connect-src 'self' https://api.github.com https://*.github.com https://*.githubusercontent.com wss://api.pika.stream https://api.pika.stream wss://staging-api.pika.stream https://staging-api.pika.stream https://*.sentry.io https://*.ingest.de.sentry.io ws://localhost:* http://localhost:*${isDev ? " ws://127.0.0.1:* http://127.0.0.1:*" : ""}`,
     "worker-src 'self' blob:", // PWA / Serwist service worker
     "manifest-src 'self'",
     "object-src 'none'",

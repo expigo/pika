@@ -21,6 +21,10 @@ const OAUTH_STATE_COOKIE = "spotify_oauth_state";
 const STATE_MAX_AGE_S = 600; // 10 minutes to complete consent
 
 function webBaseUrl(): string {
+  // Explicit override (used in local dev where the web origin isn't the URLS default).
+  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
+  const override = process.env["WEB_BASE_URL"];
+  if (override) return override;
   // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   const node = process.env["NODE_ENV"];
   const env: PikaEnvironment =

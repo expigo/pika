@@ -203,16 +203,19 @@ app.use("*", honoLogger());
 app.use(
   "*",
   cors({
+    // Dev/test: reflect any localhost/127.0.0.1 origin so the web-DJ cookie flow works
+    // cross-port with credentials (a literal "*" can't be used with credentials).
     origin:
       process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test"
-        ? "*"
+        ? (origin) =>
+            origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ? origin : ""
         : [
             URLS.getWebUrl("production"),
             URLS.getApiUrl("production"),
             URLS.getWebUrl("staging"),
             URLS.getApiUrl("staging"),
           ],
-    credentials: process.env.NODE_ENV !== "development",
+    credentials: true,
   }),
 );
 
