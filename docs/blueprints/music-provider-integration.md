@@ -391,3 +391,39 @@ resolved decisions baked in. Payload is messy → we learned it in 2 days, not 2
   (or Stronghold) for token storage. No deep-link plugin (loopback redirect).
 - Shared (A + D): extract the OAuth/poll/now-playing-normalize logic into `@pika/shared` so both
   front-ends reuse it.
+
+---
+
+## 10. Track D V1 — BUILT (June 2026)
+
+The web-DJ Spotify-source backbone is implemented on branch
+`worktree-music-provider-blueprint`. **Cloud:** migration `0002` (`spotify_connections`,
+`live_pollers`, `dj_users.status`); `lib/crypto.ts` (AES-256-GCM); cookie session +
+`requireDjAuth` + approval gate; `lib/services/spotify.ts` (BFF OAuth) + `routes/spotify.ts`;
+extracted `lib/live-session.ts` (`createLiveSession`/`applyNowPlaying`); `lib/services/spotifyPoller.ts`
+(pure `evaluateTick` state machine, auto-pause/idle-end/429/needs_reauth, boot reconcile +
+shutdown teardown); `routes/dj-live.ts` (`/api/live`). **Web:** `lib/djLive.ts`, `app/dj/live`
+dashboard (connect → go-live → LIVE controls + privacy copy + mirror), cookie login.
+Tests: unit across every piece + gated real-Postgres integration for the new tables; full cloud
+suite + web dual-runner green.
+
+**Owner prerequisites before running:**
+1. Register a Spotify app (Dev Mode, owner Premium). Redirect URIs: `…/api/spotify/callback` for
+   each env. Scope `user-read-currently-playing`. Allowlist test DJs (≤5).
+2. Cloud `.env`: `SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI`, `TOKEN_ENCRYPTION_KEY`
+   (`openssl rand -base64 32`).
+3. Approve a DJ: `UPDATE dj_users SET status='approved' WHERE email='…';`
+
+**Manual E2E (staging):**
+1. Register + approve a test DJ → web login at `/dj/login` (sets the httpOnly cookie) →
+   "Go to Live Dashboard".
+2. `/dj/live` → **Connect Spotify** → consent → back with `?spotify=connected`.
+3. **Go Live** → play a track on Spotify → in a second browser (dancer) the track appears.
+4. Pause Spotify → dancer sees the "between songs" (paused) state; resume → track returns.
+5. **Stop** → session ends. Restart the cloud mid-session → confirm clean shutdown (V1 ends
+   the session; the DJ re-taps Go Live — auto-resume is deferred).
+
+**Known V1 limits (documented):** 5-user Spotify cap (invite-only); cross-restart auto-resume
+deferred (schema's `live_pollers.lease`/`heartbeat` supports it later); ISRC absent from
+now-playing (Spotify URL/ID used for links; Apple cross-match needs a `/v1/tracks/{id}` follow-up);
+album art + progress + "Listen on" links are the V1.1 enrichment (schema seam `albumArtUrl` etc.).
