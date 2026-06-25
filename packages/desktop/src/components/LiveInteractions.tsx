@@ -1,9 +1,10 @@
-import { BarChart2, Clock, Megaphone, X, MessageSquare, Trash2 } from "lucide-react";
+import { BarChart2, Clock, Megaphone, MessageSquare, Trash2, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
+import { useEffect, useState } from "react";
+import type { PlayWithTrack } from "../db/repositories/sessionRepository";
 import type { ActivePoll } from "./LivePerformanceMode";
 import { POLL_PRESETS } from "./PollPresets";
-import type { PlayWithTrack } from "../db/repositories/sessionRepository";
-import { useEffect, useState } from "react";
+import { QrShareLinks } from "./QrShareLinks";
 
 export interface EndedPoll {
   id: number;
@@ -89,6 +90,10 @@ interface Props {
   currentPlay: PlayWithTrack | null;
   qrUrl: string;
   domainText: string;
+  /** Copyable share links shown under the QR (stage + this-set). */
+  stageUrl?: string | null;
+  stageName?: string | null;
+  sessionUrl?: string | null;
 }
 
 export function LiveInteractions({
@@ -120,6 +125,9 @@ export function LiveInteractions({
   currentPlay,
   qrUrl,
   domainText,
+  stageUrl,
+  stageName,
+  sessionUrl,
 }: Props) {
   // Local state for durations since they are only used during creation
   const [pollDuration, setPollDuration] = useState<number | null>(null);
@@ -290,8 +298,9 @@ export function LiveInteractions({
               <QRCodeSVG value={qrUrl} size={300} level="H" />
             </div>
 
-            <div className="bg-black/50 border border-white/5 px-6 py-3 rounded-xl mb-8">
-              <span className="font-mono text-xl text-pika-purple font-black">{domainText}</span>
+            <div className="w-full max-w-sm space-y-3 mb-8">
+              <QrShareLinks stageUrl={stageUrl} stageName={stageName} sessionUrl={sessionUrl} />
+              <p className="text-center font-mono text-sm text-slate-500">{domainText}</p>
             </div>
 
             <button

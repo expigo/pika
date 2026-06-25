@@ -621,6 +621,9 @@ export function LivePerformanceMode({
         currentPlay={currentPlay ?? null}
         qrUrl={qrUrl}
         domainText={domainText}
+        stageUrl={currentStageId ? getStageListenerUrl(currentStageId, localIp) : null}
+        stageName={currentStageName}
+        sessionUrl={sessionId ? getListenerUrl(sessionId, djName, localIp) : null}
       />
 
       <CrowdControlDrawer

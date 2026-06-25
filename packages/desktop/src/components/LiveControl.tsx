@@ -25,6 +25,7 @@ import { useDjSettings } from "../hooks/useDjSettings";
 import { useLiveSession } from "../hooks/useLiveSession";
 import { type DetectedSession, useVdjHistory } from "../hooks/useVdjHistory";
 import { logger } from "../utils/logger";
+import { QrShareLinks } from "./QrShareLinks";
 import { type StartOptions, StartSessionModal } from "./StartSessionModal";
 
 export function LiveControl() {
@@ -584,15 +585,11 @@ export function LiveControl() {
                   />
                 </div>
 
-                <div className="flex flex-col items-center gap-2 w-full">
-                  <p className="text-[10px] font-mono text-slate-500 break-all text-center px-4">
-                    {qrUrl}
-                  </p>
-                  <div className="h-[1px] w-full bg-slate-800/50 my-2" />
-                  <p className="text-xs font-medium text-slate-400">
-                    Share this with your dancers!
-                  </p>
-                </div>
+                <QrShareLinks
+                  stageUrl={currentStageId ? getStageListenerUrl(currentStageId, localIp) : null}
+                  stageName={currentStageName}
+                  sessionUrl={sessionId ? getListenerUrl(sessionId, djName, localIp) : null}
+                />
               </div>
             </div>
           </div>,
