@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { Hono } from "hono";
-import { clearSessionCookie, requireDjAuth, SESSION_COOKIE, setSessionCookie } from "./auth";
+import {
+  clearSessionCookie,
+  requireAdmin,
+  requireDjAuth,
+  requireRole,
+  SESSION_COOKIE,
+  setSessionCookie,
+} from "./auth";
 
 // These tests cover the parts of the web-session layer that don't touch the DB:
 // cookie shape + the no-token rejection path of requireDjAuth. The full
@@ -47,4 +54,20 @@ describe("requireDjAuth", () => {
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({ error: "Authentication required" });
   });
+});
+
+describe("requireRole / requireAdmin", () => {
+  test("requireAdmin → 401 when no token (no DB hit)", async () => {
+    const app = new Hono().get("/admin", requireAdmin, (c) => c.json({ ok: true }));
+    const res = await app.request("/admin");
+    expect(res.status).toBe(401);
+  });
+
+  test("requireRole(hideExistence) → 401 without a token", async () => {
+    const app = new Hono().get("/x", requireRole("organizer", { hideExistence: true }), (c) =>
+      c.json({ ok: true }),
+    );
+    expect((await app.request("/x")).status).toBe(401);
+  });
+  // Role-mismatch (404/403) + admin-pass require a real token → covered in db.integration.test.ts.
 });

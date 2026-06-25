@@ -17,7 +17,8 @@ export interface DjAuthUser {
   displayName: string;
   email: string;
   slug: string;
-  status: string; // 'pending' | 'approved'
+  status: string; // 'pending' | 'approved' | 'rejected'
+  role: string; // 'dj' | 'admin' (extensible: 'organizer' | 'dancer')
 }
 
 // Type the `djUser` context variable set by requireDjAuth across all Hono routers.
@@ -81,6 +82,7 @@ export async function validateToken(token: string): Promise<DjAuthUser | null> {
         email: schema.djUsers.email,
         slug: schema.djUsers.slug,
         status: schema.djUsers.status,
+        role: schema.djUsers.role,
       })
       .from(schema.djTokens)
       .innerJoin(schema.djUsers, eq(schema.djTokens.djUserId, schema.djUsers.id))
@@ -132,26 +134,56 @@ function bearerFromHeader(c: Context): string | undefined {
   return header?.startsWith("Bearer ") ? header.substring(7) : undefined;
 }
 
+/** Resolve the DJ from the Bearer header (desktop) OR the `pika_session` cookie (web). */
+async function resolveDjUser(c: Context): Promise<DjAuthUser | null> {
+  const token = bearerFromHeader(c) ?? getCookie(c, SESSION_COOKIE);
+  if (!token) return null;
+  return validateToken(token);
+}
+
 /**
- * Hono middleware: authenticate a DJ from the Bearer header (desktop) OR the
- * `pika_session` cookie (web), reject unapproved accounts, and attach the user
- * to the context (`getDjUser(c)`). The first reusable DJ-auth middleware —
- * previously each route validated inline.
+ * Hono middleware: authenticate an **approved** DJ (Bearer header or `pika_session`
+ * cookie) and attach the user to the context (`getDjUser(c)`). The first reusable
+ * DJ-auth middleware — previously each route validated inline.
  */
 export const requireDjAuth: MiddlewareHandler = async (c, next) => {
-  const token = bearerFromHeader(c) ?? getCookie(c, SESSION_COOKIE);
-  if (!token) return c.json({ error: "Authentication required" }, 401);
-
-  const user = await validateToken(token);
-  if (!user) return c.json({ error: "Invalid or expired session" }, 401);
-  if (user.status === "pending") return c.json({ error: "Account awaiting approval" }, 403);
+  const user = await resolveDjUser(c);
+  if (!user) return c.json({ error: "Authentication required" }, 401);
+  if (user.status !== "approved") return c.json({ error: "Account not approved" }, 403);
 
   c.set("djUser", user);
   await next();
   return; // satisfy the non-Response return path
 };
 
-/** Retrieve the DJ attached by {@link requireDjAuth}. Only valid downstream of it. */
+/**
+ * Hono middleware factory: require the authenticated user to hold `role`. Attaches the user
+ * (`getDjUser(c)`). `hideExistence` returns 404 instead of 403 on a role mismatch so a
+ * privileged surface (the admin panel) doesn't leak its existence. Forward-compatible with the
+ * coming `organizer`/`dancer` roles.
+ */
+export function requireRole(
+  role: string,
+  opts: { hideExistence?: boolean } = {},
+): MiddlewareHandler {
+  return async (c, next) => {
+    const user = await resolveDjUser(c);
+    if (!user) return c.json({ error: "Authentication required" }, 401);
+    if (user.role !== role) {
+      return opts.hideExistence
+        ? c.json({ error: "Not found" }, 404)
+        : c.json({ error: "Forbidden" }, 403);
+    }
+    c.set("djUser", user);
+    await next();
+    return;
+  };
+}
+
+/** Admin-only gate. Returns 404 to non-admins (existence not leaked). */
+export const requireAdmin = requireRole("admin", { hideExistence: true });
+
+/** Retrieve the DJ attached by {@link requireDjAuth}/{@link requireRole}. Only valid downstream. */
 export function getDjUser(c: Context): DjAuthUser {
   return c.get("djUser");
 }
