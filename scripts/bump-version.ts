@@ -29,6 +29,7 @@ const targets = [
   { path: "packages/web/package.json", type: "json" },
   { path: "packages/desktop/src-tauri/tauri.conf.json", type: "json" },
   { path: "packages/desktop/src-tauri/Cargo.toml", type: "toml" },
+  { path: "packages/desktop/src-tauri/Cargo.lock", type: "cargo-lock" },
   { path: "packages/shared/src/index.ts", type: "ts-const" },
   { path: "README.md", type: "md" },
   { path: "docs/ROADMAP.md", type: "md" },
@@ -59,6 +60,13 @@ for (const target of targets) {
     } else if (target.type === "toml") {
       // specific replace for version = "x.y.z" at the top level (hopefully)
       newContent = content.replace(/^version\s*=\s*"[^"]+"/m, `version = "${newVersion}"`);
+    } else if (target.type === "cargo-lock") {
+      // Cargo.lock has hundreds of dependency `version = "…"` lines — bump ONLY the
+      // workspace crate's own block, anchored on its [[package]] name entry.
+      newContent = content.replace(
+        /(name = "pika-desktop"\nversion = )"[^"]+"/,
+        `$1"${newVersion}"`,
+      );
     } else if (target.type === "ts-const") {
       // replace export const PIKA_VERSION = "x.y.z";
       newContent = content.replace(
