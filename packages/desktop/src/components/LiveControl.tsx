@@ -535,62 +535,69 @@ export function LiveControl() {
         )}
       </div>
 
-      {/* QR Code Modal */}
-      {showQR && qrUrl && isCloudConnected && (
-        <div
-          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300"
-          onClick={() => setShowQR(false)}
-        >
+      {/* QR Code Modal — portaled to <body> so a transformed/overflow ancestor on the
+          Crate page can't trap its position:fixed (was rendering off-screen / unclosable). */}
+      {showQR &&
+        qrUrl &&
+        isCloudConnected &&
+        createPortal(
           <div
-            className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-950/90 backdrop-blur-md animate-in fade-in duration-300"
+            onClick={() => setShowQR(false)}
           >
-            <div className="p-8 flex flex-col items-center gap-6">
-              <div className="flex items-center justify-between w-full">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black uppercase tracking-[0.2em] text-pika-accent">
-                    Live Session
-                  </span>
-                  <h3 className="text-xl font-bold text-white tracking-tight mt-1">
-                    Scan to Listener
-                  </h3>
-                  {currentStageName && (
-                    <span className="flex items-center gap-1.5 text-xs font-bold text-pika-accent mt-2">
-                      <Layers size={12} /> Broadcasting to: {currentStageName}
+            <div
+              className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-8 flex flex-col items-center gap-6">
+                <div className="flex items-center justify-between w-full">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-pika-accent">
+                      Live Session
                     </span>
-                  )}
+                    <h3 className="text-xl font-bold text-white tracking-tight mt-1">
+                      Scan to Listener
+                    </h3>
+                    {currentStageName && (
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-pika-accent mt-2">
+                        <Layers size={12} /> Broadcasting to: {currentStageName}
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowQR(false)}
+                    className="p-2 text-slate-500 hover:text-white transition-all"
+                  >
+                    <X size={24} />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowQR(false)}
-                  className="p-2 text-slate-500 hover:text-white transition-all"
-                >
-                  <X size={24} />
-                </button>
-              </div>
 
-              <div className="p-4 bg-white rounded-3xl shadow-inner-xl ring-8 ring-slate-800/50">
-                <QRCodeSVG
-                  value={qrUrl}
-                  size={240}
-                  bgColor="#ffffff"
-                  fgColor="#000000"
-                  level="H"
-                  includeMargin={false}
-                />
-              </div>
+                <div className="p-4 bg-white rounded-3xl shadow-inner-xl ring-8 ring-slate-800/50">
+                  <QRCodeSVG
+                    value={qrUrl}
+                    size={240}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
 
-              <div className="flex flex-col items-center gap-2 w-full">
-                <p className="text-[10px] font-mono text-slate-500 break-all text-center px-4">
-                  {qrUrl}
-                </p>
-                <div className="h-[1px] w-full bg-slate-800/50 my-2" />
-                <p className="text-xs font-medium text-slate-400">Share this with your dancers!</p>
+                <div className="flex flex-col items-center gap-2 w-full">
+                  <p className="text-[10px] font-mono text-slate-500 break-all text-center px-4">
+                    {qrUrl}
+                  </p>
+                  <div className="h-[1px] w-full bg-slate-800/50 my-2" />
+                  <p className="text-xs font-medium text-slate-400">
+                    Share this with your dancers!
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
