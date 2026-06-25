@@ -29,9 +29,11 @@ export const djUsers = pgTable("dj_users", {
   passwordHash: text("password_hash").notNull(), // bcrypt hash for security
   displayName: text("display_name").notNull(),
   slug: text("slug").notNull().unique(), // URL-friendly profile path
-  // Manual approval gate (Track D): new registrations are set 'pending'; login refuses them.
-  // Column default 'approved' grandfathers existing accounts on migration.
-  status: text("status").notNull().default("approved"), // 'pending' | 'approved'
+  // Manual approval gate (Track D): new registrations are set 'pending'; login refuses any
+  // status other than 'approved'. Default 'approved' grandfathers existing accounts on migration.
+  status: text("status").notNull().default("approved"), // 'pending' | 'approved' | 'rejected'
+  // Access role (admin panel). Extensible to 'organizer' | 'dancer' as those roles land.
+  role: text("role").notNull().default("dj"), // 'dj' | 'admin'
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -415,5 +417,29 @@ export const livePollers = pgTable(
     idxStatus: index("idx_live_pollers_status").on(table.status),
     // One poller per session
     uniqueSession: unique("unique_live_poller_session").on(table.sessionId),
+  }),
+);
+
+// ============================================================================
+// Admin Audit (admin panel)
+// ============================================================================
+
+/**
+ * Append-only log of privileged admin actions (DJ approve/reject, …) for accountability.
+ * `adminUserId` is the acting admin; nullable-on-delete so history survives an account removal.
+ */
+export const adminAudit = pgTable(
+  "admin_audit",
+  {
+    id: serial("id").primaryKey(),
+    adminUserId: integer("admin_user_id").references(() => djUsers.id, { onDelete: "set null" }),
+    action: text("action").notNull(), // e.g. 'dj.approve' | 'dj.reject'
+    targetType: text("target_type"), // e.g. 'dj_user'
+    targetId: text("target_id"), // stringified id of the target
+    metadata: json("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxCreatedAt: index("idx_admin_audit_created_at").on(table.createdAt.desc()),
   }),
 );
