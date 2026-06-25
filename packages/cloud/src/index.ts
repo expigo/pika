@@ -19,6 +19,7 @@ import { client, db } from "./db";
 import { auth as authRoutes } from "./routes/auth";
 import { client as clientRoutes } from "./routes/client";
 import { dj as djRoutes } from "./routes/dj";
+import { djLiveRoutes } from "./routes/dj-live";
 import { push as pushRoutes } from "./routes/push";
 import { sessions as sessionsRoutes } from "./routes/sessions";
 import { spotifyRoutes } from "./routes/spotify";
@@ -463,6 +464,8 @@ app.route("/api/dj", djRoutes);
 app.route("/api/client", clientRoutes);
 app.route("/api/push", pushRoutes);
 app.route("/api/spotify", spotifyRoutes); // Track D — Spotify OAuth (BFF)
+app.use("/api/live/*", csrfCheck); // Track D — control channel (state-changing → CSRF header)
+app.route("/api/live", djLiveRoutes);
 app.route("/api", stageRoutes); // /api/events, /api/stages (+ public reads)
 app.route("/sessions", sessionsRoutes); // Legacy WebSocket-style endpoint
 
