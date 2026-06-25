@@ -12,23 +12,13 @@
 import { zValidator } from "@hono/zod-validator";
 import { CreateEventSchema, CreateStageSchema, logger, slugify } from "@pika/shared";
 import { and, eq, isNull } from "drizzle-orm";
-import type { Context } from "hono";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { db } from "../db";
 import { events, stages } from "../db/schema";
-import { getUserFromToken } from "../lib/auth";
+import { getUser, requireDjAuth } from "../lib/auth";
 
 export const stageRoutes = new Hono();
-
-/** Resolve and validate the DJ bearer token; null when unauthenticated. */
-async function requireDj(c: Context) {
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  const token = authHeader.split(" ")[1];
-  if (!token) return null;
-  return getUserFromToken(token);
-}
 
 /** URL-safe id from a display name + short random suffix (collision-resistant). */
 function makeId(name: string): string {
@@ -47,33 +37,37 @@ const createLimiter = rateLimiter({
 // Events
 // ---------------------------------------------------------------------------
 
-stageRoutes.post("/events", createLimiter, zValidator("json", CreateEventSchema), async (c) => {
-  const dj = await requireDj(c);
-  if (!dj) return c.json({ error: "Unauthorized" }, 401);
+stageRoutes.post(
+  "/events",
+  createLimiter,
+  zValidator("json", CreateEventSchema),
+  requireDjAuth,
+  async (c) => {
+    const dj = getUser(c);
 
-  const { id, name } = c.req.valid("json");
-  const eventId = id ?? makeId(name);
+    const { id, name } = c.req.valid("json");
+    const eventId = id ?? makeId(name);
 
-  try {
-    const [created] = await db
-      .insert(events)
-      .values({ id: eventId, name, ownerUserId: dj.id })
-      .onConflictDoNothing()
-      .returning();
+    try {
+      const [created] = await db
+        .insert(events)
+        .values({ id: eventId, name, ownerUserId: dj.id })
+        .onConflictDoNothing()
+        .returning();
 
-    if (!created) return c.json({ error: "Event id already exists" }, 409);
-    logger.info("🎪 Event created", { eventId, ownerUserId: dj.id });
-    return c.json(created, 201);
-  } catch (e) {
-    logger.error("Failed to create event", e);
-    return c.json({ error: "Failed to create event" }, 500);
-  }
-});
+      if (!created) return c.json({ error: "Event id already exists" }, 409);
+      logger.info("🎪 Event created", { eventId, ownerUserId: dj.id });
+      return c.json(created, 201);
+    } catch (e) {
+      logger.error("Failed to create event", e);
+      return c.json({ error: "Failed to create event" }, 500);
+    }
+  },
+);
 
 // List the authenticated DJ's events (for the desktop stage picker).
-stageRoutes.get("/events", async (c) => {
-  const dj = await requireDj(c);
-  if (!dj) return c.json({ error: "Unauthorized" }, 401);
+stageRoutes.get("/events", requireDjAuth, async (c) => {
+  const dj = getUser(c);
   const rows = await db
     .select()
     .from(events)
@@ -94,35 +88,43 @@ stageRoutes.get("/events/:id/stages", async (c) => {
 // Stages
 // ---------------------------------------------------------------------------
 
-stageRoutes.post("/stages", createLimiter, zValidator("json", CreateStageSchema), async (c) => {
-  const dj = await requireDj(c);
-  if (!dj) return c.json({ error: "Unauthorized" }, 401);
+stageRoutes.post(
+  "/stages",
+  createLimiter,
+  zValidator("json", CreateStageSchema),
+  requireDjAuth,
+  async (c) => {
+    const dj = getUser(c);
 
-  const { id, name, eventId } = c.req.valid("json");
+    const { id, name, eventId } = c.req.valid("json");
 
-  // If a parent event is named, it must exist (gives a 400 rather than a raw FK error).
-  if (eventId) {
-    const [parent] = await db.select({ id: events.id }).from(events).where(eq(events.id, eventId));
-    if (!parent) return c.json({ error: "Parent event not found" }, 400);
-  }
+    // If a parent event is named, it must exist (gives a 400 rather than a raw FK error).
+    if (eventId) {
+      const [parent] = await db
+        .select({ id: events.id })
+        .from(events)
+        .where(eq(events.id, eventId));
+      if (!parent) return c.json({ error: "Parent event not found" }, 400);
+    }
 
-  const stageId = id ?? makeId(name);
+    const stageId = id ?? makeId(name);
 
-  try {
-    const [created] = await db
-      .insert(stages)
-      .values({ id: stageId, name, eventId: eventId ?? null })
-      .onConflictDoNothing()
-      .returning();
+    try {
+      const [created] = await db
+        .insert(stages)
+        .values({ id: stageId, name, eventId: eventId ?? null })
+        .onConflictDoNothing()
+        .returning();
 
-    if (!created) return c.json({ error: "Stage id already exists" }, 409);
-    logger.info("🎭 Stage created", { stageId, eventId: eventId ?? null, ownerUserId: dj.id });
-    return c.json(created, 201);
-  } catch (e) {
-    logger.error("Failed to create stage", e);
-    return c.json({ error: "Failed to create stage" }, 500);
-  }
-});
+      if (!created) return c.json({ error: "Stage id already exists" }, 409);
+      logger.info("🎭 Stage created", { stageId, eventId: eventId ?? null, ownerUserId: dj.id });
+      return c.json(created, 201);
+    } catch (e) {
+      logger.error("Failed to create stage", e);
+      return c.json({ error: "Failed to create stage" }, 500);
+    }
+  },
+);
 
 // Public stage read (client resolves a stage from its QR / join code). Includes the
 // parent event's name (null for a stand-alone stage) so dancers/DJs can show "Stage · Event".

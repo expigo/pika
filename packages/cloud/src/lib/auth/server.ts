@@ -7,9 +7,9 @@
  * user field; `role` is managed by the `admin` plugin.
  */
 
+import { slugify } from "@pika/shared";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { slugify } from "@pika/shared";
 import { admin as adminPlugin, bearer } from "better-auth/plugins";
 import { db } from "../../db";
 import { ac, admin, dj } from "./permissions";

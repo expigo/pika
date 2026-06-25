@@ -20,13 +20,11 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import type { ServerWebSocket } from "bun";
-import { and, desc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { client, db, schema } from "../db";
 import { handleSubscribeStage } from "../handlers/subscriber";
 import type { WSContext } from "../handlers/ws-context";
-// NOTE (#24): the auth/login + Admin-panel integration blocks below still target the OLD custom
-// auth (generateToken/hashToken/hashPassword + routes/auth). They are skipped in the unit run and
-// must be reworked onto Better Auth (signup + sessions) before re-enabling RUN_DB_TESTS.
+import { auth } from "../lib/auth/server";
 import { decryptSecret, encryptSecret } from "../lib/crypto";
 import { createLiveSession } from "../lib/live-session";
 import { closePollInDb, createPollInDb, recordPollVoteInDb } from "../lib/persistence/polls";
@@ -62,6 +60,31 @@ import { stats as statsRoute } from "../routes/stats";
 
 const RUN = !!process.env.RUN_DB_TESTS;
 const suite = RUN ? describe : describe.skip;
+
+/**
+ * Create a DJ via Better Auth (real signup → `user` row + a `session`) and return a
+ * bearer token usable as `Authorization: Bearer <token>` (the desktop/WS flow). Optionally
+ * flips `status`/`role` directly in the DB to mimic admin approval / role assignment.
+ */
+async function signUpDj(
+  opts: { approved?: boolean; admin?: boolean; email?: string; name?: string } = {},
+): Promise<{ userId: string; token: string; email: string }> {
+  const rnd = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  const email = opts.email ?? `dj_${rnd}@itest.dev`;
+  const { headers, response } = await auth.api.signUpEmail({
+    body: { email, password: "validpassword123", name: opts.name ?? `ITest DJ ${rnd}` },
+    returnHeaders: true,
+  });
+  const token = headers.get("set-auth-token") ?? "";
+  const userId = response.user.id;
+  const patch: { status?: string; role?: string } = {};
+  if (opts.approved) patch.status = "approved";
+  if (opts.admin) patch.role = "admin";
+  if (Object.keys(patch).length > 0) {
+    await db.update(schema.user).set(patch).where(eq(schema.user.id, userId));
+  }
+  return { userId, token, email };
+}
 
 suite("DB integration (real Postgres)", () => {
   const sessionId = `itest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -288,140 +311,67 @@ suite("DB integration (real Postgres)", () => {
 
   describe("REST routes (real Postgres)", () => {
     const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-    let xff = 0;
-    const authHeaders = (extra: Record<string, string> = {}) => ({
-      "Content-Type": "application/json",
-      "X-Forwarded-For": `itest-ip-${xff++}`, // unique → own authLimiter bucket
-      ...extra,
-    });
-    const register = (email: string, displayName: string, password = "validpassword123") =>
-      authRoute.request("/register", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ email, password, displayName }),
-      });
+    // --- auth (Better Auth core: signup + sign-in) ----------------------------
 
-    // --- auth -----------------------------------------------------------------
-
-    test("auth: register issues a pk_dj_ token; duplicate email → 409", async () => {
+    test("auth: signup creates a 'pending' user; duplicate email is rejected", async () => {
       const email = `reg_${uniq()}@itest.dev`;
-      const res = await register(email, `Reg ${uniq()}`);
-      expect(res.status).toBe(201);
-      const body = (await res.json()) as { token?: string };
-      expect(typeof body.token).toBe("string");
-      expect(body.token?.startsWith("pk_dj_")).toBe(true);
+      const { userId, token } = await signUpDj({ email });
+      expect(typeof token).toBe("string");
+      expect(token.length).toBeGreaterThan(0);
 
-      const dup = await register(email, `Reg ${uniq()}`);
-      expect(dup.status).toBe(409);
+      const [row] = await db
+        .select({ status: schema.user.status })
+        .from(schema.user)
+        .where(eq(schema.user.id, userId));
+      expect(row?.status).toBe("pending"); // approval gate default
 
-      await db.delete(schema.djUsers).where(eq(schema.djUsers.email, email.toLowerCase()));
-    });
-
-    test("auth: login succeeds for valid creds; unknown email → 401 (timing path, no throw)", async () => {
-      const email = `login_${uniq()}@itest.dev`;
-      await register(email, `Login ${uniq()}`);
-      // New accounts register as 'pending'; approve so login is permitted (Track D gate).
-      await db
-        .update(schema.djUsers)
-        .set({ status: "approved" })
-        .where(eq(schema.djUsers.email, email.toLowerCase()));
-
-      const ok = await authRoute.request("/login", {
-        method: "POST",
-        headers: authHeaders({ "X-Requested-With": "Pika" }),
-        body: JSON.stringify({ email, password: "validpassword123" }),
-      });
-      expect(ok.status).toBe(200);
-      expect(typeof ((await ok.json()) as { token?: string }).token).toBe("string");
-
-      const bad = await authRoute.request("/login", {
-        method: "POST",
-        headers: authHeaders({ "X-Requested-With": "Pika" }),
-        body: JSON.stringify({ email: `nobody_${uniq()}@itest.dev`, password: "validpassword123" }),
-      });
-      expect(bad.status).toBe(401);
-
-      await db.delete(schema.djUsers).where(eq(schema.djUsers.email, email.toLowerCase()));
-    });
-
-    test("auth: login caps stored tokens at the 10 newest per user", async () => {
-      const email = `cap_${uniq()}@itest.dev`;
-      expect((await register(email, `Cap ${uniq()}`)).status).toBe(201);
-      const [user] = await db
-        .select({ id: schema.djUsers.id })
-        .from(schema.djUsers)
-        .where(eq(schema.djUsers.email, email.toLowerCase()));
-      const userId = user?.id;
-      if (userId === undefined) throw new Error("user not created");
-      // Approve so the login below is permitted (Track D approval gate).
-      await db
-        .update(schema.djUsers)
-        .set({ status: "approved" })
-        .where(eq(schema.djUsers.id, userId));
-
-      // Insert 11 extra tokens (→ 12 with the register token), oldest-first by createdAt.
-      const base = Date.now();
-      const inserted: string[] = [];
-      for (let i = 0; i < 11; i++) {
-        const tok = `cap_tok_${i}_${uniq()}`;
-        inserted.push(tok);
-        await db.insert(schema.djTokens).values({
-          djUserId: userId,
-          token: tok,
-          name: "x",
-          createdAt: new Date(base - (20 - i) * 1000),
+      // Duplicate email → Better Auth rejects (throws an APIError).
+      let dupRejected = false;
+      try {
+        await auth.api.signUpEmail({
+          body: { email, password: "validpassword123", name: "Dup" },
         });
+      } catch {
+        dupRejected = true;
       }
-      const before = await db
-        .select()
-        .from(schema.djTokens)
-        .where(eq(schema.djTokens.djUserId, userId));
-      expect(before.length).toBe(12);
+      expect(dupRejected).toBe(true);
 
-      // One login mints a 13th token then prunes to the 10 newest.
-      const res = await authRoute.request("/login", {
-        method: "POST",
-        headers: authHeaders({ "X-Requested-With": "Pika" }),
-        body: JSON.stringify({ email, password: "validpassword123" }),
-      });
-      expect(res.status).toBe(200);
-
-      const after = await db
-        .select()
-        .from(schema.djTokens)
-        .where(eq(schema.djTokens.djUserId, userId))
-        .orderBy(desc(schema.djTokens.createdAt));
-      const tokens = after.map((t) => t.token);
-      expect(after.length).toBe(10);
-      expect(tokens).not.toContain(inserted[0]); // 3 oldest evicted
-      expect(tokens).not.toContain(inserted[1]);
-      expect(tokens).toContain(inserted[10]); // newest extra kept
-
-      await db.delete(schema.djUsers).where(eq(schema.djUsers.id, userId));
+      await db.delete(schema.user).where(eq(schema.user.id, userId));
     });
 
-    // --- push (fix #4: hashed-token auth) -------------------------------------
+    test("auth: sign-in issues a bearer token; unknown email is rejected", async () => {
+      const email = `login_${uniq()}@itest.dev`;
+      const { userId } = await signUpDj({ email, approved: true });
 
-    test("push: /send authenticates a hashed token and 401s a bogus one", async () => {
-      const [u] = await db
-        .insert(schema.djUsers)
-        .values({
-          email: `push_${uniq()}@itest.dev`,
-          passwordHash: "x",
-          displayName: "Push DJ",
-          slug: `push-${uniq()}`,
-        })
-        .returning({ id: schema.djUsers.id });
-      const userId = u?.id;
-      if (userId === undefined) throw new Error("push user not created");
-      const rawToken = `pk_dj_${uniq()}`;
-      await db
-        .insert(schema.djTokens)
-        .values({ djUserId: userId, token: await hashToken(rawToken), name: "x" });
+      const { headers } = await auth.api.signInEmail({
+        body: { email, password: "validpassword123" },
+        returnHeaders: true,
+      });
+      const token = headers.get("set-auth-token");
+      expect(typeof token).toBe("string");
+      expect((token ?? "").length).toBeGreaterThan(0);
+
+      let badRejected = false;
+      try {
+        await auth.api.signInEmail({
+          body: { email: `nobody_${uniq()}@itest.dev`, password: "validpassword123" },
+        });
+      } catch {
+        badRejected = true;
+      }
+      expect(badRejected).toBe(true);
+
+      await db.delete(schema.user).where(eq(schema.user.id, userId));
+    });
+
+    // --- push (Better Auth bearer-token auth) ---------------------------------
+
+    test("push: /send authenticates a Better Auth bearer token and 401s a bogus one", async () => {
+      const { userId, token } = await signUpDj({ approved: true });
 
       const ok = await pushRoute.request("/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${rawToken}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({ payload: "hi", filter: "debug" }),
       });
       expect(ok.status).toBe(200);
@@ -434,7 +384,7 @@ suite("DB integration (real Postgres)", () => {
       });
       expect(bad.status).toBe(401);
 
-      await db.delete(schema.djUsers).where(eq(schema.djUsers.id, userId));
+      await db.delete(schema.user).where(eq(schema.user.id, userId));
     });
 
     // --- sessions: recap + history (validates the Promise.all buildRecap) ------
@@ -504,22 +454,19 @@ suite("DB integration (real Postgres)", () => {
     // --- dj: bounded + cached profile -----------------------------------------
 
     test("dj: profile returns the DJ's sessions with track counts", async () => {
-      const slug = `dj-${uniq()}`;
+      const name = `Prof DJ ${uniq()}`;
+      const { userId } = await signUpDj({ name, approved: true });
+      // The slug is auto-derived from the name on signup (server databaseHook).
       const [u] = await db
-        .insert(schema.djUsers)
-        .values({
-          email: `dj_${uniq()}@itest.dev`,
-          passwordHash: "x",
-          displayName: "Prof DJ",
-          slug,
-        })
-        .returning({ id: schema.djUsers.id });
-      const userId = u?.id;
-      if (userId === undefined) throw new Error("dj user not created");
+        .select({ slug: schema.user.slug })
+        .from(schema.user)
+        .where(eq(schema.user.id, userId));
+      const slug = u?.slug;
+      if (!slug) throw new Error("dj slug not generated");
       const sid = `djprof_${uniq()}`;
       await db
         .insert(schema.sessions)
-        .values({ id: sid, djName: "Prof DJ", djUserId: userId, endedAt: new Date() });
+        .values({ id: sid, djName: name, djUserId: userId, endedAt: new Date() });
       await db.insert(schema.playedTracks).values([
         { sessionId: sid, artist: "A", title: "x1" },
         { sessionId: sid, artist: "A", title: "x2" },
@@ -532,12 +479,12 @@ suite("DB integration (real Postgres)", () => {
         totalTracks: number;
         sessions: Array<{ trackCount: number }>;
       };
-      expect(body.djName).toBe("Prof DJ");
+      expect(body.djName).toBe(name);
       expect(body.totalTracks).toBe(2);
       expect(body.sessions[0]?.trackCount).toBe(2);
 
       await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
-      await db.delete(schema.djUsers).where(eq(schema.djUsers.id, userId));
+      await db.delete(schema.user).where(eq(schema.user.id, userId));
     });
   });
 
@@ -547,10 +494,9 @@ suite("DB integration (real Postgres)", () => {
 
   describe("stages / events + scoped push (real Postgres)", () => {
     const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-    let xff = 1000;
     const createdEventIds: string[] = [];
     const createdEndpoints: string[] = [];
-    const djEmails: string[] = [];
+    const djUserIds: string[] = [];
 
     afterAll(async () => {
       for (const id of createdEventIds) {
@@ -560,20 +506,16 @@ suite("DB integration (real Postgres)", () => {
       for (const ep of createdEndpoints) {
         await db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.endpoint, ep));
       }
-      for (const email of djEmails) {
-        await db.delete(schema.djUsers).where(eq(schema.djUsers.email, email.toLowerCase()));
+      for (const id of djUserIds) {
+        await db.delete(schema.user).where(eq(schema.user.id, id));
       }
     });
 
+    // An approved DJ + a Better Auth bearer token (the stage routes are requireDjAuth-gated).
     async function newDjToken(): Promise<string> {
-      const email = `stage_${uniq()}@itest.dev`;
-      djEmails.push(email);
-      const res = await authRoute.request("/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Forwarded-For": `itest-stage-${xff++}` },
-        body: JSON.stringify({ email, password: "validpassword123", displayName: `SDJ ${uniq()}` }),
-      });
-      return ((await res.json()) as { token: string }).token;
+      const { userId, token } = await signUpDj({ approved: true });
+      djUserIds.push(userId);
+      return token;
     }
 
     test("route: create event + stage (auth'd), then public reads resolve them", async () => {
@@ -586,9 +528,10 @@ suite("DB integration (real Postgres)", () => {
         body: JSON.stringify({ name: "WCS Test 2026" }),
       });
       expect(evRes.status).toBe(201);
-      const ev = (await evRes.json()) as { id: string; ownerUserId: number };
+      const ev = (await evRes.json()) as { id: string; ownerUserId: string };
       createdEventIds.push(ev.id);
-      expect(ev.ownerUserId).toBeGreaterThan(0); // owner derived from token, not the body
+      expect(typeof ev.ownerUserId).toBe("string"); // owner derived from token, not the body
+      expect(ev.ownerUserId.length).toBeGreaterThan(0);
 
       const stRes = await stageRoutes.request("/stages", {
         method: "POST",
@@ -809,23 +752,14 @@ suite("DB integration (real Postgres)", () => {
 
   describe("Track D — Spotify tables", () => {
     const tdUniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-    let djId: number;
+    let djId: string;
     const createdSessions: string[] = [];
 
     beforeAll(async () => {
       process.env.TOKEN_ENCRYPTION_KEY = Buffer.from(
         crypto.getRandomValues(new Uint8Array(32)),
       ).toString("base64");
-      const [u] = await db
-        .insert(schema.djUsers)
-        .values({
-          email: `td_${tdUniq()}@itest.dev`,
-          passwordHash: "x",
-          displayName: "TD DJ",
-          slug: `td-${tdUniq()}`,
-        })
-        .returning({ id: schema.djUsers.id });
-      djId = u!.id;
+      ({ userId: djId } = await signUpDj({ name: "TD DJ", approved: true }));
     });
 
     afterAll(async () => {
@@ -833,7 +767,7 @@ suite("DB integration (real Postgres)", () => {
         await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
       }
       // Cascades spotify_connections + live_pollers for this DJ.
-      await db.delete(schema.djUsers).where(eq(schema.djUsers.id, djId));
+      await db.delete(schema.user).where(eq(schema.user.id, djId));
     });
 
     test("spotify_connections: encrypted token round-trips; getConnectionStatus reflects it", async () => {
@@ -911,32 +845,18 @@ suite("DB integration (real Postgres)", () => {
   });
 
   describe("Admin panel", () => {
-    const aUniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
-    let adminId: number;
+    let adminId: string;
     let adminToken: string;
-    let pendingId: number;
-    const cleanupUsers: number[] = [];
+    let pendingId: string;
+    let pendingToken: string;
+    const cleanupUsers: string[] = [];
 
-    async function seedUser(over: { role?: string; status?: string }): Promise<number> {
-      const [u] = await db
-        .insert(schema.djUsers)
-        .values({
-          email: `a_${aUniq()}@itest.dev`,
-          passwordHash: "x",
-          displayName: "AdminTest",
-          slug: `a-${aUniq()}`,
-          ...over,
-        })
-        .returning({ id: schema.djUsers.id });
-      cleanupUsers.push(u!.id);
-      return u!.id;
-    }
-    async function tokenFor(djUserId: number): Promise<string> {
-      const tok = generateToken();
-      await db
-        .insert(schema.djTokens)
-        .values({ djUserId, token: await hashToken(tok), name: "it" });
-      return tok;
+    async function seedDj(
+      opts: { approved?: boolean; admin?: boolean } = {},
+    ): Promise<{ userId: string; token: string }> {
+      const r = await signUpDj(opts);
+      cleanupUsers.push(r.userId);
+      return r;
     }
     const asAdmin = (path: string, init: RequestInit = {}) =>
       adminRoute.request(path, {
@@ -945,22 +865,21 @@ suite("DB integration (real Postgres)", () => {
       });
 
     beforeAll(async () => {
-      adminId = await seedUser({ role: "admin", status: "approved" });
-      adminToken = await tokenFor(adminId);
-      pendingId = await seedUser({ status: "pending" });
+      ({ userId: adminId, token: adminToken } = await seedDj({ admin: true, approved: true }));
+      ({ userId: pendingId, token: pendingToken } = await seedDj()); // status defaults to 'pending'
     });
     afterAll(async () => {
       await db.delete(schema.adminAudit).where(eq(schema.adminAudit.adminUserId, adminId));
       for (const id of cleanupUsers) {
-        await db.delete(schema.djUsers).where(eq(schema.djUsers.id, id));
+        await db.delete(schema.user).where(eq(schema.user.id, id));
       }
     });
 
     test("role defaults to 'dj' for a normal account", async () => {
       const [row] = await db
-        .select({ role: schema.djUsers.role })
-        .from(schema.djUsers)
-        .where(eq(schema.djUsers.id, pendingId));
+        .select({ role: schema.user.role })
+        .from(schema.user)
+        .where(eq(schema.user.id, pendingId));
       expect(row?.role).toBe("dj");
     });
 
@@ -969,9 +888,8 @@ suite("DB integration (real Postgres)", () => {
       expect(ok.status).toBe(200);
       expect(((await ok.json()) as { role: string }).role).toBe("admin");
 
-      const djTok = await tokenFor(pendingId);
       const denied = await adminRoute.request("/me", {
-        headers: { Authorization: `Bearer ${djTok}` },
+        headers: { Authorization: `Bearer ${pendingToken}` },
       });
       expect(denied.status).toBe(404);
     });
@@ -981,9 +899,9 @@ suite("DB integration (real Postgres)", () => {
       expect(res.status).toBe(200);
 
       const [row] = await db
-        .select({ status: schema.djUsers.status })
-        .from(schema.djUsers)
-        .where(eq(schema.djUsers.id, pendingId));
+        .select({ status: schema.user.status })
+        .from(schema.user)
+        .where(eq(schema.user.id, pendingId));
       expect(row?.status).toBe("approved");
 
       await new Promise((r) => setTimeout(r, 80)); // audit is fire-and-forget
@@ -991,34 +909,19 @@ suite("DB integration (real Postgres)", () => {
         .select()
         .from(schema.adminAudit)
         .where(eq(schema.adminAudit.adminUserId, adminId));
-      expect(audit.some((a) => a.action === "dj.approve" && a.targetId === String(pendingId))).toBe(
-        true,
-      );
+      expect(audit.some((a) => a.action === "dj.approve" && a.targetId === pendingId)).toBe(true);
     });
 
-    test("a rejected DJ (correct password) is refused at login with 403", async () => {
-      // Seed a user with a REAL password hash so login reaches the status gate.
-      const email = `rej_${aUniq()}@itest.dev`;
-      const [u] = await db
-        .insert(schema.djUsers)
-        .values({
-          email,
-          passwordHash: await hashPassword("validpassword123"),
-          displayName: "Rejected",
-          slug: `rej-${aUniq()}`,
-          status: "pending",
-        })
-        .returning({ id: schema.djUsers.id });
-      cleanupUsers.push(u!.id);
+    test("a rejected DJ is refused at a protected route with 403", async () => {
+      const { userId, token } = await seedDj(); // pending
+      expect((await asAdmin(`/djs/${userId}/reject`, { method: "POST" })).status).toBe(200);
 
-      expect((await asAdmin(`/djs/${u!.id}/reject`, { method: "POST" })).status).toBe(200);
-
-      const login = await authRoute.request("/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Requested-With": "Pika" },
-        body: JSON.stringify({ email, password: "validpassword123" }),
+      // requireDjAuth gates the stage routes: a valid session whose status isn't
+      // 'approved' → 403 (not 401 — the token/session itself is valid).
+      const denied = await stageRoutes.request("/events", {
+        headers: { Authorization: `Bearer ${token}` },
       });
-      expect(login.status).toBe(403); // status gate (not 401 — the password is correct)
+      expect(denied.status).toBe(403);
     });
 
     test("GET /overview returns the live-state shape", async () => {
