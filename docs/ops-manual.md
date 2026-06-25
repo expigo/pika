@@ -153,7 +153,7 @@ We run a dedicated stack for internal metrics and public status.
     ```
 
 ### 3. Cloudflare Tunnel Configuration (Domain Map)
-Since ports are bound to `0.5.0.1` for security, you MUST connect them via Cloudflare Tunnel.
+Since ports are bound to `127.0.0.1` for security, you MUST connect them via Cloudflare Tunnel.
 
 **In Cloudflare Dashboard (Zero Trust > Access > Tunnels):**
 
@@ -201,10 +201,18 @@ You can connect your **local** Drizzle Studio to the **production** database sec
     cd packages/cloud
     
     # ⚠️ Important: Overwrite DB URL to localhost for the session
-    DATABASE_URL="postgres://pika:pika_password@0.5.0.1:5432/pika_prod" bun run db:studio
+    DATABASE_URL="postgres://pika:pika_password@127.0.0.1:5432/pika_prod" bun run db:studio
     ```
 
 3.  **Browse:** Open `https://local.drizzle.studio` in your browser. You now have full read/write access to production data.
+
+### 🎭 Stage/Event Provisioning
+
+Stages/events are created **in-app** by DJs (desktop **StageSelector** → owner-scoped
+`POST /api/events`, `POST /api/stages`; the "Join code" mode lets a guest DJ broadcast onto a
+stage they don't own). For first-time / bulk seeding, use `packages/cloud/scripts/seed-stages.ts`
+(set the owner email at the top). Stages are soft-deleted via `archived_at` — they outlive any
+single DJ set. See `docs/architecture/stage-event-model.md`.
 
 ### 🚀 Migration Workflow (Best Practices)
 
@@ -621,5 +629,5 @@ docker compose -f docker-compose.prod.yml exec db psql -U pika -d pika_prod -c \
 
 ---
 
-*Last Updated: June 19, 2026 (v0.5.0) — deployment moved to CI → GHCR → VPS pull (see `architecture/deployment.md`).*
+*Last Updated: June 25, 2026 (v0.5.0) — Stage/Event provisioning + deployment via CI → GHCR → VPS pull (see `architecture/deployment.md`).*
 

@@ -1,5 +1,9 @@
 # Pika! Project Rules & Context (The Constitution)
 
+> ⚠️ **ARCHIVED (June 2026).** Superseded by the root **`CLAUDE.md`** (the live project guide).
+> Kept for history only — parts are stale (e.g. it lists `essentia`, which was replaced by a
+> librosa-only sidecar; the API uses Zod schemas, not Hono RPC).
+
 ## 1. Core Tech Stack
 - **Monorepo Manager:** Bun workspaces.
 - **Cloud Backend:** Bun 1.2+ + Hono (WebSocket/RPC).

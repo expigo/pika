@@ -27,14 +27,14 @@ sequenceDiagram
     LC->>DB: getSessionsInTimeRange() (overlap check)
 
     LC->>User: Show ONE Start Session modal
-    Note over User: Title · optional "Start with this track"<br/>(only if a track is truly playing) · optional "Add earlier set"
-    User->>LC: onStart({ name, includeCurrentTrack, importEarlier })
+    Note over User: Title · optional "Start with this track"<br/>(only if a track is truly playing) · optional "Add earlier set" · optional Stage
+    User->>LC: onStart({ name, includeCurrentTrack, importEarlier, stageId?, stageName? })
 
     opt importEarlier
         LC->>DB: createSession() + importTracks() (registerImportedTrack seeds dedup)
     end
 
-    LC->>UL: goLive(name, includeCurrentTrack, ...)
+    LC->>UL: goLive(name, includeCurrentTrack, …, stageId?, stageName?)
     UL->>VDJ: detectInitialTrack()  (staleness-gated)
     UL->>UL: prepareInitialTrackState(initialTrack, includeCurrentTrack)
     UL->>CL: Connect WebSocket
@@ -78,11 +78,15 @@ To prevent "rolling window" duplicates (a track recorded twice as the 60s window
 ### 4. Session-gap detection (optional earlier-set import)
 `useVdjHistory.detectSession()` identifies a prior set by a **30-minute silence** between consecutive tracks. This is offered as an **opt-in** "Add my earlier set" toggle inside the single Start modal — it is no longer a separate, blocking step. If those tracks overlap an existing local session, an **inline warning** is shown (instead of a dedicated duplicate-warning modal).
 
+### 5. Optional Stage (seamless DJ rotation)
+When a Stage is selected, `goLive()` carries `stageId`/`stageName` into `REGISTER_SESSION`. The cloud marks that session as the stage's active one (`stageActiveSession`), so dancers who joined the **stage** (`SUBSCRIBE_STAGE`, e.g. via a `/stage/{id}` URL or a stage QR) follow DJ rotation without rescanning. The desktop QR targets the **stage** when staged (else the session), and the live HUD shows a stage badge. Standalone (no stage) is unchanged. See [stage-event-model.md](./stage-event-model.md).
+
 ## The Start Session modal (`StartSessionModal.tsx`)
 A single modal replaces the previous duplicate-warning → import → name modal chain. Sections appear only when relevant:
 - **Set title** (always).
 - **"Start with this track"** toggle — only when a track is genuinely playing (default ON).
 - **"Add my earlier set"** toggle — only when `detectSession()` finds one (default OFF); reveals a start-from selector, a preview, and the inline overlap warning.
+- **Stage** (`StageSelector`, optional, collapsed by default) — broadcast to a persistent venue **Stage** instead of a standalone session. Three modes: **Pick** (the DJ's owned event → stage), **Create** (spin up an Event + Stage as organizer), **Join** (paste a stage code to broadcast onto a stage you don't own — guest-DJ / cross-owner rotation). Emits `{ id, name }` → `stageId`/`stageName`.
 
 ## State Transitions
 

@@ -3,7 +3,7 @@
 **Date:** 2026-01-28
 **Author:** Principal Lead Architect
 **Status:** ACTIONABLE PLAN (Ready for Implementation)
-**Previous Version:** [ARCHITECTURE_EVOLUTION_ROADMAP.md](./ARCHITECTURE_EVOLUTION_ROADMAP.md)
+**Previous Version:** [ARCHITECTURE_EVOLUTION_ROADMAP.md](../archive/ARCHITECTURE_EVOLUTION_ROADMAP.md)
 
 ---
 
@@ -1174,7 +1174,7 @@ bun add lucia @lucia-auth/adapter-drizzle  # Email/password auth
 
 ## 📚 Reference Documents
 
-- [Original Roadmap V1](./ARCHITECTURE_EVOLUTION_ROADMAP.md)
+- [Original Roadmap V1](../archive/ARCHITECTURE_EVOLUTION_ROADMAP.md)
 - [Pika! Next Architecture](./pika-next-architecture.md)
 - [Data Strategy](./data-strategy.md)
 - [UX Strategy](./ux-strategy.md)

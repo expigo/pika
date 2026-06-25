@@ -1,9 +1,15 @@
 # Pika! Developer Handover & Technical Guide
 
 **Date:** June 2026
-**Version:** 0.4.7 ("Excellence" Hardening Release)
+**Version:** 0.5.0 (Stage/Event + Hardening Release)
 
 This document is designed to get a new developer up to speed with the **Pika!** codebase. It covers the architectural decisions, current implementation status, and key flows required to understand how the system operates.
+
+> **New in v0.5.0:** the **Stage/Event** model — persistent venue stages dancers follow across DJ
+> rotation ([docs/architecture/stage-event-model.md](docs/architecture/stage-event-model.md)); CSP
+> `unsafe-eval` dropped (web + desktop); and a React Testing Library suite (`*.rtl.tsx`, see
+> `CLAUDE.md`). ⚠️ Naming note: "The Stage" in the UI section below is the **desktop DJ
+> performance view** (route `stage`) — a different concept from a venue **Stage** entity.
 
 ---
 
@@ -277,4 +283,4 @@ Users often restart the app during a gig. Auto-importing history without validat
 
 ---
 
-*Last Updated: June 2026 (v0.4.7 - "Excellence" Hardening Release)*
+*Last Updated: June 25, 2026 (v0.5.0 - Stage/Event + Hardening Release)*

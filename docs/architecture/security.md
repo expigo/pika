@@ -37,7 +37,7 @@ This document outlines the security architecture of Pika!, including implemented
                     │  - Origin IP hidden behind Cloudflare Tunnel (WAF/DDoS) │
                     │  - No inbound ports open on VPS firewall (except SSH) │
                     │  - Docker network isolation (Services on private net)   │
-                    │  - Containers bind to 0.5.0.1 for SSH Tunneling ONLY   │
+                    │  - Containers bind to 127.0.0.1 for SSH Tunneling ONLY │
                     └───────────────────────────────────────┘
 ```
 
@@ -219,34 +219,53 @@ grep -r "eval(" packages/                     # No results
 
 ### 5.2 Content Security Policy
 
-**Implementation (v0.5.0 - Web):**
-```typescript
-// packages/web/middleware.ts
-// Adds CSP, X-Frame-Options, X-Content-Type-Options, etc.
-export function middleware(request: NextRequest) {
-  const response = NextResponse.next();
-  response.headers.set("Content-Security-Policy", "default-src 'self'; ...");
-  return response;
-}
+**Web (`packages/web/middleware.ts`)** — CSP + security headers on every page response:
+
+```text
+script-src  'self' 'unsafe-inline'   ← 'unsafe-eval' is DEV-ONLY (Turbopack HMR); dropped in prod
+style-src   'self' 'unsafe-inline'   ← styled-jsx / Tailwind
+connect-src 'self' wss://api.pika.stream … https://*.ingest.de.sentry.io …
+object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
 ```
 
-| Status | Severity | ETA |
+Also sets `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
+`Referrer-Policy`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`
+(the Chromium-only `browsing-topics` directive was removed to stop the
+"Unrecognized feature" console warning), and HSTS in production. A nonce-based
+CSP (to also drop `'unsafe-inline'`) was **deliberately not** adopted — per Next's
+docs it forces dynamic rendering of every page for marginal gain, given the app
+never uses `dangerouslySetInnerHTML`.
+
+**Desktop/Tauri (`tauri.conf.json`):**
+
+| Directive | Policy | Rationale |
+| :--- | :--- | :--- |
+| `script-src` | `'self' 'unsafe-inline'` | **`'unsafe-eval'` removed (v0.5.0)** — the Tauri IPC bridge does not need `eval`; dropping it closes the primary XSS-escalation path. |
+| `style-src` | `'self' 'unsafe-inline' https://fonts.googleapis.com` | Inline animation keyframes (Confetti/Pulse) + the Google Fonts stylesheet. |
+| `connect-src` | `'self' ipc: tauri: localhost:* …pika.stream` | IPC bridge + cloud API/WS (prod **and** staging). |
+| `worker-src` | `'self' blob: tauri:` | Web-Worker confetti rendering. |
+| `img-src` / `font-src` | `'self' data: blob: tauri:` / `'self' data: https://fonts.gstatic.com` | Local assets + Google Fonts. |
+
+| Status | Severity | Notes |
 | :---: | :---: | :--- |
-| 🟢 FIXED | LOW | v0.5.0 |
- 
- **Implementation (v0.5.0 - Desktop/Tauri):**
- Pika! uses a "Pragmatically Safe" CSP in `tauri.conf.json` to balance security with the functional requirements of modern animation libraries.
- 
- | Directive | Policy | Rationale |
- | :--- | :--- | :--- |
- | `style-src` | `'self' 'unsafe-inline'` | Required for dynamic animation math (e.g., Confetti, Pulse). Core keyframes are externalized to `App.css` to bypass WebKit blocks. |
- | `worker-src` | `blob: tauri:` | Enables high-performance confetti rendering via Web Workers. |
- | `connect-src` | `ipc: localhost:*` | Permits internal communication between Tauri frontend and backend. |
- | `script-src` | `'self' 'unsafe-eval'` | Required for the Tauri IPC bridge and dynamic expression evaluation in physics engines. |
- 
- | Status | Severity | ETA |
- | :---: | :---: | :--- |
- | 🟢 FIXED | LOW | v0.5.0 |
+| 🟢 HARDENED | LOW | `'unsafe-eval'` dropped from **both** web (prod) and desktop in v0.5.0. |
+
+### 5.3 Scoped Push & Stage Isolation (v0.5.0)
+
+The Stage/Event model replaced the unscoped **"Global Megaphone"** — where one DJ's
+announcement push reached *every* subscribed device — with **stage-scoped** delivery.
+Targets are resolved from durable subscriptions:
+
+```text
+push_subscriptions ⋈ stage_subscriptions ON client_id WHERE stage_id = $1
+```
+
+| Control | Implementation | Status |
+| :--- | :--- | :---: |
+| Push scoped to a stage's audience | `stage_subscriptions` (clientId ↔ stageId) | ✅ |
+| Event/stage mutation is owner-scoped | `routes/stages.ts` (auth → `events.owner_user_id`) | ✅ |
+| Subscriptions cascade-cleaned | FK `ON DELETE CASCADE` from `stages` | ✅ |
+| Client-likes / announcement push rate-limited | per-connection + per-endpoint limits | ✅ |
 
 ---
 
@@ -259,7 +278,7 @@ export function middleware(request: NextRequest) {
 | Origin IP Hidden | Cloudflare Tunnel | ✅ |
 | SSL/TLS | Cloudflare Edge (Auto-renew) | ✅ |
 | Container Isolation | Docker network | ✅ |
-| Port Binding | `0.5.0.1` only | ✅ |
+| Port Binding | `127.0.0.1` only | ✅ |
 | SSH Access | Key-based only | ✅ |
 
 ### 6.2 Secrets Management
@@ -332,7 +351,8 @@ The Python analysis sidecar:
 
 | Date | Type | Findings | Report |
 | :--- | :--- | :--- | :--- |
-| 2026-02-01 | **Final v0.5.0 Audit** | 100% Verification (10/10) | Internal |
+| 2026-06-25 | **v0.5.0 Hardening** | CSP `unsafe-eval` dropped (web+desktop); scoped push; audit-fix batch | [perf-hardening backlog](../persistence-hardening-backlog.md) |
+| 2026-02-01 | **Final v0.4.0 Audit** | 100% Verification (10/10) | Internal |
 | 2026-01-24 | Phase 2 Hardening | Backpressure, Queues | Internal |
 | 2026-01-23 | **Production Readiness** | 0 Open (All Fixed) | [ROADMAP_11_10.md](../ROADMAP_11_10.md) |
 | 2026-01-22 | Code Quality Audit | All P1/P2 Resolved | [AUDIT_REPORT.md](../archive/AUDIT_REPORT.md) |
@@ -342,5 +362,5 @@ The Python analysis sidecar:
 
 ---
 
-*Last Updated: February 1, 2026*
+*Last Updated: June 25, 2026 (v0.5.0)*
 *Status: ✅ All Security Issues Resolved - Production Ready*

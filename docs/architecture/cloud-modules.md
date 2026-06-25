@@ -2,7 +2,7 @@
 
 This document describes the modular architecture of the `@pika/cloud` backend service, introduced in v0.5.0.
 
-**Last Updated:** February 1, 2026 (v0.5.0)
+**Last Updated:** June 25, 2026 (v0.5.0)
 
 ---
 
@@ -12,8 +12,8 @@ The Cloud service has been refactored from a monolithic `index.ts` (~3000 lines)
 
 | Category | Files | Purpose |
 |----------|-------|---------|
-| **Handlers** | 8 files | WebSocket message processing (20 handlers) |
-| **Routes** | 6 files | REST API endpoints |
+| **Handlers** | 8 files | WebSocket message processing (21 handlers) |
+| **Routes** | 7 files | REST API endpoints |
 | **Lib** | 14 files | State management & utilities |
 | **Entry** | 1 file | ~570 lines, wiring + global cleanup |
 
@@ -32,7 +32,7 @@ packages/cloud/src/handlers/
 ├── dj.ts             # DJ actions (6 handlers)
 ├── dancer.ts         # Dancer interactions (3 handlers)
 ├── poll.ts           # Poll lifecycle (4 handlers)
-├── subscriber.ts     # Session subscription (1 handler)
+├── subscriber.ts     # Session + Stage subscription (2 handlers)
 ├── utility.ts        # Utility messages (2 handlers)
 └── lifecycle.ts      # Connection lifecycle + DJ-reconnect grace / reapSession (v0.5.0)
 ```
@@ -44,9 +44,13 @@ packages/cloud/src/handlers/
 | `dj.ts` | REGISTER_SESSION, BROADCAST_TRACK, TRACK_STOPPED, END_SESSION, SEND_ANNOUNCEMENT, CANCEL_ANNOUNCEMENT, BROADCAST_METADATA | 7 |
 | `dancer.ts` | SEND_LIKE, SEND_BULK_LIKE, REMOVE_LIKE, SEND_REACTION, SEND_TEMPO_REQUEST | 5 |
 | `poll.ts` | START_POLL, END_POLL, CANCEL_POLL, VOTE_ON_POLL | 4 |
-| `subscriber.ts` | SUBSCRIBE | 1 |
+| `subscriber.ts` | SUBSCRIBE, SUBSCRIBE_STAGE | 2 |
 | `utility.ts` | PING, GET_SESSIONS, VALIDATE_SESSION | 3 |
-| **Total** | | **20** |
+| **Total** | | **21** |
+
+`SUBSCRIBE_STAGE` joins a persistent **Stage** (vs a single session): the dancer is routed to
+whichever session is live on that stage and follows DJ rotation seamlessly. See
+[stage-event-model.md](./stage-event-model.md).
 
 ### WSContext Pattern
 
@@ -113,7 +117,8 @@ packages/cloud/src/routes/
 ├── stats.ts      # Global statistics
 ├── dj.ts         # DJ profile routes
 ├── client.ts     # Client/dancer routes
-└── push.ts       # Web Push subscriptions
+├── push.ts       # Web Push subscriptions
+└── stages.ts     # Event/Stage provisioning (owner-scoped) + stage lookup
 ```
 
 ### Route Breakdown
@@ -124,8 +129,9 @@ packages/cloud/src/routes/
 | `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap, fingerprint (Secured with ownership checks) |
 | `stats.ts` | `/api/stats/*` | Top tracks, global stats |
 | `dj.ts` | `/api/dj/*` | DJ profile by slug |
-| `client.ts` | `/api/client/*` | Liked tracks for dancers |
+| `client.ts` | `/api/client/*` | Liked tracks for dancers (rate-limited) |
 | `push.ts` | `/api/push/*` | Web Push subscription management |
+| `stages.ts` | `/api/events`, `/api/stages/*` | Create events/stages (owner-scoped), stage lookup w/ `eventName`, list owner's events |
 
 ### Mounting in index.ts
 
@@ -140,6 +146,7 @@ app.route("/api/stats", statsRoutes);
 app.route("/api/dj", djRoutes);
 app.route("/api/client", clientRoutes);
 app.route("/api/push", pushRoutes);
+app.route("/api", stagesRoutes); // /api/events, /api/stages/*
 ```
 
 ---
@@ -153,7 +160,9 @@ State management and utility functions.
 ```
 packages/cloud/src/lib/
 ├── index.ts              # Barrel export
-├── sessions.ts           # Active session Map + DJ-reconnect grace timers (v0.5.0)
+├── sessions.ts           # Active session Map + DJ-reconnect grace timers; stage-topic resolvers
+│                         #   (getSessionBroadcastTopic / getSessionAudienceKey)
+├── stages.ts             # stageActiveSession map (which session is live on a stage) + rotation guard
 ├── listeners.ts          # Listener count tracking
 ├── likes.ts              # Like deduplication
 ├── polls.ts              # Poll state + timer cleanup
@@ -162,7 +171,7 @@ packages/cloud/src/lib/
 ├── protocol.ts           # ACK/NACK + parseMessage
 ├── cache.ts              # In-memory cache utility
 ├── auth.ts               # Token validation
-├── topics.ts             # Pub/sub topic helpers (discovery + session:{id})
+├── topics.ts             # Pub/sub topic helpers (discovery + session:{id} + stage:{id})
 ├── broadcaster.ts        # Shared server.publish() for deferred broadcasts (v0.5.0)
 └── persistence/
     ├── sessions.ts       # Session DB ops + waitForSession

@@ -1,4 +1,4 @@
-# Pika! Technical Specification (v0.4.7)
+# Pika! Technical Specification (v0.5.0)
 
 Welcome to Pika!. This document serves as the authoritative technical reference for the Pika! ecosystem, designed for onboarding developers and AI agents.
 
@@ -80,11 +80,11 @@ bun --filter @pika/desktop tauri dev # Run only the Desktop dev server
 
 ### 6.2. Standards
 - **Linting:** Biome (`bun run lint`).
-- **Testing:** Bun Test (Cloud), Vitest (Desktop). **670+ tests** total (319 cloud, 328 desktop, 24 shared).
+- **Testing:** Bun Test (Cloud/Web/Shared), Vitest (Desktop + Web/Desktop `*.rtl.tsx` RTL). **~913 tests** total (355 cloud, 399 desktop, 135 web, 24 shared).
 - **Logging:** Always use the shared `logger`. Avoid `console.log` in production-ready code.
 
 ### 6.3. Versioning
-We follow Semantic Versioning. The current stable version is **v0.4.7 (Excellence Hardening)**.
+We follow Semantic Versioning. The current stable version is **v0.5.0 (Stage/Event + Hardening)**.
 
 ---
 
@@ -92,4 +92,4 @@ We follow Semantic Versioning. The current stable version is **v0.4.7 (Excellenc
 For deployment, monitoring, and scaling instructions, refer to the `docs/ops-manual.md`. For the future roadmap, see `docs/ROADMAP.md`.
 
 ---
-**Document Status:** v0.4.7 | **Net Score:** 11/10 🚀
+**Document Status:** v0.5.0 | **Net Score:** 11/10 🚀

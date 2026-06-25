@@ -1,6 +1,6 @@
 # Pika! Architecture Evolution Roadmap
 
-> ⚠️ **SUPERSEDED by [ARCHITECTURE_EVOLUTION_ROADMAP_V2.md](ARCHITECTURE_EVOLUTION_ROADMAP_V2.md) (2026-01-28, REVISED).** Kept for history.
+> ⚠️ **ARCHIVED / SUPERSEDED by [ARCHITECTURE_EVOLUTION_ROADMAP_V2.md](../blueprints/ARCHITECTURE_EVOLUTION_ROADMAP_V2.md) (2026-01-28, REVISED).** Kept for history.
 
 **Date:** 2026-01-27
 **Author:** Principal Lead Architect

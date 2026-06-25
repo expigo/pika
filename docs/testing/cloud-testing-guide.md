@@ -1,9 +1,9 @@
 # Cloud Package Testing Guide
 
 **Package:** `@pika/cloud`
-**Version:** 0.2.8
-**Last Updated:** 2026-01-23
-**Status:** ✅ 251 tests passing
+**Version:** 0.5.0
+**Last Updated:** 2026-06-25
+**Status:** ✅ 355 unit tests passing (+ gated real-Postgres integration)
 
 ---
 
@@ -11,7 +11,14 @@
 
 This guide documents the testing strategy and patterns for the Cloud backend package.
 
-> **📊 Test Coverage:** See [ROADMAP_11_10.md](../ROADMAP_11_10.md#sprint-5-complete-when--verified-2026-01-23) for complete Sprint S5 verification.
+> **Frontend/component tests** (web + desktop) live elsewhere: they use React Testing
+> Library in `*.rtl.tsx` files (happy-dom). See the **RTL component tests** section in the
+> root `CLAUDE.md` — note the web **dual-runner** (`bun test && vitest run`) and the
+> `vitest.config.mts` requirement.
+
+> **📊 Real-DB coverage:** DB-touching code is covered by `*.integration.test.ts`, gated by
+> `RUN_DB_TESTS` and run **isolated** via `bun run test:integration` (never `RUN_DB_TESTS=1 bun test`
+> — mock-module leakage breaks the real-DB queries).
 
 ## Running Tests
 

@@ -467,17 +467,24 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 347 passing tests (Vitest, +1 skipped)
+**Current coverage:** 399 passing tests (Vitest, +1 skipped) — ~372 logic/unit + 27 `*.rtl.tsx` React-Testing-Library component tests.
 
 ### Test Files
 
-Located alongside source files with `.test.ts` suffix:
-- `src/hooks/useLiveSession.test.ts` - Connection lifecycle (~3100 lines, 91KB)
-- `src/hooks/useLiveSession.dedup.test.ts` - Deduplication logic
-- `src/hooks/useSidecar.test.ts` - Sidecar management
-- `src/db/repositories/*.test.ts` - Repository tests
-- `src/services/__tests__/*.test.ts` - Service layer tests
-- `src/hooks/live/connectionManager.test.ts` - Connection state machine
+Located alongside source files:
+- `*.test.ts` — logic/unit. E.g.:
+  - `src/hooks/useLiveSession.test.ts` - Connection lifecycle (~3100 lines, 91KB)
+  - `src/hooks/useLiveSession.dedup.test.ts` - Deduplication logic
+  - `src/hooks/useSidecar.test.ts` - Sidecar management
+  - `src/db/repositories/*.test.ts` - Repository tests
+  - `src/services/__tests__/*.test.ts` - Service layer tests
+  - `src/hooks/live/connectionManager.test.ts` - Connection state machine
+- `*.rtl.tsx` — React component tests (RTL + happy-dom). Each file declares
+  `// @vitest-environment happy-dom` at the top (global env stays `node` so the
+  logic suites are DOM-free); jest-dom + cleanup live in `src/test/rtl.tsx`. E.g.
+  `LiveControl.rtl.tsx`, `StageSelector.rtl.tsx`, `StartSessionModal.rtl.tsx`,
+  `LiveHUD.rtl.tsx`, `LiveInteractions.rtl.tsx`, `QrShareLinks.rtl.tsx`,
+  `useDjSettings.rtl.tsx`.
 
 ### Testing Patterns
 
