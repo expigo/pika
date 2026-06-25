@@ -8,6 +8,7 @@ import {
   Clock,
   Heart,
   Music2,
+  Pause,
   Radio,
   Settings,
   Share2,
@@ -284,6 +285,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
     dismissAnnouncement,
     onLikeReceived,
     sessionEnded,
+    isPaused,
     lastHeartbeat,
     pendingCount,
     isSaving,
@@ -599,7 +601,20 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
 
           {/* Content Area */}
           <div className="px-8 py-16 flex flex-col items-center justify-center min-h-[400px]">
-            {hasTrack ? (
+            {hasTrack && isPaused ? (
+              // Track D: DJ's Spotify is paused — hide the last track ("between songs").
+              <div className="w-full flex flex-col items-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-amber-500/80 to-orange-500/80 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-amber-500/10">
+                  <Pause className="w-8 h-8 text-white" />
+                </div>
+                <h2 className="text-3xl font-black text-white text-center leading-none italic uppercase tracking-tighter mb-3">
+                  Between songs
+                </h2>
+                <p className="text-lg text-slate-500 font-bold text-center uppercase tracking-widest mb-6">
+                  The DJ's music is paused
+                </p>
+              </div>
+            ) : hasTrack ? (
               <div className="w-full flex flex-col items-center">
                 <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-purple-500/20 animate-pulse">
                   <Music2 className="w-8 h-8 text-white" />

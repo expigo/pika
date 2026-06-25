@@ -32,6 +32,7 @@ export function mockLiveListener(overrides: Record<string, unknown> = {}) {
     dismissAnnouncement: vi.fn(),
     onLikeReceived: vi.fn(() => () => {}),
     sessionEnded: false,
+    isPaused: false,
     lastHeartbeat: Date.now(),
     pendingCount: 0,
     isSaving: false,

@@ -148,6 +148,17 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
   // Explicitly track if the session was ended by the DJ
   const [sessionEnded, setSessionEnded] = useState(false);
 
+  // Track D: the server-side Spotify poller signals a "between songs" pause / resume so the
+  // dancer view doesn't keep showing the last track while the DJ's music is paused.
+  const [isPaused, setIsPaused] = useState(false);
+  const pauseHandlers = useMemo(
+    () => ({
+      [MESSAGE_TYPES.SESSION_PAUSED]: () => setIsPaused(true),
+      [MESSAGE_TYPES.SESSION_RESUMED]: () => setIsPaused(false),
+    }),
+    [],
+  );
+
   // Combine all feature handlers (memoized to prevent redundant object creation - H4)
   const featureHandlers = useMemo(
     () =>
@@ -160,8 +171,16 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
         announcementHandlers,
         trackHandlers,
         socialSignalHandlers,
+        pauseHandlers,
       ),
-    [pollHandlers, tempoHandlers, announcementHandlers, trackHandlers, socialSignalHandlers],
+    [
+      pollHandlers,
+      tempoHandlers,
+      announcementHandlers,
+      trackHandlers,
+      socialSignalHandlers,
+      pauseHandlers,
+    ],
   );
 
   // Session and message routing
@@ -386,6 +405,7 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
     dismissAnnouncement,
     onLikeReceived,
     sessionEnded,
+    isPaused, // Track D: DJ's Spotify playback is paused ("between songs")
     lastHeartbeat,
     pendingCount, // Number of likes queued for offline sync
     isSaving, // True during IndexedDB debounce window

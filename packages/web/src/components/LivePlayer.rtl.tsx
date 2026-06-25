@@ -21,7 +21,9 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 const asMock = vi.mocked(useLiveListener);
 
 function setup(overrides: Record<string, unknown> = {}) {
-  asMock.mockReturnValue(mockLiveListener(overrides) as ReturnType<typeof useLiveListener>);
+  asMock.mockReturnValue(
+    mockLiveListener(overrides) as unknown as ReturnType<typeof useLiveListener>,
+  );
 }
 
 const TRACK = { artist: "Daft Punk", title: "Get Lucky", bpm: 116 };
@@ -44,6 +46,13 @@ describe("LivePlayer — render states", () => {
     expect(screen.getByText("Get Lucky")).toBeInTheDocument();
     expect(screen.getByText("Daft Punk")).toBeInTheDocument();
     expect(screen.getByText(/116 BPM/i)).toBeInTheDocument();
+  });
+
+  it("hides the last track and shows 'Between songs' when paused (Track D privacy)", () => {
+    setup({ status: "connected", currentTrack: TRACK, djName: "DJ Nova", isPaused: true });
+    render(<LivePlayer />);
+    expect(screen.getByText(/between songs/i)).toBeInTheDocument();
+    expect(screen.queryByText("Get Lucky")).not.toBeInTheDocument();
   });
 
   it("shows the session-ended state with a recap link for a targeted session", () => {

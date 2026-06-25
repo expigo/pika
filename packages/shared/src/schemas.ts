@@ -37,6 +37,8 @@ export const MESSAGE_TYPES = {
   NOW_PLAYING: "NOW_PLAYING",
   HISTORY_SYNCED: "HISTORY_SYNCED", // Confirmation of history import
   SESSION_ENDED: "SESSION_ENDED",
+  SESSION_PAUSED: "SESSION_PAUSED", // Track D: DJ's Spotify playback paused / between songs
+  SESSION_RESUMED: "SESSION_RESUMED", // Track D: playback resumed
   SESSIONS_LIST: "SESSIONS_LIST",
   LIKE_RECEIVED: "LIKE_RECEIVED",
   LIKE_REMOVED: "LIKE_REMOVED",
@@ -408,6 +410,17 @@ export const SessionEndedSchema = z.object({
   stageId: z.string().min(1).max(64).trim().optional(), // present when the ended session ran under a stage
 });
 
+// Track D: the server-side Spotify poller signals a "between songs" pause / resume.
+export const SessionPausedSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.SESSION_PAUSED),
+  sessionId: z.string().min(8).max(64).trim(),
+});
+
+export const SessionResumedSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.SESSION_RESUMED),
+  sessionId: z.string().min(8).max(64).trim(),
+});
+
 export const SessionsListSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSIONS_LIST),
   sessions: z.array(
@@ -715,6 +728,8 @@ export const ServerMessageSchema = z.discriminatedUnion("type", [
   SessionStartedSchema,
   NowPlayingSchema,
   SessionEndedSchema,
+  SessionPausedSchema,
+  SessionResumedSchema,
   SessionsListSchema,
   LikeReceivedSchema,
   LikeRemovedSchema,
