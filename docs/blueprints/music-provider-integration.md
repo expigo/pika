@@ -2,8 +2,8 @@
 
 **Status:** Research complete, design draft — NOT scheduled for implementation.
 **Author:** Lead eng research pass, June 2026. Track A design decisions resolved (§7); spike
-scoped (§8). Track D (web DJ broadcaster) added with "can't we do both?" answered (§3a). Tracks
-B/C/D still need a full discussion pass.
+scoped (§8). Track D (web DJ broadcaster) added; "can't we do both?" answered (§3a); Track D
+design resolved (§3b). Tracks B/C still need a full discussion pass.
 **Supersedes:** `spotify-integration-vision.md`, `archive/005-OLD-spotify-playlist.md` (both
 assume a DJ-OAuth playlist-export model that Spotify's Feb 2026 changes have made unshippable —
 see §2).
@@ -204,11 +204,58 @@ cloud BFF) — which we've already decided is a deliberate **per-platform policy
 - **Sequencing, not exclusivity:** you don't need both for V1. Pick by dominant use. The motivation
   here (phone, no install, set-and-forget) points at **D first**; **A** follows for DJs already in
   the desktop app (VDJ context) who want a Spotify toggle. Shipping D first does **not** waste A —
-  they share the schema seam (§4), the cache (§5), and the OAuth/poll logic (extractable to
-  `@pika/shared`).
+  they share the schema seam (§4), the cache (§5), and the now-playing→`TrackInfo` normalization +
+  poll cadence. (The **OAuth flows differ** and are *not* shared: web = confidential client / secret
+  / HTTPS redirect; desktop = public client / PKCE / 127.0.0.1 loopback.)
 
 **Recommendation:** treat "Spotify Source" as one capability; build **D (web BFF) first**, add **A
 (desktop)** as the second front-end. Both, eventually — D leads.
+
+### §3b — Track D resolved design (June 2026 discussion)
+
+Grounded in the current code (`handlers/dj.ts`, web `app/dj/login`, `middleware.ts`):
+
+- **Reuse the broadcast path via an extracted core, not `publish`-direct.** `handleBroadcastTrack`
+  is socket-coupled (`WSContext` → `rawWs`, `messageId` nonce, `state` ownership, backpressure) so
+  the poller can't call it as-is. Extract a context-free **`applyNowPlaying(sessionId, track)`**
+  core (tempo-persist-on-change → `updateSessionTrack` → publish `NOW_PLAYING` → `persistTrack`).
+  The WS handler keeps its wrapper and calls the core; the poller calls the core and publishes via
+  **`getBroadcaster().publish()`** (already used in `lifecycle.ts` when no DJ socket exists). One
+  source of truth, no drift.
+- **Artwork is a schema addition, orthogonal to publish-vs-handler.** Add optional **`albumArtUrl`**
+  to `TrackInfoSchema` / `NOW_PLAYING` (see §4). Spotify-source always populates it; VDJ/local
+  source leaves it empty. `publish`-direct would *not* have unlocked artwork — the schema does.
+- **Web session = httpOnly + Secure + SameSite cookie** (NOT bearer-in-localStorage). The DJ token
+  grants "broadcast as me" and sits next to the high-value Spotify link → XSS *exfiltration* must
+  be impossible. Cloud gains a session layer accepting **either** `Authorization: Bearer` (desktop,
+  unchanged) **or** the session cookie (web); the token-copy flow stays for desktop pairing. CSRF
+  via the existing `X-Pika-Client` header + SameSite. Web already ships a CSP (`middleware.ts`) —
+  defense-in-depth is in place, and in the BFF model the **web CSP needs no Spotify hosts** (the
+  browser only talks to pika.stream; the cloud calls Spotify).
+- **Sensitive-data inventory (small):** DJ email + bcrypt hash, DJ bearer token, **Spotify refresh
+  token** (crown jewel, server-side only, encrypted at rest, never to the browser). Dancer side is
+  anonymous (`clientId`, likes, tempo) — low sensitivity. No payments/addresses.
+- **Manual account approval — in.** Add `status: pending | approved` to `dj_users`; login refuses
+  `pending`; approve manually. Fits reality (can't onboard >5 Spotify DJs anyway), gates who can
+  broadcast on the relay, suits a curated pilot, cheap + reversible. Build it as part of D's auth.
+- **The three playback states (this is the UX):** **live+playing** → emit `NOW_PLAYING`;
+  **live+paused** (`is_playing:false` *or* manual "pause sharing") → stop emitting, dancers see a
+  **"between songs"** state (NOT the last track frozen), session + poller **stay alive**, auto-resume
+  on playback; **stopped** → session ends, poller torn down. "Pause" = temporary quiet, session
+  alive; "stop" = end.
+- **V1 privacy feature set (requirements, not nice-to-haves):** (1) opt-in, never auto-start;
+  (2) explicit consent at Connect; (3) persistent unmissable **LIVE** indicator + one-tap Stop;
+  (4) **auto-pause** broadcast on `is_playing:false`; (5) **idle auto-end** after ~30 min idle;
+  (6) **mirror view** of exactly what dancers see. Out of V1: per-track hide, scheduled sharing,
+  allow/deny lists.
+- **DJ control channel is the real net-new surface.** The web DJ needs an authenticated channel
+  (REST or a DJ WS) to start/stop the session and toggle Share — needed regardless. **Likes +
+  tempo come free** (dancer→session, source-agnostic). **Polls are deferred** — they're DJ-*authoring*
+  UI that web lacks entirely + the poll handlers are WS-context-coupled like `handleBroadcastTrack`.
+  Polls later ride the control channel once it exists.
+- **Poller multi-instance readiness:** even single-instance now (Redis deferred), give the
+  active-session table a **lease/heartbeat** column so only one instance owns a poller — design it
+  in now to avoid a repaint when scale-out happens.
 
 ---
 
@@ -218,10 +265,14 @@ Today **nothing** carries external IDs. Add (all additive / optional, flows thro
 broadcast pipe untouched):
 
 - `packages/shared/src/schemas.ts` → `TrackInfoSchema`: optional `isrc`, `spotifyUrl`,
-  `spotifyId`, `appleMusicUrl`.
+  `spotifyId`, `appleMusicUrl`, **`albumArtUrl`** (Spotify-source populates art; VDJ/local leaves
+  it empty). The `NOW_PLAYING` payload carries these through unchanged.
 - `packages/cloud` `played_tracks` + `packages/desktop` `tracks`: same optional columns
   (`db:generate` migrations, commit the SQL — see root CLAUDE.md "Adding a Column").
-- These are nullable everywhere; a stage-less / link-less track behaves exactly as before.
+- `dj_users`: add **`status: pending | approved`** (manual approval gate, §3b).
+- New cloud tables: **`spotify_connections`** (`dj_user_id`, `refresh_token_encrypted`, `scope`,
+  `status`, …) and an **active-poller/session table** with a `lease`/`heartbeat` column (§3b).
+- These are nullable/additive everywhere; a link-less / art-less track behaves exactly as before.
 
 ---
 
@@ -320,10 +371,17 @@ resolved decisions baked in. Payload is messy → we learned it in 2 days, not 2
 - Cloud: `db/schema.ts` (`played_tracks`, new `track_links`), new `routes/links.ts` /
   `lib/services/resolution`, recap in `routes/sessions.ts`.
 - Web (Track B): `app/recap/[id]/page.tsx`, `app/live/page.tsx`, `useLiveListener`.
-- Web (Track D): new DJ login + "Go Live / Connect Spotify / Share" UI; a web **broadcaster** path
-  (web currently only listens). Cloud: BFF Spotify OAuth (HTTPS redirect), encrypted token store
-  keyed to `dj_users`, httpOnly session, a per-session server-side poll loop emitting into the
-  relay. New `routes/spotify.ts` (auth callback) + a `lib/services/spotifyPoller`.
+- Web (Track D): web DJ login already EXISTS but is **token-copy only** (`app/dj/login` returns a
+  bearer token to paste into desktop) — net-new is a real **session** + a **"Go Live / Connect
+  Spotify / Share"** UI + the **DJ control channel** (start/stop/share). Cloud: BFF Spotify OAuth
+  (confidential client — Auth Code + client secret, HTTPS redirect), `spotify_connections`
+  (encrypted token, keyed to `dj_users`), an **httpOnly cookie session layer** (middleware accepts
+  Bearer OR cookie), and a per-session server-side **poll loop** calling the shared `applyNowPlaying`
+  core and publishing via `getBroadcaster()`. New `routes/spotify.ts` (callback) + `routes/dj-live.ts`
+  (control channel) + `lib/services/spotifyPoller` (PG-persisted, lease/heartbeat, restart-resume).
+- Cloud refactor (A + D): extract `applyNowPlaying(sessionId, track)` core out of
+  `handlers/dj.ts:handleBroadcastTrack` (decouple from `WSContext`); add `albumArtUrl` to the
+  `NOW_PLAYING` payload; add manual-approval check to `routes/auth.ts` login.
 - Desktop (Track A): new source service mirroring `services/virtualDjWatcher.ts`, wired into
   `useLiveSession`; Tauri `capabilities/default.json` + `tauri.conf.json` CSP (add the two Spotify
   hosts); Rust-side loopback OAuth + poll via `tauri-plugin-http`; `Cargo.toml` `tauri-plugin-keyring`
