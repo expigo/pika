@@ -1,7 +1,8 @@
 # Blueprint: Music Provider Integration (Spotify / Apple Music)
 
 **Status:** Research complete, design draft — NOT scheduled for implementation.
-**Author:** Lead eng research pass, June 2026.
+**Author:** Lead eng research pass, June 2026. Track A design decisions resolved (§7); spike
+scoped (§8). Tracks B/C still need a discussion pass.
 **Supersedes:** `spotify-integration-vision.md`, `archive/005-OLD-spotify-playlist.md` (both
 assume a DJ-OAuth playlist-export model that Spotify's Feb 2026 changes have made unshippable —
 see §2).
@@ -75,24 +76,42 @@ Pika polls the Player API and broadcasts exactly what Spotify reports.
 - **Why it's strong:** Spotify returns the **exact track + Spotify ID + ISRC + album art +
   progress**. The matching problem (Q1/Q2/Q4) *disappears* — no guessing. "Listen on Spotify"
   links become trivial. For a Spotify-DJ this is more reliable than the M3U/file-tag path.
-- **Auth:** Authorization Code + PKCE, scope `user-read-playback-state`. This is the DJ's own
-  account = **1 of the 5 OAuth seats**. Fine for personal/small use; does NOT scale to many DJs
-  on one Spotify app (each is a seat). For a single owner (you) it's free of friction.
+- **Auth:** Authorization Code + PKCE, scope **`user-read-currently-playing`** (least privilege —
+  grants only the currently-playing item; `user-read-playback-state` is the broader full-player
+  scope we do NOT need). This is the DJ's own account = **1 of the 5 OAuth seats**. Fine for
+  personal/small use; does NOT scale to many DJs on one Spotify app (each is a seat). For a single
+  owner (you) it's free of friction. Reading playback needs **no Premium**.
 - **Where it runs:** Desktop. Polls `GET /me/player/currently-playing` (~ every 3–5 s, visibility-
   aware like the existing watcher), dedups via the existing 60 s window / 2 min interval logic,
   emits into the same `BROADCAST_TRACK` pipeline.
+- **Rate limits:** rolling 30 s window, lower in Dev Mode, `Retry-After` on 429. Our load is
+  ~6–10 calls / 30 s — trivially safe. Stop polling when `is_playing` is false or app backgrounded;
+  honour `Retry-After`.
+- **What this unlocks for dancers (new vs. the VDJ path):** album **artwork**, a live **progress
+  bar** (`progress_ms / duration_ms`), and a **"Listen on Spotify"** button (`external_urls.spotify`,
+  ID already in hand). ⚠️ `preview_url` is **dead** (Spotify nulled it for API apps Nov 2024) —
+  no in-app 30 s preview clips.
 - **Token storage:** refresh token must persist. ⚠️ Settings today live in **localStorage**
-  (`settingsService.ts`), and there is **no OS-keychain plugin** in `Cargo.toml`. A refresh token
-  in localStorage is a real risk → add `tauri-plugin-keyring`/stronghold, or accept the risk
-  explicitly for v1. **Decision required.**
+  (`settingsService.ts`), and there is **no OS-keychain plugin** in `Cargo.toml`. A long-lived
+  OAuth refresh token in localStorage is a real risk → end state is `tauri-plugin-keyring`
+  (macOS Keychain / Windows Credential Manager / Linux Secret Service — multi-OS; Linux needs a
+  secret-service daemon, **Stronghold** is the dependency-free encrypted-file fallback). **Open
+  decision:** harden now, or store in the existing settings path for the spike and harden before
+  it ships.
 - **Networking:** Spotify hosts are absent from both the Tauri **CSP `connect-src`** and the
   **`http` capability allowlist** (`capabilities/default.json`). Calls must go through
   `tauri-plugin-http` (Rust-side, bypasses webview CSP, mirrors `apiClient`), and the allowlist
   must add `https://api.spotify.com/*` + `https://accounts.spotify.com/*`.
-- **Redirect URI:** loopback (`http://127.0.0.1:<port>/callback`, RFC 8252) avoids needing the
-  deep-link plugin. Alternative: custom scheme `pika://` via `tauri-plugin-deep-link` (new dep).
-- **Risk:** only reflects playback on devices Spotify sees; if the DJ mixes Spotify + local files,
-  it's a partial picture. Pair with the existing watcher, don't replace it.
+- **Redirect URI (resolved):** loopback `http://127.0.0.1:<port>/callback` — HTTP is permitted on
+  loopback. Must be the **literal `127.0.0.1`**; **`localhost` is banned** by Spotify. For a
+  dynamic port, register the loopback **without a port** and supply it at auth time. A throwaway
+  Rust-side local server catches the `?code=`. No deep-link plugin needed.
+- **Usage fit (resolved):** the "only sees one Spotify stream, bad for mixing" risk **evaporates**
+  for social-dance communities — they play **one song at a time, full duration, no crossfade**
+  (owner-confirmed). Track changes are clean and discrete; the progress bar is accurate; dedup is
+  trivial. For these communities Spotify-source could even be the **primary** input, not just a
+  sibling to the VDJ watcher (same `BROADCAST_TRACK` seam either way). **Open decision:** primary
+  vs. sibling mode.
 
 ### Track B — Dancer-facing "Listen on" links
 
@@ -174,27 +193,61 @@ Why it matters:
 
 ## 6. Phasing (proposal, debate at impl time)
 
-0. **Spike (1–2 d):** Track A — Spotify now-playing read on the owner account; confirm payload
-   gives ISRC/ID; confirm Client-Credentials `/search` resolves a real WCS setlist. De-risks all.
+0. **Spike (1–2 d):** Track A — read now-playing on the owner account; confirm the payload is
+   accurate/timely. Full scope in **§8**. De-risks all.
 1. **Phase 1:** schema seam (§4) + `track_links` cache (§5) + Track B links on the **recap** page.
 2. **Phase 2:** Track A as a first-class ingestion source (token storage + CSP/allowlist + dedup).
 3. **Phase 3:** Track B links on the **live** page; manual-correction UI over the unmatched worklist.
 4. **Phase 4 (optional):** Track C export via the shared service account — only if A/B prove out.
 
-## 7. Open decisions (owner's call)
+## 7. Decisions
 
+**Resolved (Track A discussion, June 2026):**
+- ✅ **OAuth scope:** `user-read-currently-playing` (least privilege; not playback-state).
+- ✅ **Redirect URI:** loopback `http://127.0.0.1:<port>` (literal IP; `localhost` banned),
+  portless registration + port at auth time, throwaway Rust local server. No deep-link plugin.
+- ✅ **Polling:** 3–5 s, visibility-aware, honour `Retry-After`; load is trivially within limits.
+- ✅ **Dancer payload:** album art + progress bar + "Listen on Spotify"; no `preview_url` clips.
+- ✅ **Usage fit:** one-song-at-a-time social dancing makes Track A high-reliability.
+
+**Still open (owner's call):**
 1. **Apple Music $99/yr** — in or out? (If out: Spotify-links-only for Track B.)
-2. **Token storage** for Track A — add a keychain plugin, or accept localStorage for v1?
-3. **Redirect URI** — loopback (no new dep) vs custom scheme (deep-link plugin)?
-4. **Priority** — confirm A-first, or do you want B (dancer links) shipped first for the audience?
-5. Track C at all, given the ToS-fragility and DJs not owning the playlists?
+2. **Token storage** for Track A — harden with keyring/Stronghold now, or settings-path for the
+   spike and harden before ship?
+3. **Track A role** — *primary* input for dance communities, or a *sibling* mode beside the VDJ watcher?
+4. **Priority** — A-first (recommended), or B (dancer links) first for the audience?
+5. **Track C** at all, given ToS-fragility and DJs not owning the playlists?
 
-## 8. Touch-point index (where the work lands)
+## 8. Spike scope — "read my own now-playing" (Track A de-risk, ~1–2 days)
+
+**One question to answer:** is the currently-playing payload clean and timely enough to drive a
+"Now Playing" broadcast for one-song-at-a-time play? Everything else (UI, token hardening,
+coexistence) waits.
+
+**In scope:**
+- Register a Dev-Mode Spotify app (owner Premium ✓), allowlist your own account, scope
+  `user-read-currently-playing`.
+- Minimal Authorization-Code-+-PKCE flow against `127.0.0.1` loopback (throwaway local server
+  catches `?code=`). Token in the existing settings path — **no keychain yet**.
+- Poll `GET /me/player/currently-playing` every 3–5 s via `tauri-plugin-http` (add the two
+  Spotify hosts to the capability allowlist + CSP). Log `item.name`, `artists`, `album.images`,
+  `external_ids.isrc`, `external_urls.spotify`, `progress_ms`, `duration_ms`, `is_playing`.
+- Play ~10 tracks the way you do in training; eyeball: correct track? ISRC present? clean
+  track-change detection? acceptable lag? sane behaviour on pause / between songs?
+
+**Explicitly out of scope:** keychain/Stronghold, dancer UI, dedup integration with
+`useLiveSession`, Track B/C, Apple Music, schema migrations.
+
+**Success = go/no-go signal:** payload is accurate + timely → green-light Phase 2 with the §7
+resolved decisions baked in. Payload is messy → we learned it in 2 days, not 2 weeks.
+
+## 9. Touch-point index (where the work lands)
 
 - Contract: `packages/shared/src/schemas.ts` (`TrackInfoSchema`).
 - Cloud: `db/schema.ts` (`played_tracks`, new `track_links`), new `routes/links.ts` /
   `lib/services/resolution`, recap in `routes/sessions.ts`.
 - Web: `app/recap/[id]/page.tsx`, `app/live/page.tsx`, `useLiveListener`.
 - Desktop (Track A): new source service mirroring `services/virtualDjWatcher.ts`, wired into
-  `useLiveSession`; Tauri `capabilities/default.json` + `tauri.conf.json` CSP; `Cargo.toml`
-  (keyring/deep-link if chosen).
+  `useLiveSession`; Tauri `capabilities/default.json` + `tauri.conf.json` CSP (add the two Spotify
+  hosts); Rust-side loopback OAuth + poll via `tauri-plugin-http`; `Cargo.toml` `tauri-plugin-keyring`
+  (or Stronghold) for token storage. No deep-link plugin (loopback redirect).
