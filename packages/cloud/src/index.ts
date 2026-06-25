@@ -69,6 +69,7 @@ import { cleanupStaleListeners, getListenerCount } from "./lib/listeners";
 import { cleanupSessionQueue } from "./lib/persistence/queue";
 import { clearLastPersistedTrackKey } from "./lib/persistence/tracks";
 import { sendNack } from "./lib/protocol";
+import { reconcilePollersOnBoot, shutdownAllPollers } from "./lib/services/spotifyPoller";
 import {
   cleanupStaleSessions,
   getAllSessions,
@@ -533,6 +534,8 @@ const hostname = process.env["HOST"] ?? "0.0.0.0";
 
 logger.info(`🚀 Pika! Cloud server starting on http://${hostname}:${port}`);
 logger.info(`📡 WebSocket endpoint: ws://${hostname}:${port}/ws`);
+// Track D: clear any stale Spotify-poller rows left by a previous run.
+void reconcilePollersOnBoot();
 logger.info(`💾 Database: ${process.env["DATABASE_URL"] ? "configured" : "localhost (default)"}`);
 
 /**
@@ -607,6 +610,9 @@ async function gracefulShutdown(signal: string) {
         logger.warn("⚠️ Failed to broadcast shutdown", e as Error, undefined);
       }
     }
+
+    // Track D: stop all Spotify poll loops before ending sessions.
+    shutdownAllPollers();
 
     // End all active sessions in database
     const sessionIds = getSessionIds();
