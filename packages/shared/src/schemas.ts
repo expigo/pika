@@ -156,6 +156,62 @@ export const AnalysisResultSchema = z.object({
 export type AnalysisResult = z.infer<typeof AnalysisResultSchema>;
 
 // ============================================================================
+// Stage / Event Domain Schemas (multi-DJ venue model)
+// ============================================================================
+
+/** A unique, URL-safe id for a stage or event (used in QR/share URLs). */
+const stageEventId = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-zA-Z0-9_-]+$/, "id must be URL-safe (alphanumeric, dash, underscore)");
+
+/** Human-facing display name for a stage or event. */
+const stageEventName = z.string().min(1).max(200).trim();
+
+/**
+ * REST: create an Event (a collection of stages).
+ * The owner is derived from the auth token, never the request body.
+ */
+export const CreateEventSchema = z.object({
+  id: stageEventId.optional(),
+  name: stageEventName,
+});
+export type CreateEventInput = z.infer<typeof CreateEventSchema>;
+
+/** REST: create a Stage, optionally under a parent Event. */
+export const CreateStageSchema = z.object({
+  id: stageEventId.optional(),
+  name: stageEventName,
+  eventId: stageEventId.optional(),
+});
+export type CreateStageInput = z.infer<typeof CreateStageSchema>;
+
+/**
+ * An Event entity as returned by the API.
+ * NB: the inferred type is named `EventInfo` (not `Event`) to avoid shadowing
+ * the DOM `Event` global in the React-heavy web/desktop packages.
+ */
+export const EventSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  ownerUserId: z.number().nullable().optional(),
+  createdAt: z.string(),
+  archivedAt: z.string().nullable().optional(),
+});
+export type EventInfo = z.infer<typeof EventSchema>;
+
+/** A Stage entity as returned by the API. */
+export const StageSchema = z.object({
+  id: z.string(),
+  eventId: z.string().nullable().optional(),
+  name: z.string(),
+  createdAt: z.string(),
+  archivedAt: z.string().nullable().optional(),
+});
+export type Stage = z.infer<typeof StageSchema>;
+
+// ============================================================================
 // WebSocket Message Schemas (Discriminated Union)
 // ============================================================================
 

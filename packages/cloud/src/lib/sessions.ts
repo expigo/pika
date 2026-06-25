@@ -33,6 +33,13 @@ export interface LiveSession {
   lastActivityAt: string;
   currentTrack?: TrackInfo;
   activeAnnouncement?: Announcement | null;
+  /**
+   * The Stage this session runs under, if any. When set, dancer-facing
+   * broadcasts and scoped push route via the stage; when absent the session
+   * behaves exactly as before (per-session topic, global push). Populated by
+   * the REGISTER_SESSION handler in the stage-topic routing phase.
+   */
+  stageId?: string;
 }
 
 // ============================================================================

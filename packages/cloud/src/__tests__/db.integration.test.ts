@@ -24,6 +24,11 @@ import { client, db, schema } from "../db";
 import { hashToken } from "../lib/auth";
 import { closePollInDb, createPollInDb, recordPollVoteInDb } from "../lib/persistence/polls";
 import {
+  getAllActivePushTargets,
+  getEventPushTargets,
+  getStagePushTargets,
+} from "../lib/persistence/push-targets";
+import {
   endSessionInDb,
   ensureSessionPersisted,
   persistedSessions,
@@ -43,6 +48,7 @@ import { auth as authRoute } from "../routes/auth";
 import { dj as djRoute } from "../routes/dj";
 import { push as pushRoute } from "../routes/push";
 import { sessions as sessionsRoute } from "../routes/sessions";
+import { stageRoutes } from "../routes/stages";
 import { stats as statsRoute } from "../routes/stats";
 
 const RUN = !!process.env.RUN_DB_TESTS;
@@ -513,6 +519,159 @@ suite("DB integration (real Postgres)", () => {
 
       await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
       await db.delete(schema.djUsers).where(eq(schema.djUsers.id, userId));
+    });
+  });
+
+  // ==========================================================================
+  // 4. Stages / Events + SCOPED push (the "Global Megaphone" fix)
+  // ==========================================================================
+
+  describe("stages / events + scoped push (real Postgres)", () => {
+    const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    let xff = 1000;
+    const createdEventIds: string[] = [];
+    const createdEndpoints: string[] = [];
+    const djEmails: string[] = [];
+
+    afterAll(async () => {
+      for (const id of createdEventIds) {
+        // CASCADE clears the event's stages + stage_subscriptions.
+        await db.delete(schema.events).where(eq(schema.events.id, id));
+      }
+      for (const ep of createdEndpoints) {
+        await db.delete(schema.pushSubscriptions).where(eq(schema.pushSubscriptions.endpoint, ep));
+      }
+      for (const email of djEmails) {
+        await db.delete(schema.djUsers).where(eq(schema.djUsers.email, email.toLowerCase()));
+      }
+    });
+
+    async function newDjToken(): Promise<string> {
+      const email = `stage_${uniq()}@itest.dev`;
+      djEmails.push(email);
+      const res = await authRoute.request("/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Forwarded-For": `itest-stage-${xff++}` },
+        body: JSON.stringify({ email, password: "validpassword123", displayName: `SDJ ${uniq()}` }),
+      });
+      return ((await res.json()) as { token: string }).token;
+    }
+
+    test("route: create event + stage (auth'd), then public reads resolve them", async () => {
+      const token = await newDjToken();
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+
+      const evRes = await stageRoutes.request("/events", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: "WCS Test 2026" }),
+      });
+      expect(evRes.status).toBe(201);
+      const ev = (await evRes.json()) as { id: string; ownerUserId: number };
+      createdEventIds.push(ev.id);
+      expect(ev.ownerUserId).toBeGreaterThan(0); // owner derived from token, not the body
+
+      const stRes = await stageRoutes.request("/stages", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ name: "Main Floor", eventId: ev.id }),
+      });
+      expect(stRes.status).toBe(201);
+      const st = (await stRes.json()) as { id: string };
+
+      const getRes = await stageRoutes.request(`/stages/${st.id}`);
+      expect(getRes.status).toBe(200);
+
+      const listRes = await stageRoutes.request(`/events/${ev.id}/stages`);
+      const list = (await listRes.json()) as { stages: Array<{ id: string }> };
+      expect(list.stages.some((s) => s.id === st.id)).toBe(true);
+    });
+
+    test("route: stage under an unknown parent event → 400", async () => {
+      const token = await newDjToken();
+      const bad = await stageRoutes.request("/stages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ name: "Orphan", eventId: `nope_${uniq()}` }),
+      });
+      expect(bad.status).toBe(400);
+    });
+
+    test("FK set null: deleting a stage nulls sessions.stage_id but keeps the session", async () => {
+      const evId = `ev_${uniq()}`;
+      const stId = `st_${uniq()}`;
+      const sid = `sess_${uniq()}`;
+      await db.insert(schema.events).values({ id: evId, name: "E" });
+      createdEventIds.push(evId);
+      await db.insert(schema.stages).values({ id: stId, name: "S", eventId: evId });
+      await db.insert(schema.sessions).values({ id: sid, djName: "D", stageId: stId });
+
+      await db.delete(schema.stages).where(eq(schema.stages.id, stId));
+
+      const [sess] = await db.select().from(schema.sessions).where(eq(schema.sessions.id, sid));
+      expect(sess).toBeDefined();
+      expect(sess?.stageId).toBeNull();
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
+    });
+
+    test("FK cascade: deleting an event removes its stages and stage_subscriptions", async () => {
+      const evId = `evc_${uniq()}`;
+      const stId = `stc_${uniq()}`;
+      await db.insert(schema.events).values({ id: evId, name: "E" });
+      await db.insert(schema.stages).values({ id: stId, name: "S", eventId: evId });
+      await db.insert(schema.stageSubscriptions).values({ stageId: stId, clientId: "casc-client" });
+
+      await db.delete(schema.events).where(eq(schema.events.id, evId));
+
+      const remStages = await db.select().from(schema.stages).where(eq(schema.stages.id, stId));
+      const remSubs = await db
+        .select()
+        .from(schema.stageSubscriptions)
+        .where(eq(schema.stageSubscriptions.stageId, stId));
+      expect(remStages.length).toBe(0);
+      expect(remSubs.length).toBe(0);
+    });
+
+    test("SCOPED push isolates by stage/event; global still reaches everyone", async () => {
+      const evId = `evp_${uniq()}`;
+      const s1 = `s1_${uniq()}`;
+      const s2 = `s2_${uniq()}`;
+      const cA = `cA_${uniq()}`;
+      const cB = `cB_${uniq()}`;
+      const cC = `cC_${uniq()}`;
+      const epA = `https://push.test/${cA}`;
+      const epB = `https://push.test/${cB}`;
+      const epC = `https://push.test/${cC}`;
+
+      await db.insert(schema.events).values({ id: evId, name: "Push Event" });
+      createdEventIds.push(evId);
+      await db.insert(schema.stages).values([
+        { id: s1, name: "S1", eventId: evId },
+        { id: s2, name: "S2", eventId: evId },
+      ]);
+      // A is at stage 1, B at stage 2, C is subscribed to NO stage.
+      await db.insert(schema.stageSubscriptions).values([
+        { stageId: s1, clientId: cA },
+        { stageId: s2, clientId: cB },
+      ]);
+      await db.insert(schema.pushSubscriptions).values([
+        { endpoint: epA, p256dh: "p", auth: "a", clientId: cA },
+        { endpoint: epB, p256dh: "p", auth: "a", clientId: cB },
+        { endpoint: epC, p256dh: "p", auth: "a", clientId: cC },
+      ]);
+      createdEndpoints.push(epA, epB, epC);
+
+      // Stage scope → only that stage's client.
+      const stage1 = await getStagePushTargets(s1);
+      expect(stage1.map((t) => t.endpoint)).toEqual([epA]);
+
+      // Event scope → every stage under the event (A + B), but not the stage-less C.
+      const eventTargets = await getEventPushTargets(evId);
+      expect(eventTargets.map((t) => t.endpoint).sort()).toEqual([epA, epB].sort());
+
+      // Global → reaches everyone incl. the stage-less C (the legacy fallback).
+      const allEps = new Set((await getAllActivePushTargets()).map((t) => t.endpoint));
+      expect(allEps.has(epA) && allEps.has(epB) && allEps.has(epC)).toBe(true);
     });
   });
 });

@@ -31,8 +31,15 @@ export {
   type ClientMessage,
   // Combined schemas
   ClientMessageSchema,
+  // Stage / Event schemas
+  type CreateEventInput,
+  CreateEventSchema,
+  type CreateStageInput,
+  CreateStageSchema,
   EndPollSchema,
   EndSessionSchema,
+  type EventInfo,
+  EventSchema,
   GetSessionsSchema,
   HistorySyncedSchema,
   LikeReceivedSchema,
@@ -71,6 +78,8 @@ export {
   SessionValidSchema,
   type Settings,
   SettingsSchema,
+  type Stage,
+  StageSchema,
   // Poll schemas
   StartPollSchema,
   SubscribeSchema,

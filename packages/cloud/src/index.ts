@@ -21,6 +21,7 @@ import { client as clientRoutes } from "./routes/client";
 import { dj as djRoutes } from "./routes/dj";
 import { push as pushRoutes } from "./routes/push";
 import { sessions as sessionsRoutes } from "./routes/sessions";
+import { stageRoutes } from "./routes/stages";
 import { stats as statsRoutes } from "./routes/stats";
 
 // Initialize Sentry for production error monitoring
@@ -453,6 +454,7 @@ app.route("/api/stats", statsRoutes);
 app.route("/api/dj", djRoutes);
 app.route("/api/client", clientRoutes);
 app.route("/api/push", pushRoutes);
+app.route("/api", stageRoutes); // /api/events, /api/stages (+ public reads)
 app.route("/sessions", sessionsRoutes); // Legacy WebSocket-style endpoint
 
 // Health check endpoint

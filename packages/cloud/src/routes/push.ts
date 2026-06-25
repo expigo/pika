@@ -1,12 +1,12 @@
 import { zValidator } from "@hono/zod-validator";
 import { logger } from "@pika/shared";
-import { desc, isNull } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
 import { validateToken } from "../lib/auth";
+import { getAllActivePushTargets } from "../lib/persistence/push-targets";
 import { PushService } from "../services/push";
 
 export const push = new Hono();
@@ -110,13 +110,10 @@ push.post("/send", zValidator("json", SendSchema), async (c) => {
   const finalPayload = typeof payload === "string" ? payload : JSON.stringify(payload);
 
   try {
-    // Scalability: Efficient Batching for notifications
-    const targets = await db
-      .select()
-      .from(pushSubscriptions)
-      .where(isNull(pushSubscriptions.unsubscribedAt))
-      .limit(filter === "debug" ? 5 : 1000)
-      .orderBy(desc(pushSubscriptions.createdAt));
+    // Admin/debug broadcast tool: intentionally global (no session context on
+    // this REST path). Product-facing announcements use the SCOPED resolver in
+    // lib/persistence/push-targets.ts (see handlers/dj.ts SEND_ANNOUNCEMENT).
+    const targets = await getAllActivePushTargets(filter === "debug" ? 5 : 1000);
 
     logger.info(`[Push] Broadcasting to ${targets.length} targets (Filter: ${filter})`);
 

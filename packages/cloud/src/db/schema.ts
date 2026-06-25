@@ -48,6 +48,67 @@ export const djTokens = pgTable("dj_tokens", {
 });
 
 // ============================================================================
+// Stages & Events (multi-DJ venue model)
+// ============================================================================
+
+/**
+ * Events - a collection of Stages (e.g. "WCS Budapest 2026"). A persistent
+ * context that groups stages for event-wide announcements.
+ * ownerUserId (organizer) is nullable; the full identity model is deferred to a
+ * separate blueprint.
+ */
+export const events = pgTable("events", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  ownerUserId: integer("owner_user_id").references(() => djUsers.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  archivedAt: timestamp("archived_at"), // soft-delete; preserves history
+});
+
+/**
+ * Stages - a persistent physical context (e.g. "Main Floor") that outlives any
+ * single DJ set. Dancers subscribe to a Stage; sessions run *under* a stage.
+ * eventId is nullable: a stand-alone stage (no parent event) is allowed.
+ */
+export const stages = pgTable(
+  "stages",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").references(() => events.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    archivedAt: timestamp("archived_at"),
+  },
+  (table) => ({
+    idxEventId: index("idx_stages_event_id").on(table.eventId),
+  }),
+);
+
+/**
+ * Stage subscriptions - which anonymous client (clientId) is currently at which
+ * stage. The single source of truth for SCOPED push routing:
+ *   push_subscriptions JOIN stage_subscriptions ON client_id WHERE stage_id = $1
+ * This replaces the unscoped "Global Megaphone" broadcast.
+ */
+export const stageSubscriptions = pgTable(
+  "stage_subscriptions",
+  {
+    id: serial("id").primaryKey(),
+    stageId: text("stage_id")
+      .notNull()
+      .references(() => stages.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    subscribedAt: timestamp("subscribed_at").defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueStageClient: unique("unique_stage_client").on(table.stageId, table.clientId),
+    idxStageId: index("idx_stage_subscriptions_stage_id").on(table.stageId),
+    idxClientId: index("idx_stage_subscriptions_client_id").on(table.clientId),
+  }),
+);
+
+// ============================================================================
 // Sessions Table
 // ============================================================================
 
@@ -60,12 +121,14 @@ export const sessions = pgTable(
   {
     id: text("id").primaryKey(),
     djUserId: integer("dj_user_id").references(() => djUsers.id), // Optional for legacy compatibility
+    stageId: text("stage_id").references(() => stages.id, { onDelete: "set null" }), // nullable: a stage-less session behaves exactly as before
     djName: text("dj_name").notNull(),
     startedAt: timestamp("started_at").defaultNow().notNull(),
     endedAt: timestamp("ended_at"),
   },
   (table) => ({
     idxDjUserId: index("idx_sessions_dj_user_id").on(table.djUserId),
+    idxStageId: index("idx_sessions_stage_id").on(table.stageId),
     // Composite index for fast history lookup ordered by time
     idxDjHistory: index("idx_sessions_dj_history").on(table.djUserId, table.startedAt.desc()),
     // Partial index for ultra-fast active session lookups (Dashboard/Live query)

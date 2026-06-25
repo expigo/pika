@@ -26,13 +26,11 @@ import {
   TIMEOUTS,
   TrackStoppedSchema,
 } from "@pika/shared";
-import { desc, isNull } from "drizzle-orm";
-import { db } from "../db";
-import { pushSubscriptions } from "../db/schema";
 import { validateToken } from "../lib/auth";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
 import { checkAndRecordNonce } from "../lib/nonces";
+import { getAnnouncementPushTargets } from "../lib/persistence/push-targets";
 import { cleanupSessionQueue } from "../lib/persistence/queue";
 import { endSessionInDb, persistedSessions, persistSession } from "../lib/persistence/sessions";
 import {
@@ -578,15 +576,16 @@ export function handleSendAnnouncement(ctx: WSContext) {
   } else if (msg.push) {
     (async () => {
       try {
-        const targets = await db
-          .select()
-          .from(pushSubscriptions)
-          .where(isNull(pushSubscriptions.unsubscribedAt))
-          .limit(1000)
-          .orderBy(desc(pushSubscriptions.createdAt));
+        // SCOPED push: a staged session reaches only that stage's subscribers;
+        // a stage-less session falls back to the global broadcast (correct when
+        // there is no concurrent context to leak across). Kills the Global
+        // Megaphone once stages are in use. See lib/persistence/push-targets.ts.
+        const targets = await getAnnouncementPushTargets(djSession);
 
         if (targets.length > 0) {
-          logger.info(`[Push] Broadcasting announcement to ${targets.length} targets`);
+          logger.info(`[Push] Broadcasting announcement to ${targets.length} targets`, {
+            scoped: Boolean(djSession.stageId),
+          });
           const payload = JSON.stringify({
             title: `Announcement from ${djSession.djName}`,
             body: announcementMessage,
