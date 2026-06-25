@@ -37,9 +37,11 @@ export default function LoginPage() {
       const baseUrl = getApiBaseUrl();
       const response = await fetch(`${baseUrl}/api/auth/login`, {
         method: "POST",
+        credentials: "include", // receive the httpOnly session cookie (web DJ flow)
         headers: {
           "Content-Type": "application/json",
-          "X-Pika-Client": "pika-web", // CSRF protection
+          "X-Pika-Client": "pika-web", // CSRF: global state-changing check
+          "X-Requested-With": "Pika", // CSRF: auth-endpoint check
         },
         body: JSON.stringify({ email, password }),
       });
@@ -164,6 +166,13 @@ export default function LoginPage() {
                   <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
+              <Link
+                href="/dj/live"
+                className="mt-4 w-full py-5 bg-purple-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-purple-500 transition-all shadow-xl active:scale-[0.98]"
+              >
+                Go to Live Dashboard
+                <ArrowRight className="w-4 h-4" />
+              </Link>
             </div>
           </ProCard>
         ) : (
