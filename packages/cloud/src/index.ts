@@ -16,6 +16,7 @@ import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 import { client, db } from "./db";
+import { adminRoutes } from "./routes/admin";
 import { auth as authRoutes } from "./routes/auth";
 import { client as clientRoutes } from "./routes/client";
 import { dj as djRoutes } from "./routes/dj";
@@ -470,6 +471,8 @@ app.route("/api/push", pushRoutes);
 app.route("/api/spotify", spotifyRoutes); // Track D — Spotify OAuth (BFF)
 app.use("/api/live/*", csrfCheck); // Track D — control channel (state-changing → CSRF header)
 app.route("/api/live", djLiveRoutes);
+app.use("/api/admin/*", csrfCheck); // Admin panel (state-changing → CSRF header)
+app.route("/api/admin", adminRoutes);
 app.route("/api", stageRoutes); // /api/events, /api/stages (+ public reads)
 app.route("/sessions", sessionsRoutes); // Legacy WebSocket-style endpoint
 

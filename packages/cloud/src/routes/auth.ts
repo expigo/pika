@@ -242,11 +242,18 @@ auth.post("/login", authLimiter, async (c) => {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
-    // 🔒 Manual approval gate (Track D): an unapproved account authenticates but cannot
-    // establish a session / go live. Checked AFTER password verification so it isn't an
-    // account-existence oracle.
-    if (user.status === "pending") {
-      return c.json({ error: "Your account is awaiting approval", pendingApproval: true }, 403);
+    // 🔒 Manual approval gate (Track D): only an 'approved' account may log in. Checked AFTER
+    // password verification so it isn't an account-existence oracle. ('pending' = awaiting
+    // approval; 'rejected' = denied by an admin.)
+    if (user.status !== "approved") {
+      const pending = user.status === "pending";
+      return c.json(
+        {
+          error: pending ? "Your account is awaiting approval" : "Your account is not active",
+          pendingApproval: pending,
+        },
+        403,
+      );
     }
 
     // Generate NEW token
