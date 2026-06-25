@@ -2,7 +2,8 @@
 
 **Status:** Research complete, design draft — NOT scheduled for implementation.
 **Author:** Lead eng research pass, June 2026. Track A design decisions resolved (§7); spike
-scoped (§8). Tracks B/C still need a discussion pass.
+scoped (§8). Track D (web DJ broadcaster) added with "can't we do both?" answered (§3a). Tracks
+B/C/D still need a full discussion pass.
 **Supersedes:** `spotify-integration-vision.md`, `archive/005-OLD-spotify-playlist.md` (both
 assume a DJ-OAuth playlist-export model that Spotify's Feb 2026 changes have made unshippable —
 see §2).
@@ -24,9 +25,16 @@ actual reality*:
 | **A** | **Spotify "Now Playing" source** | 1 user OAuth (the DJ, reading playback) | **Yes — provider tells us the exact track** | **High** | DJ + dancers |
 | **B** | **Dancer-facing "Listen on" links** | App-level (Client Credentials / Apple Developer Token) | Partial (search + fuzzy ladder) | Medium–High | Dancers |
 | **C** | **DJ playlist export** | 1 shared Pika-owned service account | Partial | Low–Medium (ToS-fragile) | DJ |
+| **D** | **Web DJ (Spotify-source broadcaster via BFF)** | 1 user OAuth (server-side, httpOnly) | **Yes — same as A** | **High** | DJ (phone/laptop, no install) + dancers |
+
+**A and D are two front-ends of one "Spotify Source" capability** over the same cloud relay —
+desktop (A, local keychain token) and web (D, server-side BFF token). See §3a for "can't we just
+do both?".
 
 **Recommended first spike:** Track A. It's small, it kills the matching problem entirely, and it
-directly serves the "I DJ from Spotify during training" use case.
+directly serves the "I DJ from Spotify during training" use case. For the *Spotify-source* use
+case specifically, **Track D (web) is the higher-UX target** (phone + no install) and likely the
+better *first ship* — A's real sibling is VirtualDJ; D's job is exactly this.
 
 ---
 
@@ -143,9 +151,68 @@ account, named `"{DJ} @ {Event}"`, then shares the link.
   automated playlist creation at volume from one account risks Spotify **anti-abuse/ToS** action;
   (c) needs the resolution service from Track B. Lowest priority; revisit only if A/B land.
 
+### Track D — Web DJ (Spotify-source broadcaster via BFF)
+
+**Idea:** Extend the DJ experience beyond the desktop app. The DJ logs into **pika.stream**
+(phone or laptop, no install), connects Spotify, taps **Share** — Pika broadcasts their Spotify
+now-playing to dancers. V1 = log in + connect + share/stop. This is the **higher-UX expression of
+Track A** for the Spotify-source case (it's the *only* one that works from a phone).
+
+**Two technical facts force the architecture (validated June 2026):**
+1. **Spotify's token endpoint (`accounts.spotify.com/api/token`) does not allow CORS** → the PKCE
+   code→token exchange **must** be server-side. (Data endpoints `api.spotify.com/v1/*` generally
+   do allow browser CORS, but the token step alone forces a backend.)
+2. **Browsers throttle background tabs** (timers ~1/min; Pika's own polling is visibility-aware and
+   *pauses* when hidden). But the whole premise is the DJ is doing something else (playing music)
+   while Pika sits in the background → **a backgrounded tab cannot reliably poll.**
+
+⇒ A *pure client-side* web mode is both partly impossible (token) and unreliable (throttling). The
+viable shape is a **Backend-For-Frontend (BFF)**:
+
+- **Cloud completes the OAuth** (Authorization Code + PKCE, HTTPS redirect `https://pika.stream/…`),
+  stores the refresh token **server-side** (httpOnly session cookie to the browser; token encrypted
+  at rest / secret-manager), and runs a small **per-live-session server-side poll loop** against
+  `currently-playing`, broadcasting through the **existing relay**. DJ can close the tab / lock the
+  phone — "set and forget".
+- **Reuses:** WebSocket relay, `dj_users`/`dj_tokens`, sessions, recap, the §4 schema seam, §5 cache.
+- **Net-new surface:** a **web DJ login**, a **web broadcaster role** (today web only *listens*),
+  Spotify OAuth via BFF, and the server-side poll loop. This is a small feature *area*, not a spike.
+
+**Security reconciliation (vs. Track A's keychain-first):** *not* a contradiction. The principle
+is "store the token in the most secure location **available to that client**." Desktop has an OS
+keychain and the cloud doesn't need the token → keep it local (Track A, §7). Web has no keychain;
+the realistic choice is XSS-exposed browser storage vs. server-side httpOnly+encrypted — there
+**BFF is the *more* secure option**, and the cloud genuinely needs the token to poll a closed tab.
+Same principle, per-platform policy, defensible.
+
+**Caveats:** the **5-user OAuth cap still applies** — web doesn't escape it (each connected Spotify
+account = 1 of the app's 5 seats, desktop or web). Personal / small-local-community feature until
+Spotify access changes. Plus a tiny always-on cloud cost (one request / 3–5 s per live web-DJ).
+
+### §3a — "Can't we just do both?" (A + D)
+
+**Yes — and that's the natural end state, not a fork.** A and D are two doors into the same room:
+identical downstream (`BROADCAST_TRACK` → relay → dancers), identical Spotify scope
+(`user-read-currently-playing`), differing only in **where the token lives** (desktop keychain vs.
+cloud BFF) — which we've already decided is a deliberate **per-platform policy**, not a conflict.
+
+- **Same DJ on both surfaces ≠ two seats.** The 5-user cap counts distinct Spotify *accounts* on
+  the allowlist, so a DJ who connects on desktop *and* web is still **1 seat**.
+- **No double-broadcast:** a DJ has one live session at a time and the source is chosen per
+  session, so exactly one surface drives a given broadcast. (Guard: refuse a second "go live" while
+  one is active — the relay already keys sessions per DJ.)
+- **Sequencing, not exclusivity:** you don't need both for V1. Pick by dominant use. The motivation
+  here (phone, no install, set-and-forget) points at **D first**; **A** follows for DJs already in
+  the desktop app (VDJ context) who want a Spotify toggle. Shipping D first does **not** waste A —
+  they share the schema seam (§4), the cache (§5), and the OAuth/poll logic (extractable to
+  `@pika/shared`).
+
+**Recommendation:** treat "Spotify Source" as one capability; build **D (web BFF) first**, add **A
+(desktop)** as the second front-end. Both, eventually — D leads.
+
 ---
 
-## 4. Schema changes (shared seam for A + B + C)
+## 4. Schema changes (shared seam for A + B + C + D)
 
 Today **nothing** carries external IDs. Add (all additive / optional, flows through the existing
 broadcast pipe untouched):
@@ -184,8 +251,8 @@ Why it matters:
   **manual-correction UI** (DJ pastes the right Spotify/Apple URL once → status `manual` →
   benefits everyone forever). This is the "learn from corrections" loop the old 005 doc wanted,
   done globally instead of per-DJ.
-- **Track A feeds it for free:** now-playing gives canonical ISRC/ID → high-confidence `matched`
-  rows with no search at all.
+- **Tracks A & D feed it for free:** now-playing gives canonical ISRC/ID → high-confidence
+  `matched` rows with no search at all.
 - Privacy note: this is track-identity metadata only (artist/title/links), not user data — safe
   to share across DJs.
 
@@ -194,11 +261,14 @@ Why it matters:
 ## 6. Phasing (proposal, debate at impl time)
 
 0. **Spike (1–2 d):** Track A — read now-playing on the owner account; confirm the payload is
-   accurate/timely. Full scope in **§8**. De-risks all.
+   accurate/timely. Full scope in **§8**. De-risks both A *and* D (same Spotify read).
 1. **Phase 1:** schema seam (§4) + `track_links` cache (§5) + Track B links on the **recap** page.
-2. **Phase 2:** Track A as a first-class ingestion source (token storage + CSP/allowlist + dedup).
-3. **Phase 3:** Track B links on the **live** page; manual-correction UI over the unmatched worklist.
-4. **Phase 4 (optional):** Track C export via the shared service account — only if A/B prove out.
+2. **Phase 2 — Spotify Source (D first):** web DJ login + broadcaster role + BFF OAuth + cloud-side
+   poll loop ("Connect Spotify → Share" on pika.stream). Higher reach than A (phone + no install).
+3. **Phase 3:** Track A — desktop Spotify source as the second front-end (keychain token, CSP/
+   allowlist), reusing the shared OAuth/poll logic from Phase 2.
+4. **Phase 4:** Track B links on the **live** page; manual-correction UI over the unmatched worklist.
+5. **Phase 5 (optional):** Track C export via the shared service account — only if the above land.
 
 ## 7. Decisions
 
@@ -215,8 +285,11 @@ Why it matters:
 2. **Token storage** for Track A — harden with keyring/Stronghold now, or settings-path for the
    spike and harden before ship?
 3. **Track A role** — *primary* input for dance communities, or a *sibling* mode beside the VDJ watcher?
-4. **Priority** — A-first (recommended), or B (dancer links) first for the audience?
-5. **Track C** at all, given ToS-fragility and DJs not owning the playlists?
+4. **Priority** — for Spotify-source, **D (web) first** is recommended (phone + no install); A
+   follows. Independently, Track B (dancer links) can lead if audience reach is the priority.
+5. **Track D web DJ login** — confirm we want to add a DJ-facing login + broadcaster role to the
+   web app (today web only listens). This is the main net-new surface area.
+6. **Track C** at all, given ToS-fragility and DJs not owning the playlists?
 
 ## 8. Spike scope — "read my own now-playing" (Track A de-risk, ~1–2 days)
 
@@ -246,8 +319,14 @@ resolved decisions baked in. Payload is messy → we learned it in 2 days, not 2
 - Contract: `packages/shared/src/schemas.ts` (`TrackInfoSchema`).
 - Cloud: `db/schema.ts` (`played_tracks`, new `track_links`), new `routes/links.ts` /
   `lib/services/resolution`, recap in `routes/sessions.ts`.
-- Web: `app/recap/[id]/page.tsx`, `app/live/page.tsx`, `useLiveListener`.
+- Web (Track B): `app/recap/[id]/page.tsx`, `app/live/page.tsx`, `useLiveListener`.
+- Web (Track D): new DJ login + "Go Live / Connect Spotify / Share" UI; a web **broadcaster** path
+  (web currently only listens). Cloud: BFF Spotify OAuth (HTTPS redirect), encrypted token store
+  keyed to `dj_users`, httpOnly session, a per-session server-side poll loop emitting into the
+  relay. New `routes/spotify.ts` (auth callback) + a `lib/services/spotifyPoller`.
 - Desktop (Track A): new source service mirroring `services/virtualDjWatcher.ts`, wired into
   `useLiveSession`; Tauri `capabilities/default.json` + `tauri.conf.json` CSP (add the two Spotify
   hosts); Rust-side loopback OAuth + poll via `tauri-plugin-http`; `Cargo.toml` `tauri-plugin-keyring`
   (or Stronghold) for token storage. No deep-link plugin (loopback redirect).
+- Shared (A + D): extract the OAuth/poll/now-playing-normalize logic into `@pika/shared` so both
+  front-ends reuse it.
