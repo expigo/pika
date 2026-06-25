@@ -3,7 +3,7 @@ import { type PikaEnvironment, URLS } from "@pika/shared";
 export type ServerEnv = "dev" | "prod" | "staging";
 
 export interface DjInfo {
-  id: number;
+  id: string; // Better Auth user id (string, not the old integer serial)
   displayName: string;
   email: string;
   slug: string;

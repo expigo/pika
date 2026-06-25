@@ -146,10 +146,18 @@ export async function handleRegisterSession(ctx: WSContext) {
 
   if (djToken) {
     const djUser = await getUserFromToken(djToken);
-    if (djUser) {
+    if (djUser && djUser.status === "approved") {
       djUserId = djUser.id;
       djName = djUser.name; // Use registered name
       logger.info("🔐 Authenticated DJ", { djName, djUserId });
+    } else if (djUser) {
+      // Valid session but not yet approved — withhold verified identity (parity
+      // with the REST requireDjAuth 403 gate). Falls through to anonymous mode,
+      // which any tokenless client may already use; no verified-profile linkage.
+      logger.warn("⚠️ DJ account not approved, using anonymous mode", {
+        djUserId: djUser.id,
+        status: djUser.status,
+      });
     } else {
       logger.warn("⚠️ Invalid token provided, using anonymous mode");
     }

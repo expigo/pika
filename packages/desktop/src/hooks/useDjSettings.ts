@@ -57,7 +57,9 @@ export async function validateTokenWithServer(token: string): Promise<DjInfo | n
   if (!token) return null;
   try {
     const baseUrl = getApiBaseUrl();
-    const response = await apiFetch(`${baseUrl}/api/auth/me`, {
+    // Better Auth resolves the bearer (session) token via its get-session endpoint,
+    // returning `{ session, user }` (or null/empty when the token is invalid/expired).
+    const response = await apiFetch(`${baseUrl}/api/auth/get-session`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -65,12 +67,13 @@ export async function validateTokenWithServer(token: string): Promise<DjInfo | n
 
     if (!response.ok) return null;
     const data = await response.json();
-    if (data?.success === true && data.user) {
+    const user = data?.user;
+    if (user?.id) {
       return {
-        id: data.user.id,
-        displayName: data.user.displayName,
-        email: data.user.email || "",
-        slug: data.user.slug || "",
+        id: user.id,
+        displayName: user.name, // Better Auth stores the display name as `name`
+        email: user.email || "",
+        slug: user.slug || "",
       };
     }
     return null;

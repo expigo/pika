@@ -458,7 +458,7 @@ export function Settings({ isOpen, onClose }: Props) {
                         type="password"
                         value={localToken}
                         onChange={(e) => setLocalToken(e.target.value)}
-                        placeholder="Paste DJ Token (pk_dj_...)"
+                        placeholder="Paste DJ access token from the web app"
                         className="w-full bg-slate-950/80 border border-white/5 rounded-xl px-3 py-2 text-xs font-mono text-white focus:border-pika-accent outline-none transition-all placeholder:text-slate-700"
                       />
                       <div className="flex gap-2">
