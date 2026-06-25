@@ -1,5 +1,5 @@
-import react from "@vitejs/plugin-react";
 import path from "node:path";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
 // Web runs a DUAL test setup: `bun test` for pure `*.test.ts` modules (fast, no
