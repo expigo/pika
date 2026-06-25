@@ -214,6 +214,29 @@ stage they don't own). For first-time / bulk seeding, use `packages/cloud/script
 (set the owner email at the top). Stages are soft-deleted via `archived_at` — they outlive any
 single DJ set. See `docs/architecture/stage-event-model.md`.
 
+### 🛡️ Admin Panel & DJ Approval
+
+The admin panel (`/admin` on the web) gates DJ approval + a read-only live overview behind the
+`admin` **role** (`dj_users.role`; `requireAdmin` → 404 to non-admins; actions audited in
+`admin_audit`). New DJ registrations are `status='pending'` and **cannot log in** until approved.
+
+**Bootstrap the first admin** (chicken-and-egg — the only step that needs DB access):
+```bash
+# Local
+docker exec pika-postgres psql -U pika -d pika_cloud \
+  -c "UPDATE dj_users SET role='admin' WHERE email='you@example.com';"
+# Staging/Prod: same UPDATE on that environment's DB (SSH tunnel + psql, or Drizzle Studio).
+```
+After that, approve DJs **in-app** (`/admin/djs` → Approve/Reject) — no SQL needed.
+
+**Per-environment Spotify/admin checklist** is in `docs/blueprints/music-provider-integration.md`
+§10–§11 (Track D). Admin design + scope: the admin-panel plan.
+
+**Verify:**
+1. Promote your account (SQL above) → log in → `/admin` shows the live overview.
+2. A non-admin DJ hitting `/admin` is redirected home (`GET /api/admin/me` → 404).
+3. Approve a `pending` DJ → they can now log in.
+
 ### 🚀 Migration Workflow (Best Practices)
 
 **How Drizzle Migrations Work:**
