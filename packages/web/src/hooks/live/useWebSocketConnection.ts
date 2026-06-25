@@ -3,11 +3,12 @@
  * Handles connect, disconnect, reconnect, heartbeat, and visibility changes
  */
 
-import { logger, MESSAGE_TYPES } from "@pika/shared";
+import { logger } from "@pika/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { getWebSocketUrl } from "@/lib/api";
 import { getOrCreateClientId } from "@/lib/client";
+import { selectJoinMessage } from "./joinMessage";
 import type { ConnectionStatus } from "./types";
 
 interface UseWebSocketConnectionProps {
@@ -92,23 +93,17 @@ export function useWebSocketConnection({
 
     // Join the right audience on (re)connect: a Stage (SUBSCRIBE_STAGE, stays
     // subscribed across DJ rotation), a specific session, or the lobby list.
+    // Decision is the pure selectJoinMessage (see joinMessage.ts).
     const sendJoin = () => {
       if (socket.readyState !== WebSocket.OPEN) return;
-      if (targetStageId) {
-        logger.debug("[Connection] Subscribing to stage", { stageId: targetStageId });
-        socket.send(
-          JSON.stringify({ type: MESSAGE_TYPES.SUBSCRIBE_STAGE, clientId, stageId: targetStageId }),
-        );
-        return;
-      }
-      const sid = targetSessionId || sessionIdRef.current;
-      if (sid) {
-        logger.debug("[Connection] Subscribing to session", { sessionId: sid });
-        socket.send(JSON.stringify({ type: MESSAGE_TYPES.SUBSCRIBE, clientId, sessionId: sid }));
-      } else {
-        logger.debug("[Connection] Listing sessions");
-        socket.send(JSON.stringify({ type: "GET_SESSIONS", clientId }));
-      }
+      const message = selectJoinMessage({
+        targetStageId,
+        targetSessionId,
+        discoveredSessionId: sessionIdRef.current,
+        clientId,
+      });
+      logger.debug("[Connection] Joining", { type: message.type });
+      socket.send(JSON.stringify(message));
     };
 
     // Event handlers

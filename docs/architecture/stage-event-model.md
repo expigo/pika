@@ -124,7 +124,37 @@ the token), public `GET /api/stages/:id` + `GET /api/events/:id/stages`, owner-s
 
 ## 10. Tests
 
-- Unit: `__tests__/stage-routing.test.ts` (resolvers, rotation guard, `handleSubscribeStage`,
-  seamless handover), `routes/stages.test.ts` (auth/validation).
-- Integration (`db.integration.test.ts`, gated `RUN_DB_TESTS`): FK set-null + cascade, scoped-push
+Automated coverage spans all three packages (the logic is in pure, unit-tested units so the
+hooks/components stay thin):
+
+- **Cloud** — unit `__tests__/stage-routing.test.ts` (resolvers, rotation guard,
+  `handleSubscribeStage`, seamless handover) + `routes/stages.test.ts` (auth/validation);
+  integration `db.integration.test.ts` (gated `RUN_DB_TESTS`): FK set-null + cascade, scoped-push
   isolation, real-DB `handleSubscribeStage` arming push, `GET /api/events`.
+- **Web** — `hooks/live/joinMessage.test.ts` (SUBSCRIBE_STAGE/SUBSCRIBE/GET_SESSIONS choice) +
+  `hooks/live/stageRotation.test.ts` (NOW_PLAYING peek + dedup, SESSION_STARTED follow / ignore,
+  SESSION_ENDED → waiting and *never* terminal).
+- **Desktop** — `config.test.ts` (`getStageListenerUrl` prod vs LAN), `services/stageApi.test.ts`
+  (events/stages fetch + graceful empty fallback), `hooks/live/registerMessage.test.ts`
+  (REGISTER_SESSION includes `stageId`/`token` only when present).
+
+## 11. Manual verification (event-readiness checklist)
+
+Automated tests cover the units; this confirms the wired end-to-end behavior before relying on it
+live. Needs a non-test cloud + Postgres, the web app, and the desktop app.
+
+1. **Seed + provision** — `bun run db:seed:stages` (or `POST /api/events` + `/api/stages`). Note a
+   stage id (e.g. `main-floor`).
+2. **DJ A on the stage** — desktop Go-Live → the Stage picker shows the event → pick the stage →
+   go live. Confirm the QR points to `/stage/{id}` (not `/live/{session}`).
+3. **Dancer joins** — scan the stage QR (or open `/stage/{id}`). Confirm now-playing, likes, tempo,
+   listener count all work; the like/reaction lands (check the DJ's feedback).
+4. **Seamless rotation** — DJ A ends; DJ B goes live on the **same** stage. The dancer's phone
+   should switch to DJ B's name + track **with no reload/re-scan**, history resets, listener count
+   stays stable. Verify in the dancer's network panel that **no new SUBSCRIBE_STAGE** was sent.
+5. **Lull** — end DJ B with no replacement. The dancer shows a "waiting for the next DJ" state, not
+   "session over"; reconnects/wake-ups (background the tab ~10s, return) re-sync cleanly.
+6. **Scoped push** — with the dancer subscribed, the DJ sends an announcement *with push*. Confirm
+   the push arrives. Confirm a dancer on a *different* stage/event does **not** receive it
+   (the Global Megaphone fix). A stage-less session's announcement still reaches its audience.
+7. **Backward-compat** — a normal `/live/{sessionId}` session (no stage) behaves exactly as before.

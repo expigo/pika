@@ -1,17 +1,11 @@
 import { Layers } from "lucide-react";
 import { useEffect, useState } from "react";
-import { apiFetch } from "../services/apiClient";
-import { getConfiguredUrls } from "../services/settingsService";
-import { logger } from "../utils/logger";
-
-interface EventRow {
-  id: string;
-  name: string;
-}
-interface StageRow {
-  id: string;
-  name: string;
-}
+import {
+  type EventRow,
+  fetchDjEvents,
+  fetchEventStages,
+  type StageRow,
+} from "../services/stageApi";
 
 /**
  * Optional Stage picker for the Go-Live modal. Fetches the DJ's events
@@ -30,19 +24,11 @@ export function StageSelector({ onChange }: { onChange: (stageId: string | undef
   // Load the DJ's events once.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const { apiUrl } = getConfiguredUrls();
-        const res = await apiFetch(`${apiUrl}/api/events`);
-        const data = res.ok ? ((await res.json()) as { events?: EventRow[] }) : { events: [] };
-        if (!cancelled) setEvents(data.events ?? []);
-      } catch (e) {
-        logger.debug("Stage", "Could not load events (broadcasting standalone)", e);
-        if (!cancelled) setEvents([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
+    fetchDjEvents().then((rows) => {
+      if (cancelled) return;
+      setEvents(rows);
+      setLoading(false);
+    });
     return () => {
       cancelled = true;
     };
@@ -55,16 +41,9 @@ export function StageSelector({ onChange }: { onChange: (stageId: string | undef
       return;
     }
     let cancelled = false;
-    (async () => {
-      try {
-        const { apiUrl } = getConfiguredUrls();
-        const res = await apiFetch(`${apiUrl}/api/events/${eventId}/stages`);
-        const data = res.ok ? ((await res.json()) as { stages?: StageRow[] }) : { stages: [] };
-        if (!cancelled) setStages(data.stages ?? []);
-      } catch {
-        if (!cancelled) setStages([]);
-      }
-    })();
+    fetchEventStages(eventId).then((rows) => {
+      if (!cancelled) setStages(rows);
+    });
     return () => {
       cancelled = true;
     };

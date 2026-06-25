@@ -34,6 +34,12 @@ import {
   useWakeupSync,
   useWebSocketConnection,
 } from "./live";
+import {
+  applyStageNowPlaying,
+  applyStageSessionEnded,
+  applyStageSessionStarted,
+  type StageRotationActions,
+} from "./live/stageRotation";
 
 // Re-export types for consumers
 export type { ConnectionStatus, HistoryTrack };
@@ -165,6 +171,19 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
 
     const clientId = getOrCreateClientId();
 
+    // Plain callbacks the pure stage-rotation transitions drive (see stageRotation.ts).
+    const stageActions: StageRotationActions = {
+      setSessionId,
+      setDjName,
+      clearCurrentTrack: () => setCurrentTrack(null),
+      clearHistory,
+      resetPoll,
+      resetTempoVote,
+      resetLikes,
+      setSessionEnded,
+      fetchHistory,
+    };
+
     // Main message handler
     const handleMessage = (event: MessageEvent) => {
       const message = parseWebSocketMessage(event.data);
@@ -184,16 +203,11 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
       // stage (no SESSION_STARTED arrives when we join mid-set). Capture the
       // DJ/session here, then fall through so the feature handler renders the track.
       if (targetStageId && (message as { type: string }).type === MESSAGE_TYPES.NOW_PLAYING) {
-        const np = message as { sessionId?: string; djName?: string };
-        if (np.djName) setDjName(np.djName);
-        if (np.sessionId) {
-          setSessionId(np.sessionId);
-          if (discoveredSessionRef.current !== np.sessionId) {
-            discoveredSessionRef.current = np.sessionId;
-            fetchHistory(np.sessionId);
-          }
-        }
-        setSessionEnded(false);
+        discoveredSessionRef.current = applyStageNowPlaying(
+          message as { sessionId?: string; djName?: string },
+          discoveredSessionRef.current,
+          stageActions,
+        );
       }
 
       // Route to feature handlers first
@@ -255,22 +269,15 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
           const msg = message as { sessionId: string; djName: string; stageId?: string };
 
           // Stage mode: a new DJ took over OUR stage — follow seamlessly (we stay
-          // subscribed to the stage topic; no re-subscribe).
+          // subscribed to the stage topic; no re-subscribe). Ignore other stages.
           if (targetStageId) {
-            if (msg.stageId !== targetStageId) return;
-            logger.info("[Live] Stage DJ changed", {
-              stageId: targetStageId,
-              sessionId: msg.sessionId,
-            });
-            setSessionId(msg.sessionId);
-            setDjName(msg.djName);
-            setCurrentTrack(null);
-            clearHistory();
-            resetPoll();
-            resetTempoVote();
-            setSessionEnded(false);
-            discoveredSessionRef.current = msg.sessionId;
-            fetchHistory(msg.sessionId);
+            if (applyStageSessionStarted(msg, targetStageId, stageActions)) {
+              logger.info("[Live] Stage DJ changed", {
+                stageId: targetStageId,
+                sessionId: msg.sessionId,
+              });
+              discoveredSessionRef.current = msg.sessionId;
+            }
             return;
           }
 
@@ -304,18 +311,12 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
           // Stage mode: our stage's DJ left, but the STAGE persists. Show a
           // "waiting for the next DJ" state — NOT "session over" — and keep the
           // listener count (the stage's audience stays). The stage subscription
-          // is unchanged.
+          // is unchanged. Ignore other stages' end events.
           if (targetStageId) {
-            if (msg.stageId !== targetStageId) return;
-            logger.info("[Live] Stage DJ ended; awaiting next DJ", { stageId: targetStageId });
-            setSessionId(null);
-            setDjName(null);
-            setCurrentTrack(null);
-            clearHistory();
-            resetLikes();
-            resetTempoVote();
-            resetPoll();
-            discoveredSessionRef.current = null;
+            if (applyStageSessionEnded(msg, targetStageId, stageActions)) {
+              logger.info("[Live] Stage DJ ended; awaiting next DJ", { stageId: targetStageId });
+              discoveredSessionRef.current = null;
+            }
             return;
           }
 

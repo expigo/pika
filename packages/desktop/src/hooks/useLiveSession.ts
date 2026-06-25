@@ -56,6 +56,7 @@ import {
   TRACK_DEDUP_WINDOW_MS,
 } from "./live/constants";
 import { type MessageRouterContext, messageRouter } from "./live/messageRouter";
+import { buildRegisterSessionMessage } from "./live/registerMessage";
 // Import state helpers for store-based state access
 import {
   addProcessedTrackKey,
@@ -969,14 +970,14 @@ export function useLiveSession() {
           setError(null);
 
           // Register session with DJ name and auth token from settings
-          const token = getAuthToken();
-          sendMessage({
-            type: MESSAGE_TYPES.REGISTER_SESSION,
-            sessionId: activeSessionId,
-            djName: getDjName(),
-            ...(token ? { token } : {}),
-            ...(stageId ? { stageId } : {}),
-          });
+          sendMessage(
+            buildRegisterSessionMessage({
+              sessionId: activeSessionId,
+              djName: getDjName(),
+              token: getAuthToken(),
+              stageId,
+            }),
+          );
 
           // Flush any pending messages from offline time
           flushQueue();
