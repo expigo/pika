@@ -34,6 +34,13 @@ services:
       - VAPID_SUBJECT=${VAPID_SUBJECT}
       - SENTRY_DSN=${SENTRY_DSN}
       - SENTRY_ENVIRONMENT=staging
+      # Track D (Spotify web-DJ). Values live in the VPS .env. WEB_BASE_URL is REQUIRED here:
+      # NODE_ENV=production makes webBaseUrl() default to the PROD web URL otherwise.
+      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
+      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
+      - SPOTIFY_REDIRECT_URI=${SPOTIFY_REDIRECT_URI:-https://staging-api.pika.stream/api/spotify/callback}
+      - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
+      - WEB_BASE_URL=${WEB_BASE_URL:-https://staging.pika.stream}
     ports:
       - "127.0.0.1:4001:4001"
     restart: unless-stopped

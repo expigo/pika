@@ -438,3 +438,40 @@ suite + web dual-runner green.
 deferred (schema's `live_pollers.lease`/`heartbeat` supports it later); ISRC absent from
 now-playing (Spotify URL/ID used for links; Apple cross-match needs a `/v1/tracks/{id}` follow-up);
 album art + progress + "Listen on" links are the V1.1 enrichment (schema seam `albumArtUrl` etc.).
+
+## 11. Deploying Track D to staging / production
+
+The compose env passthroughs (`SPOTIFY_*`, `TOKEN_ENCRYPTION_KEY`, `WEB_BASE_URL`) are already in
+`docker-compose.staging.yml` + `docker-compose.prod.yml`. Migrations auto-run on boot
+(`drizzle-kit migrate`), so `0002` applies on deploy — no manual DB step. The deploy itself is a
+push to the `staging` (or `main` → prod) branch via the existing GH Actions workflows.
+
+**Per-environment one-time setup (do BEFORE the first deploy, else "Connect Spotify" fails):**
+
+1. **Spotify app** (dashboard → Settings → Redirect URIs) — add the env's callback **exactly**:
+   - staging: `https://staging-api.pika.stream/api/spotify/callback`
+   - prod:    `https://api.pika.stream/api/spotify/callback`
+   And under **User Management**, allowlist each test DJ's Spotify account (Dev-Mode 5-user cap).
+   The app owner must hold **Premium**.
+
+2. **VPS `.env`** (the file the compose `${...}` reads) — add:
+   ```
+   SPOTIFY_CLIENT_ID=...
+   SPOTIFY_CLIENT_SECRET=...
+   SPOTIFY_REDIRECT_URI=https://staging-api.pika.stream/api/spotify/callback   # prod: https://api.pika.stream/...
+   TOKEN_ENCRYPTION_KEY=<openssl rand -base64 32>     # NEVER rotate casually — invalidates all stored connections
+   WEB_BASE_URL=https://staging.pika.stream            # prod: https://pika.stream
+   ```
+   `WEB_BASE_URL` is **mandatory** in both: staging/prod run `NODE_ENV=production`, so without it the
+   OAuth callback bounces to the prod web URL.
+
+3. **Deploy:** merge the branch → push to `staging` (CI builds GHCR images + redeploys; ~migration runs
+   on boot). Verify `/health` is green and the cloud log shows migrations applied.
+
+4. **Approve DJs:** on the env's DB — `UPDATE dj_users SET status='approved' WHERE email='…';`
+   (until the admin UI exists). Then walk the §10 E2E against the env's `/dj/login`.
+
+**Why no extra web/CORS/CSP work:** staging/prod already serve web + cloud on same-site
+`*.pika.stream` over HTTPS (cookie `Secure`+`SameSite=Lax` works), the CORS allowlist already
+includes the staging/prod web origins (credentials enabled), and the web CSP already permits
+`*.pika.stream`. The dev-only `127.0.0.1` CORS/CSP reflections do not apply when `NODE_ENV=production`.
