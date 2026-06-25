@@ -24,7 +24,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { client, db, schema } from "../db";
 import { handleSubscribeStage } from "../handlers/subscriber";
 import type { WSContext } from "../handlers/ws-context";
-import { hashToken } from "../lib/auth";
+import { generateToken, hashPassword, hashToken } from "../lib/auth";
 import { decryptSecret, encryptSecret } from "../lib/crypto";
 import { createLiveSession } from "../lib/live-session";
 import { closePollInDb, createPollInDb, recordPollVoteInDb } from "../lib/persistence/polls";
@@ -51,6 +51,7 @@ import {
 } from "../lib/persistence/tracks";
 import { getConnectionStatus } from "../lib/services/spotify";
 import { getStageTopic } from "../lib/topics";
+import { adminRoutes as adminRoute } from "../routes/admin";
 import { auth as authRoute } from "../routes/auth";
 import { dj as djRoute } from "../routes/dj";
 import { push as pushRoute } from "../routes/push";
@@ -905,6 +906,126 @@ suite("DB integration (real Postgres)", () => {
         .from(schema.livePollers)
         .where(eq(schema.livePollers.sessionId, sid));
       expect(rows.length).toBe(0);
+    });
+  });
+
+  describe("Admin panel", () => {
+    const aUniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    let adminId: number;
+    let adminToken: string;
+    let pendingId: number;
+    const cleanupUsers: number[] = [];
+
+    async function seedUser(over: { role?: string; status?: string }): Promise<number> {
+      const [u] = await db
+        .insert(schema.djUsers)
+        .values({
+          email: `a_${aUniq()}@itest.dev`,
+          passwordHash: "x",
+          displayName: "AdminTest",
+          slug: `a-${aUniq()}`,
+          ...over,
+        })
+        .returning({ id: schema.djUsers.id });
+      cleanupUsers.push(u!.id);
+      return u!.id;
+    }
+    async function tokenFor(djUserId: number): Promise<string> {
+      const tok = generateToken();
+      await db
+        .insert(schema.djTokens)
+        .values({ djUserId, token: await hashToken(tok), name: "it" });
+      return tok;
+    }
+    const asAdmin = (path: string, init: RequestInit = {}) =>
+      adminRoute.request(path, {
+        ...init,
+        headers: { Authorization: `Bearer ${adminToken}`, ...(init.headers ?? {}) },
+      });
+
+    beforeAll(async () => {
+      adminId = await seedUser({ role: "admin", status: "approved" });
+      adminToken = await tokenFor(adminId);
+      pendingId = await seedUser({ status: "pending" });
+    });
+    afterAll(async () => {
+      await db.delete(schema.adminAudit).where(eq(schema.adminAudit.adminUserId, adminId));
+      for (const id of cleanupUsers) {
+        await db.delete(schema.djUsers).where(eq(schema.djUsers.id, id));
+      }
+    });
+
+    test("role defaults to 'dj' for a normal account", async () => {
+      const [row] = await db
+        .select({ role: schema.djUsers.role })
+        .from(schema.djUsers)
+        .where(eq(schema.djUsers.id, pendingId));
+      expect(row?.role).toBe("dj");
+    });
+
+    test("GET /me → 200 admin identity for an admin; 404 for a non-admin (hidden)", async () => {
+      const ok = await asAdmin("/me");
+      expect(ok.status).toBe(200);
+      expect(((await ok.json()) as { role: string }).role).toBe("admin");
+
+      const djTok = await tokenFor(pendingId);
+      const denied = await adminRoute.request("/me", {
+        headers: { Authorization: `Bearer ${djTok}` },
+      });
+      expect(denied.status).toBe(404);
+    });
+
+    test("approve flips status to 'approved' and writes an audit row", async () => {
+      const res = await asAdmin(`/djs/${pendingId}/approve`, { method: "POST" });
+      expect(res.status).toBe(200);
+
+      const [row] = await db
+        .select({ status: schema.djUsers.status })
+        .from(schema.djUsers)
+        .where(eq(schema.djUsers.id, pendingId));
+      expect(row?.status).toBe("approved");
+
+      await new Promise((r) => setTimeout(r, 80)); // audit is fire-and-forget
+      const audit = await db
+        .select()
+        .from(schema.adminAudit)
+        .where(eq(schema.adminAudit.adminUserId, adminId));
+      expect(audit.some((a) => a.action === "dj.approve" && a.targetId === String(pendingId))).toBe(
+        true,
+      );
+    });
+
+    test("a rejected DJ (correct password) is refused at login with 403", async () => {
+      // Seed a user with a REAL password hash so login reaches the status gate.
+      const email = `rej_${aUniq()}@itest.dev`;
+      const [u] = await db
+        .insert(schema.djUsers)
+        .values({
+          email,
+          passwordHash: await hashPassword("validpassword123"),
+          displayName: "Rejected",
+          slug: `rej-${aUniq()}`,
+          status: "pending",
+        })
+        .returning({ id: schema.djUsers.id });
+      cleanupUsers.push(u!.id);
+
+      expect((await asAdmin(`/djs/${u!.id}/reject`, { method: "POST" })).status).toBe(200);
+
+      const login = await authRoute.request("/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Requested-With": "Pika" },
+        body: JSON.stringify({ email, password: "validpassword123" }),
+      });
+      expect(login.status).toBe(403); // status gate (not 401 — the password is correct)
+    });
+
+    test("GET /overview returns the live-state shape", async () => {
+      const res = await asAdmin("/overview");
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { sessions: unknown[]; connections: number };
+      expect(Array.isArray(body.sessions)).toBe(true);
+      expect(typeof body.connections).toBe("number");
     });
   });
 });
