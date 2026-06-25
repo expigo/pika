@@ -5,11 +5,14 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   test: {
-    // Use node environment to avoid jsdom ESM compatibility issues with bun
+    // Default to node (avoids jsdom-under-bun ESM issues). Component tests are
+    // named *.rtl.tsx and opt into a DOM via a `// @vitest-environment happy-dom`
+    // docblock; their jest-dom/cleanup setup lives in src/test/rtl.tsx (imported
+    // only by those files), so the node-env suites stay DOM-free.
     environment: "node",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
-    include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    include: ["src/**/*.{test,spec}.{ts,tsx}", "src/**/*.rtl.tsx"],
     exclude: ["node_modules", "src-tauri"],
     coverage: {
       reporter: ["text", "json", "html"],

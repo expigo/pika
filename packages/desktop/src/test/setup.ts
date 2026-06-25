@@ -36,6 +36,18 @@ vi.mock("@tauri-apps/api/path", () => ({
   join: vi.fn((...parts: string[]) => Promise.resolve(parts.join("/"))),
 }));
 
+// Tauri IPC + HTTP: safe no-op defaults so components that transitively call
+// invoke()/apiFetch render without a real backend. Per-file vi.mock overrides
+// these where a test asserts specific returns. DOM-free, so node-env suites are
+// unaffected.
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(() => Promise.resolve(null)),
+}));
+
+vi.mock("@tauri-apps/plugin-http", () => ({
+  fetch: vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))),
+}));
+
 // Mock console methods to reduce noise in tests
 // Uncomment to silence logs:
 // vi.spyOn(console, 'log').mockImplementation(() => {});
