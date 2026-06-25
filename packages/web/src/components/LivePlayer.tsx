@@ -20,6 +20,7 @@ import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePushNotifications } from "@/hooks/live";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
+import { getApiBaseUrl } from "@/lib/api";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
 import { NotificationToggle } from "./pwa/NotificationToggle";
 import { OfflineStatus } from "./pwa/OfflineStatus";
@@ -287,6 +288,31 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
     pendingCount,
     isSaving,
   } = useLiveListener(targetSessionId, targetStageId);
+
+  // Stage mode: resolve the stage + event name so the dancer can see they're on a
+  // persistent floor (following DJ rotation), not a single DJ's session.
+  const [stageInfo, setStageInfo] = useState<{ name: string; eventName: string | null } | null>(
+    null,
+  );
+  useEffect(() => {
+    if (!targetStageId) {
+      setStageInfo(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`${getApiBaseUrl()}/api/stages/${encodeURIComponent(targetStageId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { name?: string; eventName?: string | null } | null) => {
+        if (!cancelled && data?.name) {
+          setStageInfo({ name: data.name, eventName: data.eventName ?? null });
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [targetStageId]);
+
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [votingOption, setVotingOption] = useState<number | null>(null);
@@ -469,6 +495,17 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                       : "NETWORK PULSE: ACTIVE"
                     : "SYNCING PULSE"}
                 </p>
+                {/* Stage badge — tells the dancer they're on a persistent floor
+                    (following DJ rotation), vs a single DJ's session. */}
+                {stageInfo && (
+                  <p
+                    className="text-[9px] font-black uppercase tracking-widest mt-1 text-pika-accent flex items-center gap-1 truncate max-w-[200px]"
+                    title={`Stage${stageInfo.eventName ? ` · ${stageInfo.eventName}` : ""} — you stay connected across DJ changes`}
+                  >
+                    🎭 {stageInfo.name}
+                    {stageInfo.eventName ? ` · ${stageInfo.eventName}` : ""}
+                  </p>
+                )}
               </div>
             </div>
 

@@ -124,11 +124,21 @@ stageRoutes.post("/stages", createLimiter, zValidator("json", CreateStageSchema)
   }
 });
 
+// Public stage read (client resolves a stage from its QR / join code). Includes the
+// parent event's name (null for a stand-alone stage) so dancers/DJs can show "Stage · Event".
 stageRoutes.get("/stages/:id", async (c) => {
   const stageId = c.req.param("id");
   const [stage] = await db
-    .select()
+    .select({
+      id: stages.id,
+      name: stages.name,
+      eventId: stages.eventId,
+      eventName: events.name,
+      createdAt: stages.createdAt,
+      archivedAt: stages.archivedAt,
+    })
     .from(stages)
+    .leftJoin(events, eq(events.id, stages.eventId))
     .where(and(eq(stages.id, stageId), isNull(stages.archivedAt)));
   if (!stage) return c.json({ error: "Stage not found" }, 404);
   return c.json(stage);

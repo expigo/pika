@@ -585,6 +585,10 @@ suite("DB integration (real Postgres)", () => {
 
       const getRes = await stageRoutes.request(`/stages/${st.id}`);
       expect(getRes.status).toBe(200);
+      // Public read is enriched with the parent event name (for the dancer's "Stage · Event" badge).
+      const stageRead = (await getRes.json()) as { name: string; eventName: string | null };
+      expect(stageRead.name).toBe("Main Floor");
+      expect(stageRead.eventName).toBe("WCS Test 2026");
 
       const listRes = await stageRoutes.request(`/events/${ev.id}/stages`);
       const list = (await listRes.json()) as { stages: Array<{ id: string }> };
