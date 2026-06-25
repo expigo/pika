@@ -37,7 +37,7 @@ This document outlines the security architecture of Pika!, including implemented
                     │  - Origin IP hidden behind Cloudflare Tunnel (WAF/DDoS) │
                     │  - No inbound ports open on VPS firewall (except SSH) │
                     │  - Docker network isolation (Services on private net)   │
-                    │  - Containers bind to 0.4.7.1 for SSH Tunneling ONLY   │
+                    │  - Containers bind to 0.5.0.1 for SSH Tunneling ONLY   │
                     └───────────────────────────────────────┘
 ```
 
@@ -172,18 +172,18 @@ app.use("*", cors({
 }));
 ```
 
-**Desktop Mitigation (v0.4.7):**
+**Desktop Mitigation (v0.5.0):**
 Desktop App uses `apiClient.ts` (Tauri Native Fetch) for all API calls, which bypasses browser CORS restrictions entirely. This allows strict locking down of cloud CORS policies to only trusted web origins.
 
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
-| 🟢 CLOSED | HIGH | Fixed in v0.4.7+ |
+| 🟢 CLOSED | HIGH | Fixed in v0.5.0+ |
 
 ### 4.2 CSRF Protection
 
 REST API endpoints use Bearer token authentication. Additionally, state-changing requests require a custom header.
 
-**Implementation (v0.4.7):**
+**Implementation (v0.5.0):**
 ```typescript
 // packages/cloud/src/index.ts
 app.use("/api/auth/*", csrfCheck);  // Validates X-Pika-Client header
@@ -194,7 +194,7 @@ app.use("/api/auth/*", csrfCheck);  // Validates X-Pika-Client header
 
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
-| 🟢 FIXED | MEDIUM | v0.4.7 |
+| 🟢 FIXED | MEDIUM | v0.5.0 |
 
 ---
 
@@ -219,7 +219,7 @@ grep -r "eval(" packages/                     # No results
 
 ### 5.2 Content Security Policy
 
-**Implementation (v0.4.7 - Web):**
+**Implementation (v0.5.0 - Web):**
 ```typescript
 // packages/web/middleware.ts
 // Adds CSP, X-Frame-Options, X-Content-Type-Options, etc.
@@ -232,9 +232,9 @@ export function middleware(request: NextRequest) {
 
 | Status | Severity | ETA |
 | :---: | :---: | :--- |
-| 🟢 FIXED | LOW | v0.4.7 |
+| 🟢 FIXED | LOW | v0.5.0 |
  
- **Implementation (v0.4.7 - Desktop/Tauri):**
+ **Implementation (v0.5.0 - Desktop/Tauri):**
  Pika! uses a "Pragmatically Safe" CSP in `tauri.conf.json` to balance security with the functional requirements of modern animation libraries.
  
  | Directive | Policy | Rationale |
@@ -246,7 +246,7 @@ export function middleware(request: NextRequest) {
  
  | Status | Severity | ETA |
  | :---: | :---: | :--- |
- | 🟢 FIXED | LOW | v0.4.7 |
+ | 🟢 FIXED | LOW | v0.5.0 |
 
 ---
 
@@ -259,7 +259,7 @@ export function middleware(request: NextRequest) {
 | Origin IP Hidden | Cloudflare Tunnel | ✅ |
 | SSL/TLS | Cloudflare Edge (Auto-renew) | ✅ |
 | Container Isolation | Docker network | ✅ |
-| Port Binding | `0.4.7.1` only | ✅ |
+| Port Binding | `0.5.0.1` only | ✅ |
 | SSH Access | Key-based only | ✅ |
 
 ### 6.2 Secrets Management
@@ -332,11 +332,11 @@ The Python analysis sidecar:
 
 | Date | Type | Findings | Report |
 | :--- | :--- | :--- | :--- |
-| 2026-02-01 | **Final v0.4.7 Audit** | 100% Verification (10/10) | Internal |
+| 2026-02-01 | **Final v0.5.0 Audit** | 100% Verification (10/10) | Internal |
 | 2026-01-24 | Phase 2 Hardening | Backpressure, Queues | Internal |
 | 2026-01-23 | **Production Readiness** | 0 Open (All Fixed) | [ROADMAP_11_10.md](../ROADMAP_11_10.md) |
 | 2026-01-22 | Code Quality Audit | All P1/P2 Resolved | [AUDIT_REPORT.md](../archive/AUDIT_REPORT.md) |
-| 2026-01-18 | Security Hardening v0.4.7 | Schema, Rate Limiting | Internal |
+| 2026-01-18 | Security Hardening v0.5.0 | Schema, Rate Limiting | Internal |
 | 2026-01-15 | Code Verification | 4 Fixed, 5 Open | Internal |
 | 2026-01-13 | Full Security Audit | 0 Critical, 2 High | Internal |
 

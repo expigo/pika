@@ -1,8 +1,8 @@
 # Architecture: Cloud Module Structure
 
-This document describes the modular architecture of the `@pika/cloud` backend service, introduced in v0.4.7.
+This document describes the modular architecture of the `@pika/cloud` backend service, introduced in v0.5.0.
 
-**Last Updated:** February 1, 2026 (v0.4.7)
+**Last Updated:** February 1, 2026 (v0.5.0)
 
 ---
 
@@ -34,7 +34,7 @@ packages/cloud/src/handlers/
 ├── poll.ts           # Poll lifecycle (4 handlers)
 ├── subscriber.ts     # Session subscription (1 handler)
 ├── utility.ts        # Utility messages (2 handlers)
-└── lifecycle.ts      # Connection lifecycle + DJ-reconnect grace / reapSession (v0.4.7)
+└── lifecycle.ts      # Connection lifecycle + DJ-reconnect grace / reapSession (v0.5.0)
 ```
 
 ### Handler Breakdown
@@ -153,7 +153,7 @@ State management and utility functions.
 ```
 packages/cloud/src/lib/
 ├── index.ts              # Barrel export
-├── sessions.ts           # Active session Map + DJ-reconnect grace timers (v0.4.7)
+├── sessions.ts           # Active session Map + DJ-reconnect grace timers (v0.5.0)
 ├── listeners.ts          # Listener count tracking
 ├── likes.ts              # Like deduplication
 ├── polls.ts              # Poll state + timer cleanup
@@ -163,12 +163,12 @@ packages/cloud/src/lib/
 ├── cache.ts              # In-memory cache utility
 ├── auth.ts               # Token validation
 ├── topics.ts             # Pub/sub topic helpers (discovery + session:{id})
-├── broadcaster.ts        # Shared server.publish() for deferred broadcasts (v0.4.7)
+├── broadcaster.ts        # Shared server.publish() for deferred broadcasts (v0.5.0)
 └── persistence/
     ├── sessions.ts       # Session DB ops + waitForSession
     ├── tracks.ts         # Track DB ops
     ├── polls.ts          # Poll DB ops
-    └── queue.ts          # Serialized persistence queue (v0.4.7)
+    └── queue.ts          # Serialized persistence queue (v0.5.0)
 └── services/
     └── push.ts           # Web Push service (VAPID)
 ```
@@ -226,7 +226,7 @@ export async function persistSession(
 ): Promise<boolean>;
 ```
 
-#### `persistence/queue.ts` - Serialized Persistence (v0.4.7)
+#### `persistence/queue.ts` - Serialized Persistence (v0.5.0)
 
 Ensures operations like "Persist Track" and "Persist Like" happen in strict order, regardless of async database timings.
 

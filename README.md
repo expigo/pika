@@ -2,7 +2,7 @@
 
 **The Bionic Suit for West Coast Swing DJs.**
 
-**Version:** 0.4.7 (The "Excellence" Hardening Release)
+**Version:** 0.5.0 (The "Excellence" Hardening Release)
 **Status:** ✅ Production Ready (Green)
 **License:** Apache-2.0
 

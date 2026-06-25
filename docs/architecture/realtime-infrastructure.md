@@ -2,7 +2,7 @@
 
 This document describes the technical implementation of the synchronization layer between the **Desktop** app (the source of truth) and the **Cloud** server (the distribution layer).
 
-**Last Updated:** June 20, 2026 (v0.4.7)
+**Last Updated:** June 20, 2026 (v0.5.0)
 **Audit Status:** Verified against codebase. Broadcasting uses per-session pub/sub topics (see §2 "Pub/Sub Topic Routing").
 
 ## 1. Design Philosophy: "Local First, Cloud Second"
@@ -20,7 +20,7 @@ The connection is established via WebSockets (`wss://`).
 *   **Library:** `reconnecting-websocket` wraps the standard DOM `WebSocket`.
 *   **Behavior (Desktop):**
     *   **Auto-Reconnect:** Exponential backoff (1s to 30s) on disconnection.
-    *   **Close policy (v0.4.7):** A close is treated as *terminal* (no reconnect) only when it's intentional (DJ "End Set" / app teardown), an app-defined code (4000–4999), or `1013` (server busy). A normal `1000` or transient `1006` ("network connection lost") is **not** terminal — `ReconnectingWebSocket` recovers. See [`hooks/live/closePolicy.ts`](../../packages/desktop/src/hooks/live/closePolicy.ts). The shared `socketInstance` is ref-counted across the two `useLiveSession` mounts (App + LiveControl) so a single component remount can't tear down a live session.
+    *   **Close policy (v0.5.0):** A close is treated as *terminal* (no reconnect) only when it's intentional (DJ "End Set" / app teardown), an app-defined code (4000–4999), or `1013` (server busy). A normal `1000` or transient `1006` ("network connection lost") is **not** terminal — `ReconnectingWebSocket` recovers. See [`hooks/live/closePolicy.ts`](../../packages/desktop/src/hooks/live/closePolicy.ts). The shared `socketInstance` is ref-counted across the two `useLiveSession` mounts (App + LiveControl) so a single component remount can't tear down a live session.
     *   **Adaptive Polling:** The VirtualDJ Watcher drops to 3s when hidden to ensure zero data loss while saving battery.
     *   **Visibility Control (Missed Love):** 
         *   Animations pause completely when the window is backgrounded.
@@ -53,7 +53,7 @@ Broadcasting is split across two kinds of Bun pub/sub topics (defined in [`src/l
 
 > Bun topics are in-memory and per-instance — correct for the current single-instance deployment, and they map 1:1 onto Redis pub/sub channels when multi-instance scaling lands.
 
-#### DJ-reconnect grace (v0.4.7)
+#### DJ-reconnect grace (v0.5.0)
 
 When a DJ's socket drops, the server does **not** end the session immediately. `handleClose` schedules a deferred teardown (`scheduleDjReap`, default `DJ_RECONNECT_GRACE_MS = 45s`, env-overridable) instead of `deleteSession` + `SESSION_ENDED`. A reconnect (`REGISTER_SESSION` for the same id) calls `cancelDjReap` and **skips re-broadcasting `SESSION_STARTED`**, so dancers see no flicker. Only an expired grace runs `reapSession()` (end in DB, clear listeners/likes, broadcast `SESSION_ENDED` once). This makes the desktop WebView's periodic `ws://localhost` drops invisible to dancers.
 
@@ -75,12 +75,12 @@ To handle network drops without data loss, the Desktop app implements a persiste
     *   Sends them sequentially with **exponential backoff** to prevent server overload.
     *   Deletes them from SQLite only after `send()` is called.
 
-### Resilience Mechanisms (v0.4.7)
+### Resilience Mechanisms (v0.5.0)
 *   **Reliability Buffer:** `pendingMessages` increased to 1,000 to survive 30+ minute network blackouts.
 *   **Drop-Oldest Eviction:** If buffer fills, oldest messages are evicted to maintain real-time availability.
 *   **ID-Based Concurrency:** Sync loops use a unique Operation ID (timestamp) to prevent "zombie" sync processes after watchdog resets.
 *   **Capacity Monitoring:** Logger alerts at 80% (800 msgs) buffer usage.
-*   **Exponential Backoff (v0.4.7):**
+*   **Exponential Backoff (v0.5.0):**
     *   Base delay: 500ms between messages (`TIMEOUTS.OFFLINE_RETRY_BASE`)
     *   Growth factor: 1.2x every 5 messages
     *   Max delay: 2000ms
@@ -91,7 +91,7 @@ To handle network drops without data loss, the Desktop app implements a persiste
 > [!NOTE]
 > Only critical messages (like `BROADCAST_TRACK`) are queued. Ephemeral messages (like "typing indicators" or high-frequency updates) may be dropped to prevent flood on reconnection.
 
-## 4. ACK/NACK Protocol (v0.4.7) ✅ IMPLEMENTED
+## 4. ACK/NACK Protocol (v0.5.0) ✅ IMPLEMENTED
 
 The system now implements application-level acknowledgements for reliable message delivery.
 
@@ -124,7 +124,7 @@ sendMessage(
 );
 ```
 
-## 5. Message Nonce Deduplication (v0.4.7) ✅ IMPLEMENTED
+## 5. Message Nonce Deduplication (v0.5.0) ✅ IMPLEMENTED
 
 Server-side protection against replay attacks and duplicate processing from network retries.
 
@@ -146,7 +146,7 @@ Since the Desktop app periodically polls VirtualDJ (every 1-2s), it may detect t
 *   **Ghost Tracks:** If a DJ plays a file not imported into the Pika! library, the system generates a "Ghost Track" (ID: `ghost://...`) to ensure the play is still recorded and broadcast.
 
 ### Server-Side (Cloud)
-*   **lastPersistedTrackKey Map (v0.4.7):** In-memory Map tracks the last persisted track per session. Skips duplicate `persistTrack()` calls.
+*   **lastPersistedTrackKey Map (v0.5.0):** In-memory Map tracks the last persisted track per session. Skips duplicate `persistTrack()` calls.
 *   **Go-live buffer (C3):** A play broadcast before its session row is persisted (the `REGISTER_SESSION`→`BROADCAST_TRACK` race) is buffered (`pendingTracksBuffer`, `lib/persistence/tracks.ts`) and flushed once `persistSession` succeeds — so a slow session insert never *silently* drops a play. Replaces the prior `waitForSession` timeout-drop.
 *   **Nonce Tracking:** `checkAndRecordNonce()` prevents duplicate message processing within 5-minute window.
 
@@ -168,7 +168,7 @@ Since the Desktop app periodically polls VirtualDJ (every 1-2s), it may detect t
 
 **When to Revisit:** If frequent deploys during peak hours cause noticeable duplicates, add a DB query check before insert.
 
-## 7. Web App Offline Queue (v0.4.7) ✅ IMPLEMENTED
+## 7. Web App Offline Queue (v0.5.0) ✅ IMPLEMENTED
 
 The Web app (`packages/web`) now also implements persistent offline queuing for dancer interactions.
 
@@ -188,13 +188,13 @@ The Web app (`packages/web`) now also implements persistent offline queuing for 
 *   Triggers reconnect if connection is closed, stale, or disconnected.
 *   Uses `hasReceivedPongRef` to prevent false positives on initial load.
 
-### Safari/iOS Bulletproofing (v0.4.7)
+### Safari/iOS Bulletproofing (v0.5.0)
 *   **pageshow listener:** Handles Safari bfcache page restoration.
 *   **statusRef:** Uses ref to avoid stale closure values in callbacks.
 *   **addEventListener pattern:** Proper cleanup prevents memory leaks.
 *   **Periodic status sync:** Heartbeat interval syncs React state with actual readyState.
 
-## 8. Testing Infrastructure (v0.4.7)
+## 8. Testing Infrastructure (v0.5.0)
 
 ### E2E Reconnection Tests (`tests/e2e/specs/reconnection.spec.ts`)
 5 scenarios covering network resilience:
@@ -254,7 +254,7 @@ k6 script with 4 scenarios:
 **Alternative Considered:**
 Batch ACK (one ACK per 10 likes) - adds complexity without clear benefit.
 
-## 11. Modular Handler Architecture (v0.4.7)
+## 11. Modular Handler Architecture (v0.5.0)
 
 The Cloud service now uses a modular handler architecture for better maintainability and error isolation.
 
@@ -303,7 +303,7 @@ export const handleSendLike = safeHandler(_handleSendLike);
 3. Does NOT crash the WebSocket connection
 4. Other clients unaffected
 
-## 12. Graceful Shutdown (v0.4.7)
+## 12. Graceful Shutdown (v0.5.0)
 
 The server now handles shutdown signals gracefully:
 
@@ -344,7 +344,7 @@ process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 > The only deferred item (reliable likes) is intentionally omitted due to cost/benefit analysis, not technical limitation.
 
-## 14. Data Persistence & Integrity (v0.4.7) ✅ IMPLEMENTED
+## 14. Data Persistence & Integrity (v0.5.0) ✅ IMPLEMENTED
 
 To ensure strict data consistency and handle high-volume write bursts, the Cloud server implements a dedicated **Persistence Queue** per session.
 
@@ -377,7 +377,7 @@ The Desktop app now uses SQLite Transactions for all complex write operations to
 *   `deleteSet` (Cascading delete)
 *   `updateSetTracks` (Replace all tracks)
 
-## 15. Server Stability & Backpressure (v0.4.7) ✅ IMPLEMENTED
+## 15. Server Stability & Backpressure (v0.5.0) ✅ IMPLEMENTED
 
 To prevent the server from crashing under load when clients have slow connections, we implemented **Backpressure Management**.
 

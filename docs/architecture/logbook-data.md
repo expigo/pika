@@ -60,7 +60,7 @@ Currently, analytics are delivered via the **Session Recap API** (`packages/clou
 *   It includes basic counts (Likes).
 *   **Missing:** Advanced transition quality analysis, "Energy Flow" graphs, or "Crowd Sentiment" timelines.
 
-## 5. Data Integrity & Resilience (v0.4.7)
+## 5. Data Integrity & Resilience (v0.5.0)
  
  ### A. Cascading Purge
  All session-linked data is guarded by strict `ON DELETE CASCADE` foreign keys. Deleting a session via the API or Logbook automatically and atomically clears:

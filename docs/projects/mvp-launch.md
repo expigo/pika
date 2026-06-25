@@ -3,7 +3,7 @@
 This document tracks the tasks and status for the upcoming MVP Launch Event.
 
 **Target Date:** Pilot Event Feb 2026
-**Version:** v0.4.7 (The "Onboarding & Intelligence" Release)
+**Version:** v0.5.0 (The "Onboarding & Intelligence" Release)
 **Status:** ✅ Production Ready (100% Audited)
 
 ## 1. Executive Summary
@@ -30,8 +30,8 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [x] **Database:** Postgres (Production) connected.
 *   [x] **SSL:** Managed by Cloudflare Edge.
 *   [x] **CI/CD:** `deploy.yml` pipeline active.
-*   [x] **Reliability:** Persistence Queue + Atomic Transactions (v0.4.7).
-*   [x] **Schema Hardening:** Idempotent migrations + Cascading DB deletes (v0.4.7).
+*   [x] **Reliability:** Persistence Queue + Atomic Transactions (v0.5.0).
+*   [x] **Schema Hardening:** Idempotent migrations + Cascading DB deletes (v0.5.0).
 
 
 ## 3. Implementation Checklist (Remaining)
@@ -42,16 +42,16 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] Hash Tokens in DB (`SHA-256`).
     *   [x] Middleware protection for sensitive routes.
     *   [x] Clear Auth on Switch: Prevent cross-env pollution.
-    *   [x] **CORS Hardening**: Restrict origins to `pika.stream` and `api.pika.stream` (v0.4.7).
-    *   [x] **Rate Limiting**: Add `hono-rate-limiter` on `/api/auth/*` endpoints (5 req/15min) (v0.4.7).
+    *   [x] **CORS Hardening**: Restrict origins to `pika.stream` and `api.pika.stream` (v0.5.0).
+    *   [x] **Rate Limiting**: Add `hono-rate-limiter` on `/api/auth/*` endpoints (5 req/15min) (v0.5.0).
     *   [x] **Secrets Management**: Move hardcoded DB passwords in `docker-compose.prod.yml` to env vars.
-    *   [x] **Email Validation**: Upgraded to Zod `.email()` validator (v0.4.7).
+    *   [x] **Email Validation**: Upgraded to Zod `.email()` validator (v0.5.0).
     *   [x] **WebSocket Session Ownership**: Track connection ownership to prevent session hijacking.
-    *   [x] **CSRF Protection**: X-Pika-Client header validation (v0.4.7).
-    *   [x] **CSP Headers**: Content-Security-Policy via Next.js middleware (v0.4.7).
-    *   [x] **WS Connection Rate Limit**: 20 connections/min per IP (v0.4.7).
-    *   [x] **Session Telemetry**: DJ connect/disconnect events for operational insights (v0.4.7).
-    *   [x] **CSP Externalization**: Moved animation styles to external CSS to bypass production build security blocks (v0.4.7).
+    *   [x] **CSRF Protection**: X-Pika-Client header validation (v0.5.0).
+    *   [x] **CSP Headers**: Content-Security-Policy via Next.js middleware (v0.5.0).
+    *   [x] **WS Connection Rate Limit**: 20 connections/min per IP (v0.5.0).
+    *   [x] **Session Telemetry**: DJ connect/disconnect events for operational insights (v0.5.0).
+    *   [x] **CSP Externalization**: Moved animation styles to external CSS to bypass production build security blocks (v0.5.0).
 
 *   [x] **Performance & Stability (Completed)**:
     *   [x] Recap Duration Fix ("0 min" bug).
@@ -59,21 +59,21 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] WebSocket Crash Fix (Missing `djName`).
     *   [x] Hydration Error Fix.
     *   [x] Live Player Recap Button.
-    *   [x] **VDJ History Watcher Fix**: **DONE.** Eliminated race condition and unified "Go Live" flow (v0.4.7).
+    *   [x] **VDJ History Watcher Fix**: **DONE.** Eliminated race condition and unified "Go Live" flow (v0.5.0).
     *   [x] **Track Import Crash Fix**: Added DB migration for `raw_artist`/`raw_title` columns.
 *   [x] **Connectivity & Resilience**:
     *   [x] **Socket Recovery**: Heartbeat monitor & robust reconnection logic.
     *   [x] **Data Sync**: Late-joiner sync via WebSocket SUBSCRIBE handler.
     *   [x] **Wake-Up Sync (Web)**: **DONE.** Native `visibilitychange` listener forces re-sync on mobile phone wake-up.
-    *   [x] **Observability (v0.4.7)**: Full-stack Sentry integration with PII scrubbing.
-    *   [x] **Performance Hardening (v0.4.7)**: Visibility-aware polling & SWR caching.
-    *   [x] **Safari/iOS Bulletproofing (v0.4.7)**: pageshow listener, statusRef, addEventListener pattern.
+    *   [x] **Observability (v0.5.0)**: Full-stack Sentry integration with PII scrubbing.
+    *   [x] **Performance Hardening (v0.5.0)**: Visibility-aware polling & SWR caching.
+    *   [x] **Safari/iOS Bulletproofing (v0.5.0)**: pageshow listener, statusRef, addEventListener pattern.
     *   [x] **Offline Queue (Web)**: Likes persisted to IndexedDB, survives page refresh.
     *   [x] **Offline Queue (Desktop)**: **DONE.** Offline SQLite queue implemented (`OfflineQueueRepository`). Persists across restarts.
-    *   [x] **ACK/NACK Protocol (v0.4.7)**: Reliable BROADCAST_TRACK delivery with timeout/retry.
-    *   [x] **Nonce Deduplication (v0.4.7)**: Server-side replay protection.
+    *   [x] **ACK/NACK Protocol (v0.5.0)**: Reliable BROADCAST_TRACK delivery with timeout/retry.
+    *   [x] **Nonce Deduplication (v0.5.0)**: Server-side replay protection.
     *   [x] **Data Integrity**: Likes are session-scoped (no phantom likes).
-    *   [x] **Track Deduplication (v0.4.7)**: Cloud skips duplicate track persistence.
+    *   [x] **Track Deduplication (v0.5.0)**: Cloud skips duplicate track persistence.
     *   [-] **Reliable Likes**: Deferred (not required, see `realtime-infrastructure.md`).
 *   [ ] **Data Hygiene**:
     *   [x] **Ghost Track Fix**: `normalizeTrack` utility implemented in `@pika/shared`.
@@ -83,22 +83,22 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
     *   [x] **Safe QR Codes**: Smart generation (public URL in prod, local IP in dev).
     *   [x] **Landing Page**: Add "How It Works" visual section and clear value props.
     *   [x] **Download Page**: Smart GitHub Release integration for Desktop downloads.
-    *   [x] **"Thank You" Rain**: Symmetrical framing columns + Intense Cannon burst modes (v0.4.7).
+    *   [x] **"Thank You" Rain**: Symmetrical framing columns + Intense Cannon burst modes (v0.5.0).
     *   [x] **UI Polish**: Fixed selection highlighting and database migration stability.
-    *   [x] **Missed Love Tracking**: Intelligent background buffering + "Welcome Back" playback (v0.4.7).
-    *   [x] **Pulse Sync**: Heartbeat pulse syncs with track BPM for visual rhythm (v0.4.7).
+    *   [x] **Missed Love Tracking**: Intelligent background buffering + "Welcome Back" playback (v0.5.0).
+    *   [x] **Pulse Sync**: Heartbeat pulse syncs with track BPM for visual rhythm (v0.5.0).
 
     *   [x] **Poll Alerts**: Toast notification + drawer results with winner highlight and dismiss button.
     *   [x] **DJ Announcements**: Overlay banner with auto-dismiss timer. Session-scoped (only visible to DJ's dancers).
-    *   [x] **Pro Polish**: **Slate & Neon** theme overhaul across all web endpoints (v0.4.7).
+    *   [x] **Pro Polish**: **Slate & Neon** theme overhaul across all web endpoints (v0.5.0).
     *   [x] **PWA Navigation**: `BottomNav` implemented for mobile-first experience.
-    *   [x] **Deep Intelligence**: **Advanced Recap Analytics** (Friction, Harmonic Flow, The Drift) implemented (v0.4.7).
+    *   [x] **Deep Intelligence**: **Advanced Recap Analytics** (Friction, Harmonic Flow, The Drift) implemented (v0.5.0).
     *   [x] **UX/UI Audit (Jan 2026)**: **Mobile-First vs. Desktop Discovery** strategy implemented. Standardized touch feedback and high-density workstation layouts.
     *   [x] **Desktop Audit (Jan 2026)**: Library virtualization (10k+ tracks), keyboard shortcuts, played track indicators, reduced motion accessibility.
     *   [x] **Custom Tags & Notes**: `TagEditor.tsx`, `NoteEditor.tsx` for DJ workflow.
     *   [x] **Set Templates**: Save/load set structures with `TemplateManager.tsx`.
     *   [x] **Production HUD**: Real-time clock, battery meter, and elapsed track timer in Stage Mode.
-    *   [x] **Production Hardening (v0.4.7)**:
+    *   [x] **Production Hardening (v0.5.0)**:
         *   [x] **Modular Layout**: Workspace orchestration extracted to `useLayoutResizer.ts`.
         *   [x] **Stable Engine**: Idempotent kill protocol for Python sidecar (Zero zombie processes).
         *   [x] **Playlist Retrieval**: Restored professional Save/Load UI in "The Crate" header.
@@ -120,11 +120,11 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **Docs**: Write a simple 1-page PDF manual for the DJ.
 
 ### D. Technical Debt (Post-Event Cleanup)
-*   [x] **Redundant Metadata**: Fixed via proper cleanup (v0.4.7).
-*   [x] **JSON Schema**: Validated via Zod (v0.4.7).
-*   [x] **DB Indexes**: 12 critical indexes added (v0.4.7).
+*   [x] **Redundant Metadata**: Fixed via proper cleanup (v0.5.0).
+*   [x] **JSON Schema**: Validated via Zod (v0.5.0).
+*   [x] **DB Indexes**: 12 critical indexes added (v0.5.0).
 *   [ ] **Old Token Cleanup**: Cron job to delete unused tokens > 30 days.
-*   [x] **Split Cloud Backend**: Decomposed into handlers/routes/lib (v0.4.7).
+*   [x] **Split Cloud Backend**: Decomposed into handlers/routes/lib (v0.5.0).
 *   [x] **E2E Tests (6 passing)**: WebSocket injection for Cloud↔Web. Desktop E2E deferred.
 *   [x] **Global Stats API**: Implemented `/api/stats/global` to replace mock data on analytics page.
 
@@ -136,16 +136,16 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   **State Loss:** Server restart clears active session Map (until Redis implemented).
 
 ### Security Risks (Identified in Jan 2026 Audit)
-*   ✅ **CORS:** Fixed - Origins restricted to pika.stream domains (v0.4.7).
-*   ✅ **Auth Rate Limiting:** Fixed - 5 req/15min on auth endpoints (v0.4.7).
+*   ✅ **CORS:** Fixed - Origins restricted to pika.stream domains (v0.5.0).
+*   ✅ **Auth Rate Limiting:** Fixed - 5 req/15min on auth endpoints (v0.5.0).
 *   ✅ **Secrets:** Fixed - Docker compose uses env vars with fallbacks.
 *   ✅ **Session Ownership:** Fixed - WS connections validated against session owner.
-*   ✅ **Email Validation:** Fixed - Upgraded to Zod `.email()` (v0.4.7).
+*   ✅ **Email Validation:** Fixed - Upgraded to Zod `.email()` (v0.5.0).
 
 ### Code Quality Observations (Engineering Assessment Jan 2026)
 *   ✅ **Split Cloud Backend:** `lib/` modules created (listeners, tempo, cache, protocol, auth).
 *   ✅ **useLiveSession Decomposition:** `useLiveStore.ts` extracted (130 lines).
-*   ✅ **useLiveListener Decomposition:** Split from 1029→238 lines (77% reduction, v0.4.7).
+*   ✅ **useLiveListener Decomposition:** Split from 1029→238 lines (77% reduction, v0.5.0).
 *   ✅ **Desktop Testing:** 291 unit tests passing (100% repo coverage).
 *   ✅ **Lazy Loading:** React.lazy() for LivePerformanceMode, Settings, Logbook.
 *   ✅ **Dynamic Imports:** QR code lazy loaded in web (~30KB saved).
@@ -156,22 +156,22 @@ Goal: Deploy a working product for DJ Pikachu to use during a 1-hour session, co
 *   [ ] **Redis:** For persistent session state (zero-downtime deploys).
 *   [ ] **Organizer Role:** For event branding.
 *   [x] **PWA (Mobile App):** Full offline support + Push Notifications. Supersedes Native App.
-*   ✅ **Email Validation:** Upgraded to Zod `.email()` (v0.4.7).
-*   ✅ **ACK/NACK Integration (v0.4.7):** Reliable message delivery for critical messages.
+*   ✅ **Email Validation:** Upgraded to Zod `.email()` (v0.5.0).
+*   ✅ **ACK/NACK Integration (v0.5.0):** Reliable message delivery for critical messages.
 *   [-] **Reliable Likes:** Deferred (see `realtime-infrastructure.md` for rationale).
-*   ✅ **Password Max Length:** 128 char limit (v0.4.7).
+*   ✅ **Password Max Length:** 128 char limit (v0.5.0).
 
 ## 6. Audit Trail
 
 | Date | Audit | Findings | Ref |
 | :--- | :--- | :--- | :--- |
-| **2026-02-01** | **Final v0.4.7 Audit** | ✅ 10/10 Security & Reliability. Verified SPEC.md and Operations baseline. | `v0.4.7` |
-| **2026-01-24** | **System Hardening** | ✅ 12.5/10 - Production Ready. Persistence Queues, Backpressure, 100% Test Coverage. | `v0.4.7` |
-| **2026-01-18** | Network Resilience | ✅ 11/10 - Safari bulletproofing, ACK/NACK, nonce dedup, chaos tests. | `v0.4.7` |
-| **2026-01-18** | Web App Excellence | ✅ Pass - Hook decomposition, ARIA labels, dynamic imports. | `v0.4.7` |
-| **2026-01-18** | Security Hardening | ✅ Pass - Tauri CSP, DB integrity, auth tests. | `v0.4.7` |
-| **2026-01-18** | Production Hardening | ✅ Pass - Modular layout, fortified sidecar, and playlist retrieval restored. | `v0.4.7` |
-| **2026-01-17** | Production Readiness | ✅ Pass - HUD tools, mobile wake-up sync, and visual stability validated. | `v0.4.7` |
+| **2026-02-01** | **Final v0.5.0 Audit** | ✅ 10/10 Security & Reliability. Verified SPEC.md and Operations baseline. | `v0.5.0` |
+| **2026-01-24** | **System Hardening** | ✅ 12.5/10 - Production Ready. Persistence Queues, Backpressure, 100% Test Coverage. | `v0.5.0` |
+| **2026-01-18** | Network Resilience | ✅ 11/10 - Safari bulletproofing, ACK/NACK, nonce dedup, chaos tests. | `v0.5.0` |
+| **2026-01-18** | Web App Excellence | ✅ Pass - Hook decomposition, ARIA labels, dynamic imports. | `v0.5.0` |
+| **2026-01-18** | Security Hardening | ✅ Pass - Tauri CSP, DB integrity, auth tests. | `v0.5.0` |
+| **2026-01-18** | Production Hardening | ✅ Pass - Modular layout, fortified sidecar, and playlist retrieval restored. | `v0.5.0` |
+| **2026-01-17** | Production Readiness | ✅ Pass - HUD tools, mobile wake-up sync, and visual stability validated. | `v0.5.0` |
 | **2026-01-17** | Desktop UI/UX Audit | ✅ Pass - Score: 8.9/10. 16 unit tests, lazy loading, virtualization. | `Desktop Audit brain` |
 | **2026-01-17** | Recap Analytics Audit | ✅ Pass - Deep Intelligence metrics validated. | `audio-analysis.md` |
 | **2026-01-15** | Load Test (300 VUs) | ✅ Pass - Max ~1,000 dancers | `load-testing.md` |
