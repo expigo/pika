@@ -5,7 +5,7 @@ import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
-import { getUserFromToken } from "../lib/auth";
+import { requireDjAuth } from "../lib/auth";
 import { getAllActivePushTargets } from "../lib/persistence/push-targets";
 import { PushService } from "../services/push";
 
@@ -86,26 +86,10 @@ push.use(
   }),
 );
 
-push.post("/send", zValidator("json", SendSchema), async (c) => {
-  // 🛡️ Security: Authenticate DJ using Bearer token
-  const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return c.json({ error: "Unauthorized" }, 401);
-  }
-
-  const token = authHeader.split(" ")[1];
-  if (!token) {
-    return c.json({ error: "Invalid token format" }, 401);
-  }
-
-  // Tokens are stored SHA-256-hashed — getUserFromToken hashes the incoming token
-  // before lookup. (The prior code compared the raw token to the hashed column,
-  // so this endpoint never authenticated a real DJ.)
-  const dj = await getUserFromToken(token);
-  if (!dj) {
-    return c.json({ error: "Invalid token" }, 401);
-  }
-
+push.post("/send", zValidator("json", SendSchema), requireDjAuth, async (c) => {
+  // 🛡️ Approved DJs only — requireDjAuth gates 401 (unauth) / 403 (unapproved).
+  // (The approval check matters post-Better-Auth: pending/rejected accounts now
+  // hold a valid session, so the gate must be enforced here, not at login.)
   const { payload, filter } = c.req.valid("json");
   const finalPayload = typeof payload === "string" ? payload : JSON.stringify(payload);
 
