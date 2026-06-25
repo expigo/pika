@@ -3,6 +3,8 @@
  * Persists client ID in localStorage for session continuity
  */
 
+import { safeRandomUUID } from "./uuid";
+
 export const CLIENT_ID_KEY = "pika_client_id";
 
 /**
@@ -16,8 +18,9 @@ export function getOrCreateClientId(): string {
 
   let clientId = localStorage.getItem(CLIENT_ID_KEY);
   if (!clientId) {
-    // Collision-resistant identity (replaces Date.now()+Math.random()).
-    clientId = `client_${crypto.randomUUID()}`;
+    // Collision-resistant identity. safeRandomUUID works over http://<LAN-IP>
+    // (insecure context), where crypto.randomUUID is unavailable.
+    clientId = `client_${safeRandomUUID()}`;
     localStorage.setItem(CLIENT_ID_KEY, clientId);
   }
   return clientId;

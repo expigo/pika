@@ -9,6 +9,7 @@
  */
 
 import { getTrackKey, MESSAGE_TYPES } from "@pika/shared";
+import { safeRandomUUID } from "@/lib/uuid";
 import type { MessageHandlers } from "./types";
 
 interface AckWaiter {
@@ -21,7 +22,7 @@ const pendingAcks = new Map<string, AckWaiter>();
 
 /** Unique id for correlating a sent message with its server ACK/NACK. */
 export function generateMessageId(): string {
-  return crypto.randomUUID();
+  return safeRandomUUID();
 }
 
 /**
