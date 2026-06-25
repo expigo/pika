@@ -26,9 +26,8 @@ import { hasLikedTrack, recordLike, removeLike } from "../lib/likes";
 import { deletePersistedLike, persistLike } from "../lib/persistence/tracks";
 import { parseMessage, sendAck, sendNack } from "../lib/protocol";
 import { ClientRateLimiter } from "../lib/rate-limit";
-import { getSessionIds, hasSession } from "../lib/sessions";
+import { getSessionBroadcastTopic, getSessionIds, hasSession } from "../lib/sessions";
 import { getTempoFeedback, recordTempoVote } from "../lib/tempo";
-import { getSessionTopic } from "../lib/topics";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
 
@@ -133,7 +132,7 @@ export async function handleSendLike(ctx: WSContext) {
   // sessionId is included so clients can defensively verify routing.
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      getSessionTopic(likeSessionId),
+      getSessionBroadcastTopic(likeSessionId),
       JSON.stringify({
         type: "LIKE_RECEIVED",
         sessionId: likeSessionId,
@@ -179,7 +178,7 @@ export async function handleRemoveLike(ctx: WSContext) {
   // Broadcast the removal to this session's subscribers (including the DJ).
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      getSessionTopic(sessionId),
+      getSessionBroadcastTopic(sessionId),
       JSON.stringify({
         type: MESSAGE_TYPES.LIKE_REMOVED,
         sessionId,
@@ -235,7 +234,7 @@ export async function handleSendBulkLike(ctx: WSContext) {
     // Broadcast individually to this session's DJ/subscribers so animations fire
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(likeSessionId),
+        getSessionBroadcastTopic(likeSessionId),
         JSON.stringify({
           type: "LIKE_RECEIVED",
           sessionId: likeSessionId,
@@ -272,7 +271,7 @@ export function handleSendReaction(ctx: WSContext) {
     // Broadcast reaction to this session's subscribers
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(msg.sessionId),
+        getSessionBroadcastTopic(msg.sessionId),
         JSON.stringify({
           type: "REACTION_RECEIVED",
           sessionId: msg.sessionId,
@@ -339,7 +338,7 @@ export function handleSendTempoRequest(ctx: WSContext) {
   // Broadcast updated aggregates to this session's subscribers
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      getSessionTopic(targetSessionId),
+      getSessionBroadcastTopic(targetSessionId),
       JSON.stringify({
         type: "TEMPO_FEEDBACK",
         sessionId: targetSessionId,

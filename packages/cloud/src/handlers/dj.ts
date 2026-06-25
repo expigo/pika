@@ -26,6 +26,9 @@ import {
   TIMEOUTS,
   TrackStoppedSchema,
 } from "@pika/shared";
+import { and, eq, isNull } from "drizzle-orm";
+import { db } from "../db";
+import { stages } from "../db/schema";
 import { validateToken } from "../lib/auth";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
@@ -47,14 +50,16 @@ import {
   clearSessionTrack,
   deleteSession,
   getSession,
+  getSessionBroadcastTopic,
   getSessionCount,
   type LiveSession,
   setSession,
   setSessionAnnouncement,
   updateSessionTrack,
 } from "../lib/sessions";
+import { clearStageActiveSession, setStageActiveSession } from "../lib/stages";
 import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
-import { DISCOVERY_TOPIC, getSessionTopic } from "../lib/topics";
+import { DISCOVERY_TOPIC } from "../lib/topics";
 import { PushService } from "../services/push";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
@@ -152,11 +157,35 @@ export async function handleRegisterSession(ctx: WSContext) {
     }
   }
 
+  // 🎭 Resolve optional Stage (seamless DJ rotation). Validate it exists so we
+  // never route to a bogus stage; skip the DB check in test mode (mirrors the
+  // persist* NODE_ENV short-circuit). An unknown stage is ignored (the session
+  // falls back to its own per-session topic — no regression).
+  let stageId: string | undefined;
+  if (msg.stageId) {
+    if (process.env.NODE_ENV === "test") {
+      stageId = msg.stageId;
+    } else {
+      const [stage] = await db
+        .select({ id: stages.id })
+        .from(stages)
+        .where(and(eq(stages.id, msg.stageId), isNull(stages.archivedAt)));
+      if (stage) {
+        stageId = stage.id;
+      } else {
+        logger.warn("⚠️ REGISTER_SESSION referenced an unknown stage; ignoring", {
+          stageId: msg.stageId,
+        });
+      }
+    }
+  }
+
   const session: LiveSession = {
     sessionId,
     djName,
     startedAt: new Date().toISOString(),
     lastActivityAt: new Date().toISOString(),
+    ...(stageId && { stageId }),
   };
 
   // 🔧 CRITICAL FIX: Set state.djSessionId BEFORE any async operations
@@ -165,11 +194,14 @@ export async function handleRegisterSession(ctx: WSContext) {
   logger.debug(`🔍 [REGISTER_SESSION] state.djSessionId SET to: ${sessionId}`);
 
   setSession(sessionId, session);
+  // Claim the stage so dancers already on it follow this DJ (and joiners sync to us).
+  if (stageId) setStageActiveSession(stageId, sessionId);
 
-  // Subscribe this DJ connection to its own per-session topic so it receives
-  // session-scoped traffic from dancers (likes, reactions, tempo, poll votes).
-  // Idempotent: safe to call again on reconnect (client re-sends REGISTER_SESSION).
-  rawWs.subscribe(getSessionTopic(sessionId));
+  // Subscribe this DJ connection to the session's audience topic (the stage
+  // topic when staged, else the per-session topic) so it receives dancer
+  // feedback (likes, reactions, tempo, poll votes). Resolved AFTER setSession so
+  // the stageId is visible. Idempotent on reconnect.
+  rawWs.subscribe(getSessionBroadcastTopic(sessionId));
 
   logger.info("🎧 DJ going live", {
     djName,
@@ -178,7 +210,7 @@ export async function handleRegisterSession(ctx: WSContext) {
   });
 
   // 💾 Persist to database (async, but state is already set for cleanup)
-  const sessionPersisted = await persistSession(sessionId, djName, djUserId);
+  const sessionPersisted = await persistSession(sessionId, djName, djUserId, stageId ?? null);
   logger.debug(`✅ Session ready for polls: ${sessionId}`);
 
   // C3: flush any plays that arrived before the session row landed (go-live race).
@@ -282,7 +314,7 @@ export async function handleBroadcastTrack(ctx: WSContext) {
         // Broadcast to this session's clients to reset their tempo vote UI
         if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
           rawWs.publish(
-            getSessionTopic(msg.sessionId),
+            getSessionBroadcastTopic(msg.sessionId),
             JSON.stringify({
               type: "TEMPO_RESET",
               sessionId: msg.sessionId,
@@ -302,7 +334,7 @@ export async function handleBroadcastTrack(ctx: WSContext) {
     // Broadcast new track to this session's subscribers
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(msg.sessionId),
+        getSessionBroadcastTopic(msg.sessionId),
         JSON.stringify({
           type: "NOW_PLAYING",
           sessionId: msg.sessionId,
@@ -375,7 +407,7 @@ export async function handleBroadcastMetadata(ctx: WSContext) {
     // Uses METADATA_UPDATED type which clients should handle by merging into current state
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(msg.sessionId),
+        getSessionBroadcastTopic(msg.sessionId),
         JSON.stringify({
           type: "METADATA_UPDATED",
           sessionId: msg.sessionId,
@@ -421,7 +453,7 @@ export function handleTrackStopped(ctx: WSContext) {
 
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(msg.sessionId),
+        getSessionBroadcastTopic(msg.sessionId),
         JSON.stringify({
           type: "TRACK_STOPPED",
           sessionId: msg.sessionId,
@@ -473,22 +505,30 @@ export function handleEndSession(ctx: WSContext) {
       clearTempoVotes(msg.sessionId);
     }
 
+    // Capture the audience topic + stage BEFORE deleteSession (the resolver
+    // reads the live session to decide stage-vs-session).
+    const broadcastTopic = getSessionBroadcastTopic(msg.sessionId);
+    const endedStageId = session.stageId;
+
     deleteSession(msg.sessionId);
+    if (endedStageId) clearStageActiveSession(endedStageId, msg.sessionId);
 
     // 💾 Update in database
     endSessionInDb(msg.sessionId).catch((e) => logger.error("❌ Failed to end session in DB", e));
 
     // 🧹 Clean up all in-memory state
     clearLikesForSession(msg.sessionId);
-    clearListeners(msg.sessionId);
+    // A stage's listeners PERSIST across DJ rotation (they stay on stage:{id}
+    // waiting for the next DJ); only a stage-less session clears its listeners.
+    if (!endedStageId) clearListeners(msg.sessionId);
     persistedSessions.delete(msg.sessionId);
     lastBroadcastTime.delete(msg.sessionId);
     cleanupSessionQueue(msg.sessionId);
     clearLastPersistedTrackKey(msg.sessionId);
 
-    // Drop this DJ connection's subscription to the (now dead) session topic.
+    // Drop this DJ connection's subscription to the (now dead) audience topic.
     // The connection stays open and may register a new session later.
-    rawWs.unsubscribe(getSessionTopic(msg.sessionId));
+    rawWs.unsubscribe(broadcastTopic);
 
     // Broadcast end session on the discovery topic (best effort) so both
     // in-session dancers and lobby browsers learn the session is over.
@@ -548,7 +588,7 @@ export function handleSendAnnouncement(ctx: WSContext) {
 
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      getSessionTopic(announcementSessionId),
+      getSessionBroadcastTopic(announcementSessionId),
       JSON.stringify({
         type: "ANNOUNCEMENT_RECEIVED",
         sessionId: announcementSessionId,
@@ -634,7 +674,7 @@ export function handleCancelAnnouncement(ctx: WSContext) {
 
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      getSessionTopic(cancelSessionId),
+      getSessionBroadcastTopic(cancelSessionId),
       JSON.stringify({
         type: "ANNOUNCEMENT_CANCELLED",
         sessionId: cancelSessionId,
@@ -691,7 +731,7 @@ export async function handleSyncSessionHistory(ctx: WSContext) {
     // 📢 Broadcast sync event to this session's participants so they refresh history
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(msg.sessionId),
+        getSessionBroadcastTopic(msg.sessionId),
         JSON.stringify({
           type: "HISTORY_SYNCED",
           sessionId: msg.sessionId,

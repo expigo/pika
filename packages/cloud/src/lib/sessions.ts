@@ -15,6 +15,8 @@
 
 import type { TrackInfo } from "@pika/shared";
 import { logger } from "@pika/shared";
+import { clearStageActiveSession } from "./stages";
+import { getSessionTopic, getStageTopic } from "./topics";
 
 // ============================================================================
 // Types
@@ -106,6 +108,32 @@ export function getSession(sessionId: string): LiveSession | undefined {
     total: activeSessions.size,
   });
   return session;
+}
+
+/**
+ * Resolve the broadcast topic for a session: the per-stage topic when the
+ * session runs under a Stage, else the legacy per-session topic. This is the
+ * single place that decides where a session's dancer-facing traffic is
+ * published, so every handler publish site can swap `getSessionTopic(id)` for
+ * this 1:1. O(1) lookup; falls back to the session topic if the session is
+ * unknown (e.g. already torn down).
+ */
+export function getSessionBroadcastTopic(sessionId: string): string {
+  const stageId = activeSessions.get(sessionId)?.stageId;
+  return stageId ? getStageTopic(stageId) : getSessionTopic(sessionId);
+}
+
+/**
+ * The listener-count key for a session's audience. A staged session counts its
+ * dancers under the (namespaced) stage key so the floor count is stable across
+ * DJ rotation; a stage-less session keeps the raw sessionId key — byte-identical
+ * to the pre-stage behavior, so existing counting paths don't regress. Distinct
+ * from {@link getSessionBroadcastTopic} only in the stage-less case (raw id vs
+ * `session:{id}` topic), because the two feed different maps.
+ */
+export function getSessionAudienceKey(sessionId: string): string {
+  const stageId = activeSessions.get(sessionId)?.stageId;
+  return stageId ? getStageTopic(stageId) : sessionId;
 }
 
 /**
@@ -249,6 +277,7 @@ export function cleanupStaleSessions(
         ageMinutes: Math.round(age / 1000 / 60),
         idleMinutes: Math.round(idleTime / 1000 / 60),
       });
+      if (session.stageId) clearStageActiveSession(session.stageId, sessionId);
       activeSessions.delete(sessionId);
       removed.push(sessionId);
     }

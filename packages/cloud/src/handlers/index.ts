@@ -33,7 +33,10 @@ import {
   handleVoteOnPoll as _handleVoteOnPoll,
 } from "./poll";
 
-import { handleSubscribe as _handleSubscribe } from "./subscriber";
+import {
+  handleSubscribe as _handleSubscribe,
+  handleSubscribeStage as _handleSubscribeStage,
+} from "./subscriber";
 import {
   handleGetSessions as _handleGetSessions,
   handlePing as _handlePing,
@@ -94,8 +97,9 @@ export const handleRemoveLike = safeHandler(_handleRemoveLike);
 export const handleSendReaction = safeHandler(_handleSendReaction);
 export const handleSendTempoRequest = safeHandler(_handleSendTempoRequest);
 
-// Subscriber Handler
+// Subscriber Handlers
 export const handleSubscribe = safeHandler(_handleSubscribe);
+export const handleSubscribeStage = safeHandler(_handleSubscribeStage);
 
 // Poll Handlers
 export const handleStartPoll = safeHandler(_handleStartPoll);

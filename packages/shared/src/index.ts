@@ -83,6 +83,7 @@ export {
   // Poll schemas
   StartPollSchema,
   SubscribeSchema,
+  SubscribeStageSchema,
   SyncSessionHistorySchema,
   TempoFeedbackSchema,
   type TempoPreference,

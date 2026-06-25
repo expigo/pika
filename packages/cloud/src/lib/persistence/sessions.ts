@@ -129,6 +129,7 @@ export async function persistSession(
   sessionId: string,
   djName: string,
   djUserId?: number | null,
+  stageId?: string | null,
 ): Promise<boolean> {
   if (process.env.NODE_ENV === "test") {
     persistedSessions.add(sessionId);
@@ -143,6 +144,7 @@ export async function persistSession(
         id: sessionId,
         djName,
         djUserId: djUserId ?? null,
+        stageId: stageId ?? null,
       })
       .onConflictDoNothing();
     persistedSessions.add(sessionId);

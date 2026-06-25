@@ -10,14 +10,22 @@
  *      SESSION_EXPIRED / SERVER_SHUTDOWN) so that session-browsing clients and
  *      in-session clients alike learn about sessions appearing/disappearing.
  *
- *   2. session:{id} — one topic per live session (see {@link getSessionTopic}).
- *      Carries ALL high-frequency, session-scoped traffic (now-playing, likes,
- *      reactions, tempo, polls, announcements, listener counts, history sync).
- *      A dancer subscribes on SUBSCRIBE; the DJ subscribes on REGISTER_SESSION.
+ *   2. session:{id} / stage:{id} — the per-audience high-frequency topic.
+ *      Carries ALL session-scoped traffic (now-playing, likes, reactions,
+ *      tempo, polls, announcements, listener counts, history sync). A stage-less
+ *      session uses `session:{id}` (legacy); a session running under a Stage
+ *      uses `stage:{stageId}` so dancers stay subscribed across DJ rotation
+ *      (see {@link getStageTopic}). Resolved per-session by
+ *      `getSessionBroadcastTopic` in lib/sessions.ts. A dancer subscribes on
+ *      SUBSCRIBE (by session) or SUBSCRIBE_STAGE (by stage); the DJ subscribes
+ *      on REGISTER_SESSION.
+ *   3. event:{id} — parent of a set of stages (see {@link getEventTopic}).
+ *      Carries event-wide organizer announcements; dancers are auto-subscribed
+ *      when they join a stage.
  *
- * Routing per-session traffic to per-session topics makes cross-session
+ * Routing per-audience traffic to per-audience topics makes cross-audience
  * delivery physically impossible (no client-side filtering required) and
- * collapses fan-out from O(all clients) to O(clients in that session).
+ * collapses fan-out from O(all clients) to O(clients in that session/stage).
  *
  * NOTE: Bun topics are per-instance (in-memory). This is correct for the
  * current single-instance deployment and maps 1:1 onto Redis pub/sub channels
@@ -44,4 +52,27 @@ export const DISCOVERY_TOPIC = "live-session" as const;
  */
 export function getSessionTopic(sessionId: string): string {
   return `session:${sessionId}`;
+}
+
+/**
+ * Returns the per-stage pub/sub topic. A Stage is a persistent venue context
+ * that outlives any single DJ set; dancers subscribe to it on QR scan and stay
+ * subscribed across DJ rotation, so a handover is invisible to them.
+ *
+ * @param stageId - The Stage id.
+ * @returns A topic string of the form `stage:{stageId}`.
+ */
+export function getStageTopic(stageId: string): string {
+  return `stage:${stageId}`;
+}
+
+/**
+ * Returns the per-event pub/sub topic (parent of a stage). Carries event-wide
+ * organizer announcements. Dancers are auto-subscribed when they join a stage.
+ *
+ * @param eventId - The Event id.
+ * @returns A topic string of the form `event:{eventId}`.
+ */
+export function getEventTopic(eventId: string): string {
+  return `event:${eventId}`;
 }

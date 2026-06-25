@@ -19,8 +19,11 @@
  * that leaked mock and fail. The unit suite and this integration file are separate CI jobs.
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import type { ServerWebSocket } from "bun";
 import { and, desc, eq } from "drizzle-orm";
 import { client, db, schema } from "../db";
+import { handleSubscribeStage } from "../handlers/subscriber";
+import type { WSContext } from "../handlers/ws-context";
 import { hashToken } from "../lib/auth";
 import { closePollInDb, createPollInDb, recordPollVoteInDb } from "../lib/persistence/polls";
 import {
@@ -44,6 +47,7 @@ import {
   persistTrack,
   persistTracksBulk,
 } from "../lib/persistence/tracks";
+import { getStageTopic } from "../lib/topics";
 import { auth as authRoute } from "../routes/auth";
 import { dj as djRoute } from "../routes/dj";
 import { push as pushRoute } from "../routes/push";
@@ -672,6 +676,92 @@ suite("DB integration (real Postgres)", () => {
       // Global → reaches everyone incl. the stage-less C (the legacy fallback).
       const allEps = new Set((await getAllActivePushTargets()).map((t) => t.endpoint));
       expect(allEps.has(epA) && allEps.has(epB) && allEps.has(epC)).toBe(true);
+    });
+
+    // --- real-DB handler paths (the unit suite runs these in NODE_ENV=test) ----
+
+    async function waitFor(check: () => Promise<boolean>, ms = 1500): Promise<boolean> {
+      const start = Date.now();
+      while (Date.now() - start < ms) {
+        if (await check()) return true;
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      return false;
+    }
+
+    function mkStageCtx(stageId: string, clientId: string, messageId?: string) {
+      const sent: Array<Record<string, unknown>> = [];
+      const subscribed: string[] = [];
+      const rawWs = {
+        subscribe: (t: string) => subscribed.push(t),
+        unsubscribe: () => {},
+        publish: () => {},
+        getBufferedAmount: () => 0,
+      } as unknown as ServerWebSocket;
+      const ctx = {
+        message: { type: "SUBSCRIBE_STAGE", stageId, clientId },
+        ws: { send: (d: string) => sent.push(JSON.parse(d)), close: () => {} },
+        rawWs,
+        state: {
+          clientId,
+          isListener: false,
+          subscribedSessionId: null,
+          subscribedStageId: null,
+          djSessionId: null,
+        },
+        messageId,
+      } as unknown as WSContext;
+      return { ctx, sent, subscribed };
+    }
+
+    test("persistSession records stage_id; handleSubscribeStage arms scoped push", async () => {
+      const evId = `evh_${uniq()}`;
+      const stId = `sth_${uniq()}`;
+      const sid = `sessh_${uniq()}`;
+      const clientId = `ch_${uniq()}`;
+      const ep = `https://push.test/${clientId}`;
+      await db.insert(schema.events).values({ id: evId, name: "Evt" });
+      createdEventIds.push(evId);
+      await db.insert(schema.stages).values({ id: stId, name: "St", eventId: evId });
+      await db
+        .insert(schema.pushSubscriptions)
+        .values({ endpoint: ep, p256dh: "p", auth: "a", clientId });
+      createdEndpoints.push(ep);
+
+      // persistSession writes the stage_id column.
+      await persistSession(sid, "DJ H", null, stId);
+      const [sess] = await db.select().from(schema.sessions).where(eq(schema.sessions.id, sid));
+      expect(sess?.stageId).toBe(stId);
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
+
+      // handleSubscribeStage validates the stage + writes the durable membership row.
+      const { ctx, subscribed } = mkStageCtx(stId, clientId);
+      await handleSubscribeStage(ctx);
+      expect(subscribed).toContain(getStageTopic(stId));
+
+      // Membership write is fire-and-forget → poll, then confirm scoped push reaches us.
+      const armed = await waitFor(async () => {
+        const rows = await db
+          .select()
+          .from(schema.stageSubscriptions)
+          .where(
+            and(
+              eq(schema.stageSubscriptions.stageId, stId),
+              eq(schema.stageSubscriptions.clientId, clientId),
+            ),
+          );
+        return rows.length === 1;
+      });
+      expect(armed).toBe(true);
+      const targets = await getStagePushTargets(stId);
+      expect(targets.map((t) => t.endpoint)).toContain(ep);
+    });
+
+    test("handleSubscribeStage NACKs an unknown stage and does not subscribe", async () => {
+      const { ctx, sent, subscribed } = mkStageCtx(`ghost_${uniq()}`, `cg_${uniq()}`, "mid-ghost");
+      await handleSubscribeStage(ctx);
+      expect(subscribed).toHaveLength(0);
+      expect(sent.some((m) => m.type === "NACK")).toBe(true);
     });
   });
 });

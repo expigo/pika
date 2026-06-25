@@ -16,6 +16,7 @@ export const MESSAGE_TYPES = {
   TRACK_STOPPED: "TRACK_STOPPED",
   END_SESSION: "END_SESSION",
   SUBSCRIBE: "SUBSCRIBE",
+  SUBSCRIBE_STAGE: "SUBSCRIBE_STAGE",
   SEND_LIKE: "SEND_LIKE",
   SEND_TEMPO_REQUEST: "SEND_TEMPO_REQUEST",
   START_POLL: "START_POLL",
@@ -229,6 +230,7 @@ export const RegisterSessionSchema = z.object({
     .regex(/^[^<>"']+$/, "DJ name cannot contain <, >, or quote characters")
     .optional(),
   token: z.union([z.literal(""), z.string().min(10).max(2000)]).optional(), // pk_dj_<uuid> (~42 chars) or JWT
+  stageId: z.string().min(1).max(64).trim().optional(), // run this session under a Stage (seamless DJ rotation)
   messageId: z.string().optional(),
   clientId: z.string().optional(),
 });
@@ -271,6 +273,20 @@ export const SubscribeSchema = z.object({
   version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim().optional(), // Session to subscribe to (for listener tracking)
   clientId: z.string().min(8).max(256).trim().optional(), // Client identifier (for unique listener count)
+  messageId: z.string().optional(),
+});
+
+/**
+ * SUBSCRIBE_STAGE: a dancer joins a persistent Stage (not a single DJ session).
+ * The server subscribes them to `stage:{id}` (and the parent event topic),
+ * syncs the currently-live session's state, and keeps them subscribed across
+ * DJ rotation. See packages/cloud/src/handlers/subscriber.ts.
+ */
+export const SubscribeStageSchema = z.object({
+  type: z.literal(MESSAGE_TYPES.SUBSCRIBE_STAGE),
+  version: z.string().max(20).optional(),
+  stageId: z.string().min(1).max(64).trim(),
+  clientId: z.string().min(8).max(256).trim().optional(),
   messageId: z.string().optional(),
 });
 
@@ -663,6 +679,7 @@ export const ClientMessageSchema = z.discriminatedUnion("type", [
   TrackStoppedSchema,
   EndSessionSchema,
   SubscribeSchema,
+  SubscribeStageSchema,
   SendLikeSchema,
   SendBulkLikeSchema,
   SendRemoveLikeSchema,

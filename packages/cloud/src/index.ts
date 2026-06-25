@@ -71,10 +71,12 @@ import { sendNack } from "./lib/protocol";
 import {
   cleanupStaleSessions,
   getAllSessions,
+  getSessionAudienceKey,
+  getSessionBroadcastTopic,
   getSessionCount,
   getSessionIds,
 } from "./lib/sessions";
-import { DISCOVERY_TOPIC, getSessionTopic } from "./lib/topics";
+import { DISCOVERY_TOPIC } from "./lib/topics";
 
 // WS type alias removed (unused)
 
@@ -282,6 +284,7 @@ app.get(
       clientId: null,
       isListener: false,
       subscribedSessionId: null,
+      subscribedStageId: null,
       djSessionId: null,
     };
 
@@ -394,6 +397,9 @@ app.get(
               break;
             case "SUBSCRIBE":
               handlers.handleSubscribe(ctx);
+              break;
+            case "SUBSCRIBE_STAGE":
+              await handlers.handleSubscribeStage(ctx);
               break;
             case "START_POLL":
               handlers.handleStartPoll(ctx);
@@ -536,15 +542,19 @@ setInterval(() => {
   if (!bunServer) return;
 
   for (const sessionId of getSessionIds()) {
-    const currentCount = getListenerCount(sessionId);
-    const lastBroadcasted = cachedListenerCounts.get(sessionId);
+    // Count under the audience key (stage when staged, else session) and publish
+    // to the matching audience topic — so a staged floor's count is stable across
+    // DJ rotation and stage-less sessions behave exactly as before.
+    const audienceKey = getSessionAudienceKey(sessionId);
+    const currentCount = getListenerCount(audienceKey);
+    const lastBroadcasted = cachedListenerCounts.get(audienceKey);
 
     if (currentCount !== lastBroadcasted) {
-      cachedListenerCounts.set(sessionId, currentCount);
+      cachedListenerCounts.set(audienceKey, currentCount);
       try {
         // Route each session's count to its own topic — no longer O(sessions × all clients).
         bunServer.publish(
-          getSessionTopic(sessionId),
+          getSessionBroadcastTopic(sessionId),
           JSON.stringify({ type: "LISTENER_COUNT", sessionId, count: currentCount }),
         );
         // L10: Silence listener logs

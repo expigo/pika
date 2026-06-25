@@ -31,8 +31,7 @@ import {
   setPollTimer,
 } from "../lib/polls";
 import { parseMessage, sendAck, sendNack } from "../lib/protocol";
-import { getSession, refreshSessionActivity } from "../lib/sessions";
-import { getSessionTopic } from "../lib/topics";
+import { getSession, getSessionBroadcastTopic, refreshSessionActivity } from "../lib/sessions";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
 
@@ -108,7 +107,7 @@ export async function handleStartPoll(ctx: WSContext) {
   // Broadcast poll arrival to this session's listeners
   if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
     rawWs.publish(
-      getSessionTopic(msg.sessionId),
+      getSessionBroadcastTopic(msg.sessionId),
       JSON.stringify({
         type: "POLL_STARTED",
         sessionId: msg.sessionId,
@@ -138,7 +137,7 @@ export async function handleStartPoll(ctx: WSContext) {
         const winnerIndex = totalVotes > 0 ? poll.votes.indexOf(Math.max(...poll.votes)) : 0;
         if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
           rawWs.publish(
-            getSessionTopic(msg.sessionId),
+            getSessionBroadcastTopic(msg.sessionId),
             JSON.stringify({
               type: "POLL_ENDED",
               sessionId: msg.sessionId,
@@ -186,7 +185,7 @@ export async function handleEndPoll(ctx: WSContext) {
     // Broadcast results
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(poll.sessionId),
+        getSessionBroadcastTopic(poll.sessionId),
         JSON.stringify({
           type: "POLL_ENDED",
           sessionId: poll.sessionId,
@@ -233,7 +232,7 @@ export async function handleCancelPoll(ctx: WSContext) {
     // For cancelled polls, send 0 results
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(poll.sessionId),
+        getSessionBroadcastTopic(poll.sessionId),
         JSON.stringify({
           type: "POLL_ENDED",
           sessionId: poll.sessionId,
@@ -295,7 +294,7 @@ export async function handleVoteOnPoll(ctx: WSContext) {
     // Broadcast live update to this session's DJ (and potentially others)
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
       rawWs.publish(
-        getSessionTopic(poll.sessionId),
+        getSessionBroadcastTopic(poll.sessionId),
         JSON.stringify({
           type: "POLL_UPDATE",
           pollId: msg.pollId,

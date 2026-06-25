@@ -19,8 +19,9 @@ import { clearLastPersistedTrackKey, persistTempoVotes } from "../lib/persistenc
 import { clearSessionPolls } from "../lib/polls";
 import { logSessionEvent } from "../lib/protocol";
 import { deleteSession, getSession, scheduleDjReap } from "../lib/sessions";
+import { clearStageActiveSession } from "../lib/stages";
 import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
-import { DISCOVERY_TOPIC } from "../lib/topics";
+import { DISCOVERY_TOPIC, getStageTopic } from "../lib/topics";
 import { lastBroadcastTime } from "./dj";
 import type { WSConnectionState } from "./ws-context";
 
@@ -71,10 +72,14 @@ export function reapSession(sessionId: string): void {
     clearTempoVotes(sessionId);
   }
 
+  const reapedStageId = session.stageId;
+
   deleteSession(sessionId);
+  if (reapedStageId) clearStageActiveSession(reapedStageId, sessionId);
   endSessionInDb(sessionId).catch((e) => logger.error("❌ Failed to end session in DB", e));
   clearLikesForSession(sessionId);
-  clearListeners(sessionId);
+  // Stage listeners persist across rotation; only a stage-less session clears them.
+  if (!reapedStageId) clearListeners(sessionId);
   persistedSessions.delete(sessionId);
   lastBroadcastTime.delete(sessionId);
   cleanupSessionQueue(sessionId);
@@ -94,13 +99,14 @@ export function reapSession(sessionId: string): void {
  * Handle WebSocket disconnection
  */
 export function handleClose(_ws: { raw: unknown }, state: WSConnectionState) {
-  const { djSessionId, isListener, clientId, subscribedSessionId } = state;
+  const { djSessionId, isListener, clientId, subscribedSessionId, subscribedStageId } = state;
 
   logger.debug("🔍 [CLOSE] Client disconnected", {
     djSessionId: djSessionId || "NONE",
     isListener,
     clientId: clientId || "NONE",
     subscribedSessionId: subscribedSessionId || "NONE",
+    subscribedStageId: subscribedStageId || "NONE",
   });
 
   // DJ connection dropped: DON'T end the session immediately. The desktop WebView
@@ -123,14 +129,18 @@ export function handleClose(_ws: { raw: unknown }, state: WSConnectionState) {
     logger.debug("🔍 [CLOSE] Not a DJ connection (no djSessionId in state)");
   }
 
-  // Remove listener from session if this was a listener (dancers leave immediately;
-  // only the DJ gets a grace window).
-  if (isListener && clientId && subscribedSessionId) {
-    const wasRemoved = removeListener(subscribedSessionId, clientId);
+  // Remove listener from its audience (dancers leave immediately; only the DJ
+  // gets a grace window). The audience key is the stage when on a stage, else
+  // the session — matching how the listener was counted on join.
+  if (isListener && clientId && (subscribedStageId || subscribedSessionId)) {
+    const audienceKey = subscribedStageId
+      ? getStageTopic(subscribedStageId)
+      : (subscribedSessionId as string);
+    const wasRemoved = removeListener(audienceKey, clientId);
 
     // Only update the count; the 2-second heartbeat will handle the broadcast
     if (wasRemoved) {
-      getListenerCount(subscribedSessionId);
+      getListenerCount(audienceKey);
     }
   }
 }

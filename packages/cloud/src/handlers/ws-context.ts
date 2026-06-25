@@ -21,8 +21,10 @@ export interface WSConnectionState {
   clientId: string | null;
   /** True if this connection is a listening dancer */
   isListener: boolean;
-  /** Session ID the listener is subscribed to */
+  /** Session ID the listener is subscribed to (legacy SUBSCRIBE path) */
   subscribedSessionId: string | null;
+  /** Stage ID the listener is subscribed to (SUBSCRIBE_STAGE path) */
+  subscribedStageId: string | null;
   /** Session ID if this connection is a DJ */
   djSessionId: string | null;
 }

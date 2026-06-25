@@ -19,7 +19,7 @@ import { db, schema } from "../db";
 import { validateToken } from "../lib/auth";
 import { withCache } from "../lib/cache";
 import { getListenerCount } from "../lib/listeners";
-import { getAllSessions } from "../lib/sessions";
+import { getAllSessions, getSessionAudienceKey } from "../lib/sessions";
 
 const sessions = new Hono();
 
@@ -63,12 +63,12 @@ sessions.get("/active", (c) => {
             bpm: session.currentTrack.bpm,
           }
         : null,
-      listenerCount: getListenerCount(session.sessionId),
+      listenerCount: getListenerCount(getSessionAudienceKey(session.sessionId)),
       // Calculate Vibe Momentum (0.0 to 1.0)
       // Formula: (Listeners * 0.4) + (RecentLikes * 0.6) - normalized
       momentum: Math.min(
         1,
-        getListenerCount(session.sessionId) * 0.05 + 0, // RecentLikes removed (was broken/encapsulated)
+        getListenerCount(getSessionAudienceKey(session.sessionId)) * 0.05 + 0, // RecentLikes removed
       ),
     }));
 
