@@ -394,7 +394,18 @@ resolved decisions baked in. Payload is messy → we learned it in 2 days, not 2
 
 ---
 
-## 10. Track D V1 — BUILT (June 2026)
+## 10. Track D V1 — BUILT + E2E-VERIFIED (June 2026)
+
+**Status: verified end-to-end** against a real Spotify account in a browser (login → connect →
+go live → dancers see the track → pause shows "between songs" → resume → stop). Two follow-on
+fixes landed during verification: `SESSION_PAUSED`/`SESSION_RESUMED` added to the shared schema +
+web (`useLiveListener` `isPaused` → `LivePlayer` "between songs"); and dev-gated config so the
+cookie+OAuth flow runs locally on 127.0.0.1 (CORS reflects localhost+credentials, web CSP allows
+127.0.0.1 in dev, `WEB_BASE_URL` override). **Local-run gotchas:** Spotify bans `localhost`
+redirects (use `127.0.0.1`); the registered Spotify redirect URI must exactly match
+`SPOTIFY_REDIRECT_URI`; web + cloud must share the host (`127.0.0.1`) so the session cookie is
+same-site; `WEB_BASE_URL` must match the web port.
+
 
 The web-DJ Spotify-source backbone is implemented on branch
 `worktree-music-provider-blueprint`. **Cloud:** migration `0002` (`spotify_connections`,
