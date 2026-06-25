@@ -35,17 +35,17 @@ dj.get("/:slug", async (c) => {
       // 🔍 S0.3.5 Fix: Look up the DJ user first (ensures profiles work before first session)
       const djUser = await db
         .select({
-          id: schema.djUsers.id,
-          displayName: schema.djUsers.displayName,
+          id: schema.user.id,
+          name: schema.user.name,
         })
-        .from(schema.djUsers)
-        .where(eq(schema.djUsers.slug, slug))
+        .from(schema.user)
+        .where(eq(schema.user.slug, slug))
         .limit(1);
 
       const userResult = djUser[0];
       if (!userResult) return null;
 
-      const djName = userResult.displayName;
+      const djName = userResult.name;
 
       // Authenticated sessions match directly on djUserId (indexed).
       const allSessions = await db

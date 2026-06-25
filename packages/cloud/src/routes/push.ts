@@ -5,7 +5,7 @@ import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
-import { validateToken } from "../lib/auth";
+import { getUserFromToken } from "../lib/auth";
 import { getAllActivePushTargets } from "../lib/persistence/push-targets";
 import { PushService } from "../services/push";
 
@@ -98,10 +98,10 @@ push.post("/send", zValidator("json", SendSchema), async (c) => {
     return c.json({ error: "Invalid token format" }, 401);
   }
 
-  // Tokens are stored SHA-256-hashed — validateToken hashes the incoming token
+  // Tokens are stored SHA-256-hashed — getUserFromToken hashes the incoming token
   // before lookup. (The prior code compared the raw token to the hashed column,
   // so this endpoint never authenticated a real DJ.)
-  const dj = await validateToken(token);
+  const dj = await getUserFromToken(token);
   if (!dj) {
     return c.json({ error: "Invalid token" }, 401);
   }

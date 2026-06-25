@@ -1,180 +1,69 @@
 /**
- * Authentication Utilities
+ * Auth guards — thin middleware over Better Auth sessions (`lib/auth/server.ts`).
  *
- * Helper functions for DJ authentication
+ * Replaces the former custom token/cookie auth. Identity is resolved via
+ * `auth.api.getSession({ headers })`, which works for both REST (Hono request headers,
+ * incl. the bearer plugin for desktop) and the WebSocket handler (via {@link getUserFromToken}).
  */
 
-import { logger } from "@pika/shared";
-import { eq } from "drizzle-orm";
 import type { Context, MiddlewareHandler } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { db } from "../db";
-import * as schema from "../db/schema";
+import { auth } from "./auth/server";
 
-/** Authenticated DJ resolved from a token (Bearer header or session cookie). */
-export interface DjAuthUser {
-  id: number;
-  displayName: string;
-  email: string;
-  slug: string;
-  status: string; // 'pending' | 'approved' | 'rejected'
-  role: string; // 'dj' | 'admin' (extensible: 'organizer' | 'dancer')
-}
+/** The authenticated user shape (Better Auth user + `role`/`status` fields). */
+export type AuthUser = typeof auth.$Infer.Session.user;
 
-// Type the `djUser` context variable set by requireDjAuth across all Hono routers.
+// Type the `user` context variable set by the guards across all Hono routers.
 declare module "hono" {
   interface ContextVariableMap {
-    djUser: DjAuthUser;
+    user: AuthUser;
   }
 }
 
-/** httpOnly session cookie carrying the DJ's API token (web BFF, never readable by JS). */
-export const SESSION_COOKIE = "pika_session";
-const SESSION_MAX_AGE_S = 60 * 60 * 24 * 30; // 30 days
-
-/**
- * Generate secure random token
- */
-export function generateToken(): string {
-  return `pk_dj_${crypto.randomUUID().replace(/-/g, "")}`;
+/** Retrieve the user attached by a guard. Only valid downstream of one. */
+export function getUser(c: Context): AuthUser {
+  return c.get("user");
 }
 
-/**
- * Hash password using Bun's built-in bcrypt
- */
-export async function hashPassword(password: string): Promise<string> {
-  return await Bun.password.hash(password, {
-    algorithm: "bcrypt",
-    cost: 10,
+async function resolveUser(c: Context): Promise<AuthUser | null> {
+  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  return session?.user ?? null;
+}
+
+/** Resolve a user from a raw bearer token (used by the WebSocket REGISTER_SESSION handler). */
+export async function getUserFromToken(token: string): Promise<AuthUser | null> {
+  const session = await auth.api.getSession({
+    headers: new Headers({ Authorization: `Bearer ${token}` }),
   });
+  return session?.user ?? null;
 }
 
-/**
- * Hash token for storage (fast SHA-256 for API tokens)
- * We use SHA-256 because API tokens are already high-entropy.
- * Bcrypt is too slow (100ms) for high-frequency API auth.
- */
-export async function hashToken(token: string): Promise<string> {
-  const hash = new Bun.CryptoHasher("sha256");
-  hash.update(token);
-  return hash.digest("hex");
-}
-
-/**
- * Verify password against hash
- */
-export async function verifyPassword(password: string, hash: string): Promise<boolean> {
-  return await Bun.password.verify(password, hash);
-}
-
-/**
- * Validate token and return DJ user (including approval status).
- */
-export async function validateToken(token: string): Promise<DjAuthUser | null> {
-  try {
-    // Hash the incoming token to look it up in DB
-    const tokenHash = await hashToken(token);
-
-    const result = await db
-      .select({
-        id: schema.djUsers.id,
-        displayName: schema.djUsers.displayName,
-        email: schema.djUsers.email,
-        slug: schema.djUsers.slug,
-        status: schema.djUsers.status,
-        role: schema.djUsers.role,
-      })
-      .from(schema.djTokens)
-      .innerJoin(schema.djUsers, eq(schema.djTokens.djUserId, schema.djUsers.id))
-      .where(eq(schema.djTokens.token, tokenHash))
-      .limit(1);
-
-    if (result.length === 0) return null;
-
-    const user = result[0];
-    if (!user) return null;
-
-    // Update last used timestamp (fire-and-forget)
-    db.update(schema.djTokens)
-      .set({ lastUsed: new Date() })
-      .where(eq(schema.djTokens.token, tokenHash))
-      .catch(() => {});
-
-    return user;
-  } catch (e) {
-    logger.error("Token validation error", e);
-    return null;
-  }
-}
-
-// ============================================================================
-// Web session (httpOnly cookie) + auth middleware  (Track D)
-// ============================================================================
-
-/** Set the httpOnly session cookie after a successful web login. */
-export function setSessionCookie(c: Context, token: string): void {
-  setCookie(c, SESSION_COOKIE, token, {
-    httpOnly: true,
-    // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
-    secure: process.env["NODE_ENV"] === "production",
-    sameSite: "Lax", // pika.stream ↔ api.pika.stream are same-site (shared registrable domain)
-    path: "/",
-    maxAge: SESSION_MAX_AGE_S,
-  });
-}
-
-/** Clear the session cookie (logout). */
-export function clearSessionCookie(c: Context): void {
-  deleteCookie(c, SESSION_COOKIE, { path: "/" });
-}
-
-/** Read the bearer token from the Authorization header, if present. */
-function bearerFromHeader(c: Context): string | undefined {
-  const header = c.req.header("Authorization");
-  return header?.startsWith("Bearer ") ? header.substring(7) : undefined;
-}
-
-/** Resolve the DJ from the Bearer header (desktop) OR the `pika_session` cookie (web). */
-async function resolveDjUser(c: Context): Promise<DjAuthUser | null> {
-  const token = bearerFromHeader(c) ?? getCookie(c, SESSION_COOKIE);
-  if (!token) return null;
-  return validateToken(token);
-}
-
-/**
- * Hono middleware: authenticate an **approved** DJ (Bearer header or `pika_session`
- * cookie) and attach the user to the context (`getDjUser(c)`). The first reusable
- * DJ-auth middleware — previously each route validated inline.
- */
+/** Require an authenticated, **approved** user (DJ or admin). */
 export const requireDjAuth: MiddlewareHandler = async (c, next) => {
-  const user = await resolveDjUser(c);
+  const user = await resolveUser(c);
   if (!user) return c.json({ error: "Authentication required" }, 401);
   if (user.status !== "approved") return c.json({ error: "Account not approved" }, 403);
-
-  c.set("djUser", user);
+  c.set("user", user);
   await next();
-  return; // satisfy the non-Response return path
+  return;
 };
 
 /**
- * Hono middleware factory: require the authenticated user to hold `role`. Attaches the user
- * (`getDjUser(c)`). `hideExistence` returns 404 instead of 403 on a role mismatch so a
- * privileged surface (the admin panel) doesn't leak its existence. Forward-compatible with the
- * coming `organizer`/`dancer` roles.
+ * Require a specific `role`. `hideExistence` returns 404 (not 403) on a mismatch so a
+ * privileged surface (the admin panel) doesn't leak its existence.
  */
 export function requireRole(
   role: string,
   opts: { hideExistence?: boolean } = {},
 ): MiddlewareHandler {
   return async (c, next) => {
-    const user = await resolveDjUser(c);
+    const user = await resolveUser(c);
     if (!user) return c.json({ error: "Authentication required" }, 401);
     if (user.role !== role) {
       return opts.hideExistence
         ? c.json({ error: "Not found" }, 404)
         : c.json({ error: "Forbidden" }, 403);
     }
-    c.set("djUser", user);
+    c.set("user", user);
     await next();
     return;
   };
@@ -182,8 +71,3 @@ export function requireRole(
 
 /** Admin-only gate. Returns 404 to non-admins (existence not leaked). */
 export const requireAdmin = requireRole("admin", { hideExistence: true });
-
-/** Retrieve the DJ attached by {@link requireDjAuth}/{@link requireRole}. Only valid downstream. */
-export function getDjUser(c: Context): DjAuthUser {
-  return c.get("djUser");
-}

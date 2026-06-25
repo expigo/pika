@@ -13,7 +13,7 @@
 
 import { logger } from "@pika/shared";
 import { Hono } from "hono";
-import { getDjUser, requireDjAuth } from "../lib/auth";
+import { getUser, requireDjAuth } from "../lib/auth";
 import { getConnectionStatus } from "../lib/services/spotify";
 import {
   getPollerStatus,
@@ -28,7 +28,7 @@ live.use("*", requireDjAuth);
 
 /** Start broadcasting the DJ's Spotify now-playing. */
 live.post("/start", async (c) => {
-  const dj = getDjUser(c);
+  const dj = getUser(c);
 
   const spotify = await getConnectionStatus(dj.id);
   if (!spotify.connected) {
@@ -39,7 +39,7 @@ live.post("/start", async (c) => {
   }
 
   try {
-    const { sessionId } = await startPoller(dj.id, dj.displayName);
+    const { sessionId } = await startPoller(dj.id, dj.name);
     return c.json({ success: true, sessionId });
   } catch (e) {
     logger.error("Failed to start live poller", e);
@@ -49,13 +49,13 @@ live.post("/start", async (c) => {
 
 /** Stop broadcasting and end the session. */
 live.post("/stop", async (c) => {
-  await stopPoller(getDjUser(c).id, "dj-stopped");
+  await stopPoller(getUser(c).id, "dj-stopped");
   return c.json({ success: true });
 });
 
 /** Toggle manual pause (session stays live; nothing is broadcast while paused). */
 live.post("/share", async (c) => {
-  const dj = getDjUser(c);
+  const dj = getUser(c);
   const body = (await c.req.json().catch(() => ({}))) as { paused?: unknown };
   if (typeof body.paused !== "boolean") {
     return c.json({ error: "Body must be { paused: boolean }" }, 400);
@@ -68,7 +68,7 @@ live.post("/share", async (c) => {
 
 /** Current live + Spotify-connection status for the web UI. */
 live.get("/status", async (c) => {
-  const dj = getDjUser(c);
+  const dj = getUser(c);
   const [poller, spotify] = await Promise.all([
     Promise.resolve(getPollerStatus(dj.id)),
     getConnectionStatus(dj.id),

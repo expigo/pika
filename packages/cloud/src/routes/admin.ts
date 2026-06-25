@@ -21,15 +21,15 @@ import { rateLimiter } from "hono-rate-limiter";
 import { db } from "../db";
 import {
   adminAudit,
-  djTokens,
-  djUsers,
   events,
   livePollers,
+  session,
   spotifyConnections,
   stages,
+  user,
 } from "../db/schema";
 import { recordAdminAction } from "../lib/admin-audit";
-import { getDjUser, requireAdmin } from "../lib/auth";
+import { getUser, requireAdmin } from "../lib/auth";
 import { getActiveConnectionCount } from "../lib/connection-registry";
 import { getListenerCount } from "../lib/listeners";
 import { getAllSessions } from "../lib/sessions";
@@ -51,44 +51,44 @@ admin.use("*", requireAdmin);
 
 /** Identity check used by the web gate. */
 admin.get("/me", (c) => {
-  const dj = getDjUser(c);
-  return c.json({ id: dj.id, displayName: dj.displayName, role: dj.role });
+  const dj = getUser(c);
+  return c.json({ id: dj.id, displayName: dj.name, role: dj.role });
 });
 
 /** All DJ accounts with approval + Spotify-connection status (pending first). */
 admin.get("/djs", async (c) => {
   const rows = await db
     .select({
-      id: djUsers.id,
-      email: djUsers.email,
-      displayName: djUsers.displayName,
-      slug: djUsers.slug,
-      status: djUsers.status,
-      role: djUsers.role,
-      createdAt: djUsers.createdAt,
-      lastSeen: max(djTokens.lastUsed),
+      id: user.id,
+      email: user.email,
+      displayName: user.name,
+      slug: user.slug,
+      status: user.status,
+      role: user.role,
+      createdAt: user.createdAt,
+      lastSeen: max(session.updatedAt), // most recent session activity
       spotifyStatus: spotifyConnections.status,
     })
-    .from(djUsers)
-    .leftJoin(djTokens, eq(djTokens.djUserId, djUsers.id))
-    .leftJoin(spotifyConnections, eq(spotifyConnections.djUserId, djUsers.id))
-    .groupBy(djUsers.id, spotifyConnections.status)
-    .orderBy(sql`(${djUsers.status} = 'pending') desc`, desc(djUsers.createdAt));
+    .from(user)
+    .leftJoin(session, eq(session.userId, user.id))
+    .leftJoin(spotifyConnections, eq(spotifyConnections.djUserId, user.id))
+    .groupBy(user.id, spotifyConnections.status)
+    .orderBy(sql`(${user.status} = 'pending') desc`, desc(user.createdAt));
   return c.json({ djs: rows });
 });
 
 async function setDjStatus(c: Context, status: "approved" | "rejected", action: string) {
-  const id = Number(c.req.param("id"));
-  if (!Number.isInteger(id) || id <= 0) return c.json({ error: "Invalid id" }, 400);
+  const id = c.req.param("id");
+  if (!id) return c.json({ error: "Invalid id" }, 400);
 
   const [updated] = await db
-    .update(djUsers)
+    .update(user)
     .set({ status })
-    .where(eq(djUsers.id, id))
-    .returning({ id: djUsers.id });
+    .where(eq(user.id, id))
+    .returning({ id: user.id });
   if (!updated) return c.json({ error: "DJ not found" }, 404);
 
-  recordAdminAction(getDjUser(c).id, action, { type: "dj_user", id });
+  recordAdminAction(getUser(c).id, action, { type: "user", id });
   return c.json({ success: true });
 }
 

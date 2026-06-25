@@ -16,8 +16,8 @@ import { createBunWebSocket } from "hono/bun";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 import { client, db } from "./db";
+import { auth as betterAuth } from "./lib/auth/server";
 import { adminRoutes } from "./routes/admin";
-import { auth as authRoutes } from "./routes/auth";
 import { client as clientRoutes } from "./routes/client";
 import { dj as djRoutes } from "./routes/dj";
 import { djLiveRoutes } from "./routes/dj-live";
@@ -460,8 +460,8 @@ app.get(
 // ============================================================================
 
 // Route mounting
-app.use("/api/auth/*", csrfCheck);
-app.route("/api/auth", authRoutes);
+// Better Auth owns /api/auth/* (sign-in/up/session/admin). It handles its own CSRF (origin checks).
+app.on(["POST", "GET"], "/api/auth/*", (c) => betterAuth.handler(c.req.raw));
 app.route("/api/sessions", sessionsRoutes);
 app.route("/api/session", sessionsRoutes); // Alias for recap route
 app.route("/api/stats", statsRoutes);

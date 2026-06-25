@@ -12,7 +12,7 @@
 import { logger, type PikaEnvironment, URLS } from "@pika/shared";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { getDjUser, requireDjAuth } from "../lib/auth";
+import { getUser, requireDjAuth } from "../lib/auth";
 import { buildAuthorizeUrl, connectSpotify, getConnectionStatus } from "../lib/services/spotify";
 
 const spotify = new Hono();
@@ -61,7 +61,7 @@ spotify.get("/callback", requireDjAuth, async (c) => {
   }
 
   try {
-    await connectSpotify(code, getDjUser(c).id);
+    await connectSpotify(code, getUser(c).id);
     return c.redirect(`${web}/dj/live?spotify=connected`);
   } catch (e) {
     logger.error("Spotify callback failed", e);
@@ -71,7 +71,7 @@ spotify.get("/callback", requireDjAuth, async (c) => {
 
 /** Connection status for the web UI. */
 spotify.get("/status", requireDjAuth, async (c) => {
-  return c.json(await getConnectionStatus(getDjUser(c).id));
+  return c.json(await getConnectionStatus(getUser(c).id));
 });
 
 export { spotify as spotifyRoutes };

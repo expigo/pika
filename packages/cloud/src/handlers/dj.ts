@@ -29,7 +29,7 @@ import {
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { events, stages } from "../db/schema";
-import { validateToken } from "../lib/auth";
+import { getUserFromToken } from "../lib/auth";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
 import { applyNowPlaying, createLiveSession } from "../lib/live-session";
@@ -141,14 +141,14 @@ export async function handleRegisterSession(ctx: WSContext) {
 
   // 🔐 Token validation for DJ authentication
   const djToken = msg.token;
-  let djUserId: number | null = null;
+  let djUserId: string | null = null;
   let djName = requestedDjName;
 
   if (djToken) {
-    const djUser = await validateToken(djToken);
+    const djUser = await getUserFromToken(djToken);
     if (djUser) {
       djUserId = djUser.id;
-      djName = djUser.displayName; // Use registered name
+      djName = djUser.name; // Use registered name
       logger.info("🔐 Authenticated DJ", { djName, djUserId });
     } else {
       logger.warn("⚠️ Invalid token provided, using anonymous mode");

@@ -40,7 +40,7 @@ const DEFAULT_CONFIG: PollerConfig = {
 
 interface PollerRuntime {
   sessionId: string;
-  djUserId: number;
+  djUserId: string;
   djName: string;
   lastTrackId: string | null;
   paused: boolean; // currently broadcasting a "paused / between songs" state
@@ -49,7 +49,7 @@ interface PollerRuntime {
   timer: ReturnType<typeof setTimeout> | null;
 }
 
-const pollers = new Map<number, PollerRuntime>();
+const pollers = new Map<string, PollerRuntime>();
 
 // ---------------------------------------------------------------------------
 // Pure decision logic (unit-tested)
@@ -149,7 +149,7 @@ function publishSessionState(sessionId: string, type: "SESSION_PAUSED" | "SESSIO
 
 /** Start polling a DJ's Spotify now-playing. Idempotent per DJ. Returns the session id. */
 export async function startPoller(
-  djUserId: number,
+  djUserId: string,
   djName: string,
 ): Promise<{ sessionId: string }> {
   const existing = pollers.get(djUserId);
@@ -189,7 +189,7 @@ export async function startPoller(
 }
 
 /** Stop a DJ's poller and end the session. */
-export async function stopPoller(djUserId: number, reason = "stopped"): Promise<void> {
+export async function stopPoller(djUserId: string, reason = "stopped"): Promise<void> {
   const rt = pollers.get(djUserId);
   if (!rt) return;
   if (rt.timer) clearTimeout(rt.timer);
@@ -205,14 +205,14 @@ export async function stopPoller(djUserId: number, reason = "stopped"): Promise<
 }
 
 /** Toggle the DJ's manual "pause sharing". Returns false if no poller is running. */
-export function setManualPause(djUserId: number, paused: boolean): boolean {
+export function setManualPause(djUserId: string, paused: boolean): boolean {
   const rt = pollers.get(djUserId);
   if (!rt) return false;
   rt.manualPaused = paused;
   return true;
 }
 
-export function getPollerStatus(djUserId: number): {
+export function getPollerStatus(djUserId: string): {
   live: boolean;
   sessionId?: string;
   paused?: boolean;

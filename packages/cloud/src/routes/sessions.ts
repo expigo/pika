@@ -16,7 +16,7 @@ import { LIMITS, logger } from "@pika/shared";
 import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { db, schema } from "../db";
-import { validateToken } from "../lib/auth";
+import { getUserFromToken } from "../lib/auth";
 import { withCache } from "../lib/cache";
 import { getListenerCount } from "../lib/listeners";
 import { getAllSessions, getSessionAudienceKey } from "../lib/sessions";
@@ -227,7 +227,7 @@ async function buildRecap(
   // Conditional access: only the session OWNER gets poll data (privacy).
   let isAuthenticated = false;
   if (token) {
-    const user = await validateToken(token);
+    const user = await getUserFromToken(token);
     if (user && dbSession.djUserId === user.id) isAuthenticated = true;
   }
 
@@ -409,7 +409,7 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
     return c.json({ error: "Authentication required" }, 401);
   }
 
-  const user = await validateToken(token);
+  const user = await getUserFromToken(token);
   if (!user) {
     return c.json({ error: "Invalid or expired token" }, 401);
   }

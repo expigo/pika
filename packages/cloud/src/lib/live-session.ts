@@ -32,7 +32,7 @@ import { clearTempoVotes, getTempoFeedback } from "./tempo";
 export interface CreateLiveSessionInput {
   sessionId: string;
   djName: string;
-  djUserId: number | null;
+  djUserId: string | null;
   stageId?: string;
   stageName?: string;
   eventName?: string;

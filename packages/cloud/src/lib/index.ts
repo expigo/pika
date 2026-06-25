@@ -4,14 +4,8 @@
  * Central export for all utility modules
  */
 
-// Auth utilities
-export {
-  generateToken,
-  hashPassword,
-  hashToken,
-  validateToken,
-  verifyPassword,
-} from "./auth";
+// Auth guards (Better Auth)
+export { getUser, getUserFromToken, requireAdmin, requireDjAuth, requireRole } from "./auth";
 // Cache utilities
 export {
   cachedListenerCounts,

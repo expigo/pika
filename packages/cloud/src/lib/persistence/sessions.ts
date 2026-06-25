@@ -128,7 +128,7 @@ export async function ensureSessionPersisted(sessionId: string): Promise<boolean
 export async function persistSession(
   sessionId: string,
   djName: string,
-  djUserId?: number | null,
+  djUserId?: string | null,
   stageId?: string | null,
 ): Promise<boolean> {
   if (process.env.NODE_ENV === "test") {

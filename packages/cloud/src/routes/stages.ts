@@ -17,7 +17,7 @@ import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { db } from "../db";
 import { events, stages } from "../db/schema";
-import { validateToken } from "../lib/auth";
+import { getUserFromToken } from "../lib/auth";
 
 export const stageRoutes = new Hono();
 
@@ -27,7 +27,7 @@ async function requireDj(c: Context) {
   if (!authHeader?.startsWith("Bearer ")) return null;
   const token = authHeader.split(" ")[1];
   if (!token) return null;
-  return validateToken(token);
+  return getUserFromToken(token);
 }
 
 /** URL-safe id from a display name + short random suffix (collision-resistant). */

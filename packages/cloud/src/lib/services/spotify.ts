@@ -95,7 +95,7 @@ interface SpotifyTokenResponse {
 }
 
 /** Exchange the auth code for tokens and store the encrypted refresh token for this DJ. */
-export async function connectSpotify(code: string, djUserId: number): Promise<void> {
+export async function connectSpotify(code: string, djUserId: string): Promise<void> {
   const { redirectUri } = getConfig();
   const res = await fetch(`${ACCOUNTS}/api/token`, {
     method: "POST",
@@ -158,15 +158,15 @@ async function fetchSpotifyUserId(accessToken: string): Promise<string | undefin
 // Access-token lifecycle (refresh + in-memory cache)
 // ---------------------------------------------------------------------------
 
-const accessCache = new Map<number, { accessToken: string; expiresAt: number }>();
+const accessCache = new Map<string, { accessToken: string; expiresAt: number }>();
 
-async function getAccessToken(djUserId: number): Promise<string> {
+async function getAccessToken(djUserId: string): Promise<string> {
   const cached = accessCache.get(djUserId);
   if (cached && Date.now() < cached.expiresAt - ACCESS_TOKEN_SKEW_MS) return cached.accessToken;
   return refreshAccessToken(djUserId);
 }
 
-async function refreshAccessToken(djUserId: number): Promise<string> {
+async function refreshAccessToken(djUserId: string): Promise<string> {
   const [conn] = await db
     .select()
     .from(spotifyConnections)
@@ -259,7 +259,7 @@ export function normalizeNowPlaying(body: SpotifyCurrentlyPlaying): NowPlaying |
  * Fetch the DJ's currently-playing track. Returns `null` when nothing is playing
  * (204 / no item / ad break). Throws {@link SpotifyAuthError} / {@link SpotifyRateLimitError}.
  */
-export async function fetchNowPlaying(djUserId: number): Promise<NowPlaying | null> {
+export async function fetchNowPlaying(djUserId: string): Promise<NowPlaying | null> {
   let accessToken = await getAccessToken(djUserId);
   let res = await callCurrentlyPlaying(accessToken);
 
@@ -290,7 +290,7 @@ function callCurrentlyPlaying(accessToken: string): Promise<Response> {
 // ---------------------------------------------------------------------------
 
 export async function getConnectionStatus(
-  djUserId: number,
+  djUserId: string,
 ): Promise<{ connected: boolean; status: string | null }> {
   const [conn] = await db
     .select({ status: spotifyConnections.status })

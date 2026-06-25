@@ -24,7 +24,9 @@ import { and, desc, eq } from "drizzle-orm";
 import { client, db, schema } from "../db";
 import { handleSubscribeStage } from "../handlers/subscriber";
 import type { WSContext } from "../handlers/ws-context";
-import { generateToken, hashPassword, hashToken } from "../lib/auth";
+// NOTE (#24): the auth/login + Admin-panel integration blocks below still target the OLD custom
+// auth (generateToken/hashToken/hashPassword + routes/auth). They are skipped in the unit run and
+// must be reworked onto Better Auth (signup + sessions) before re-enabling RUN_DB_TESTS.
 import { decryptSecret, encryptSecret } from "../lib/crypto";
 import { createLiveSession } from "../lib/live-session";
 import { closePollInDb, createPollInDb, recordPollVoteInDb } from "../lib/persistence/polls";
@@ -52,7 +54,6 @@ import {
 import { getConnectionStatus } from "../lib/services/spotify";
 import { getStageTopic } from "../lib/topics";
 import { adminRoutes as adminRoute } from "../routes/admin";
-import { auth as authRoute } from "../routes/auth";
 import { dj as djRoute } from "../routes/dj";
 import { push as pushRoute } from "../routes/push";
 import { sessions as sessionsRoute } from "../routes/sessions";
