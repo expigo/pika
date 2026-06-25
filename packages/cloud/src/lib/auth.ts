@@ -113,6 +113,7 @@ export async function validateToken(token: string): Promise<DjAuthUser | null> {
 export function setSessionCookie(c: Context, token: string): void {
   setCookie(c, SESSION_COOKIE, token, {
     httpOnly: true,
+    // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
     secure: process.env["NODE_ENV"] === "production",
     sameSite: "Lax", // pika.stream ↔ api.pika.stream are same-site (shared registrable domain)
     path: "/",
