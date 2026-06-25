@@ -4,7 +4,7 @@
  * Tests the Zustand store for live session state.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { useLiveStore } from "./useLiveStore";
 
 describe("useLiveStore", () => {
@@ -95,6 +95,29 @@ describe("useLiveStore", () => {
     });
   });
 
+  describe("currentStage", () => {
+    it("defaults to null id/name", () => {
+      const state = useLiveStore.getState();
+      expect(state.currentStageId).toBeNull();
+      expect(state.currentStageName).toBeNull();
+    });
+
+    it("setCurrentStage stores id + name (staged go-live)", () => {
+      useLiveStore.getState().setCurrentStage("main-floor-ab12", "Main Floor");
+      const state = useLiveStore.getState();
+      expect(state.currentStageId).toBe("main-floor-ab12");
+      expect(state.currentStageName).toBe("Main Floor");
+    });
+
+    it("setCurrentStage(null, null) clears it (standalone go-live)", () => {
+      useLiveStore.getState().setCurrentStage("x", "X");
+      useLiveStore.getState().setCurrentStage(null, null);
+      const state = useLiveStore.getState();
+      expect(state.currentStageId).toBeNull();
+      expect(state.currentStageName).toBeNull();
+    });
+  });
+
   describe("reset", () => {
     it("should reset all state to defaults", () => {
       // Set some values
@@ -102,6 +125,7 @@ describe("useLiveStore", () => {
       useLiveStore.getState().setListenerCount(100);
       useLiveStore.getState().setLiveLikes(50);
       useLiveStore.getState().addPlayedTrack("track1");
+      useLiveStore.getState().setCurrentStage("main-floor", "Main Floor");
 
       // Reset
       useLiveStore.getState().reset();
@@ -112,6 +136,8 @@ describe("useLiveStore", () => {
       expect(state.listenerCount).toBe(0);
       expect(state.liveLikes).toBe(0);
       expect(state.playedTrackKeys.size).toBe(0);
+      expect(state.currentStageId).toBeNull(); // cleared on session end
+      expect(state.currentStageName).toBeNull();
     });
   });
 

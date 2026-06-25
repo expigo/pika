@@ -97,11 +97,29 @@ without stages. `/api/push/send` stays global (documented admin/debug tool).
 
 ## 7. Provisioning
 
-No organizer UI yet (deferred — see §8). Stages/events are created via authenticated REST
-(`routes/stages.ts`): `POST /api/events`, `POST /api/stages` (DJ bearer token; owner derived from
-the token), public `GET /api/stages/:id` + `GET /api/events/:id/stages`, owner-scoped
-`GET /api/events`. Seed script: `bun run db:seed:stages`. The desktop Go-Live modal's
-`StageSelector` uses these to let a DJ pick a stage.
+No full organizer UI yet (deferred — see §8), but a DJ can self-serve as the de-facto organizer
+of their own events. Endpoints (`routes/stages.ts`): `POST /api/events`, `POST /api/stages` (DJ
+bearer token; owner = the token's DJ), public `GET /api/stages/:id` + `GET /api/events/:id/stages`,
+owner-scoped `GET /api/events`.
+
+The desktop Go-Live modal's `StageSelector` (collapsed by default → standalone) offers three modes
+via `services/stageApi.ts`:
+- **Pick** — choose one of the DJ's *owned* events → stages (`fetchDjEvents`/`fetchEventStages`).
+- **Create** — make an Event + Stage (`createEvent`/`createStage`) — the DJ-as-organizer path.
+- **Join by code** — paste a stage **id** (its share-link id) → `fetchStageById` validates it →
+  the DJ broadcasts onto a stage they **don't own** (guest-DJ / cross-owner rotation). This works
+  because `REGISTER_SESSION` validates stage *existence*, not ownership.
+
+**Seed:** `bun run db:seed:stages -- dj@example.com` owns the seeded events to that DJ (so they show
+in the owner-scoped picker); without an email they're created unowned (reachable by stage id only).
+
+**Known limitation:** a join-by-code stage isn't owned, so it won't appear in that DJ's *picker*
+next time — they re-enter the code. Owner-side discovery of shared stages is the Organizer role's job.
+
+**Safety net:** while live, the chosen stage is shown prominently — a badge in the LiveControl panel
+and the full-screen `LiveHUD`, plus a "Broadcasting to: {stage}" line in the QR header — so a
+wrong-stage pick is obvious immediately. (`currentStageId`/`currentStageName` live in `useLiveStore`,
+set by `goLive`, cleared on end.)
 
 ## 8. What's deferred
 
@@ -135,18 +153,21 @@ hooks/components stay thin):
   `hooks/live/stageRotation.test.ts` (NOW_PLAYING peek + dedup, SESSION_STARTED follow / ignore,
   SESSION_ENDED → waiting and *never* terminal).
 - **Desktop** — `config.test.ts` (`getStageListenerUrl` prod vs LAN), `services/stageApi.test.ts`
-  (events/stages fetch + graceful empty fallback), `hooks/live/registerMessage.test.ts`
-  (REGISTER_SESSION includes `stageId`/`token` only when present).
+  (fetch + **create** + **fetchStageById** join-code, with graceful null/empty fallback),
+  `hooks/useLiveStore.test.ts` (`setCurrentStage` set + cleared on reset),
+  `hooks/live/registerMessage.test.ts` (REGISTER_SESSION includes `stageId`/`token` only when present).
 
 ## 11. Manual verification (event-readiness checklist)
 
 Automated tests cover the units; this confirms the wired end-to-end behavior before relying on it
 live. Needs a non-test cloud + Postgres, the web app, and the desktop app.
 
-1. **Seed + provision** — `bun run db:seed:stages` (or `POST /api/events` + `/api/stages`). Note a
-   stage id (e.g. `main-floor`).
-2. **DJ A on the stage** — desktop Go-Live → the Stage picker shows the event → pick the stage →
-   go live. Confirm the QR points to `/stage/{id}` (not `/live/{session}`).
+1. **Seed + provision** — `bun run db:seed:stages -- <your-dj-email>` (owns the events so they show
+   in your picker). Or skip and use the modal's **Create** mode below. Note a stage id (`main-floor`).
+2. **DJ A on the stage** — desktop Go-Live → expand "Broadcast to a stage" →
+   **Pick** the seeded stage, or **Create** an Event+Stage, or **Join by code** (paste a stage id) →
+   go live. Confirm the QR points to `/stage/{id}` (not `/live/{session}`) and the **stage badge**
+   shows in the control panel + full-screen HUD + QR header.
 3. **Dancer joins** — scan the stage QR (or open `/stage/{id}`). Confirm now-playing, likes, tempo,
    listener count all work; the like/reaction lands (check the DJ's feedback).
 4. **Seamless rotation** — DJ A ends; DJ B goes live on the **same** stage. The dancer's phone

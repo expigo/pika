@@ -1,6 +1,7 @@
 import {
-  Battery as BatteryIcon,
   BatteryCharging,
+  Battery as BatteryIcon,
+  Layers,
   QrCode,
   RefreshCcw,
   Users,
@@ -8,8 +9,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PlayWithTrack } from "../db/repositories/sessionRepository";
-import { NetworkHealthIndicator } from "./NetworkHealthIndicator";
 import type { LiveStatus } from "../hooks/useLiveSession";
+import { NetworkHealthIndicator } from "./NetworkHealthIndicator";
 
 interface BatteryManager extends EventTarget {
   level: number;
@@ -38,6 +39,8 @@ interface Props {
   tempoFeedback?: { slower: number; perfect: number; faster: number; total: number } | null;
   liveLikes?: number;
   env?: string;
+  /** Stage this set is broadcasting to (null = standalone). Shown in the HUD. */
+  stageName?: string | null;
 }
 
 export function LiveHUD({
@@ -52,6 +55,7 @@ export function LiveHUD({
   tempoFeedback,
   liveLikes = 0,
   env,
+  stageName,
 }: Omit<Props, "loading" | "localIp">) {
   const [time, setTime] = useState(new Date());
   const [battery, setBattery] = useState<{ level: number; charging: boolean } | null>(null);
@@ -115,6 +119,18 @@ export function LiveHUD({
         <span className="text-slate-400 font-extrabold text-[10px] uppercase tracking-[0.2em] leading-none lining-nums">
           {playCount} PLAYED
         </span>
+        {stageName && (
+          <>
+            <div className="w-px h-6 bg-white/10" />
+            <span
+              className="flex items-center gap-1.5 text-pika-accent font-extrabold text-[10px] uppercase tracking-[0.2em] leading-none max-w-[180px]"
+              title={`Broadcasting to stage: ${stageName}`}
+            >
+              <Layers size={12} className="shrink-0" />
+              <span className="truncate">{stageName}</span>
+            </span>
+          </>
+        )}
         {onForceSync && (
           <>
             <div className="w-px h-6 bg-white/10" />

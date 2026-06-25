@@ -3,6 +3,7 @@ import {
   Check,
   Edit3,
   Gauge,
+  Layers,
   Link2,
   Music2,
   QrCode,
@@ -34,6 +35,8 @@ export function LiveControl() {
     isSessionActive,
     isCloudConnected,
     sessionId,
+    currentStageId,
+    currentStageName,
     listenerCount,
     tempoFeedback,
     goLive,
@@ -52,9 +55,6 @@ export function LiveControl() {
   const [recapCopied, setRecapCopied] = useState(false);
   const [localIp, setLocalIp] = useState<string | null>(null);
   const [isDetectingHistory, setIsDetectingHistory] = useState(false);
-  // Stage this session is broadcasting to (set in the Go-Live modal). Drives the
-  // QR target so dancers join the stage and survive DJ rotation.
-  const [selectedStageId, setSelectedStageId] = useState<string | undefined>(undefined);
 
   // Single "Start Session" modal context (null = closed). Replaces the old
   // duplicate-warning → import → name modal chain.
@@ -71,8 +71,9 @@ export function LiveControl() {
 
   // Generate QR URL only if we have a session (uses local IP if available for LAN testing).
   // When broadcasting to a stage, the QR targets the stage so dancers survive DJ rotation.
-  const qrUrl = selectedStageId
-    ? getStageListenerUrl(selectedStageId, localIp)
+  // Stage comes from the store (set by goLive), so it survives a control-panel remount.
+  const qrUrl = currentStageId
+    ? getStageListenerUrl(currentStageId, localIp)
     : sessionId
       ? getListenerUrl(sessionId, djName, localIp)
       : null;
@@ -83,8 +84,7 @@ export function LiveControl() {
       if (sessionId) {
         setLastSessionId(sessionId);
       }
-      setSelectedStageId(undefined); // clear stage so the next session starts standalone
-      endSet();
+      endSet(); // store reset() clears the stage too
     } else {
       setLastSessionId(null);
       if (!isAuthenticated && !hasSetDjName) {
@@ -134,7 +134,6 @@ export function LiveControl() {
   const handleStart = async (opts: StartOptions) => {
     setStartModal(null);
     const name = opts.name.trim() || `Live Set ${new Date().toLocaleDateString()}`;
-    setSelectedStageId(opts.stageId); // drives the QR target (stage vs session)
 
     try {
       if (opts.importEarlier) {
@@ -164,9 +163,17 @@ export function LiveControl() {
           { sessionId: newSessionId, dbSessionId },
           tracksToSync,
           opts.stageId,
+          opts.stageName,
         );
       } else {
-        await goLive(name, opts.includeCurrentTrack, undefined, undefined, opts.stageId);
+        await goLive(
+          name,
+          opts.includeCurrentTrack,
+          undefined,
+          undefined,
+          opts.stageId,
+          opts.stageName,
+        );
       }
     } catch (error) {
       logger.error("Live Control", "Failed to start session", error);
@@ -257,6 +264,17 @@ export function LiveControl() {
         <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-emerald-500 text-[10px] font-bold shadow-sm shadow-emerald-500/5">
           <Users size={12} />
           <span className="tabular-nums">{listenerCount}</span>
+        </div>
+      )}
+
+      {/* Stage Badge — safety net: which floor this set is broadcasting to */}
+      {isSessionActive && currentStageName && (
+        <div
+          className="flex items-center gap-1.5 px-2.5 py-1.5 bg-pika-accent/10 border border-pika-accent/30 rounded-lg text-pika-accent text-[10px] font-bold max-w-[140px]"
+          title={`Broadcasting to stage: ${currentStageName}`}
+        >
+          <Layers size={12} className="shrink-0" />
+          <span className="truncate">{currentStageName}</span>
         </div>
       )}
 
@@ -536,6 +554,11 @@ export function LiveControl() {
                   <h3 className="text-xl font-bold text-white tracking-tight mt-1">
                     Scan to Listener
                   </h3>
+                  {currentStageName && (
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-pika-accent mt-2">
+                      <Layers size={12} /> Broadcasting to: {currentStageName}
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"

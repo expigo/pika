@@ -7,19 +7,20 @@ import confetti from "canvas-confetti";
 import { Megaphone, Snowflake, StickyNote, Zap } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { getListenerUrl } from "../config";
+import { getListenerUrl, getStageListenerUrl } from "../config";
 import type { PlayReaction } from "../db/schema";
 import { useActivePlay } from "../hooks/useActivePlay";
 import { getStoredSettings } from "../hooks/useDjSettings";
-import { subscribeToReactions, type LiveStatus } from "../hooks/useLiveSession";
+import { type LiveStatus, subscribeToReactions } from "../hooks/useLiveSession";
+import { useLiveStore } from "../hooks/useLiveStore";
+import { CrowdControlDrawer } from "./CrowdControlDrawer";
 import { LiveHUD } from "./LiveHUD";
 import {
-  LiveInteractions,
-  type EndedPoll,
   type Announcement,
+  type EndedPoll,
+  LiveInteractions,
   PollCountdown,
 } from "./LiveInteractions";
-import { CrowdControlDrawer } from "./CrowdControlDrawer";
 
 export interface TempoFeedback {
   slower: number;
@@ -88,7 +89,14 @@ export function LivePerformanceMode({
         : localIp
           ? `${localIp}:3002`
           : "localhost:3002";
-  const qrUrl = sessionId ? getListenerUrl(sessionId, djName, localIp) : "";
+  // Stage (set on go-live) drives the QR + HUD so it survives rotation; falls back to the session.
+  const currentStageId = useLiveStore((s) => s.currentStageId);
+  const currentStageName = useLiveStore((s) => s.currentStageName);
+  const qrUrl = currentStageId
+    ? getStageListenerUrl(currentStageId, localIp)
+    : sessionId
+      ? getListenerUrl(sessionId, djName, localIp)
+      : "";
   const { currentPlay, recentPlays, loading, updateReaction, updateNotes, playCount } =
     useActivePlay(1000); // Poll every 1 second for responsiveness
 
@@ -381,6 +389,7 @@ export function LivePerformanceMode({
         tempoFeedback={tempoFeedback}
         liveLikes={liveLikes}
         env={settings.serverEnv}
+        stageName={currentStageName}
       />
 
       <main className="flex-1 flex flex-col items-center justify-center p-8 overflow-hidden relative">

@@ -572,6 +572,7 @@ export function useLiveSession() {
     setError,
     setSessionId,
     setDbSessionId,
+    setCurrentStage,
     setCurrentPlayId,
     setTempoFeedback,
     reset,
@@ -889,6 +890,7 @@ export function useLiveSession() {
       preCreatedSession?: { sessionId: string; dbSessionId: number },
       historyTracks?: TrackInfo[],
       stageId?: string,
+      stageName?: string,
     ) => {
       if (status === "live" || status === "connecting") {
         logger.debug("Live", "Already live or connecting");
@@ -904,6 +906,8 @@ export function useLiveSession() {
       setStatus("connecting");
       setError(null);
       setSessionId(activeSessionId);
+      // Record the stage (if any) so the live HUD / QR can show it. Cleared by reset() on end.
+      setCurrentStage(stageId ?? null, stageName ?? null);
 
       // 🛡️ Fix: Defer history sync until SESSION_REGISTERED
       if (historyTracks && historyTracks.length > 0) {
@@ -1075,6 +1079,7 @@ export function useLiveSession() {
       setError,
       setSessionId,
       setDbSessionId,
+      setCurrentStage,
       setNowPlaying,
       endSet,
       syncSessionHistory,
@@ -1320,7 +1325,15 @@ export function useLiveSession() {
   // (socket/router/timer teardown is handled by the ref-counted effect above)
 
   // Get activePoll, endedPoll, and liveLikes from store
-  const { activePoll, activeAnnouncement, endedPoll, liveLikes, clearEndedPoll } = useLiveStore();
+  const {
+    activePoll,
+    activeAnnouncement,
+    endedPoll,
+    liveLikes,
+    clearEndedPoll,
+    currentStageId,
+    currentStageName,
+  } = useLiveStore();
 
   return {
     status,
@@ -1329,6 +1342,8 @@ export function useLiveSession() {
     sessionId,
     dbSessionId,
     currentPlayId,
+    currentStageId,
+    currentStageName,
     listenerCount,
     tempoFeedback,
     activePoll,

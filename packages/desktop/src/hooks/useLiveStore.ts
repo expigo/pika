@@ -5,8 +5,8 @@
  * Extracted from useLiveSession.ts for cleaner architecture.
  */
 
-import { create } from "zustand";
 import { logger, type TrackInfo } from "@pika/shared";
+import { create } from "zustand";
 import type { NowPlayingTrack } from "../services/virtualDjWatcher";
 
 export type LiveStatus = "offline" | "connecting" | "live" | "error";
@@ -22,6 +22,8 @@ export interface LiveSessionStore {
   sessionId: string | null; // Cloud session ID
   dbSessionId: number | null; // Database session ID for history/plays
   currentPlayId: number | null; // Current play ID in database
+  currentStageId: string | null; // Stage this session broadcasts to (null = standalone)
+  currentStageName: string | null; // Stage display name, for the live HUD/QR
   listenerCount: number; // Number of connected dancers
   tempoFeedback: { faster: number; slower: number; perfect: number; total: number } | null;
 
@@ -86,6 +88,7 @@ export interface LiveSessionStore {
   setError: (error: string | null) => void;
   setSessionId: (sessionId: string | null) => void;
   setDbSessionId: (dbSessionId: number | null) => void;
+  setCurrentStage: (id: string | null, name: string | null) => void;
   setCurrentPlayId: (playId: number | null) => void;
   setListenerCount: (count: number) => void;
   setTempoFeedback: (
@@ -147,6 +150,8 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   sessionId: null,
   dbSessionId: null,
   currentPlayId: null,
+  currentStageId: null,
+  currentStageName: null,
   listenerCount: 0,
   tempoFeedback: null,
   activePoll: null,
@@ -168,6 +173,7 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
   setError: (error) => set({ error }),
   setSessionId: (sessionId) => set({ sessionId }),
   setDbSessionId: (dbSessionId) => set({ dbSessionId }),
+  setCurrentStage: (currentStageId, currentStageName) => set({ currentStageId, currentStageName }),
   setCurrentPlayId: (currentPlayId) => set({ currentPlayId }),
   setListenerCount: (listenerCount) => set({ listenerCount }),
   setTempoFeedback: (tempoFeedback) => set({ tempoFeedback }),
@@ -230,6 +236,8 @@ export const useLiveStore = create<LiveSessionStore>((set) => ({
       sessionId: null,
       dbSessionId: null,
       currentPlayId: null,
+      currentStageId: null,
+      currentStageName: null,
       listenerCount: 0,
       tempoFeedback: null,
       activePoll: null,
