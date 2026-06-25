@@ -9,6 +9,7 @@
 
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { slugify } from "@pika/shared";
 import { admin as adminPlugin, bearer } from "better-auth/plugins";
 import { db } from "../../db";
 import { ac, admin, dj } from "./permissions";
@@ -43,6 +44,14 @@ export const auth = betterAuth({
   },
   session: { expiresIn: 60 * 60 * 24 * 30 }, // 30d — supports the desktop paste-token flow
   trustedOrigins: trustedOrigins(),
+  databaseHooks: {
+    user: {
+      // Populate the /dj/[slug] profile path from the display name on signup.
+      create: {
+        before: async (u) => ({ data: { ...u, slug: slugify(u.name) } }),
+      },
+    },
+  },
   plugins: [
     bearer(),
     adminPlugin({ ac, roles: { dj, admin }, defaultRole: "dj", adminRoles: ["admin"] }),

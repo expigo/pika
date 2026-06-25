@@ -15,18 +15,11 @@ import {
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
-import { getApiBaseUrl } from "@/lib/api";
+import { authClient } from "@/lib/authClient";
 
-interface RegisterResponse {
-  success: boolean;
-  user?: {
-    id: number;
-    email: string;
-    displayName: string;
-    slug: string;
-  };
-  token?: string;
-  error?: string;
+interface RegisterSuccess {
+  user: { slug?: string | null; name: string };
+  token: string | null; // bearer token for the desktop app
 }
 
 export default function RegisterPage() {
@@ -36,7 +29,7 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<RegisterResponse | null>(null);
+  const [success, setSuccess] = useState<RegisterSuccess | null>(null);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -72,28 +65,23 @@ export default function RegisterPage() {
     }
 
     setLoading(true);
-
+    let token: string | null = null;
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/auth/register`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Pika-Client": "pika-web", // CSRF protection
+      const { data, error: err } = await authClient.signUp.email(
+        { email, password, name: displayName },
+        {
+          onSuccess: (ctx) => {
+            token = ctx.response.headers.get("set-auth-token");
+          },
         },
-        body: JSON.stringify({ email, password, displayName }),
-      });
-
-      const data: RegisterResponse = await response.json();
-
-      if (!response.ok || !data.success) {
-        setError(data.error || "Registration failed");
+      );
+      if (err || !data) {
+        setError(err?.message ?? "Registration failed");
         return;
       }
-
-      setSuccess(data);
-    } catch (e) {
-      logger.error("Registration error", e);
+      const u = data.user as { slug?: string | null; name: string };
+      setSuccess({ user: { slug: u.slug, name: u.name }, token });
+    } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);

@@ -5,18 +5,11 @@ import { AlertCircle, ArrowRight, CheckCircle, Eye, EyeOff, Lock, Mail } from "l
 import Link from "next/link";
 import { useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
-import { getApiBaseUrl } from "@/lib/api";
+import { authClient } from "@/lib/authClient";
 
-interface LoginResponse {
-  success: boolean;
-  user?: {
-    id: number;
-    email: string;
-    displayName: string;
-    slug: string;
-  };
-  token?: string;
-  error?: string;
+interface LoginSuccess {
+  user: { slug?: string | null; name: string };
+  token: string | null; // bearer token for the desktop app
 }
 
 export default function LoginPage() {
@@ -24,7 +17,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<LoginResponse | null>(null);
+  const [success, setSuccess] = useState<LoginSuccess | null>(null);
   const [tokenCopied, setTokenCopied] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -32,30 +25,23 @@ export default function LoginPage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-
+    let token: string | null = null;
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/auth/login`, {
-        method: "POST",
-        credentials: "include", // receive the httpOnly session cookie (web DJ flow)
-        headers: {
-          "Content-Type": "application/json",
-          "X-Pika-Client": "pika-web", // CSRF: global state-changing check
-          "X-Requested-With": "Pika", // CSRF: auth-endpoint check
+      const { data, error: err } = await authClient.signIn.email(
+        { email, password },
+        {
+          onSuccess: (ctx) => {
+            token = ctx.response.headers.get("set-auth-token");
+          },
         },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data: LoginResponse = await response.json();
-
-      if (!response.ok || !data.success) {
-        setError(data.error || "Login failed");
+      );
+      if (err || !data) {
+        setError(err?.message ?? "Login failed");
         return;
       }
-
-      setSuccess(data);
-    } catch (e) {
-      logger.error("Login error", e);
+      const u = data.user as { slug?: string | null; name: string };
+      setSuccess({ user: { slug: u.slug, name: u.name }, token });
+    } catch {
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
@@ -114,7 +100,7 @@ export default function LoginPage() {
               </h1>
               <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-emerald-500/10 rounded-full text-[9px] font-bold text-emerald-500/80 uppercase tracking-[0.3em]">
                 <span className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
-                Welcome Back, {success.user?.displayName}
+                Welcome Back, {success.user?.name}
               </div>
             </div>
 
