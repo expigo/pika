@@ -32,14 +32,13 @@ import { events, stages } from "../db/schema";
 import { validateToken } from "../lib/auth";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
+import { applyNowPlaying, createLiveSession } from "../lib/live-session";
 import { checkAndRecordNonce } from "../lib/nonces";
 import { getAnnouncementPushTargets } from "../lib/persistence/push-targets";
 import { cleanupSessionQueue } from "../lib/persistence/queue";
-import { endSessionInDb, persistedSessions, persistSession } from "../lib/persistence/sessions";
+import { endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
 import {
   clearLastPersistedTrackKey,
-  discardPendingTracks,
-  flushPendingTracks,
   persistTempoVotes,
   persistTrack,
 } from "../lib/persistence/tracks";
@@ -52,12 +51,10 @@ import {
   getSession,
   getSessionBroadcastTopic,
   getSessionCount,
-  type LiveSession,
-  setSession,
   setSessionAnnouncement,
   updateSessionTrack,
 } from "../lib/sessions";
-import { clearStageActiveSession, setStageActiveSession } from "../lib/stages";
+import { clearStageActiveSession } from "../lib/stages";
 import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
 import { DISCOVERY_TOPIC } from "../lib/topics";
 import { PushService } from "../services/push";
@@ -66,6 +63,7 @@ import type { WSContext } from "./ws-context";
 
 // 🛡️ Rate Limiting State
 // Max 1000 concurrent sessions to prevent memory exhaustion (M5)
+// biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 const MAX_CONCURRENT_SESSIONS = Number(process.env["MAX_SESSIONS"] ?? 1000);
 export const lastBroadcastTime = new Map<string, number>();
 
@@ -187,29 +185,25 @@ export async function handleRegisterSession(ctx: WSContext) {
     }
   }
 
-  const session: LiveSession = {
-    sessionId,
-    djName,
-    startedAt: new Date().toISOString(),
-    lastActivityAt: new Date().toISOString(),
-    ...(stageId && { stageId }),
-    ...(stageName && { stageName }),
-    ...(eventName && { eventName }),
-  };
-
   // 🔧 CRITICAL FIX: Set state.djSessionId BEFORE any async operations
   // This ensures cleanup happens even if disconnect occurs during DB persist
   state.djSessionId = sessionId;
   logger.debug(`🔍 [REGISTER_SESSION] state.djSessionId SET to: ${sessionId}`);
 
-  setSession(sessionId, session);
-  // Claim the stage so dancers already on it follow this DJ (and joiners sync to us).
-  if (stageId) setStageActiveSession(stageId, sessionId);
+  // Create + persist the session (shared core; also used by the Track D Spotify poller).
+  const { session } = await createLiveSession({
+    sessionId,
+    djName,
+    djUserId,
+    ...(stageId && { stageId }),
+    ...(stageName && { stageName }),
+    ...(eventName && { eventName }),
+  });
 
   // Subscribe this DJ connection to the session's audience topic (the stage
   // topic when staged, else the per-session topic) so it receives dancer
-  // feedback (likes, reactions, tempo, poll votes). Resolved AFTER setSession so
-  // the stageId is visible. Idempotent on reconnect.
+  // feedback (likes, reactions, tempo, poll votes). Resolved AFTER the session
+  // exists so the stageId is visible. Idempotent on reconnect.
   rawWs.subscribe(getSessionBroadcastTopic(sessionId));
 
   logger.info("🎧 DJ going live", {
@@ -217,20 +211,6 @@ export async function handleRegisterSession(ctx: WSContext) {
     sessionId,
     mode: djUserId ? "Verified" : "Anonymous",
   });
-
-  // 💾 Persist to database (async, but state is already set for cleanup)
-  const sessionPersisted = await persistSession(sessionId, djName, djUserId, stageId ?? null);
-  logger.debug(`✅ Session ready for polls: ${sessionId}`);
-
-  // C3: flush any plays that arrived before the session row landed (go-live race).
-  // Fire-and-forget so it doesn't delay the SESSION_REGISTERED / ACK response.
-  if (sessionPersisted) {
-    flushPendingTracks(sessionId).catch((e) =>
-      logger.error("❌ Failed to flush buffered plays", e),
-    );
-  } else {
-    discardPendingTracks(sessionId);
-  }
 
   // Confirm registration to the client
   ws.send(
@@ -300,64 +280,15 @@ export async function handleBroadcastTrack(ctx: WSContext) {
     return;
   }
 
-  const session = getSession(msg.sessionId);
-  if (session) {
-    // 🎚️ Persist tempo votes for the PREVIOUS track (if any)
-    if (session.currentTrack) {
-      const prevTrack = session.currentTrack;
-      const isNewTrack =
-        prevTrack.artist !== msg.track.artist || prevTrack.title !== msg.track.title;
-
-      if (isNewTrack) {
-        const feedback = getTempoFeedback(msg.sessionId);
-        if (feedback.total > 0) {
-          persistTempoVotes(msg.sessionId, prevTrack, {
-            slower: feedback.slower,
-            perfect: feedback.perfect,
-            faster: feedback.faster,
-          });
-        }
-
-        // Clear tempo votes for this session
-        clearTempoVotes(msg.sessionId);
-
-        // Broadcast to this session's clients to reset their tempo vote UI
-        if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
-          rawWs.publish(
-            getSessionBroadcastTopic(msg.sessionId),
-            JSON.stringify({
-              type: "TEMPO_RESET",
-              sessionId: msg.sessionId,
-            }),
-          );
-        }
-      }
-    }
-
-    updateSessionTrack(msg.sessionId, msg.track);
-    logger.info("🎵 Now playing", {
-      artist: msg.track.artist,
-      title: msg.track.title,
-      sessionId: msg.sessionId,
-    });
-
-    // Broadcast new track to this session's subscribers
+  // Publish via THIS DJ socket so the sender is excluded and backpressure is honoured
+  // (the poller uses a getBroadcaster() publisher instead — see live-session.ts).
+  const publish = (topic: string, data: string) => {
     if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
-      rawWs.publish(
-        getSessionBroadcastTopic(msg.sessionId),
-        JSON.stringify({
-          type: "NOW_PLAYING",
-          sessionId: msg.sessionId,
-          djName: session.djName,
-          track: msg.track,
-        }),
-      );
+      rawWs.publish(topic, data);
     }
+  };
 
-    // 💾 Persist track (Fire-and-forget, handled by queue)
-    persistTrack(msg.sessionId, msg.track).catch((err) => {
-      logger.error(`❌ DB Error: Failed to persist track for ${msg.sessionId}`, err);
-    });
+  if (applyNowPlaying(msg.sessionId, msg.track, publish)) {
     if (messageId) sendAck(ws, messageId);
   } else {
     if (messageId) sendNack(ws, messageId, "Session not found");
