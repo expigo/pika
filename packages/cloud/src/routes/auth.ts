@@ -8,11 +8,20 @@
 import { LIMITS, logger, slugify } from "@pika/shared";
 import { desc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
+import { getCookie } from "hono/cookie";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
 import * as schema from "../db/schema";
-import { generateToken, hashPassword, hashToken, validateToken, verifyPassword } from "../lib/auth";
+import {
+  generateToken,
+  hashPassword,
+  hashToken,
+  SESSION_COOKIE,
+  setSessionCookie,
+  validateToken,
+  verifyPassword,
+} from "../lib/auth";
 
 const auth = new Hono();
 
@@ -145,6 +154,7 @@ auth.post("/register", authLimiter, async (c) => {
         passwordHash,
         displayName,
         slug,
+        status: "pending", // manual approval gate (Track D) — must be approved before login
       })
       .returning({ id: schema.djUsers.id });
 
@@ -162,11 +172,12 @@ auth.post("/register", authLimiter, async (c) => {
       name: "Default",
     });
 
-    logger.info("✅ DJ registered", { displayName, email });
+    logger.info("✅ DJ registered (pending approval)", { displayName, email });
 
     return c.json(
       {
         success: true,
+        pendingApproval: true, // account created but cannot go live until approved
         user: {
           id: newUser.id,
           email: email.toLowerCase(),
@@ -210,6 +221,7 @@ auth.post("/login", authLimiter, async (c) => {
         passwordHash: schema.djUsers.passwordHash,
         displayName: schema.djUsers.displayName,
         slug: schema.djUsers.slug,
+        status: schema.djUsers.status,
       })
       .from(schema.djUsers)
       .where(eq(schema.djUsers.email, email.toLowerCase()))
@@ -230,6 +242,13 @@ auth.post("/login", authLimiter, async (c) => {
       return c.json({ error: "Invalid email or password" }, 401);
     }
 
+    // 🔒 Manual approval gate (Track D): an unapproved account authenticates but cannot
+    // establish a session / go live. Checked AFTER password verification so it isn't an
+    // account-existence oracle.
+    if (user.status === "pending") {
+      return c.json({ error: "Your account is awaiting approval", pendingApproval: true }, 403);
+    }
+
     // Generate NEW token
     const token = generateToken();
     const tokenHash = await hashToken(token);
@@ -242,6 +261,9 @@ auth.post("/login", authLimiter, async (c) => {
 
     // Bound stored tokens per user (multi-device friendly, but not unbounded).
     await pruneUserTokens(user.id);
+
+    // Web BFF: also set the httpOnly session cookie (desktop ignores it and uses the JSON token).
+    setSessionCookie(c, token);
 
     logger.info("✅ DJ logged in", { displayName: user.displayName, email: user.email });
 
@@ -266,18 +288,23 @@ auth.post("/login", authLimiter, async (c) => {
  * Validate token and return user info
  */
 auth.get("/me", async (c) => {
+  // Accept the Bearer token (desktop) OR the httpOnly session cookie (web).
   const authHeader = c.req.header("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.substring(7)
+    : getCookie(c, SESSION_COOKIE);
+
+  if (!token) {
     return c.json({ error: "Authorization token required" }, 401);
   }
 
-  const token = authHeader.substring(7);
   const user = await validateToken(token);
 
   if (!user) {
     return c.json({ error: "Invalid token" }, 401);
   }
 
+  // `user` includes `status` so the web app can reflect approval state.
   return c.json({
     success: true,
     user,
