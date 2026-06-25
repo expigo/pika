@@ -5,29 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1782142072541,
-      "tag": "0000_bent_proemial_gods",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1782370030369,
-      "tag": "0001_loud_warhawk",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1782409073307,
-      "tag": "0002_cuddly_cargill",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1782421260893,
-      "tag": "0003_true_hiroim",
+      "when": 1782427415135,
+      "tag": "0000_tough_rictor",
       "breakpoints": true
     }
   ]

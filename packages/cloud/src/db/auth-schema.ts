@@ -17,6 +17,7 @@ export const user = pgTable("user", {
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
   status: text("status").default("pending"),
+  slug: text("slug"),
 });
 
 export const session = pgTable(

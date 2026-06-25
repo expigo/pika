@@ -37,6 +37,8 @@ export const auth = betterAuth({
     additionalFields: {
       // Approval gate (Pika): new accounts are 'pending'; route guards require 'approved'.
       status: { type: "string", required: false, defaultValue: "pending", input: false },
+      // URL-friendly DJ profile path (/dj/[slug]); populated from `name` on create (databaseHook).
+      slug: { type: "string", required: false, input: false },
     },
   },
   session: { expiresIn: 60 * 60 * 24 * 30 }, // 30d — supports the desktop paste-token flow

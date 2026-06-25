@@ -20,41 +20,14 @@ import {
 // auth. Re-exported so `db` (drizzle with `* as schema`) includes them for the Better Auth adapter.
 export * from "./auth-schema";
 
-// ============================================================================
-// DJ Users & Authentication
-// ============================================================================
+import { user } from "./auth-schema";
 
-/**
- * DJ Accounts for authentication and profile management.
- */
-export const djUsers = pgTable("dj_users", {
-  id: serial("id").primaryKey(),
-  email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(), // bcrypt hash for security
-  displayName: text("display_name").notNull(),
-  slug: text("slug").notNull().unique(), // URL-friendly profile path
-  // Manual approval gate (Track D): new registrations are set 'pending'; login refuses any
-  // status other than 'approved'. Default 'approved' grandfathers existing accounts on migration.
-  status: text("status").notNull().default("approved"), // 'pending' | 'approved' | 'rejected'
-  // Access role (admin panel). Extensible to 'organizer' | 'dancer' as those roles land.
-  role: text("role").notNull().default("dj"), // 'dj' | 'admin'
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-
-/**
- * Persisted API/Session tokens for DJ authentication.
- * Allows multiple devices/keys per DJ account.
- */
-export const djTokens = pgTable("dj_tokens", {
-  id: serial("id").primaryKey(),
-  djUserId: integer("dj_user_id")
-    .notNull()
-    .references(() => djUsers.id, { onDelete: "cascade" }),
-  token: text("token").notNull().unique(),
-  name: text("name").default("Default"),
-  lastUsed: timestamp("last_used"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+// ============================================================================
+// DJ Users & Authentication → Better Auth (db/auth-schema.ts)
+// ============================================================================
+// DJ accounts + tokens are now Better Auth's `user` / `session` / `account` tables. The Pika
+// specifics live on `user`: `status` (approval: pending|approved|rejected), `role` (dj|admin),
+// `slug` (/dj/[slug] profile path). FK columns below reference `user.id` (text).
 
 // ============================================================================
 // Stages & Events (multi-DJ venue model)
@@ -69,7 +42,7 @@ export const djTokens = pgTable("dj_tokens", {
 export const events = pgTable("events", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
-  ownerUserId: integer("owner_user_id").references(() => djUsers.id, { onDelete: "set null" }),
+  ownerUserId: text("owner_user_id").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   archivedAt: timestamp("archived_at"), // soft-delete; preserves history
 });
@@ -129,7 +102,7 @@ export const sessions = pgTable(
   "sessions",
   {
     id: text("id").primaryKey(),
-    djUserId: integer("dj_user_id").references(() => djUsers.id), // Optional for legacy compatibility
+    djUserId: text("dj_user_id").references(() => user.id), // nullable: anonymous/legacy sessions
     stageId: text("stage_id").references(() => stages.id, { onDelete: "set null" }), // nullable: a stage-less session behaves exactly as before
     djName: text("dj_name").notNull(),
     startedAt: timestamp("started_at").defaultNow().notNull(),
@@ -364,7 +337,7 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   p256dh: text("p256dh").notNull(), // Encryption public key
   auth: text("auth").notNull(), // Authentication secret
   clientId: text("client_id"), // Browser identity for targeted notifications
-  userId: integer("user_id").references(() => djUsers.id), // Link to DJ if authenticated
+  userId: text("user_id").references(() => user.id), // Link to DJ if authenticated
   createdAt: timestamp("created_at").defaultNow().notNull(),
   unsubscribedAt: timestamp("unsubscribed_at"), // Opt-out flag
 });
@@ -380,9 +353,9 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
  */
 export const spotifyConnections = pgTable("spotify_connections", {
   id: serial("id").primaryKey(),
-  djUserId: integer("dj_user_id")
+  djUserId: text("dj_user_id")
     .notNull()
-    .references(() => djUsers.id, { onDelete: "cascade" })
+    .references(() => user.id, { onDelete: "cascade" })
     .unique(),
   refreshTokenEnc: text("refresh_token_enc").notNull(), // encrypted refresh token
   scope: text("scope").notNull(),
@@ -405,9 +378,9 @@ export const livePollers = pgTable(
   "live_pollers",
   {
     id: serial("id").primaryKey(),
-    djUserId: integer("dj_user_id")
+    djUserId: text("dj_user_id")
       .notNull()
-      .references(() => djUsers.id, { onDelete: "cascade" }),
+      .references(() => user.id, { onDelete: "cascade" }),
     sessionId: text("session_id")
       .notNull()
       .references(() => sessions.id, { onDelete: "cascade" }),
@@ -436,7 +409,7 @@ export const adminAudit = pgTable(
   "admin_audit",
   {
     id: serial("id").primaryKey(),
-    adminUserId: integer("admin_user_id").references(() => djUsers.id, { onDelete: "set null" }),
+    adminUserId: text("admin_user_id").references(() => user.id, { onDelete: "set null" }),
     action: text("action").notNull(), // e.g. 'dj.approve' | 'dj.reject'
     targetType: text("target_type"), // e.g. 'dj_user'
     targetId: text("target_id"), // stringified id of the target
