@@ -16,6 +16,10 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 
+// Better Auth tables (user/session/account/verification) — CLI-generated, the source of truth for
+// auth. Re-exported so `db` (drizzle with `* as schema`) includes them for the Better Auth adapter.
+export * from "./auth-schema";
+
 // ============================================================================
 // DJ Users & Authentication
 // ============================================================================
