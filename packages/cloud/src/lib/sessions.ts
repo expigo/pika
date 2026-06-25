@@ -42,6 +42,10 @@ export interface LiveSession {
    * the REGISTER_SESSION handler in the stage-topic routing phase.
    */
   stageId?: string;
+  /** Stage + parent-event display names, cached at REGISTER so the polled
+   * /api/sessions/active endpoint can label live stages without a DB hit. */
+  stageName?: string;
+  eventName?: string;
 }
 
 // ============================================================================

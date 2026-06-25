@@ -56,6 +56,11 @@ sessions.get("/active", (c) => {
       sessionId: session.sessionId,
       djName: session.djName,
       startedAt: session.startedAt,
+      // Stage context (when this session runs under a stage) so the landing page
+      // can route a visitor to /stage/{id} — following rotation — and label it.
+      stageId: session.stageId ?? null,
+      stageName: session.stageName ?? null,
+      eventName: session.eventName ?? null,
       currentTrack: session.currentTrack
         ? {
             title: session.currentTrack.title,

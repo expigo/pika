@@ -23,6 +23,11 @@ interface ActiveSession {
   sessionId: string;
   djName: string;
   startedAt: string;
+  // Stage context (present when this session runs under a stage) — routes the
+  // landing visitor to /stage/{id} so they follow DJ rotation.
+  stageId?: string | null;
+  stageName?: string | null;
+  eventName?: string | null;
   currentTrack: {
     title: string;
     artist: string;
@@ -80,6 +85,17 @@ export default function LandingPage() {
   const firstSession = liveData?.sessions[0];
   const isMultipleDJs = sessionCount > 1;
 
+  // Where the live CTA points: the hub for multiple DJs; a single session's
+  // STAGE when it's staged (so the visitor follows rotation, not one DJ); else
+  // that session; else the lobby.
+  const liveHref = isMultipleDJs
+    ? "/live"
+    : firstSession?.stageId
+      ? `/stage/${firstSession.stageId}`
+      : firstSession
+        ? `/live/${firstSession.sessionId}`
+        : "/live";
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-purple-500/30">
       {/* 🔴 LIVE BANNER */}
@@ -94,6 +110,11 @@ export default function LandingPage() {
               <p className="font-black italic uppercase tracking-wider">
                 {isMultipleDJs ? (
                   <span>{sessionCount} DJs LIVE NOW</span>
+                ) : firstSession.stageName ? (
+                  <span>
+                    {firstSession.stageName} LIVE
+                    {firstSession.eventName ? ` · ${firstSession.eventName}` : ""}
+                  </span>
                 ) : (
                   <span>{firstSession.djName} IS LIVE</span>
                 )}
@@ -101,10 +122,10 @@ export default function LandingPage() {
             </div>
 
             <Link
-              href={isMultipleDJs ? "/live" : `/live/${firstSession.sessionId}`}
+              href={liveHref}
               className="px-4 py-1.5 bg-white text-red-600 rounded-full font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 active:scale-95 transition-all shadow-xl flex items-center gap-2"
             >
-              {isMultipleDJs ? "ENTER HUB" : "JOIN FLOOR"}
+              {isMultipleDJs ? "ENTER HUB" : firstSession.stageId ? "JOIN STAGE" : "JOIN FLOOR"}
               <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
@@ -168,13 +189,7 @@ export default function LandingPage() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-6 relative z-10 w-full mb-12">
               <div className="relative group/dancer w-full sm:w-80">
                 <Link
-                  href={
-                    isLive
-                      ? isMultipleDJs
-                        ? "/live"
-                        : `/live/${firstSession?.sessionId}`
-                      : "/live"
-                  }
+                  href={liveHref}
                   className="group relative w-full px-12 py-5 bg-white text-slate-950 font-bold rounded-2xl hover:shadow-[0_20px_40px_rgba(236,72,153,0.2)] hover:-translate-y-0.5 active:scale-[0.98] transition-all overflow-hidden flex items-center justify-center gap-3"
                 >
                   <Smartphone className="w-5 h-5 group-hover:text-rose-600 transition-colors" />

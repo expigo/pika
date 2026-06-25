@@ -28,7 +28,7 @@ import {
 } from "@pika/shared";
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../db";
-import { stages } from "../db/schema";
+import { events, stages } from "../db/schema";
 import { validateToken } from "../lib/auth";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
@@ -162,16 +162,23 @@ export async function handleRegisterSession(ctx: WSContext) {
   // persist* NODE_ENV short-circuit). An unknown stage is ignored (the session
   // falls back to its own per-session topic — no regression).
   let stageId: string | undefined;
+  let stageName: string | undefined;
+  let eventName: string | undefined;
   if (msg.stageId) {
     if (process.env.NODE_ENV === "test") {
       stageId = msg.stageId;
     } else {
+      // Enriched with names (+ parent event) so the polled /api/sessions/active
+      // can label the live stage without its own DB round-trip.
       const [stage] = await db
-        .select({ id: stages.id })
+        .select({ id: stages.id, name: stages.name, eventName: events.name })
         .from(stages)
+        .leftJoin(events, eq(events.id, stages.eventId))
         .where(and(eq(stages.id, msg.stageId), isNull(stages.archivedAt)));
       if (stage) {
         stageId = stage.id;
+        stageName = stage.name;
+        eventName = stage.eventName ?? undefined;
       } else {
         logger.warn("⚠️ REGISTER_SESSION referenced an unknown stage; ignoring", {
           stageId: msg.stageId,
@@ -186,6 +193,8 @@ export async function handleRegisterSession(ctx: WSContext) {
     startedAt: new Date().toISOString(),
     lastActivityAt: new Date().toISOString(),
     ...(stageId && { stageId }),
+    ...(stageName && { stageName }),
+    ...(eventName && { eventName }),
   };
 
   // 🔧 CRITICAL FIX: Set state.djSessionId BEFORE any async operations
