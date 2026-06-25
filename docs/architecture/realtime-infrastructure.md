@@ -38,14 +38,16 @@ The connection is established via WebSockets (`wss://`).
 
 #### Pub/Sub Topic Routing
 
-Broadcasting is split across two kinds of Bun pub/sub topics (defined in [`src/lib/topics.ts`](../../packages/cloud/src/lib/topics.ts)):
+Broadcasting is split across a four-tier hierarchy of Bun pub/sub topics (defined in [`src/lib/topics.ts`](../../packages/cloud/src/lib/topics.ts)). For the per-audience tier, a session resolves to its **stage** topic when it runs under a Stage, else its own **session** topic — see [stage-event-model.md](stage-event-model.md):
 
 | Topic | Who subscribes | Carries |
 |-------|----------------|---------|
-| `live-session` (discovery / "lobby") | **every** connection, on open | Rare lifecycle events only: `SESSION_STARTED`, `SESSION_ENDED`, `SESSION_EXPIRED`, `SERVER_SHUTDOWN` |
-| `session:{id}` (per-session) | dancers on `SUBSCRIBE`; the DJ on `REGISTER_SESSION` | **All** high-frequency, session-scoped traffic: `NOW_PLAYING`, `METADATA_UPDATED`, `TRACK_STOPPED`, `LIKE_RECEIVED`/`LIKE_REMOVED`, `REACTION_RECEIVED`, `TEMPO_FEEDBACK`/`TEMPO_RESET`, `ANNOUNCEMENT_*`, `POLL_*`, `LISTENER_COUNT`, `HISTORY_SYNCED` |
+| `live-session` (discovery / "lobby") | **every** connection, on open | Rare lifecycle events only: `SESSION_STARTED`, `SESSION_ENDED`, `SESSION_EXPIRED`, `SERVER_SHUTDOWN` (a staged session tags these with `stageId`) |
+| `event:{id}` | dancers on any stage of the event (auto, via `SUBSCRIBE_STAGE`) | event-wide organizer announcements |
+| `stage:{id}` | dancers on `SUBSCRIBE_STAGE`; the DJ on `REGISTER_SESSION` (when staged) | a staged session's high-frequency traffic — they stay subscribed **across DJ rotation** |
+| `session:{id}` | dancers on `SUBSCRIBE`; the DJ on `REGISTER_SESSION` (stage-less) | **All** high-frequency, session-scoped traffic: `NOW_PLAYING`, `METADATA_UPDATED`, `TRACK_STOPPED`, `LIKE_RECEIVED`/`LIKE_REMOVED`, `REACTION_RECEIVED`, `TEMPO_FEEDBACK`/`TEMPO_RESET`, `ANNOUNCEMENT_*`, `POLL_*`, `LISTENER_COUNT`, `HISTORY_SYNCED` |
 
-**Why:** routing per-session traffic to per-session topics makes cross-session delivery *impossible* (no client-side `sessionId` filtering required) and collapses fan-out from O(all clients) to O(clients in that session).
+**Why:** routing per-audience traffic to per-audience topics makes cross-audience delivery *impossible* (no client-side `sessionId` filtering required) and collapses fan-out from O(all clients) to O(clients in that session/stage). The session→topic resolution is centralized in `getSessionBroadcastTopic` (`lib/sessions.ts`), so every publish site is a 1:1 swap.
 
 **Publish semantics (important):**
 *   **Handler broadcasts** (originated by a client message) use `ws.publish(topic, …)`, which *excludes the originating socket* — so a DJ doesn't get its own `NOW_PLAYING` echoed and a dancer doesn't get its own like echoed back.

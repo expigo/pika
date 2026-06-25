@@ -17,6 +17,12 @@ Pika! is built as a **Local-First, Cloud-Synced** system using a **Bun Workspace
 | **`@pika/web`** | The audience interface. Real-time track viewing, liking, and engagement for dancers. | Next.js 16, React 19, Tailwind 4, Serwist (PWA) |
 | **`@pika/shared`** | Shared business logic, Zod schemas, types, and configuration. | TypeScript, Zod |
 
+**Multi-DJ venue model (Stage / Event):** sessions can run under a persistent **Stage** (a venue
+floor that outlives a DJ set) grouped into an **Event**. Dancers subscribe to a stage and follow
+DJ rotation seamlessly; push is scoped per stage/event. Cloud tables: `events`, `stages`,
+`stage_subscriptions`, plus a nullable `sessions.stage_id` (additive — a stage-less session is
+unchanged). See [architecture/stage-event-model.md](architecture/stage-event-model.md).
+
 ---
 
 ## 3. Key Directory Map (Where is the Magic?)

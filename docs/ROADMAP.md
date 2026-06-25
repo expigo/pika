@@ -128,6 +128,7 @@ This is the central index for the Pika! project, tracking active development, fu
 *   [**Deployment**](architecture/deployment.md) - VPS, Cloudflare Tunnel, CI/CD, Docker.
 *   [**Audio Analysis**](architecture/audio-analysis.md) - Local Python sidecar, librosa integration, Deep Intelligence heuristics.
 *   [**Realtime Infrastructure**](architecture/realtime-infrastructure.md) - WebSocket, offline queues, ACK/NACK.
+*   [**Stage / Event Model**](architecture/stage-event-model.md) - Multi-DJ venue model: persistent stages, seamless DJ rotation, scoped push. **(NEW)**
 *   [**Schema Versioning**](architecture/schema-versioning.md) - Track analysis versioning for re-analysis.
 *   [**Performance Guide**](architecture/performance-guide.md) - Optimization strategies and bottlenecks.
 *   [**Social Signals**](architecture/social-signals.md) - Likes, Votes, Listener Counts.
