@@ -1141,7 +1141,7 @@ export default function AdminApprovals() {
 
 ### **External Services**
 - ✅ **NOT REQUIRED:** Spotify API (optional future enhancement)
-- ✅ **Already Have:** Redis/Valkey (in docker-compose)
+- ⚠️ **NOT WIRED:** Redis/Valkey. A `valkey` container exists in `docker-compose.yml` (dev only) but is **absent from prod/staging compose and unused by any application code**. It is a deferred scale-out swap, *not* a current dependency — see [`architecture_decision_analysis.md`](architecture_decision_analysis.md). Do not plan against it as if present.
 - ✅ **Already Have:** Postgres (in docker-compose)
 
 ### **New Dependencies**

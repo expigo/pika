@@ -68,6 +68,7 @@ makes it worth doing.
 | # | Item | What / where | Trigger | Effort |
 |---|------|--------------|---------|--------|
 | 11 | **Dedupe drizzle-orm versions** | Both `drizzle-orm@0.45.1` and `0.45.2` resolve in the lockfile (a transitive pulls 0.45.1; our deps want `^0.45.2`). Harmless but untidy. | Next dependency cleanup. | S |
+| 12 | **Redis/Valkey scale-out swap** | All hot relay state is per-process in-memory Maps + Bun pub/sub (`lib/topics.ts`, which already maps 1:1 onto pub/sub channels). A `valkey` container exists in dev `docker-compose.yml` but is **unused by app code** and absent from prod/staging. Swapping enables multi-instance horizontal scale and/or sessions surviving a restart (zero-downtime deploys). **Use Valkey, not Redis** (BSD/Linux-Foundation vs Redis SSPL/RSALv2 relicensing). NOT feature infra — the Stage/Event model is built on Postgres + Bun pub/sub, not this. See `blueprints/architecture_decision_analysis.md`. | Sustained load one Bun process can't hold (>~2,500 concurrent), OR zero-downtime deploys become required *during* live events. Neither holds at 1-DJ / ≤300. | L |
 
 ---
 

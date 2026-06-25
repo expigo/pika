@@ -1,7 +1,7 @@
 # Pika! Next Architecture: The "Stage" & "Redis" Era
 
 **Date:** 2026-01-27
-**Status:** Approved / In Progress
+**Status:** ⚠️ **Superseded (2026-06-25)** — the *product model* (Stage/Event, scoped push, DJ rotation, role hierarchy) is retained and being implemented; the *technical strategy* ("Redis-First", §4) is **rejected**. Build on Postgres + the existing Bun in-memory pub/sub instead; Redis/**Valkey** is a deferred, signal-driven scale-out swap, not feature infrastructure. See [`architecture_decision_analysis.md`](architecture_decision_analysis.md) for the rationale and [`../architecture/stage-event-model.md`](../architecture/stage-event-model.md) for the canonical implementation design.
 **Context:** Result of the "Global Megaphone" audit and strategic planning session.
 
 ## 1. The Core Problems
@@ -53,6 +53,8 @@ We are elevating the architecture to support **Event-Level Subscriptions**.
 ---
 
 ## 4. Technical Strategy: Redis-First
+
+> ⚠️ **This section is superseded.** The Stage/Event model is a data + topic-routing concern, not an infrastructure one. It is implemented on Postgres (scoped push via a `stage_subscriptions` join table — see [`../architecture/stage-event-model.md`](../architecture/stage-event-model.md)) and the existing per-instance Bun pub/sub (`packages/cloud/src/lib/topics.ts`). The "Global Megaphone" is a query-scoping bug, not a missing datastore. Redis/**Valkey** remains a clean, deferred swap (`topics.ts` already maps 1:1 onto pub/sub channels), triggered only by a real horizontal-scale (>~2,500 concurrent) or zero-downtime-during-live-events need. The original Redis-first plan is kept below for historical context.
 
 To enable this real-time, topic-based routing efficiently, we are adopting **Redis** as the core infrastructure for ephemeral state.
 
