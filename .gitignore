@@ -227,3 +227,6 @@ packages/desktop/src-tauri/binaries/
 playwright-report/
 test-results/
 *.tsbuildinfo
+
+# Claude Code worktrees (isolated parallel sessions live here; never track them)
+.claude/worktrees/

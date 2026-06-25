@@ -1,0 +1,7 @@
+# Copied into new Claude Code worktrees (.gitignore syntax).
+# Only files that match AND are gitignored are copied — tracked files are never duplicated.
+# These are the per-package secrets a fresh checkout needs to run cloud/web/desktop.
+# (node_modules is NOT copied — run `bun install` in each new worktree.)
+packages/cloud/.env
+packages/desktop/.env
+packages/web/.env.local
