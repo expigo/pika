@@ -230,3 +230,6 @@ test-results/
 
 # Claude Code worktrees (isolated parallel sessions live here; never track them)
 .claude/worktrees/
+
+# Throwaway spikes (not merged)
+scripts/spotify-nowplaying-spike.ts

@@ -15,6 +15,13 @@
       "when": 1782370030369,
       "tag": "0001_loud_warhawk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782409073307,
+      "tag": "0002_cuddly_cargill",
+      "breakpoints": true
     }
   ]
 }

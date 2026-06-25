@@ -29,6 +29,9 @@ export const djUsers = pgTable("dj_users", {
   passwordHash: text("password_hash").notNull(), // bcrypt hash for security
   displayName: text("display_name").notNull(),
   slug: text("slug").notNull().unique(), // URL-friendly profile path
+  // Manual approval gate (Track D): new registrations are set 'pending'; login refuses them.
+  // Column default 'approved' grandfathers existing accounts on migration.
+  status: text("status").notNull().default("approved"), // 'pending' | 'approved'
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -359,3 +362,58 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   unsubscribedAt: timestamp("unsubscribed_at"), // Opt-out flag
 });
+
+// ============================================================================
+// Spotify Connections (Track D — Web DJ Spotify-source broadcaster)
+// ============================================================================
+
+/**
+ * Per-DJ Spotify account link (BFF). The cloud holds the OAuth refresh token so it can poll
+ * the DJ's now-playing server-side. The token is AES-256-GCM encrypted at rest (lib/crypto.ts)
+ * and NEVER sent to the browser. One connection per DJ.
+ */
+export const spotifyConnections = pgTable("spotify_connections", {
+  id: serial("id").primaryKey(),
+  djUserId: integer("dj_user_id")
+    .notNull()
+    .references(() => djUsers.id, { onDelete: "cascade" })
+    .unique(),
+  refreshTokenEnc: text("refresh_token_enc").notNull(), // encrypted refresh token
+  scope: text("scope").notNull(),
+  spotifyUserId: text("spotify_user_id"),
+  status: text("status").notNull().default("active"), // 'active' | 'needs_reauth'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ============================================================================
+// Live Pollers (Track D — server-side now-playing poll loops)
+// ============================================================================
+
+/**
+ * One row per active server-side Spotify poll loop ("virtual DJ"). Persisted so loops resume
+ * after a cloud restart and so cleanup survives crashes. `leaseOwner` is the seam for future
+ * multi-instance coordination (single-instance today; Redis deferred).
+ */
+export const livePollers = pgTable(
+  "live_pollers",
+  {
+    id: serial("id").primaryKey(),
+    djUserId: integer("dj_user_id")
+      .notNull()
+      .references(() => djUsers.id, { onDelete: "cascade" }),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("running"), // 'running' | 'paused' | 'stopped'
+    leaseOwner: text("lease_owner"), // cloud instance id holding the loop
+    heartbeatAt: timestamp("heartbeat_at").defaultNow().notNull(),
+    startedAt: timestamp("started_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxDjUserId: index("idx_live_pollers_dj_user_id").on(table.djUserId),
+    idxStatus: index("idx_live_pollers_status").on(table.status),
+    // One poller per session
+    uniqueSession: unique("unique_live_poller_session").on(table.sessionId),
+  }),
+);

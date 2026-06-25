@@ -302,8 +302,11 @@ Why it matters:
   **manual-correction UI** (DJ pastes the right Spotify/Apple URL once → status `manual` →
   benefits everyone forever). This is the "learn from corrections" loop the old 005 doc wanted,
   done globally instead of per-DJ.
-- **Tracks A & D feed it for free:** now-playing gives canonical ISRC/ID → high-confidence
-  `matched` rows with no search at all.
+- **Tracks A & D feed it for free:** now-playing gives the canonical Spotify **ID + URL** with no
+  search at all. NOTE (Phase 0 spike, validated Jun 2026): the `currently-playing` item does **not**
+  include `external_ids.isrc` (came back empty for real tracks) — so ISRC for *cross-provider*
+  (Apple) matching needs a cheap follow-up `GET /v1/tracks/{id}` (the full track object has it),
+  cached. Irrelevant to Spotify-only links, which use the direct URL/ID.
 - Privacy note: this is track-identity metadata only (artist/title/links), not user data — safe
   to share across DJs.
 
