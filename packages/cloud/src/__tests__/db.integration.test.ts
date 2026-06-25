@@ -25,6 +25,8 @@ import { client, db, schema } from "../db";
 import { handleSubscribeStage } from "../handlers/subscriber";
 import type { WSContext } from "../handlers/ws-context";
 import { hashToken } from "../lib/auth";
+import { decryptSecret, encryptSecret } from "../lib/crypto";
+import { createLiveSession } from "../lib/live-session";
 import { closePollInDb, createPollInDb, recordPollVoteInDb } from "../lib/persistence/polls";
 import {
   getAllActivePushTargets,
@@ -47,6 +49,7 @@ import {
   persistTrack,
   persistTracksBulk,
 } from "../lib/persistence/tracks";
+import { getConnectionStatus } from "../lib/services/spotify";
 import { getStageTopic } from "../lib/topics";
 import { auth as authRoute } from "../routes/auth";
 import { dj as djRoute } from "../routes/dj";
@@ -315,6 +318,11 @@ suite("DB integration (real Postgres)", () => {
     test("auth: login succeeds for valid creds; unknown email → 401 (timing path, no throw)", async () => {
       const email = `login_${uniq()}@itest.dev`;
       await register(email, `Login ${uniq()}`);
+      // New accounts register as 'pending'; approve so login is permitted (Track D gate).
+      await db
+        .update(schema.djUsers)
+        .set({ status: "approved" })
+        .where(eq(schema.djUsers.email, email.toLowerCase()));
 
       const ok = await authRoute.request("/login", {
         method: "POST",
@@ -343,6 +351,11 @@ suite("DB integration (real Postgres)", () => {
         .where(eq(schema.djUsers.email, email.toLowerCase()));
       const userId = user?.id;
       if (userId === undefined) throw new Error("user not created");
+      // Approve so the login below is permitted (Track D approval gate).
+      await db
+        .update(schema.djUsers)
+        .set({ status: "approved" })
+        .where(eq(schema.djUsers.id, userId));
 
       // Insert 11 extra tokens (→ 12 with the register token), oldest-first by createdAt.
       const base = Date.now();
@@ -789,6 +802,109 @@ suite("DB integration (real Postgres)", () => {
       await handleSubscribeStage(ctx);
       expect(subscribed).toHaveLength(0);
       expect(sent.some((m) => m.type === "NACK")).toBe(true);
+    });
+  });
+
+  describe("Track D — Spotify tables", () => {
+    const tdUniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    let djId: number;
+    const createdSessions: string[] = [];
+
+    beforeAll(async () => {
+      process.env.TOKEN_ENCRYPTION_KEY = Buffer.from(
+        crypto.getRandomValues(new Uint8Array(32)),
+      ).toString("base64");
+      const [u] = await db
+        .insert(schema.djUsers)
+        .values({
+          email: `td_${tdUniq()}@itest.dev`,
+          passwordHash: "x",
+          displayName: "TD DJ",
+          slug: `td-${tdUniq()}`,
+        })
+        .returning({ id: schema.djUsers.id });
+      djId = u!.id;
+    });
+
+    afterAll(async () => {
+      for (const sid of createdSessions) {
+        await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
+      }
+      // Cascades spotify_connections + live_pollers for this DJ.
+      await db.delete(schema.djUsers).where(eq(schema.djUsers.id, djId));
+    });
+
+    test("spotify_connections: encrypted token round-trips; getConnectionStatus reflects it", async () => {
+      const refresh = `refresh_${tdUniq()}`;
+      await db.insert(schema.spotifyConnections).values({
+        djUserId: djId,
+        refreshTokenEnc: encryptSecret(refresh),
+        scope: "user-read-currently-playing",
+        status: "active",
+      });
+
+      expect(await getConnectionStatus(djId)).toEqual({ connected: true, status: "active" });
+
+      const [row] = await db
+        .select({ enc: schema.spotifyConnections.refreshTokenEnc })
+        .from(schema.spotifyConnections)
+        .where(eq(schema.spotifyConnections.djUserId, djId));
+      expect(decryptSecret(row!.enc)).toBe(refresh);
+    });
+
+    test("spotify_connections: djUserId is unique (one connection per DJ)", async () => {
+      let threw = false;
+      try {
+        await db
+          .insert(schema.spotifyConnections)
+          .values({ djUserId: djId, refreshTokenEnc: encryptSecret("dup"), scope: "s" });
+      } catch {
+        threw = true;
+      }
+      expect(threw).toBe(true);
+    });
+
+    test("createLiveSession persists a session row for the DJ", async () => {
+      const sid = `itest_td_${tdUniq()}`;
+      createdSessions.push(sid);
+      const { persisted } = await createLiveSession({
+        sessionId: sid,
+        djName: "TD DJ",
+        djUserId: djId,
+      });
+      expect(persisted).toBe(true);
+
+      const [row] = await db
+        .select({ id: schema.sessions.id, djUserId: schema.sessions.djUserId })
+        .from(schema.sessions)
+        .where(eq(schema.sessions.id, sid));
+      expect(row?.id).toBe(sid);
+      expect(row?.djUserId).toBe(djId);
+    });
+
+    test("live_pollers: unique per session + FK cascade on session delete", async () => {
+      const sid = `itest_tdp_${tdUniq()}`;
+      await db.insert(schema.sessions).values({ id: sid, djName: "TD DJ", djUserId: djId });
+      await db
+        .insert(schema.livePollers)
+        .values({ djUserId: djId, sessionId: sid, status: "running" });
+
+      let threw = false;
+      try {
+        await db
+          .insert(schema.livePollers)
+          .values({ djUserId: djId, sessionId: sid, status: "running" });
+      } catch {
+        threw = true;
+      }
+      expect(threw).toBe(true);
+
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
+      const rows = await db
+        .select()
+        .from(schema.livePollers)
+        .where(eq(schema.livePollers.sessionId, sid));
+      expect(rows.length).toBe(0);
     });
   });
 });
