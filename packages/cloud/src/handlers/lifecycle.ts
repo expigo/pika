@@ -88,7 +88,14 @@ export function reapSession(sessionId: string): void {
 
   // Broadcast on the discovery topic so in-session dancers and lobby browsers
   // learn the session is over. The DJ socket is gone, so use server.publish.
-  getBroadcaster()?.publish(DISCOVERY_TOPIC, JSON.stringify({ type: "SESSION_ENDED", sessionId }));
+  getBroadcaster()?.publish(
+    DISCOVERY_TOPIC,
+    JSON.stringify({
+      type: "SESSION_ENDED",
+      sessionId,
+      ...(reapedStageId && { stageId: reapedStageId }), // stage-mode dancers show "waiting", not "over"
+    }),
+  );
 
   logSessionEvent(sessionId, "disconnect", { reason: "grace-expired" }).catch((e) =>
     logger.error("❌ Telemetry failed", e),

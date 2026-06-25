@@ -2,6 +2,7 @@ import { AlertTriangle, Check, Music2, Radio, X } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { DetectedSession, VdjHistoryTrack } from "../hooks/useVdjHistory";
+import { StageSelector } from "./StageSelector";
 
 export interface OverlapSession {
   id: number;
@@ -14,6 +15,8 @@ export interface StartOptions {
   includeCurrentTrack: boolean;
   /** Backfill an earlier VirtualDJ set into this session, or null to start clean. */
   importEarlier: { tracks: VdjHistoryTrack[]; startIndex: number } | null;
+  /** Run this session under a Stage (seamless DJ rotation), or undefined for standalone. */
+  stageId?: string;
 }
 
 interface Props {
@@ -57,6 +60,7 @@ export function StartSessionModal({
   const [addEarlierSet, setAddEarlierSet] = useState(false);
   const [selectedStartIndex, setSelectedStartIndex] = useState(0);
   const [showFullList, setShowFullList] = useState(false);
+  const [selectedStageId, setSelectedStageId] = useState<string | undefined>(undefined);
 
   const earlierTracks = detectedSession?.tracks ?? [];
   const hasEarlierSet = earlierTracks.length > 0;
@@ -72,6 +76,7 @@ export function StartSessionModal({
         addEarlierSet && detectedSession
           ? { tracks: detectedSession.tracks, startIndex: selectedStartIndex }
           : null,
+      stageId: selectedStageId,
     });
   };
 
@@ -118,6 +123,9 @@ export function StartSessionModal({
               }}
             />
           </div>
+
+          {/* Optional Stage (renders only if the DJ has events) */}
+          <StageSelector onChange={setSelectedStageId} />
 
           {/* Now Playing — only when a track is genuinely playing */}
           {currentTrack && (

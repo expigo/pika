@@ -259,9 +259,11 @@ const HistoryList = memo(function HistoryList({
 
 interface LivePlayerProps {
   targetSessionId?: string;
+  /** When set, join a persistent Stage and follow DJ rotation on it. */
+  targetStageId?: string;
 }
 
-export function LivePlayer({ targetSessionId }: LivePlayerProps) {
+export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) {
   const {
     status,
     currentTrack,
@@ -284,7 +286,7 @@ export function LivePlayer({ targetSessionId }: LivePlayerProps) {
     lastHeartbeat,
     pendingCount,
     isSaving,
-  } = useLiveListener(targetSessionId);
+  } = useLiveListener(targetSessionId, targetStageId);
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [votingOption, setVotingOption] = useState<number | null>(null);

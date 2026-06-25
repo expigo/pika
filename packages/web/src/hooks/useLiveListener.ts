@@ -6,6 +6,8 @@
  *
  * @param targetSessionId - Optional. If provided, only listen to this specific session.
  *                          If undefined, auto-join the first active session.
+ * @param targetStageId   - Optional. If provided, join a persistent Stage and follow
+ *                          DJ rotation on it (mutually exclusive with targetSessionId).
  */
 "use client";
 
@@ -36,7 +38,7 @@ import {
 // Re-export types for consumers
 export type { ConnectionStatus, HistoryTrack };
 
-export function useLiveListener(targetSessionId?: string) {
+export function useLiveListener(targetSessionId?: string, targetStageId?: string) {
   const discoveredSessionRef = useRef<string | null>(null);
 
   // WebSocket connection
@@ -53,6 +55,7 @@ export function useLiveListener(targetSessionId?: string) {
     forceReconnect,
   } = useWebSocketConnection({
     targetSessionId,
+    targetStageId,
   });
 
   // Resilience: Sync state when waking up from sleep (iOS fix)
@@ -177,6 +180,22 @@ export function useLiveListener(targetSessionId?: string) {
         return;
       }
 
+      // Stage mode: NOW_PLAYING is how we learn which DJ is currently live on the
+      // stage (no SESSION_STARTED arrives when we join mid-set). Capture the
+      // DJ/session here, then fall through so the feature handler renders the track.
+      if (targetStageId && (message as { type: string }).type === MESSAGE_TYPES.NOW_PLAYING) {
+        const np = message as { sessionId?: string; djName?: string };
+        if (np.djName) setDjName(np.djName);
+        if (np.sessionId) {
+          setSessionId(np.sessionId);
+          if (discoveredSessionRef.current !== np.sessionId) {
+            discoveredSessionRef.current = np.sessionId;
+            fetchHistory(np.sessionId);
+          }
+        }
+        setSessionEnded(false);
+      }
+
       // Route to feature handlers first
       const featureHandler = featureHandlers[message.type];
       if (featureHandler) {
@@ -187,6 +206,7 @@ export function useLiveListener(targetSessionId?: string) {
       // Handle session-related messages
       switch (message.type) {
         case MESSAGE_TYPES.SESSIONS_LIST: {
+          if (targetStageId) break; // stage subscribers don't auto-join from the lobby list
           const sessions = (
             message as {
               sessions: Array<{ sessionId: string; djName: string; currentTrack?: TrackInfo }>;
@@ -232,7 +252,28 @@ export function useLiveListener(targetSessionId?: string) {
         }
 
         case MESSAGE_TYPES.SESSION_STARTED: {
-          const msg = message as { sessionId: string; djName: string };
+          const msg = message as { sessionId: string; djName: string; stageId?: string };
+
+          // Stage mode: a new DJ took over OUR stage — follow seamlessly (we stay
+          // subscribed to the stage topic; no re-subscribe).
+          if (targetStageId) {
+            if (msg.stageId !== targetStageId) return;
+            logger.info("[Live] Stage DJ changed", {
+              stageId: targetStageId,
+              sessionId: msg.sessionId,
+            });
+            setSessionId(msg.sessionId);
+            setDjName(msg.djName);
+            setCurrentTrack(null);
+            clearHistory();
+            resetPoll();
+            resetTempoVote();
+            setSessionEnded(false);
+            discoveredSessionRef.current = msg.sessionId;
+            fetchHistory(msg.sessionId);
+            return;
+          }
+
           if (targetSessionId && msg.sessionId !== targetSessionId) return;
 
           logger.info("[Live] Session started", { sessionId: msg.sessionId });
@@ -258,7 +299,26 @@ export function useLiveListener(targetSessionId?: string) {
         }
 
         case MESSAGE_TYPES.SESSION_ENDED: {
-          const msg = message as { sessionId: string };
+          const msg = message as { sessionId: string; stageId?: string };
+
+          // Stage mode: our stage's DJ left, but the STAGE persists. Show a
+          // "waiting for the next DJ" state — NOT "session over" — and keep the
+          // listener count (the stage's audience stays). The stage subscription
+          // is unchanged.
+          if (targetStageId) {
+            if (msg.stageId !== targetStageId) return;
+            logger.info("[Live] Stage DJ ended; awaiting next DJ", { stageId: targetStageId });
+            setSessionId(null);
+            setDjName(null);
+            setCurrentTrack(null);
+            clearHistory();
+            resetLikes();
+            resetTempoVote();
+            resetPoll();
+            discoveredSessionRef.current = null;
+            return;
+          }
+
           if (targetSessionId && msg.sessionId !== targetSessionId) return;
           if (sessionId && msg.sessionId !== sessionId) return;
 
@@ -289,6 +349,7 @@ export function useLiveListener(targetSessionId?: string) {
   }, [
     socketRef,
     targetSessionId,
+    targetStageId,
     sessionId,
     featureHandlers,
     setSessionId,

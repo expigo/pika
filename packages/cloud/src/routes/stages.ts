@@ -70,6 +70,17 @@ stageRoutes.post("/events", createLimiter, zValidator("json", CreateEventSchema)
   }
 });
 
+// List the authenticated DJ's events (for the desktop stage picker).
+stageRoutes.get("/events", async (c) => {
+  const dj = await requireDj(c);
+  if (!dj) return c.json({ error: "Unauthorized" }, 401);
+  const rows = await db
+    .select()
+    .from(events)
+    .where(and(eq(events.ownerUserId, dj.id), isNull(events.archivedAt)));
+  return c.json({ events: rows });
+});
+
 stageRoutes.get("/events/:id/stages", async (c) => {
   const eventId = c.req.param("id");
   const rows = await db

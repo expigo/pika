@@ -14,10 +14,10 @@ import {
   X,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
-import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { getListenerUrl, getLocalIp, getRecapUrl } from "../config";
+import { getListenerUrl, getLocalIp, getRecapUrl, getStageListenerUrl } from "../config";
 import { createDatabaseSession, detectInitialTrack } from "../hooks/live/connectionManager";
 import { generateSessionId } from "../hooks/live/trackBroadcast";
 import { useDjSettings } from "../hooks/useDjSettings";
@@ -52,6 +52,9 @@ export function LiveControl() {
   const [recapCopied, setRecapCopied] = useState(false);
   const [localIp, setLocalIp] = useState<string | null>(null);
   const [isDetectingHistory, setIsDetectingHistory] = useState(false);
+  // Stage this session is broadcasting to (set in the Go-Live modal). Drives the
+  // QR target so dancers join the stage and survive DJ rotation.
+  const [selectedStageId, setSelectedStageId] = useState<string | undefined>(undefined);
 
   // Single "Start Session" modal context (null = closed). Replaces the old
   // duplicate-warning → import → name modal chain.
@@ -66,8 +69,13 @@ export function LiveControl() {
     getLocalIp().then(setLocalIp);
   }, []);
 
-  // Generate QR URL only if we have a session (uses local IP if available for LAN testing)
-  const qrUrl = sessionId ? getListenerUrl(sessionId, djName, localIp) : null;
+  // Generate QR URL only if we have a session (uses local IP if available for LAN testing).
+  // When broadcasting to a stage, the QR targets the stage so dancers survive DJ rotation.
+  const qrUrl = selectedStageId
+    ? getStageListenerUrl(selectedStageId, localIp)
+    : sessionId
+      ? getListenerUrl(sessionId, djName, localIp)
+      : null;
   const recapUrl = lastSessionId ? getRecapUrl(lastSessionId, djName, localIp) : null;
 
   const handleGoLiveClick = async () => {
@@ -75,6 +83,7 @@ export function LiveControl() {
       if (sessionId) {
         setLastSessionId(sessionId);
       }
+      setSelectedStageId(undefined); // clear stage so the next session starts standalone
       endSet();
     } else {
       setLastSessionId(null);
@@ -125,6 +134,7 @@ export function LiveControl() {
   const handleStart = async (opts: StartOptions) => {
     setStartModal(null);
     const name = opts.name.trim() || `Live Set ${new Date().toLocaleDateString()}`;
+    setSelectedStageId(opts.stageId); // drives the QR target (stage vs session)
 
     try {
       if (opts.importEarlier) {
@@ -153,9 +163,10 @@ export function LiveControl() {
           opts.includeCurrentTrack,
           { sessionId: newSessionId, dbSessionId },
           tracksToSync,
+          opts.stageId,
         );
       } else {
-        await goLive(name, opts.includeCurrentTrack);
+        await goLive(name, opts.includeCurrentTrack, undefined, undefined, opts.stageId);
       }
     } catch (error) {
       logger.error("Live Control", "Failed to start session", error);

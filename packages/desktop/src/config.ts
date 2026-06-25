@@ -82,6 +82,16 @@ export function getListenerUrl(
   return url.toString();
 }
 
+/**
+ * Generate the listener URL for a Stage (a persistent venue floor).
+ * Uses /stage/{stageId}; dancers stay connected across DJ rotation, so this is
+ * the QR target when a session is broadcasting to a stage.
+ */
+export function getStageListenerUrl(stageId: string, localIp?: string | null): string {
+  const baseUrl = getWebClientBaseUrl(localIp);
+  return new URL(`${baseUrl}/stage/${stageId}`).toString();
+}
+
 // Convert DJ name to slug
 function slugify(name: string): string {
   return name

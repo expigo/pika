@@ -887,6 +887,7 @@ export function useLiveSession() {
       includeCurrentTrack: boolean = true,
       preCreatedSession?: { sessionId: string; dbSessionId: number },
       historyTracks?: TrackInfo[],
+      stageId?: string,
     ) => {
       if (status === "live" || status === "connecting") {
         logger.debug("Live", "Already live or connecting");
@@ -974,6 +975,7 @@ export function useLiveSession() {
             sessionId: activeSessionId,
             djName: getDjName(),
             ...(token ? { token } : {}),
+            ...(stageId ? { stageId } : {}),
           });
 
           // Flush any pending messages from offline time

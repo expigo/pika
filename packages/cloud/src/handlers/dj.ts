@@ -246,6 +246,7 @@ export async function handleRegisterSession(ctx: WSContext) {
         sessionId,
         djName: session.djName,
         startTime: session.startedAt,
+        ...(stageId && { stageId }), // lets stage-mode dancers follow rotation on their stage
       }),
     );
   }
@@ -538,6 +539,7 @@ export function handleEndSession(ctx: WSContext) {
         JSON.stringify({
           type: "SESSION_ENDED",
           sessionId: msg.sessionId,
+          ...(endedStageId && { stageId: endedStageId }), // stage-mode dancers show "waiting", not "over"
         }),
       );
     }

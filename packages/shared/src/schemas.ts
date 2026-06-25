@@ -390,6 +390,7 @@ export const SessionStartedSchema = z.object({
   version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
   djName: z.string().min(1).max(100).trim(),
+  stageId: z.string().min(1).max(64).trim().optional(), // present when the session runs under a stage
 });
 
 export const NowPlayingSchema = z.object({
@@ -404,6 +405,7 @@ export const SessionEndedSchema = z.object({
   type: z.literal(MESSAGE_TYPES.SESSION_ENDED),
   version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
+  stageId: z.string().min(1).max(64).trim().optional(), // present when the ended session ran under a stage
 });
 
 export const SessionsListSchema = z.object({

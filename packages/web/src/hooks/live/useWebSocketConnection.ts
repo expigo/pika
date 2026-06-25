@@ -12,6 +12,8 @@ import type { ConnectionStatus } from "./types";
 
 interface UseWebSocketConnectionProps {
   targetSessionId?: string;
+  /** When set, join a persistent Stage (SUBSCRIBE_STAGE) instead of a session. */
+  targetStageId?: string;
   onReconnect?: () => void;
 }
 
@@ -31,6 +33,7 @@ interface UseWebSocketConnectionReturn {
 
 export function useWebSocketConnection({
   targetSessionId,
+  targetStageId,
 }: UseWebSocketConnectionProps): UseWebSocketConnectionReturn {
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const statusRef = useRef<ConnectionStatus>("connecting");
@@ -87,6 +90,27 @@ export function useWebSocketConnection({
     socketRef.current = socket;
     isHardReconnectingRef.current = false;
 
+    // Join the right audience on (re)connect: a Stage (SUBSCRIBE_STAGE, stays
+    // subscribed across DJ rotation), a specific session, or the lobby list.
+    const sendJoin = () => {
+      if (socket.readyState !== WebSocket.OPEN) return;
+      if (targetStageId) {
+        logger.debug("[Connection] Subscribing to stage", { stageId: targetStageId });
+        socket.send(
+          JSON.stringify({ type: MESSAGE_TYPES.SUBSCRIBE_STAGE, clientId, stageId: targetStageId }),
+        );
+        return;
+      }
+      const sid = targetSessionId || sessionIdRef.current;
+      if (sid) {
+        logger.debug("[Connection] Subscribing to session", { sessionId: sid });
+        socket.send(JSON.stringify({ type: MESSAGE_TYPES.SUBSCRIBE, clientId, sessionId: sid }));
+      } else {
+        logger.debug("[Connection] Listing sessions");
+        socket.send(JSON.stringify({ type: "GET_SESSIONS", clientId }));
+      }
+    };
+
     // Event handlers
     const handleOpen = () => {
       logger.info("[Connection] Connected to cloud");
@@ -94,31 +118,7 @@ export function useWebSocketConnection({
       isHardReconnectingRef.current = false;
       lastPongRef.current = Date.now();
       setLastHeartbeat(Date.now());
-
-      // Send initial message based on context
-      // Use ref to get latest discovered sessionId if targetSessionId isn't provided (Audit Item 1)
-      const sid = targetSessionId || sessionIdRef.current;
-
-      if (socket.readyState === WebSocket.OPEN) {
-        if (sid) {
-          logger.debug("[Connection] Subscribing to session", { sessionId: sid });
-          socket.send(
-            JSON.stringify({
-              type: MESSAGE_TYPES.SUBSCRIBE,
-              clientId,
-              sessionId: sid,
-            }),
-          );
-        } else {
-          logger.debug("[Connection] Listing sessions");
-          socket.send(
-            JSON.stringify({
-              type: "GET_SESSIONS",
-              clientId,
-            }),
-          );
-        }
-      }
+      sendJoin();
     };
 
     const handleClose = (event: CloseEvent) => {
@@ -258,26 +258,8 @@ export function useWebSocketConnection({
           lastPongRef.current = Date.now();
           setLastHeartbeat(Date.now());
 
-          // Use ref to get latest session ID (Audit Item 1)
-          const sid = targetSessionId || sessionIdRef.current;
-
           try {
-            if (sid) {
-              socket.send(
-                JSON.stringify({
-                  type: MESSAGE_TYPES.SUBSCRIBE,
-                  clientId,
-                  sessionId: sid,
-                }),
-              );
-            } else {
-              socket.send(
-                JSON.stringify({
-                  type: "GET_SESSIONS",
-                  clientId,
-                }),
-              );
-            }
+            sendJoin();
           } catch (e) {
             logger.warn("[Connection] Failed to send re-sync, reconnecting...", e);
             socket.reconnect();
@@ -309,7 +291,7 @@ export function useWebSocketConnection({
       socket.close();
       socketRef.current = null;
     };
-  }, [targetSessionId]);
+  }, [targetSessionId, targetStageId]);
 
   return {
     socketRef,

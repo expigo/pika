@@ -601,6 +601,29 @@ suite("DB integration (real Postgres)", () => {
       expect(bad.status).toBe(400);
     });
 
+    test("GET /api/events lists the DJ's events; unauthenticated → 401", async () => {
+      const token = await newDjToken();
+      const headers = { "Content-Type": "application/json", Authorization: `Bearer ${token}` };
+      const created = (await (
+        await stageRoutes.request("/events", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ name: "Owned Event" }),
+        })
+      ).json()) as { id: string };
+      createdEventIds.push(created.id);
+
+      const list = await stageRoutes.request("/events", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      expect(list.status).toBe(200);
+      const body = (await list.json()) as { events: Array<{ id: string }> };
+      expect(body.events.some((e) => e.id === created.id)).toBe(true);
+
+      const noauth = await stageRoutes.request("/events");
+      expect(noauth.status).toBe(401);
+    });
+
     test("FK set null: deleting a stage nulls sessions.stage_id but keeps the session", async () => {
       const evId = `ev_${uniq()}`;
       const stId = `st_${uniq()}`;
