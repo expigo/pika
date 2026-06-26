@@ -14,11 +14,20 @@ const JSON_CSRF: HeadersInit = {
 };
 
 export interface DjUser {
-  id: number;
+  id: string; // Better Auth user id (string)
   email: string;
   displayName: string;
   slug: string;
-  status: string; // 'pending' | 'approved'
+  status: string; // 'pending' | 'approved' | 'rejected'
+}
+
+/** Subset of the Better Auth session user (get-session returns `{ session, user }`). */
+interface BetterAuthSessionUser {
+  id: string;
+  email: string;
+  name: string;
+  slug?: string | null;
+  status?: string | null;
 }
 
 export interface SpotifyStatus {
@@ -57,8 +66,18 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 /** Current DJ from the session cookie, or null if not signed in. */
 export async function getMe(): Promise<DjUser | null> {
   try {
-    const { user } = await req<{ user: DjUser }>("/api/auth/me");
-    return user;
+    // Better Auth's get-session returns `{ session, user }`, or null/empty (HTTP 200)
+    // when there is no valid session — so a missing user means "not signed in".
+    const data = await req<{ user?: BetterAuthSessionUser } | null>("/api/auth/get-session");
+    const u = data?.user;
+    if (!u) return null;
+    return {
+      id: u.id,
+      email: u.email,
+      displayName: u.name, // Better Auth stores the display name as `name`
+      slug: u.slug ?? "",
+      status: u.status ?? "pending",
+    };
   } catch (e) {
     if (e instanceof DjApiError && e.status === 401) return null;
     throw e;

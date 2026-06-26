@@ -18,7 +18,7 @@ vi.mock("@/components/LivePlayer", () => ({
 
 import * as djLive from "@/lib/djLive";
 
-const approved = { id: 1, email: "a@b.c", displayName: "DJ X", slug: "dj-x", status: "approved" };
+const approved = { id: "1", email: "a@b.c", displayName: "DJ X", slug: "dj-x", status: "approved" };
 const conn = (over = {}) => ({ connected: true, status: "active", ...over });
 
 beforeEach(() => {
