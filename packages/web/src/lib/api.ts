@@ -10,14 +10,13 @@ export function getApiBaseUrl(): string {
   }
 
   if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
-    // LAN Dev fallback: If not localhost, assume API is on same host port 3001
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return `${window.location.protocol}//${hostname}:3001`;
-    }
+    // Dev/LAN: derive the API from the *page* host (port 3001) so the Better Auth session
+    // cookie (SameSite=Lax, host-only) stays same-site. A localhost↔127.0.0.1 mismatch is
+    // cross-site, so the cookie is dropped on fetch and the DJ appears signed-out.
+    return `${window.location.protocol}//${window.location.hostname}:3001`;
   }
 
-  return URLS.getApiUrl("development");
+  return URLS.getApiUrl("development"); // SSR fallback (no window)
 }
 
 /**
@@ -30,13 +29,9 @@ export function getWebSocketUrl(): string {
   }
 
   if (typeof window !== "undefined") {
-    const hostname = window.location.hostname;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-
-    // LAN Dev fallback
-    if (hostname !== "localhost" && hostname !== "127.0.0.1") {
-      return `${protocol}//${hostname}:3001/ws`;
-    }
+    // Dev/LAN: derive from the page host (see getApiBaseUrl — keeps the cookie same-site).
+    return `${protocol}//${window.location.hostname}:3001/ws`;
   }
 
   return `${URLS.getWsUrl("development")}/ws`;
