@@ -102,6 +102,28 @@ docker compose -f docker-compose.prod.yml up -d
 > ⚠️ The VPS no longer builds images. **Never** run `docker compose ... up --build` on it — it's a
 > 1-vCPU/4 GB box where a Next build takes ~18 min and risks OOM. Builds happen in CI only.
 
+#### 🔑 First deploy after the Better Auth migration (one-time per env)
+
+The auth migration adds a **required** secret and resets the auth schema. Before deploying
+`harden/audit-fixes` to an env:
+
+1. **Set `BETTER_AUTH_SECRET`** in that env's VPS `.env` (`openssl rand -base64 32`). The cloud
+   **won't start** without it (compose fails fast). See `.env.prod.example` for the full var list.
+   `BETTER_AUTH_URL` defaults to the env's API origin in compose — override only if needed.
+2. **Greenfield reset if the DB predates the squash:** the schema was squashed to a fresh `0000`
+   baseline and replaced `dj_users`/`dj_tokens` with Better Auth's `user`/`session`/`account`. A DB
+   carrying old migration hashes will crash on boot with `relation "…" already exists`. Check +
+   reset (pre-launch data is disposable):
+   ```bash
+   docker exec <db-container> psql -U pika -d <db> -c 'SELECT * FROM __drizzle_migrations;'
+   bash scripts/reset-db.sh <staging|prod>   # if pre-squash
+   ```
+3. **Seed the first admin** after the cloud is healthy — see *Admin Panel & DJ Approval* below.
+4. **Verify cross-origin auth (the gate):** on `staging.pika.stream`, sign in → confirm `/dj/live`
+   shows the dashboard (the `api.pika.stream` session cookie reaches the web — same-site
+   subdomains), `/admin` gates correctly, and the register→pending→approve cycle works. Only
+   promote to prod after staging is green.
+
 ### 🐳 Docker Management
 
 **Re-pull & Recreate Everything (The "Fix It" Button):**
@@ -217,15 +239,20 @@ single DJ set. See `docs/architecture/stage-event-model.md`.
 ### 🛡️ Admin Panel & DJ Approval
 
 The admin panel (`/admin` on the web) gates DJ approval + a read-only live overview behind the
-`admin` **role** (`dj_users.role`; `requireAdmin` → 404 to non-admins; actions audited in
-`admin_audit`). New DJ registrations are `status='pending'` and **cannot log in** until approved.
+`admin` **role** (Better Auth's `"user".role`; `requireAdmin` → 404 to non-admins; actions audited
+in `admin_audit`). Auth runs on **Better Auth** (table `"user"`, columns `role` + `status`). New
+registrations are `status='pending'`: they CAN sign in, but the approval gate blocks them at
+protected routes (going live, `/admin`) with **403** until approved — the gate is route-level, not
+login-level.
 
-**Bootstrap the first admin** (chicken-and-egg — the only step that needs DB access):
+**Bootstrap the first admin** (chicken-and-egg — the only step that needs DB access; there is **no
+API** to grant admin, by design):
 ```bash
-# Local
+# Local  (note: "user" is a reserved word → must be double-quoted)
 docker exec pika-postgres psql -U pika -d pika_cloud \
-  -c "UPDATE dj_users SET role='admin' WHERE email='you@example.com';"
+  -c "UPDATE \"user\" SET role='admin', status='approved' WHERE email='you@example.com';"
 # Staging/Prod: same UPDATE on that environment's DB (SSH tunnel + psql, or Drizzle Studio).
+# Sign up on the web first so the row exists, then run the UPDATE.
 ```
 After that, approve DJs **in-app** (`/admin/djs` → Approve/Reject) — no SQL needed.
 
@@ -235,7 +262,8 @@ After that, approve DJs **in-app** (`/admin/djs` → Approve/Reject) — no SQL 
 **Verify:**
 1. Promote your account (SQL above) → log in → `/admin` shows the live overview.
 2. A non-admin DJ hitting `/admin` is redirected home (`GET /api/admin/me` → 404).
-3. Approve a `pending` DJ → they can now log in.
+3. A `pending` DJ can sign in but is blocked from going live / `/admin` (403); approve them → they
+   can now go live.
 
 ### 🚀 Migration Workflow (Best Practices)
 

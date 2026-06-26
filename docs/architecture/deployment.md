@@ -115,6 +115,10 @@ for the web client is injected as **GitHub Actions secrets / build-args** in `de
 **Cloud Server (runtime — VPS `.env`):**
 *   `DATABASE_URL` — Postgres connection string.
 *   `PORT` — listen port (staging `4001` / prod `3001`).
+*   `BETTER_AUTH_SECRET` — **required**; signs/verifies session tokens (`openssl rand -base64 32`).
+    The cloud refuses to start without it (compose `:?` guard). `BETTER_AUTH_URL` defaults in
+    compose to the env's API origin — override only if needed.
+*   `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` / `TOKEN_ENCRYPTION_KEY` — Track D (Spotify web-DJ).
 *   `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` — Web Push.
 *   `SENTRY_DSN`, `SENTRY_ENVIRONMENT` — error tracking.
 

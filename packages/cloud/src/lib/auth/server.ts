@@ -7,7 +7,7 @@
  * user field; `role` is managed by the `admin` plugin.
  */
 
-import { slugify } from "@pika/shared";
+import { slugify, URLS } from "@pika/shared";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { admin as adminPlugin, bearer } from "better-auth/plugins";
@@ -17,8 +17,13 @@ import { ac, admin, dj } from "./permissions";
 function trustedOrigins(): string[] {
   // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   const node = process.env["NODE_ENV"];
-  if (node === "production") return ["https://pika.stream"];
-  if (node === "staging") return ["https://staging.pika.stream"];
+  // Both staging and prod run NODE_ENV=production (staging is distinguished by domain /
+  // SENTRY_ENVIRONMENT, not NODE_ENV), so trust BOTH web origins in any non-dev build —
+  // mirrors the CORS allow-list in index.ts. Better Auth validates the browser's `Origin`
+  // header (the web app) against this list; the desktop uses bearer tokens (origin-exempt).
+  if (node === "production" || node === "staging") {
+    return [URLS.getWebUrl("production"), URLS.getWebUrl("staging")];
+  }
   return [
     "http://localhost:3000",
     "http://localhost:3002",
