@@ -90,7 +90,9 @@ export const URLS = {
   getApiUrl: (env: PikaEnvironment = "production"): string => {
     switch (env) {
       case "development":
-        return "http://localhost:3001";
+        // 127.0.0.1 (not localhost): the cloud binds IPv4, but macOS resolves `localhost`
+        // to IPv6 `::1` first, which the Tauri desktop HTTP/WS clients fail to connect to.
+        return "http://127.0.0.1:3001";
       case "staging":
         return "https://staging-api.pika.stream";
       default:
@@ -112,7 +114,8 @@ export const URLS = {
   getWsUrl: (env: PikaEnvironment = "production"): string => {
     switch (env) {
       case "development":
-        return "ws://localhost:3001";
+        // 127.0.0.1 (not localhost) — WKWebView in the Tauri desktop drops `ws://localhost`.
+        return "ws://127.0.0.1:3001";
       case "staging":
         return "wss://staging-api.pika.stream";
       default:

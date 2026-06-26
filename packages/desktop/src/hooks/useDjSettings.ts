@@ -53,7 +53,8 @@ class TokenValidationManager {
 
 const validationManager = TokenValidationManager.getInstance();
 
-export async function validateTokenWithServer(token: string): Promise<DjInfo | null> {
+export async function validateTokenWithServer(rawToken: string): Promise<DjInfo | null> {
+  const token = rawToken.trim(); // tolerate stray whitespace/newlines from copy-paste
   if (!token) return null;
   try {
     const baseUrl = getApiBaseUrl();
@@ -189,7 +190,8 @@ export function useDjSettings() {
   );
 
   const setAuthToken = useCallback(
-    async (authToken: string): Promise<boolean> => {
+    async (rawToken: string): Promise<boolean> => {
+      const authToken = rawToken.trim(); // persist a clean token (used as the bearer for broadcasts)
       setValidationError(null);
       if (!authToken) {
         applySettings((prev) => ({ ...prev, authToken: "", djInfo: null, tokenValidatedAt: null }));
