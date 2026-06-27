@@ -117,8 +117,14 @@ export function RegisterPWA() {
           });
         });
 
-      // Listen for controller change (new SW activated after SKIP_WAITING)
+      // Listen for controller change (new SW activated after SKIP_WAITING).
+      // Guard: only reload when the page was ALREADY controlled (a genuine update). On a
+      // user's first visit the SW installs and *claims* the uncontrolled page, which ALSO
+      // fires controllerchange — reloading then needlessly aborts in-flight requests (e.g.
+      // the login POST, causing first-login to silently fail). Skip that initial claim.
+      const hadControllerAtStart = !!navigator.serviceWorker.controller;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!hadControllerAtStart) return; // first-install claim → not a real update
         console.log("🔄 Service Worker controller changed. Reloading page...");
         window.location.reload();
       });
