@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { LivePlayer } from "@/components/LivePlayer";
+import { LogoutButton } from "@/components/LogoutButton";
 import {
   DjApiError,
   type DjUser,
@@ -119,7 +120,10 @@ export default function DjLivePage() {
     <main className={shell}>
       <header className="w-full max-w-lg flex items-center justify-between">
         <h1 className="text-lg font-semibold">Live Dashboard</h1>
-        {user && <span className="text-sm text-slate-400">{user.displayName}</span>}
+        <div className="flex items-center gap-4">
+          {user && <span className="text-sm text-slate-400">{user.displayName}</span>}
+          <LogoutButton />
+        </div>
       </header>
 
       {error && (

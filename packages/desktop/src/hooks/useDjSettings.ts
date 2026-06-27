@@ -82,6 +82,24 @@ export async function validateTokenWithServer(token: string): Promise<DjInfo | n
   }
 }
 
+/**
+ * Best-effort server-side revoke of the pasted session token (Better Auth sign-out). Called when
+ * the DJ clears their token so the session dies on the server too — not just locally. Failures are
+ * swallowed: the local clear must proceed regardless (e.g. offline, or an already-expired token).
+ */
+export async function revokeTokenOnServer(token: string): Promise<void> {
+  if (!token) return;
+  try {
+    const baseUrl = getApiBaseUrl();
+    await apiFetch(`${baseUrl}/api/auth/sign-out`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  } catch {
+    // best-effort
+  }
+}
+
 export function useDjSettings() {
   const [settings, setSettingsState] = useState<DjSettings>(loadSettings);
   const [isValidating, setIsValidating] = useState(false);
@@ -192,6 +210,10 @@ export function useDjSettings() {
     async (authToken: string): Promise<boolean> => {
       setValidationError(null);
       if (!authToken) {
+        // Clearing the token = logging out → revoke the session server-side too (best-effort),
+        // not just locally, so a copied token can't keep being used.
+        const prevToken = settingsRef.current.authToken;
+        if (prevToken) void revokeTokenOnServer(prevToken);
         applySettings((prev) => ({ ...prev, authToken: "", djInfo: null, tokenValidatedAt: null }));
         return true;
       }

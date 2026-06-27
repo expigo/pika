@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { LogoutButton } from "@/components/LogoutButton";
 import { type AdminMe, getAdminMe } from "@/lib/admin";
 
 /**
@@ -57,7 +58,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {tab("/admin/djs", "DJs")}
           </nav>
         </div>
-        <span className="text-sm text-slate-400">{me.displayName}</span>
+        <div className="flex items-center gap-4">
+          <span className="text-sm text-slate-400">{me.displayName}</span>
+          <LogoutButton />
+        </div>
       </header>
       <main className="px-6 py-8">{children}</main>
     </div>
