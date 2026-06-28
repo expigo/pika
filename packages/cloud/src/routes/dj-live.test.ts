@@ -13,6 +13,7 @@ describe("dj-live control channel auth guard", () => {
     ["POST", "/api/live/stop"],
     ["POST", "/api/live/share"],
     ["POST", "/api/live/announcement"],
+    ["POST", "/api/live/announcement/cancel"],
     ["POST", "/api/live/poll/start"],
     ["POST", "/api/live/poll/end"],
     ["GET", "/api/live/status"],

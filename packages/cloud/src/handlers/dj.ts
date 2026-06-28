@@ -28,7 +28,11 @@ import {
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { events, stages } from "../db/schema";
-import { announcementPushLimiter, announceToSession } from "../lib/announcements";
+import {
+  announcementPushLimiter,
+  announceToSession,
+  cancelSessionAnnouncement,
+} from "../lib/announcements";
 import { getUserFromToken } from "../lib/auth";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
@@ -49,7 +53,6 @@ import {
   getSession,
   getSessionBroadcastTopic,
   getSessionCount,
-  setSessionAnnouncement,
   updateSessionTrack,
 } from "../lib/sessions";
 import { clearStageActiveSession } from "../lib/stages";
@@ -558,19 +561,12 @@ export function handleCancelAnnouncement(ctx: WSContext) {
     return;
   }
 
-  setSessionAnnouncement(cancelSessionId, null);
+  cancelSessionAnnouncement(cancelSessionId, (topic, data) => {
+    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
+      rawWs.publish(topic, data);
+    }
+  });
 
-  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
-    rawWs.publish(
-      getSessionBroadcastTopic(cancelSessionId),
-      JSON.stringify({
-        type: "ANNOUNCEMENT_CANCELLED",
-        sessionId: cancelSessionId,
-      }),
-    );
-  }
-
-  logger.info(`📢❌ Announcement cancelled for session ${cancelSessionId}`);
   if (messageId) sendAck(ws, messageId);
 }
 

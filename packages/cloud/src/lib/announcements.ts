@@ -96,3 +96,18 @@ export function announceToSession(
   }
   return true;
 }
+
+/**
+ * Clear the session's active announcement and broadcast ANNOUNCEMENT_CANCELLED so every receiver's
+ * banner disappears (not just the local viewer's dismiss). Returns `false` if the session is gone.
+ */
+export function cancelSessionAnnouncement(sessionId: string, publish: PublishFn): boolean {
+  if (!getSession(sessionId)) return false;
+  setSessionAnnouncement(sessionId, null);
+  publish(
+    getSessionBroadcastTopic(sessionId),
+    JSON.stringify({ type: "ANNOUNCEMENT_CANCELLED", sessionId }),
+  );
+  logger.info("📢❌ Announcement cancelled", { sessionId });
+  return true;
+}

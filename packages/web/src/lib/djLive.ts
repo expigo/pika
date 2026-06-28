@@ -53,13 +53,22 @@ export interface TempoStatus {
   total: number;
 }
 
+/** The active announcement the DJ broadcast (so the UI can offer "Clear"). */
+export interface ActiveAnnouncement {
+  message: string;
+  timestamp: string;
+  endsAt?: string;
+}
+
 export interface LiveStatus {
   live: boolean;
   sessionId?: string;
-  paused?: boolean;
+  paused?: boolean; // DJ deliberately paused sharing
+  betweenSongs?: boolean; // transient Spotify gap between tracks (not a deliberate pause)
   spotify: SpotifyStatus;
   activePoll?: ActivePollStatus | null;
   tempo?: TempoStatus | null;
+  activeAnnouncement?: ActiveAnnouncement | null;
 }
 
 export class DjApiError extends Error {
@@ -139,6 +148,11 @@ export function sendAnnouncement(
       ...(push ? { push } : {}),
     }),
   });
+}
+
+/** Clear the active announcement for everyone (broadcasts ANNOUNCEMENT_CANCELLED). */
+export function cancelAnnouncement(): Promise<{ success: boolean }> {
+  return req("/api/live/announcement/cancel", { method: "POST", headers: JSON_CSRF });
 }
 
 /** Start a live poll on the DJ's session. */

@@ -6,11 +6,12 @@ import { DjLiveControls } from "./DjLiveControls";
 // The REST client is unit-tested via the cloud routes; here we assert the controls call it.
 vi.mock("@/lib/djLive", () => ({
   sendAnnouncement: vi.fn(() => Promise.resolve({ success: true })),
+  cancelAnnouncement: vi.fn(() => Promise.resolve({ success: true })),
   startPoll: vi.fn(() => Promise.resolve({ success: true, pollId: 1 })),
   endPoll: vi.fn(() => Promise.resolve({ success: true })),
 }));
 
-import { endPoll, sendAnnouncement, startPoll } from "@/lib/djLive";
+import { cancelAnnouncement, endPoll, sendAnnouncement, startPoll } from "@/lib/djLive";
 
 const baseStatus: LiveStatus = {
   live: true,
@@ -27,11 +28,12 @@ function setup(status: LiveStatus = baseStatus) {
 
 beforeEach(() => {
   vi.mocked(sendAnnouncement).mockClear();
+  vi.mocked(cancelAnnouncement).mockClear();
   vi.mocked(startPoll).mockClear();
   vi.mocked(endPoll).mockClear();
 });
 
-describe("DjLiveControls — announcement", () => {
+describe("DjLiveControls — announcement (default tab)", () => {
   it("sends the typed announcement", async () => {
     setup();
     await userEvent.type(screen.getByPlaceholderText(/last song/i), "Last song!");
@@ -43,11 +45,22 @@ describe("DjLiveControls — announcement", () => {
     setup();
     expect(screen.getByRole("button", { name: "Send" })).toBeDisabled();
   });
+
+  it("clears an active announcement", async () => {
+    setup({
+      ...baseStatus,
+      activeAnnouncement: { message: "On the floor now", timestamp: new Date().toISOString() },
+    });
+    expect(screen.getByText("On the floor now")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /clear/i }));
+    expect(cancelAnnouncement).toHaveBeenCalled();
+  });
 });
 
-describe("DjLiveControls — poll builder", () => {
+describe("DjLiveControls — poll builder (Poll tab)", () => {
   it("starts a poll with the question, options, and duration", async () => {
     setup();
+    await userEvent.click(screen.getByRole("button", { name: "Poll" }));
     await userEvent.type(screen.getByLabelText("Poll question"), "Next genre?");
     await userEvent.type(screen.getByLabelText("Option 1"), "Blues");
     await userEvent.type(screen.getByLabelText("Option 2"), "Pop");
@@ -61,6 +74,7 @@ describe("DjLiveControls — poll builder", () => {
 
   it("fills the builder from a preset", async () => {
     setup();
+    await userEvent.click(screen.getByRole("button", { name: "Poll" }));
     await userEvent.click(screen.getByRole("button", { name: "Tempo Check" }));
     expect(screen.getByLabelText("Poll question")).toHaveValue("Is this speed working for you?");
   });
@@ -79,25 +93,26 @@ describe("DjLiveControls — active poll", () => {
     },
   };
 
-  it("shows the live tallies and ends the poll", async () => {
+  it("auto-switches to the live poll and ends it", async () => {
     setup(withPoll);
+    // Effect jumps to the Poll tab when a poll is live — no manual tab click.
     expect(screen.getByText("Next genre?")).toBeInTheDocument();
-    expect(screen.getByText(/live poll · 4 votes/i)).toBeInTheDocument();
+    expect(screen.getByText(/4 votes/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /start poll/i })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /end poll/i }));
     expect(endPoll).toHaveBeenCalled();
   });
 });
 
-describe("DjLiveControls — tempo readout", () => {
-  it("renders the aggregated tempo counts", () => {
+describe("DjLiveControls — tempo strip", () => {
+  it("renders the aggregated tempo counts when there are votes", () => {
     setup({ ...baseStatus, tempo: { slower: 2, perfect: 5, faster: 1, total: 8 } });
-    expect(screen.getByText(/tempo feedback · 8 votes/i)).toBeInTheDocument();
+    expect(screen.getByText("Tempo")).toBeInTheDocument();
     expect(screen.getByText("Perfect")).toBeInTheDocument();
   });
 
-  it("renders nothing when there's no tempo data", () => {
-    setup();
-    expect(screen.queryByText(/tempo feedback/i)).not.toBeInTheDocument();
+  it("renders no tempo strip when there are no votes", () => {
+    setup({ ...baseStatus, tempo: { slower: 0, perfect: 0, faster: 0, total: 0 } });
+    expect(screen.queryByText("Tempo")).not.toBeInTheDocument();
   });
 });

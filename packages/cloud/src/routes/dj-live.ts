@@ -8,10 +8,12 @@
  *   POST /api/live/start        → start sharing (needs an active Spotify connection) → { sessionId }
  *   POST /api/live/stop         → stop sharing + end the session
  *   POST /api/live/share        → { paused: boolean } — toggle manual "pause sharing"
- *   POST /api/live/announcement → { message, durationSeconds?, push? } — broadcast an announcement
- *   POST /api/live/poll/start   → { question, options, durationSeconds? } → { pollId }
- *   POST /api/live/poll/end     → end the session's active poll
- *   GET  /api/live/status       → { live, sessionId?, paused?, spotify, activePoll, tempo }
+ *   POST /api/live/announcement        → { message, durationSeconds?, push? } — broadcast it
+ *   POST /api/live/announcement/cancel → clear the active announcement for everyone
+ *   POST /api/live/poll/start          → { question, options, durationSeconds? } → { pollId }
+ *   POST /api/live/poll/end            → end the session's active poll
+ *   GET  /api/live/status              → { live, sessionId?, paused?, betweenSongs?, spotify,
+ *                                          activePoll, tempo, activeAnnouncement }
  *
  * The engagement endpoints (announcement/poll) reuse the same fan-out the desktop DJ's WS
  * handlers call (lib/announcements, lib/polls), publishing through the shared server
@@ -20,7 +22,7 @@
 
 import { logger, SendAnnouncementSchema, StartPollSchema } from "@pika/shared";
 import { Hono } from "hono";
-import { announceToSession } from "../lib/announcements";
+import { announceToSession, cancelSessionAnnouncement } from "../lib/announcements";
 import { getUser, requireDjAuth } from "../lib/auth";
 import { getBroadcaster } from "../lib/broadcaster";
 import { endPollForSession, getSessionPoll, startPollForSession } from "../lib/polls";
@@ -31,6 +33,7 @@ import {
   startPoller,
   stopPoller,
 } from "../lib/services/spotifyPoller";
+import { getSession } from "../lib/sessions";
 import { getTempoFeedback } from "../lib/tempo";
 
 const live = new Hono();
@@ -115,6 +118,15 @@ live.post("/announcement", async (c) => {
   return c.json({ success: true });
 });
 
+/** Clear the active announcement (broadcasts ANNOUNCEMENT_CANCELLED to every receiver). */
+live.post("/announcement/cancel", async (c) => {
+  const sessionId = liveSessionId(getUser(c).id);
+  if (!sessionId) return c.json({ error: "Not currently live", live: false }, 409);
+
+  cancelSessionAnnouncement(sessionId, broadcasterPublish);
+  return c.json({ success: true });
+});
+
 /** Start a live poll on the DJ's session. */
 live.post("/poll/start", async (c) => {
   const sessionId = liveSessionId(getUser(c).id);
@@ -168,8 +180,10 @@ live.get("/status", async (c) => {
     endsAt: string | null;
   } | null = null;
   let tempo: ReturnType<typeof getTempoFeedback> | null = null;
+  let activeAnnouncement: { message: string; timestamp: string; endsAt?: string } | null = null;
 
   if (poller.sessionId) {
+    const session = getSession(poller.sessionId);
     const p = getSessionPoll(poller.sessionId);
     if (p) {
       activePoll = {
@@ -182,9 +196,10 @@ live.get("/status", async (c) => {
       };
     }
     tempo = getTempoFeedback(poller.sessionId);
+    activeAnnouncement = session?.activeAnnouncement ?? null;
   }
 
-  return c.json({ ...poller, spotify, activePoll, tempo });
+  return c.json({ ...poller, spotify, activePoll, tempo, activeAnnouncement });
 });
 
 export { live as djLiveRoutes };

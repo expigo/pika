@@ -216,10 +216,19 @@ export function getPollerStatus(djUserId: string): {
   live: boolean;
   sessionId?: string;
   paused?: boolean;
+  betweenSongs?: boolean;
 } {
   const rt = pollers.get(djUserId);
   if (!rt) return { live: false };
-  return { live: true, sessionId: rt.sessionId, paused: rt.paused || rt.manualPaused };
+  // `paused` = the DJ deliberately paused sharing. A transient Spotify `is_playing:false`
+  // between tracks must NOT flip the top "LIVE/PAUSED" banner (it briefly toggles `rt.paused`);
+  // surface that separately as `betweenSongs` — the embedded player already shows "Between songs".
+  return {
+    live: true,
+    sessionId: rt.sessionId,
+    paused: rt.manualPaused,
+    betweenSongs: rt.paused && !rt.manualPaused,
+  };
 }
 
 // ---------------------------------------------------------------------------

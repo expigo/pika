@@ -61,6 +61,30 @@ export default function DjLivePage() {
     };
   }, [refreshStatus]);
 
+  // Live-poll the status while broadcasting so the DJ sees poll tallies, tempo, and the active
+  // announcement update in near-real-time. Visibility-aware (pauses when backgrounded) per the
+  // battery guidelines; the embedded LivePlayer keeps its own WS listener for the dancer preview.
+  const live = status?.live ?? false;
+  useEffect(() => {
+    if (phase !== "ready" || !live) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = () => {
+      if (timer || document.hidden) return;
+      timer = setInterval(refreshStatus, 4000);
+    };
+    const stop = () => {
+      if (timer) clearInterval(timer);
+      timer = null;
+    };
+    const onVisibility = () => (document.hidden ? stop() : start());
+    start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [phase, live, refreshStatus]);
+
   // Reflect the OAuth callback result (?spotify=connected|denied|error|invalid).
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("spotify");
@@ -114,7 +138,6 @@ export default function DjLivePage() {
   const spotify = status?.spotify;
   const needsReauth = spotify?.status === "needs_reauth";
   const connected = !!spotify?.connected && !needsReauth;
-  const live = status?.live ?? false;
   const paused = status?.paused ?? false;
 
   return (
@@ -180,6 +203,9 @@ export default function DjLivePage() {
                 className={`inline-block h-3 w-3 rounded-full ${paused ? "bg-amber-400" : "animate-pulse bg-red-500"}`}
               />
               <span className="font-semibold tracking-wide">{paused ? "PAUSED" : "LIVE"}</span>
+              {!paused && status?.betweenSongs && (
+                <span className="text-xs text-slate-500">· between songs</span>
+              )}
             </div>
             <div className="flex gap-2">
               <button
