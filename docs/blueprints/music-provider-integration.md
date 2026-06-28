@@ -322,7 +322,9 @@ Why it matters:
 3. **Phase 3:** Track A — desktop Spotify source as the second front-end (keychain token, CSP/
    allowlist), reusing the shared OAuth/poll logic from Phase 2.
 4. **Phase 4:** Track B links on the **live** page; manual-correction UI over the unmatched worklist.
-5. **Phase 5 (optional):** Track C export via the shared service account — only if the above land.
+5. **Phase 5:** Track C export via the shared service account. ~~(optional)~~ — Track B (B1) + D (B2)
+   have landed, so this is now the **active next feature (B3)**. See **§12** for the resolved design
+   (DJ-assist tool, two-granularity cache, account-as-config, "My Sets" dashboard).
 
 ## 7. Decisions
 
@@ -475,3 +477,94 @@ push to the `staging` (or `main` → prod) branch via the existing GH Actions wo
 `*.pika.stream` over HTTPS (cookie `Secure`+`SameSite=Lax` works), the CORS allowlist already
 includes the staging/prod web origins (credentials enabled), and the web CSP already permits
 `*.pika.stream`. The dev-only `127.0.0.1` CORS/CSP reflections do not apply when `NODE_ENV=production`.
+
+---
+
+## 12. Track C / B3 resolved design — the DJ playlist tool (June 2026 discussion)
+
+**Where we are:** Track B (dancer "Listen on" links, shipped as **B1**) and Track D (web-DJ
+Spotify broadcaster + the **B2** engagement bundle: announcements/polls) are **DONE and on
+staging**. So Track C is no longer "Phase 5 optional" — it's the **active next feature (B3)**.
+
+**Reframe (owner-aligned):** B3 is a **DJ-assist tool** — it helps DJs who already build Spotify
+playlists of their sets *by hand* — **not** a fire-and-forget auto-export. The "remember the match"
+mechanic is core to the value: the tool gets smarter every night.
+
+### 12.1 Two cache granularities (refines §5 — this is the key design point)
+There are **two** identities, and conflating them is the trap:
+- **Canonical "song" identity** — collapse every spelling/version of a track into one entity,
+  keyed by normalized `artist::title`. This is the **cloud `track_links` table (§5)**. It is the
+  **canonical track-identity spine for analytics** (owner: *"the enabler for many analytics
+  features — we cannot forget about it"*) and a cross-DJ recommendation seed. For a *specific*
+  playlist match it is a **suggestion only** (two DJs' files can normalize to the same key yet be
+  different versions).
+- **Specific "recording" identity** — *this exact local file* → *this exact Spotify recording*
+  (right edit, right length). Lives in the **desktop library** (per-DJ, file-keyed), disambiguated
+  by **duration**, and is **authoritative** for that DJ's playlist. DJ confirmations are sticky.
+
+**Build the canonical `track_links` layer now** (B3 is its first write-through writer); **defer the
+analytics consumers** (charts) per the validation-first call — laying the foundation is near-free
+since we generate the data anyway; building consumers waits for signal.
+
+### 12.2 Duration is the strongest match signal — and we don't capture it yet
+Add **`durationMs`** to the §4 seam (`TrackInfoSchema` + `played_tracks` + desktop `tracks`). The
+desktop Rust VDJ parser **already extracts `SongLength`** (`src-tauri/src/lib.rs`) — just plumb it
+through. Spotify's `audio-features` (their BPM/key) was **deprecated Nov 2024**, so we cannot
+cross-check BPM against Spotify. Realistic match signals = **string-sim(artist,title) +
+duration (±2–3 s) + Spotify popularity**. Expect ~70–90 % on mainstream, lower on edit-heavy sets
+→ "a good, recognizable playlist," not an exact mirror.
+
+### 12.3 Resolution flow — desktop-driven, cloud as a thin Spotify proxy
+- **Desktop owns** the library + the per-file match cache + the review UX.
+- **Cloud is a thin Spotify proxy:** an **app-token (Client Credentials) `/search`** endpoint
+  (candidates; no user cap) + a **shared-account `playlist/create`** endpoint (write + return URL).
+  Secrets stay cloud-side. (Today `spotify.ts` only does per-DJ read-only OAuth — both are net-new.)
+- **Per played local song:** cached `dj_confirmed` → use it, locked, **no API call**; cached
+  `auto` → show **recommended** pre-selected; no cache → cloud search → top hit recommended +
+  alternates. DJ accepts-all / overrides; **every override is written back `dj_confirmed`**
+  (sticky forever) → coverage compounds toward ~100 %, repeats become instant + free.
+- Final Spotify track IDs → cloud `playlist/create` on the shared account → link.
+
+### 12.4 Web-DJ (Spotify-source) sets need NO matching
+A Track-D set's tracks already carry their Spotify IDs from the poller → **one-click playlist from
+the web dashboard, no desktop, no search**. VDJ sets use the desktop assist tool. Both call the
+same shared-account `playlist/create`. (Near-free fallout of B3.)
+
+### 12.5 The shared playlist account — config, not code
+- Model the writer account as a **configured OAuth identity** (encrypted refresh token, scope
+  `playlist-modify-public`, same pattern as per-DJ tokens). **Swapping accounts is an ops step**
+  (create → one-time OAuth → replace the stored token) — **zero code change, no redeploy**.
+- **Dev on the owner's personal Premium now**, but **create the "Pika"-named account before any
+  real pilot** — playlists **do not migrate between accounts**, so pilot DJs' playlists must be
+  durable + on-brand from day one.
+- **5-seat budget:** the writer account's OAuth consumes **1 of the 5** Dev-Mode seats on the Pika
+  Spotify app (leaves 4 for web-DJ broadcasters). Same app = one budget.
+- **Naming** `"{DJ} @ {Event} · {date} — via Pika"` (attribution + light brand reach).
+- **ToS:** single-account mass automation is gray at *commercial* scale → fine for pilot/community
+  scale; nothing should take a hard dependency on it.
+
+### 12.6 DJ web dashboard ("My Sets") — fast-follow, cheap
+The payoff of the now-shipped Better Auth foundation: a **private DJ dashboard** listing the DJ's
+own past sets, each linking to its **existing recap** + its **Spotify playlist**, reachable from any
+device via the cookie session. Mostly *surfacing data we already store* (sessions / played_tracks /
+likes / tempo / polls / recap). **Scope to the DJ's OWN sets** — a private gig-history view is a
+legit retention feature and is **not** the public-charts moat we're deliberately avoiding. Clean
+split: **build/review on desktop** (library), **view/share/stats on web** (anywhere).
+
+### 12.7 Recommended MVP + sequencing
+1. **B3 core:** `durationMs` plumbing → cloud Spotify proxy (app-token `/search` + shared-account
+   `playlist/create`) → `track_links` write-through cache → desktop assist tool
+   (remember → recommend → DJ-confirm → create) → link. *Web-DJ one-click playlist falls out
+   near-free.*
+2. **Fast-follow:** the "My Sets" web dashboard (reuses recap data + surfaces the playlist).
+3. **Deferred (signal-gated):** analytics / charts built on the canonical identity layer.
+
+### 12.8 New surface (delta to §9)
+- **Shared:** `durationMs` on `TrackInfoSchema`.
+- **Cloud:** Client-Credentials app-token service + a `/search` proxy endpoint; a shared-account
+  connection (config) + `playlist/create` endpoint (scope `playlist-modify-public`); `track_links`
+  write-through on resolution.
+- **Desktop:** `tracks` columns (`spotifyTrackId` / `spotifyUrl` / `matchConfidence` /
+  `matchSource` `auto|dj_confirmed` / `matchedAt`) + migration; capture `SongLength`→`durationMs`
+  into the broadcast + library path; a **"Build Spotify playlist for this set"** review UI.
+- **Operational:** the shared "Pika" account + one-time OAuth (before pilot).
