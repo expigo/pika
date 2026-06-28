@@ -12,7 +12,7 @@
 import { logger, type TrackInfo } from "@pika/shared";
 import { eq } from "drizzle-orm";
 import { db } from "../../db";
-import { spotifyConnections } from "../../db/schema";
+import { serviceConnections, spotifyConnections } from "../../db/schema";
 import { decryptSecret, encryptSecret } from "../crypto";
 
 const SCOPE = "user-read-currently-playing";
@@ -317,4 +317,197 @@ export async function getConnectionStatus(
     .where(eq(spotifyConnections.djUserId, djUserId))
     .limit(1);
   return { connected: !!conn, status: conn?.status ?? null };
+}
+
+// ---------------------------------------------------------------------------
+// App token (Client Credentials) — for /search (B3). No user; not 5-seat-capped.
+// ---------------------------------------------------------------------------
+
+let appToken: { accessToken: string; expiresAt: number } | null = null;
+
+/** A cached app-level access token for non-user endpoints (search). */
+export async function getAppAccessToken(): Promise<string> {
+  if (appToken && Date.now() < appToken.expiresAt - ACCESS_TOKEN_SKEW_MS)
+    return appToken.accessToken;
+  const res = await fetch(`${ACCOUNTS}/api/token`, {
+    method: "POST",
+    headers: { Authorization: basicAuth(), "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "client_credentials" }),
+  });
+  if (!res.ok) throw new Error(`Spotify app-token failed: ${res.status}`);
+  const json = (await res.json()) as SpotifyTokenResponse;
+  appToken = { accessToken: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
+  return json.access_token;
+}
+
+// ---------------------------------------------------------------------------
+// Service account (playlist creation, B3) — the single "Pika" account that owns
+// every generated playlist. One-time owner OAuth (scope playlist-modify-public).
+// ---------------------------------------------------------------------------
+
+const SERVICE_SCOPE = "playlist-modify-public";
+const SERVICE_NAME = "spotify-playlist";
+
+/** The Pika service account isn't connected (owner must run the one-time OAuth). */
+export class SpotifyServiceNotConnectedError extends Error {
+  constructor() {
+    super("Spotify playlist service not connected");
+    this.name = "SpotifyServiceNotConnectedError";
+  }
+}
+
+// The service OAuth uses its OWN redirect (derived from SPOTIFY_REDIRECT_URI by swapping the path);
+// the owner registers BOTH redirect URIs in the Spotify app dashboard.
+function serviceRedirectUri(): string {
+  return getConfig().redirectUri.replace(/\/callback\/?$/, "/service/callback");
+}
+
+/** Consent URL for connecting the shared Pika account (admin-only, one-time per env). */
+export function buildServiceAuthorizeUrl(state: string): string {
+  const { clientId } = getConfig();
+  const params = new URLSearchParams({
+    client_id: clientId,
+    response_type: "code",
+    redirect_uri: serviceRedirectUri(),
+    scope: SERVICE_SCOPE,
+    state,
+  });
+  return `${ACCOUNTS}/authorize?${params}`;
+}
+
+/** Exchange the service-account auth code and store its encrypted refresh token (one row). */
+export async function connectServiceAccount(code: string): Promise<void> {
+  const res = await fetch(`${ACCOUNTS}/api/token`, {
+    method: "POST",
+    headers: { Authorization: basicAuth(), "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: serviceRedirectUri(),
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Service token exchange failed: ${res.status} ${await res.text()}`);
+  }
+  const json = (await res.json()) as SpotifyTokenResponse;
+  if (!json.refresh_token) throw new Error("Spotify did not return a refresh token");
+
+  const spotifyUserId = await fetchSpotifyUserId(json.access_token);
+  const refreshTokenEnc = encryptSecret(json.refresh_token);
+  await db
+    .insert(serviceConnections)
+    .values({
+      name: SERVICE_NAME,
+      refreshTokenEnc,
+      scope: json.scope ?? SERVICE_SCOPE,
+      spotifyUserId,
+      status: "active",
+    })
+    .onConflictDoUpdate({
+      target: serviceConnections.name,
+      set: {
+        refreshTokenEnc,
+        scope: json.scope ?? SERVICE_SCOPE,
+        spotifyUserId,
+        status: "active",
+        updatedAt: new Date(),
+      },
+    });
+  serviceToken = { accessToken: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
+  logger.info("🎛️ Spotify playlist service account connected", { spotifyUserId });
+}
+
+let serviceToken: { accessToken: string; expiresAt: number } | null = null;
+
+async function getServiceAccessToken(): Promise<string> {
+  if (serviceToken && Date.now() < serviceToken.expiresAt - ACCESS_TOKEN_SKEW_MS) {
+    return serviceToken.accessToken;
+  }
+  const [conn] = await db
+    .select()
+    .from(serviceConnections)
+    .where(eq(serviceConnections.name, SERVICE_NAME))
+    .limit(1);
+  if (!conn) throw new SpotifyServiceNotConnectedError();
+
+  let refreshToken: string;
+  try {
+    refreshToken = decryptSecret(conn.refreshTokenEnc);
+  } catch {
+    throw new SpotifyServiceNotConnectedError();
+  }
+  const res = await fetch(`${ACCOUNTS}/api/token`, {
+    method: "POST",
+    headers: { Authorization: basicAuth(), "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken }),
+  });
+  if (!res.ok) {
+    await db
+      .update(serviceConnections)
+      .set({ status: "needs_reauth", updatedAt: new Date() })
+      .where(eq(serviceConnections.name, SERVICE_NAME));
+    throw new SpotifyServiceNotConnectedError();
+  }
+  const json = (await res.json()) as SpotifyTokenResponse;
+  if (json.refresh_token) {
+    await db
+      .update(serviceConnections)
+      .set({ refreshTokenEnc: encryptSecret(json.refresh_token), updatedAt: new Date() })
+      .where(eq(serviceConnections.name, SERVICE_NAME));
+  }
+  serviceToken = { accessToken: json.access_token, expiresAt: Date.now() + json.expires_in * 1000 };
+  return json.access_token;
+}
+
+/** Whether the shared playlist service account is connected + usable. */
+export async function getServiceStatus(): Promise<{ connected: boolean; status: string | null }> {
+  const [conn] = await db
+    .select({ status: serviceConnections.status })
+    .from(serviceConnections)
+    .where(eq(serviceConnections.name, SERVICE_NAME))
+    .limit(1);
+  return { connected: !!conn, status: conn?.status ?? null };
+}
+
+/**
+ * Create a public playlist on the Pika service account and add `trackUris` (≤100 per request).
+ * Endpoints reflect Spotify's current API (Feb 2026): `POST /me/playlists` + `POST /playlists/{id}/items`.
+ */
+export async function createPlaylist(
+  name: string,
+  trackUris: string[],
+): Promise<{ playlistUrl: string; playlistId: string }> {
+  const token = await getServiceAccessToken();
+  const authHeaders = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+
+  const createRes = await fetch(`${API}/me/playlists`, {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({ name, public: true, description: "Created with Pika · pika.stream" }),
+  });
+  if (!createRes.ok) {
+    throw new Error(`Create playlist failed: ${createRes.status} ${await createRes.text()}`);
+  }
+  const playlist = (await createRes.json()) as {
+    id: string;
+    external_urls?: { spotify?: string };
+  };
+
+  for (let i = 0; i < trackUris.length; i += 100) {
+    const batch = trackUris.slice(i, i + 100);
+    const addRes = await fetch(`${API}/playlists/${playlist.id}/items`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ uris: batch }),
+    });
+    if (!addRes.ok) {
+      throw new Error(`Add playlist items failed: ${addRes.status} ${await addRes.text()}`);
+    }
+  }
+
+  return {
+    playlistUrl:
+      playlist.external_urls?.spotify ?? `https://open.spotify.com/playlist/${playlist.id}`,
+    playlistId: playlist.id,
+  };
 }

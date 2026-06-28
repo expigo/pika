@@ -10,6 +10,7 @@ import {
   integer,
   json,
   pgTable,
+  real,
   serial,
   text,
   timestamp,
@@ -420,3 +421,40 @@ export const adminAudit = pgTable(
     idxCreatedAt: index("idx_admin_audit_created_at").on(table.createdAt.desc()),
   }),
 );
+
+// Canonical track-identity / resolution cache (B3). Maps a fuzzy `artist::title` key to a resolved
+// provider track, shared across ALL DJs — a track searched/confirmed once benefits everyone, and is
+// the identity spine for future analytics. `manual`/`source:manual` (a DJ confirmation) outranks an
+// `auto` match. See docs/blueprints/music-provider-integration.md §5 + §12.
+export const trackLinks = pgTable(
+  "track_links",
+  {
+    id: serial("id").primaryKey(),
+    matchKey: text("match_key").notNull().unique(), // getFuzzyKey(artist, title)
+    provider: text("provider").notNull().default("spotify"), // 'spotify' (Apple later)
+    providerId: text("provider_id"), // Spotify track id
+    providerUrl: text("provider_url"), // open.spotify.com/track/...
+    status: text("status").notNull().default("matched"), // 'matched' | 'unmatched' | 'manual'
+    confidence: real("confidence"), // 0..1 from the match tier (null for manual)
+    source: text("source").notNull().default("auto"), // 'auto' | 'manual'
+    resolvedAt: timestamp("resolved_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxProviderId: index("idx_track_links_provider_id").on(table.providerId),
+  }),
+);
+
+// Shared service accounts Pika controls (B3): the single "Pika" Spotify account that owns every
+// generated playlist (scope playlist-modify-public). Owner connects it ONCE per env via the
+// admin OAuth flow; the encrypted refresh token lets the cloud create playlists on its behalf.
+export const serviceConnections = pgTable("service_connections", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().unique(), // logical slot, e.g. 'spotify-playlist'
+  refreshTokenEnc: text("refresh_token_enc").notNull(), // encrypted (AES-256-GCM)
+  scope: text("scope").notNull(),
+  spotifyUserId: text("spotify_user_id"),
+  status: text("status").notNull().default("active"), // 'active' | 'needs_reauth'
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});

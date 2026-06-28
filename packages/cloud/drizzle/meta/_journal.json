@@ -8,6 +8,13 @@
       "when": 1782427415135,
       "tag": "0000_tough_rictor",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1782685914329,
+      "tag": "0001_tiny_robin_chapel",
+      "breakpoints": true
     }
   ]
 }

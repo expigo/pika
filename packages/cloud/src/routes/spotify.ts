@@ -12,12 +12,19 @@
 import { logger, type PikaEnvironment, URLS } from "@pika/shared";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { getUser, requireDjAuth } from "../lib/auth";
-import { buildAuthorizeUrl, connectSpotify, getConnectionStatus } from "../lib/services/spotify";
+import { getUser, requireAdmin, requireDjAuth } from "../lib/auth";
+import {
+  buildAuthorizeUrl,
+  buildServiceAuthorizeUrl,
+  connectServiceAccount,
+  connectSpotify,
+  getConnectionStatus,
+} from "../lib/services/spotify";
 
 const spotify = new Hono();
 
 const OAUTH_STATE_COOKIE = "spotify_oauth_state";
+const SERVICE_STATE_COOKIE = "spotify_service_oauth_state";
 const STATE_MAX_AGE_S = 600; // 10 minutes to complete consent
 
 function webBaseUrl(): string {
@@ -72,6 +79,47 @@ spotify.get("/callback", requireDjAuth, async (c) => {
 /** Connection status for the web UI. */
 spotify.get("/status", requireDjAuth, async (c) => {
   return c.json(await getConnectionStatus(getUser(c).id));
+});
+
+// ---------------------------------------------------------------------------
+// Service account (B3) — one-time, admin-only OAuth that connects the shared "Pika"
+// account used to create every generated playlist. Its own redirect URI
+// (…/api/spotify/service/callback) must also be registered in the Spotify app.
+// ---------------------------------------------------------------------------
+
+/** Admin: start the one-time consent for the shared playlist account. */
+spotify.get("/service/authorize", requireAdmin, (c) => {
+  const state = crypto.randomUUID();
+  setCookie(c, SERVICE_STATE_COOKIE, state, {
+    httpOnly: true,
+    // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
+    secure: process.env["NODE_ENV"] === "production",
+    sameSite: "Lax",
+    path: "/",
+    maxAge: STATE_MAX_AGE_S,
+  });
+  return c.redirect(buildServiceAuthorizeUrl(state));
+});
+
+/** Admin: service OAuth callback — store the shared account's encrypted refresh token. */
+spotify.get("/service/callback", requireAdmin, async (c) => {
+  const code = c.req.query("code");
+  const state = c.req.query("state");
+  const error = c.req.query("error");
+  const expected = getCookie(c, SERVICE_STATE_COOKIE);
+  deleteCookie(c, SERVICE_STATE_COOKIE, { path: "/" });
+
+  if (error) return c.json({ connected: false, error }, 400);
+  if (!code || !state || !expected || state !== expected) {
+    return c.json({ connected: false, error: "invalid_state" }, 400);
+  }
+  try {
+    await connectServiceAccount(code);
+    return c.json({ connected: true });
+  } catch (e) {
+    logger.error("Service account callback failed", e);
+    return c.json({ connected: false, error: "exchange_failed" }, 500);
+  }
 });
 
 export { spotify as spotifyRoutes };
