@@ -23,9 +23,13 @@ const playing = (trackId: string, isPlaying = true): TickResult => ({
   np: {
     isPlaying,
     trackId,
-    track: { title: `T-${trackId}`, artist: "A" },
-    spotifyUrl: undefined,
-    albumArtUrl: undefined,
+    // Album art + Spotify link ride on the track and must survive into emitTrack.
+    track: {
+      title: `T-${trackId}`,
+      artist: "A",
+      albumArtUrl: `https://i.scdn.co/${trackId}.jpg`,
+      spotifyUrl: `https://open.spotify.com/track/${trackId}`,
+    },
     progressMs: 0,
     durationMs: 1000,
   } satisfies NowPlaying,
@@ -57,7 +61,12 @@ describe("evaluateTick", () => {
 
   test("playing a new track → emit + record id", () => {
     const { actions, patch } = evaluateTick(fresh(), playing("t1"), 0, CONFIG);
-    expect(actions.emitTrack).toEqual({ title: "T-t1", artist: "A" });
+    expect(actions.emitTrack).toEqual({
+      title: "T-t1",
+      artist: "A",
+      albumArtUrl: "https://i.scdn.co/t1.jpg",
+      spotifyUrl: "https://open.spotify.com/track/t1",
+    });
     expect(patch.lastTrackId).toBe("t1");
   });
 
@@ -110,6 +119,7 @@ describe("evaluateTick", () => {
     const { actions, patch } = evaluateTick(fresh({ paused: true }), playing("t2"), 0, CONFIG);
     expect(actions.emitResumed).toBe(true);
     expect(patch.paused).toBe(false);
-    expect(actions.emitTrack).toEqual({ title: "T-t2", artist: "A" });
+    expect(actions.emitTrack?.title).toBe("T-t2"); // URL passthrough covered above
+    expect(actions.emitTrack?.artist).toBe("A");
   });
 });

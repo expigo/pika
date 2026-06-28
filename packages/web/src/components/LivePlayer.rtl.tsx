@@ -64,6 +64,33 @@ describe("LivePlayer — render states", () => {
   });
 });
 
+describe("LivePlayer — Spotify metadata (B1)", () => {
+  const SPOTIFY_TRACK = {
+    ...TRACK,
+    albumArtUrl: "https://i.scdn.co/image/getlucky",
+    spotifyUrl: "https://open.spotify.com/track/getlucky",
+  };
+
+  it("renders the album cover and a 'Listen on Spotify' link when present", () => {
+    setup({ status: "connected", currentTrack: SPOTIFY_TRACK, djName: "DJ Nova" });
+    render(<LivePlayer />);
+    expect(screen.getByAltText("Get Lucky cover")).toHaveAttribute(
+      "src",
+      "https://i.scdn.co/image/getlucky",
+    );
+    const link = screen.getByRole("link", { name: /listen to get lucky on spotify/i });
+    expect(link).toHaveAttribute("href", "https://open.spotify.com/track/getlucky");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  it("falls back to the placeholder and shows no Spotify link for a non-Spotify (VDJ) track", () => {
+    setup({ status: "connected", currentTrack: TRACK, djName: "DJ Nova" });
+    render(<LivePlayer />);
+    expect(screen.queryByAltText(/cover/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /on spotify/i })).not.toBeInTheDocument();
+  });
+});
+
 describe("LivePlayer — like interaction", () => {
   it("calls sendLike when liking the current track", async () => {
     const sendLike = vi.fn(() => true);

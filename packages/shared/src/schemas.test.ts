@@ -46,6 +46,36 @@ describe("TrackInfoSchema — tolerant metric normalization", () => {
     }
   });
 
+  test("accepts valid Spotify album-art + listen-on URLs", () => {
+    const r = TrackInfoSchema.safeParse({
+      artist: "A",
+      title: "T",
+      albumArtUrl: "https://i.scdn.co/image/abc123",
+      spotifyUrl: "https://open.spotify.com/track/abc123",
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.albumArtUrl).toBe("https://i.scdn.co/image/abc123");
+      expect(r.data.spotifyUrl).toBe("https://open.spotify.com/track/abc123");
+    }
+  });
+
+  test("malformed / empty / non-http URL drops to undefined (does not reject the track)", () => {
+    for (const bad of ["not-a-url", "", "  ", null, 42, "ftp://x"]) {
+      const r = TrackInfoSchema.safeParse({
+        artist: "A",
+        title: "T",
+        albumArtUrl: bad,
+        spotifyUrl: bad,
+      });
+      expect(r.success).toBe(true);
+      if (r.success) {
+        expect(r.data.albumArtUrl).toBeUndefined();
+        expect(r.data.spotifyUrl).toBeUndefined();
+      }
+    }
+  });
+
   test("implausible / out-of-range bpm drops to undefined", () => {
     for (const bpm of [0, 5, 999, -10, Number.NaN]) {
       const r = TrackInfoSchema.safeParse({ artist: "A", title: "T", bpm });

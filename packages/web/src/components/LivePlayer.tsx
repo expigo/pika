@@ -6,6 +6,7 @@ import {
   Activity,
   Check,
   Clock,
+  ExternalLink,
   Heart,
   Music2,
   Pause,
@@ -616,9 +617,19 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
               </div>
             ) : hasTrack ? (
               <div className="w-full flex flex-col items-center">
-                <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-purple-500/20 animate-pulse">
-                  <Music2 className="w-8 h-8 text-white" />
-                </div>
+                {currentTrack.albumArtUrl ? (
+                  // biome-ignore lint/performance/noImgElement: plain <img> avoids next/image remote-host config for Spotify's album-art CDN (i.scdn.co)
+                  <img
+                    src={currentTrack.albumArtUrl}
+                    alt={`${currentTrack.title} cover`}
+                    loading="lazy"
+                    className="w-40 h-40 rounded-[2rem] object-cover mb-8 shadow-2xl shadow-purple-500/20"
+                  />
+                ) : (
+                  <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl shadow-purple-500/20 animate-pulse">
+                    <Music2 className="w-8 h-8 text-white" />
+                  </div>
+                )}
 
                 <h2 className="text-3xl font-black text-white text-center leading-none italic uppercase tracking-tighter mb-3">
                   {currentTrack.title}
@@ -633,6 +644,19 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                       {Math.round(currentTrack.bpm)} BPM
                     </span>
                   </div>
+                )}
+
+                {currentTrack.spotifyUrl && (
+                  <a
+                    href={currentTrack.spotifyUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Listen to ${currentTrack.title} on Spotify`}
+                    className="inline-flex items-center gap-2 mb-10 px-5 py-2 bg-[#1DB954]/10 border border-[#1DB954]/30 rounded-full text-[11px] font-black text-[#1DB954] uppercase tracking-[0.15em] hover:bg-[#1DB954]/20 transition-colors"
+                  >
+                    Listen on Spotify
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                 )}
 
                 {/* Main Action: Pulse (Like) */}

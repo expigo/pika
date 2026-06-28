@@ -23,9 +23,14 @@ describe("normalizeNowPlaying", () => {
     expect(np).not.toBeNull();
     expect(np?.isPlaying).toBe(true);
     expect(np?.trackId).toBe("3xkHsmpQCBMytMJNiDf3Ii");
-    expect(np?.track).toEqual({ title: "Beautiful Things", artist: "Benson Boone" });
-    expect(np?.spotifyUrl).toBe("https://open.spotify.com/track/3xkHsmpQCBMytMJNiDf3Ii");
-    expect(np?.albumArtUrl).toContain("i.scdn.co");
+    expect(np?.track).toEqual({
+      title: "Beautiful Things",
+      artist: "Benson Boone",
+      albumArtUrl: "https://i.scdn.co/image/ab67616d0000b273831949037a1db10b87b005fa",
+      spotifyUrl: "https://open.spotify.com/track/3xkHsmpQCBMytMJNiDf3Ii",
+    });
+    expect(np?.track.spotifyUrl).toBe("https://open.spotify.com/track/3xkHsmpQCBMytMJNiDf3Ii");
+    expect(np?.track.albumArtUrl).toContain("i.scdn.co");
     expect(np?.progressMs).toBe(75000);
     expect(np?.durationMs).toBe(180000);
   });
@@ -53,8 +58,8 @@ describe("normalizeNowPlaying", () => {
       progress_ms: null,
       item: { id: "x", name: "Indie Track", duration_ms: 200000, artists: [{ name: "Local" }] },
     });
-    expect(np?.spotifyUrl).toBeUndefined();
-    expect(np?.albumArtUrl).toBeUndefined();
+    expect(np?.track.spotifyUrl).toBeUndefined();
+    expect(np?.track.albumArtUrl).toBeUndefined();
     expect(np?.progressMs).toBe(0);
   });
 });

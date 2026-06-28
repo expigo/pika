@@ -88,6 +88,16 @@ const optionalKey = z.preprocess(
 );
 
 /**
+ * Tolerant optional http(s) URL: a malformed / missing / over-long value degrades to `undefined`
+ * rather than rejecting the whole track message. Used for Spotify album-art + "Listen on" links,
+ * which are server-generated (trusted) but absent for non-Spotify (VirtualDJ) tracks.
+ */
+const optionalUrl = z.preprocess(
+  (v) => (typeof v === "string" && /^https?:\/\//.test(v) && v.length <= 2048 ? v : undefined),
+  z.string().optional(),
+);
+
+/**
  * Basic track info for WebSocket messages
  * Includes optional fingerprint data for analytics
  */
@@ -103,6 +113,9 @@ export const TrackInfoSchema = z.object({
   brightness: optionalMetric(0, 100),
   acousticness: optionalMetric(0, 100),
   groove: optionalMetric(0, 100),
+  // Spotify-only enrichment (broadcast-time, not persisted); absent for VirtualDJ tracks.
+  albumArtUrl: optionalUrl,
+  spotifyUrl: optionalUrl,
 });
 
 export type TrackInfo = z.infer<typeof TrackInfoSchema>;

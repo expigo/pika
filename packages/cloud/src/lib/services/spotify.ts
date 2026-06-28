@@ -214,9 +214,7 @@ async function refreshAccessToken(djUserId: string): Promise<string> {
 export interface NowPlaying {
   isPlaying: boolean;
   trackId: string; // Spotify track id — stable identity for change detection
-  track: TrackInfo; // normalized for the broadcast pipe (title/artist)
-  spotifyUrl: string | undefined; // direct "Listen on Spotify" link (V1.1)
-  albumArtUrl: string | undefined; // (V1.1)
+  track: TrackInfo; // normalized for the broadcast pipe (title/artist + albumArtUrl/spotifyUrl)
   progressMs: number;
   durationMs: number;
 }
@@ -243,13 +241,18 @@ export interface SpotifyCurrentlyPlaying {
 export function normalizeNowPlaying(body: SpotifyCurrentlyPlaying): NowPlaying | null {
   if (!body.item) return null;
   const artist = body.item.artists.map((a) => a.name).join(", ");
-  const track: TrackInfo = { title: body.item.name, artist };
+  // Album art + the public "Listen on Spotify" link ride on the track itself, so they flow
+  // through the unchanged broadcast pipe (emitTrack → applyNowPlaying → NOW_PLAYING → dancers).
+  const track: TrackInfo = {
+    title: body.item.name,
+    artist,
+    albumArtUrl: body.item.album?.images?.[0]?.url,
+    spotifyUrl: body.item.external_urls?.spotify,
+  };
   return {
     isPlaying: body.is_playing,
     trackId: body.item.id,
     track,
-    spotifyUrl: body.item.external_urls?.spotify,
-    albumArtUrl: body.item.album?.images?.[0]?.url,
     progressMs: body.progress_ms ?? 0,
     durationMs: body.item.duration_ms,
   };
