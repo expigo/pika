@@ -49,7 +49,7 @@ import {
   persistTrack,
   persistTracksBulk,
 } from "../lib/persistence/tracks";
-import { getConnectionStatus } from "../lib/services/spotify";
+import { fetchNowPlaying, getConnectionStatus, SpotifyAuthError } from "../lib/services/spotify";
 import { getStageTopic } from "../lib/topics";
 import { adminRoutes as adminRoute } from "../routes/admin";
 import { dj as djRoute } from "../routes/dj";
@@ -798,6 +798,28 @@ suite("DB integration (real Postgres)", () => {
         threw = true;
       }
       expect(threw).toBe(true);
+    });
+
+    test("an undecryptable token (TOKEN_ENCRYPTION_KEY changed) flips the connection to needs_reauth", async () => {
+      const { userId } = await signUpDj({ name: "Reauth DJ", approved: true });
+      // Garbage ciphertext = what a stored token looks like under a different key. decryptSecret
+      // throws BEFORE any Spotify HTTP call, so this is deterministic + network-free.
+      await db.insert(schema.spotifyConnections).values({
+        djUserId: userId,
+        refreshTokenEnc: "not-real-ciphertext",
+        scope: "user-read-currently-playing",
+        status: "active",
+      });
+
+      await expect(fetchNowPlaying(userId)).rejects.toBeInstanceOf(SpotifyAuthError);
+
+      const [conn] = await db
+        .select({ status: schema.spotifyConnections.status })
+        .from(schema.spotifyConnections)
+        .where(eq(schema.spotifyConnections.djUserId, userId));
+      expect(conn?.status).toBe("needs_reauth"); // self-heals → UI shows "Reconnect Spotify"
+
+      await db.delete(schema.user).where(eq(schema.user.id, userId)); // cascades the connection
     });
 
     test("createLiveSession persists a session row for the DJ", async () => {

@@ -166,6 +166,21 @@ async function getAccessToken(djUserId: string): Promise<string> {
   return refreshAccessToken(djUserId);
 }
 
+/**
+ * Mark a connection for re-auth (the stored token is unusable — revoked, or undecryptable after a
+ * TOKEN_ENCRYPTION_KEY change / corruption) and surface it as an auth error so the poller stops
+ * cleanly and the web UI shows a "Reconnect Spotify" prompt. Always throws.
+ */
+async function markNeedsReauth(djUserId: string, reason: string): Promise<never> {
+  await db
+    .update(spotifyConnections)
+    .set({ status: "needs_reauth", updatedAt: new Date() })
+    .where(eq(spotifyConnections.djUserId, djUserId));
+  accessCache.delete(djUserId);
+  logger.warn("⚠️ Spotify connection → needs_reauth", { djUserId, reason });
+  throw new SpotifyAuthError();
+}
+
 async function refreshAccessToken(djUserId: string): Promise<string> {
   const [conn] = await db
     .select()
@@ -174,7 +189,14 @@ async function refreshAccessToken(djUserId: string): Promise<string> {
     .limit(1);
   if (!conn) throw new SpotifyNotConnectedError();
 
-  const refreshToken = decryptSecret(conn.refreshTokenEnc);
+  let refreshToken: string;
+  try {
+    refreshToken = decryptSecret(conn.refreshTokenEnc);
+  } catch {
+    // Undecryptable token (TOKEN_ENCRYPTION_KEY rotated/changed, or corrupt ciphertext) — the
+    // stored credential is permanently unusable. Prompt a reconnect instead of looping errors.
+    return markNeedsReauth(djUserId, "decrypt-failed");
+  }
   const res = await fetch(`${ACCOUNTS}/api/token`, {
     method: "POST",
     headers: { Authorization: basicAuth(), "Content-Type": "application/x-www-form-urlencoded" },
@@ -183,13 +205,7 @@ async function refreshAccessToken(djUserId: string): Promise<string> {
 
   if (!res.ok) {
     // invalid_grant → the DJ revoked access. Mark for re-auth so the poller stops cleanly.
-    await db
-      .update(spotifyConnections)
-      .set({ status: "needs_reauth", updatedAt: new Date() })
-      .where(eq(spotifyConnections.djUserId, djUserId));
-    accessCache.delete(djUserId);
-    logger.warn("⚠️ Spotify refresh failed → needs_reauth", { djUserId, status: res.status });
-    throw new SpotifyAuthError();
+    return markNeedsReauth(djUserId, `refresh-${res.status}`);
   }
 
   const json = (await res.json()) as SpotifyTokenResponse;
