@@ -22,6 +22,7 @@
 
 import { logger, SendAnnouncementSchema, StartPollSchema } from "@pika/shared";
 import { Hono } from "hono";
+import { rateLimiter } from "hono-rate-limiter";
 import { announceToSession, cancelSessionAnnouncement } from "../lib/announcements";
 import { getUser, requireDjAuth } from "../lib/auth";
 import { getBroadcaster } from "../lib/broadcaster";
@@ -62,6 +63,22 @@ function liveSessionId(djUserId: string): string | null {
   const poller = getPollerStatus(djUserId);
   return poller.live && poller.sessionId ? poller.sessionId : null;
 }
+
+// Each engagement action fans a broadcast out to the whole session topic, so an approved-but-
+// misbehaving DJ client could spam the floor. Cap the combined announce/poll mutations per DJ
+// (the audit's WS broadcast-amplification fix — lib/rate-limit — predates these REST endpoints).
+// Keyed by authenticated user id (this runs after the global requireDjAuth, which sets `user`);
+// `GET /status` is deliberately NOT limited (the UI polls it every few seconds).
+const engagementLimiter = rateLimiter({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: "draft-6",
+  keyGenerator: (c) => {
+    const user = c.get("user") as { id?: string } | undefined;
+    return user?.id || c.req.header("CF-Connecting-IP") || "dj";
+  },
+  handler: (c) => c.json({ error: "Too many requests — slow down" }, 429),
+});
 
 /** Start broadcasting the DJ's Spotify now-playing. */
 live.post("/start", async (c) => {
@@ -104,7 +121,7 @@ live.post("/share", async (c) => {
 });
 
 /** Broadcast a transient announcement (optionally with a mobile push) to the DJ's floor. */
-live.post("/announcement", async (c) => {
+live.post("/announcement", engagementLimiter, async (c) => {
   const sessionId = liveSessionId(getUser(c).id);
   if (!sessionId) return c.json({ error: "Not currently live", live: false }, 409);
 
@@ -119,7 +136,7 @@ live.post("/announcement", async (c) => {
 });
 
 /** Clear the active announcement (broadcasts ANNOUNCEMENT_CANCELLED to every receiver). */
-live.post("/announcement/cancel", async (c) => {
+live.post("/announcement/cancel", engagementLimiter, async (c) => {
   const sessionId = liveSessionId(getUser(c).id);
   if (!sessionId) return c.json({ error: "Not currently live", live: false }, 409);
 
@@ -128,7 +145,7 @@ live.post("/announcement/cancel", async (c) => {
 });
 
 /** Start a live poll on the DJ's session. */
-live.post("/poll/start", async (c) => {
+live.post("/poll/start", engagementLimiter, async (c) => {
   const sessionId = liveSessionId(getUser(c).id);
   if (!sessionId) return c.json({ error: "Not currently live", live: false }, 409);
 
@@ -150,7 +167,7 @@ live.post("/poll/start", async (c) => {
 });
 
 /** End the active poll on the DJ's session (broadcasts results). */
-live.post("/poll/end", async (c) => {
+live.post("/poll/end", engagementLimiter, async (c) => {
   const sessionId = liveSessionId(getUser(c).id);
   if (!sessionId) return c.json({ error: "Not currently live", live: false }, 409);
 
