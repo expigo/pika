@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { DjLiveControls } from "@/components/DjLiveControls";
 import { LivePlayer } from "@/components/LivePlayer";
 import { LogoutButton } from "@/components/LogoutButton";
 import {
@@ -199,6 +200,8 @@ export default function DjLivePage() {
               </button>
             </div>
           </section>
+
+          {status && <DjLiveControls status={status} busy={busy} run={run} />}
 
           <section className="w-full max-w-lg">
             <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">What dancers see</p>

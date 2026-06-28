@@ -18,7 +18,6 @@ import {
   BroadcastTrackSchema,
   CancelAnnouncementSchema,
   EndSessionSchema,
-  LIMITS,
   logger,
   PIKA_VERSION,
   RegisterSessionSchema,
@@ -29,12 +28,12 @@ import {
 import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { events, stages } from "../db/schema";
+import { announcementPushLimiter, announceToSession } from "../lib/announcements";
 import { getUserFromToken } from "../lib/auth";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
 import { applyNowPlaying, createLiveSession } from "../lib/live-session";
 import { checkAndRecordNonce } from "../lib/nonces";
-import { getAnnouncementPushTargets } from "../lib/persistence/push-targets";
 import { cleanupSessionQueue } from "../lib/persistence/queue";
 import { endSessionInDb, persistedSessions } from "../lib/persistence/sessions";
 import {
@@ -43,7 +42,6 @@ import {
   persistTrack,
 } from "../lib/persistence/tracks";
 import { logSessionEvent, parseMessage, sendAck, sendNack } from "../lib/protocol";
-import { ClientRateLimiter } from "../lib/rate-limit";
 import {
   cancelDjReap,
   clearSessionTrack,
@@ -57,7 +55,6 @@ import {
 import { clearStageActiveSession } from "../lib/stages";
 import { clearTempoVotes, getTempoFeedback } from "../lib/tempo";
 import { DISCOVERY_TOPIC } from "../lib/topics";
-import { PushService } from "../services/push";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
 
@@ -66,13 +63,6 @@ import type { WSContext } from "./ws-context";
 // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 const MAX_CONCURRENT_SESSIONS = Number(process.env["MAX_SESSIONS"] ?? 1000);
 export const lastBroadcastTime = new Map<string, number>();
-
-// 🛡️ Per-session limiter for push-broadcast announcements (each push fans out to every
-// subscriber's device). Keyed by sessionId; cleaned up in cleanupRateLimits() below.
-const announcementPushLimiter = new ClientRateLimiter(
-  LIMITS.ANNOUNCEMENT_PUSH_RATE_LIMIT_MAX,
-  LIMITS.ANNOUNCEMENT_PUSH_RATE_LIMIT_WINDOW,
-);
 
 /**
  * 🛡️ Issue 21 Fix: TTL Cleanup for rate-limit map
@@ -525,70 +515,18 @@ export function handleSendAnnouncement(ctx: WSContext) {
     return;
   }
 
-  const timestamp = new Date().toISOString();
-  const endsAt = durationSeconds
-    ? new Date(Date.now() + durationSeconds * 1000).toISOString()
-    : undefined;
-
-  setSessionAnnouncement(announcementSessionId, {
-    message: announcementMessage,
-    timestamp,
-    ...(endsAt && { endsAt }),
-  });
-
-  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
-    rawWs.publish(
-      getSessionBroadcastTopic(announcementSessionId),
-      JSON.stringify({
-        type: "ANNOUNCEMENT_RECEIVED",
-        sessionId: announcementSessionId,
-        message: announcementMessage,
-        djName: djSession.djName,
-        timestamp: timestamp,
-        endsAt: endsAt,
-      }),
-    );
-  }
-
-  logger.info("📢 Announcement", {
-    djName: djSession.djName,
-    message: announcementMessage,
-    durationSeconds,
-    push: msg.push,
-  });
-
-  // Broadcast Push Notifications to all mobile devices (rate-limited per session — each push
-  // fans out to every subscriber's device; the in-session banner above is unthrottled).
-  if (msg.push && !announcementPushLimiter.check(announcementSessionId)) {
-    logger.warn("⏳ Announcement push rate-limited; banner sent, push skipped", {
-      sessionId: announcementSessionId,
-    });
-  } else if (msg.push) {
-    (async () => {
-      try {
-        // SCOPED push: a staged session reaches only that stage's subscribers;
-        // a stage-less session falls back to the global broadcast (correct when
-        // there is no concurrent context to leak across). Kills the Global
-        // Megaphone once stages are in use. See lib/persistence/push-targets.ts.
-        const targets = await getAnnouncementPushTargets(djSession);
-
-        if (targets.length > 0) {
-          logger.info(`[Push] Broadcasting announcement to ${targets.length} targets`, {
-            scoped: Boolean(djSession.stageId),
-          });
-          const payload = JSON.stringify({
-            title: `Announcement from ${djSession.djName}`,
-            body: announcementMessage,
-            data: { url: "/live" },
-          });
-
-          await Promise.allSettled(targets.map((sub) => PushService.send(sub, payload)));
-        }
-      } catch (e) {
-        logger.error("[Push] Failed to broadcast announcement push", e);
+  // Delegate the fan-out (store + broadcast + scoped push) to the shared lib so the REST
+  // path (web DJ) and this WS path (desktop DJ) stay identical. Publish via rawWs so the
+  // banner excludes the sender and honours this connection's backpressure.
+  announceToSession(
+    announcementSessionId,
+    { message: announcementMessage, durationSeconds, push: msg.push },
+    (topic, data) => {
+      if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
+        rawWs.publish(topic, data);
       }
-    })();
-  }
+    },
+  );
 
   if (messageId) sendAck(ws, messageId);
 }

@@ -12,6 +12,9 @@ describe("dj-live control channel auth guard", () => {
     ["POST", "/api/live/start"],
     ["POST", "/api/live/stop"],
     ["POST", "/api/live/share"],
+    ["POST", "/api/live/announcement"],
+    ["POST", "/api/live/poll/start"],
+    ["POST", "/api/live/poll/end"],
     ["GET", "/api/live/status"],
   ] as const) {
     test(`${method} ${path} → 401 without a session`, async () => {

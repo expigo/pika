@@ -19,19 +19,15 @@ import {
   StartPollSchema,
   VoteOnPollSchema,
 } from "@pika/shared";
-import { closePollInDb, createPollInDb, recordPollVoteInDb } from "../lib/persistence/polls";
+import { recordPollVoteInDb } from "../lib/persistence/polls";
 import {
-  type ActivePoll,
-  activePolls,
-  endPoll,
+  endPollForSession,
   getActivePoll,
-  hasActivePoll,
   recordPollVote,
-  sessionActivePoll,
-  setPollTimer,
+  startPollForSession,
 } from "../lib/polls";
 import { parseMessage, sendAck, sendNack } from "../lib/protocol";
-import { getSession, getSessionBroadcastTopic, refreshSessionActivity } from "../lib/sessions";
+import { getSessionBroadcastTopic } from "../lib/sessions";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
 
@@ -43,7 +39,7 @@ export async function handleStartPoll(ctx: WSContext) {
   const msg = parseMessage(StartPollSchema, message, ws, messageId);
   if (!msg) return;
 
-  // Verify this is a DJ starting a poll for their own session
+  // 🔐 Security: Verify this is a DJ starting a poll for their own session (WS-only check).
   if (state.djSessionId !== msg.sessionId) {
     logger.warn("⚠️ Unauthorized poll attempt", {
       owner: state.djSessionId || "none",
@@ -55,103 +51,21 @@ export async function handleStartPoll(ctx: WSContext) {
 
   const { question, options, durationSeconds } = msg;
 
-  // 🛡️ Safe Limits: Poll Validation
-  if (options.length < 2 || options.length > 10) {
-    logger.warn(`⚠️ Poll rejected: Invalid option count (${options.length})`);
-    if (messageId) sendNack(ws, messageId, "Poll must have 2-10 options");
-    return;
-  }
-
-  if (options.some((opt) => opt.length === 0 || opt.length > 100)) {
-    logger.warn("⚠️ Poll rejected: Invalid option length");
-    if (messageId) sendNack(ws, messageId, "Poll options must be 1-100 characters");
-    return;
-  }
-
-  // 🛡️ One active poll per session: reject a concurrent START_POLL so the first poll
-  // isn't orphaned in activePolls with a live auto-end timer (and no stray POLL_ENDED).
-  if (hasActivePoll(msg.sessionId)) {
-    logger.warn("⚠️ Poll rejected: session already has an active poll", {
-      sessionId: msg.sessionId,
-    });
-    if (messageId) sendNack(ws, messageId, "A poll is already active — end it first");
-    return;
-  }
-
-  const session = getSession(msg.sessionId);
-
-  // 💾 Persist poll to database first to get an ID
-  const pollId = await createPollInDb(msg.sessionId, question, options, session?.currentTrack);
-
-  if (!pollId) {
-    if (messageId) sendNack(ws, messageId, "Failed to create poll in database");
-    return;
-  }
-
-  const endsAt = durationSeconds ? new Date(Date.now() + durationSeconds * 1000) : undefined;
-
-  const newPoll: ActivePoll = {
-    id: pollId,
-    sessionId: msg.sessionId,
-    question,
-    options,
-    votes: new Array(options.length).fill(0),
-    votedClients: new Map(),
-    ...(endsAt && { endsAt }),
-  };
-
-  activePolls.set(pollId, newPoll);
-  sessionActivePoll.set(msg.sessionId, pollId);
-  refreshSessionActivity(msg.sessionId);
-
-  // Broadcast poll arrival to this session's listeners
-  if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
-    rawWs.publish(
-      getSessionBroadcastTopic(msg.sessionId),
-      JSON.stringify({
-        type: "POLL_STARTED",
-        sessionId: msg.sessionId,
-        pollId: newPoll.id,
-        question: newPoll.question,
-        options: newPoll.options,
-        endsAt: newPoll.endsAt?.toISOString(),
-      }),
-    );
-  }
-
-  logger.info("📊 Poll started", {
-    question: newPoll.question,
-    pollId,
-    sessionId: msg.sessionId,
-  });
-
-  // Auto-end poll if duration is provided (with timer tracking)
-  if (durationSeconds) {
-    const timer = setTimeout(async () => {
-      const poll = activePolls.get(pollId);
-      if (poll) {
-        logger.info(`📊 Auto-ending poll: ${poll.id}`);
-        endPoll(pollId); // This also clears the timer reference
-        closePollInDb(pollId).catch((e) => logger.error("❌ Failed to close poll in DB", e));
-        const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
-        const winnerIndex = totalVotes > 0 ? poll.votes.indexOf(Math.max(...poll.votes)) : 0;
-        if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
-          rawWs.publish(
-            getSessionBroadcastTopic(msg.sessionId),
-            JSON.stringify({
-              type: "POLL_ENDED",
-              sessionId: msg.sessionId,
-              pollId,
-              results: poll.votes,
-              totalVotes,
-              winnerIndex,
-            }),
-          );
-        }
+  // Validation + create + broadcast lives in the shared lib (REST shares it). Publish via rawWs so
+  // the sender is excluded and this connection's backpressure is honoured.
+  const result = await startPollForSession(
+    { sessionId: msg.sessionId, question, options, durationSeconds },
+    (topic, data) => {
+      if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
+        rawWs.publish(topic, data);
       }
-    }, durationSeconds * 1000);
-    // Track the timer so it can be cancelled if poll ends early
-    setPollTimer(pollId, timer);
+    },
+  );
+
+  if (!result.ok) {
+    logger.warn("⚠️ Poll rejected", { sessionId: msg.sessionId, error: result.error });
+    if (messageId) sendNack(ws, messageId, result.error ?? "Failed to start poll");
+    return;
   }
 
   if (messageId) sendAck(ws, messageId);
@@ -178,29 +92,13 @@ export async function handleEndPoll(ctx: WSContext) {
     }
 
     logger.info(`📊 Manually ending poll: ${poll.id}`);
-    endPoll(msg.pollId);
-    refreshSessionActivity(poll.sessionId);
-    const totalVotes = poll.votes.reduce((a, b) => a + b, 0);
-
-    // Broadcast results
-    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
-      rawWs.publish(
-        getSessionBroadcastTopic(poll.sessionId),
-        JSON.stringify({
-          type: "POLL_ENDED",
-          sessionId: poll.sessionId,
-          pollId: msg.pollId,
-          results: poll.votes,
-          totalVotes,
-          winnerIndex: poll.votes.indexOf(Math.max(...poll.votes)),
-        }),
-      );
-    }
+    endPollForSession(msg.pollId, (topic, data) => {
+      if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
+        rawWs.publish(topic, data);
+      }
+    });
 
     if (messageId) sendAck(ws, messageId);
-
-    // DB op after broadcast
-    closePollInDb(msg.pollId).catch((e) => logger.error("❌ Failed to close poll in DB", e));
   } else {
     if (messageId) sendNack(ws, messageId, "Poll not found");
   }
@@ -227,25 +125,18 @@ export async function handleCancelPoll(ctx: WSContext) {
     }
 
     logger.info(`📊 Cancelling poll: ${poll.id}`);
-    endPoll(msg.pollId);
-    refreshSessionActivity(poll.sessionId);
-    // For cancelled polls, send 0 results
-    if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
-      rawWs.publish(
-        getSessionBroadcastTopic(poll.sessionId),
-        JSON.stringify({
-          type: "POLL_ENDED",
-          sessionId: poll.sessionId,
-          pollId: msg.pollId,
-          results: poll.options.map(() => 0),
-          totalVotes: 0,
-          winnerIndex: -1,
-        }),
-      );
-    }
+    // Cancelled polls report zeroed results (no winner).
+    endPollForSession(
+      msg.pollId,
+      (topic, data) => {
+        if (checkBackpressure(rawWs, state.clientId || undefined).canSend) {
+          rawWs.publish(topic, data);
+        }
+      },
+      { cancelled: true },
+    );
 
     if (messageId) sendAck(ws, messageId);
-    closePollInDb(msg.pollId).catch((e) => logger.error("❌ Failed to close poll in DB", e));
   } else {
     if (messageId) sendNack(ws, messageId, "Poll not found");
   }

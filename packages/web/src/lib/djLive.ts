@@ -35,11 +35,31 @@ export interface SpotifyStatus {
   status: string | null; // 'active' | 'needs_reauth' | null
 }
 
+/** The DJ-side readout of the active poll (mirrors the cloud /status enrichment). */
+export interface ActivePollStatus {
+  pollId: number;
+  question: string;
+  options: string[];
+  votes: number[];
+  totalVotes: number;
+  endsAt: string | null;
+}
+
+/** Aggregated tempo feedback for the DJ readout (counts of dancer votes). */
+export interface TempoStatus {
+  slower: number;
+  perfect: number;
+  faster: number;
+  total: number;
+}
+
 export interface LiveStatus {
   live: boolean;
   sessionId?: string;
   paused?: boolean;
   spotify: SpotifyStatus;
+  activePoll?: ActivePollStatus | null;
+  tempo?: TempoStatus | null;
 }
 
 export class DjApiError extends Error {
@@ -102,6 +122,41 @@ export function setShare(paused: boolean): Promise<{ success: boolean; paused: b
     headers: JSON_CSRF,
     body: JSON.stringify({ paused }),
   });
+}
+
+/** Broadcast a transient announcement to the floor (optionally as a mobile push). */
+export function sendAnnouncement(
+  message: string,
+  durationSeconds?: number,
+  push?: boolean,
+): Promise<{ success: boolean }> {
+  return req("/api/live/announcement", {
+    method: "POST",
+    headers: JSON_CSRF,
+    body: JSON.stringify({
+      message,
+      ...(durationSeconds ? { durationSeconds } : {}),
+      ...(push ? { push } : {}),
+    }),
+  });
+}
+
+/** Start a live poll on the DJ's session. */
+export function startPoll(params: {
+  question: string;
+  options: string[];
+  durationSeconds?: number;
+}): Promise<{ success: boolean; pollId: number }> {
+  return req("/api/live/poll/start", {
+    method: "POST",
+    headers: JSON_CSRF,
+    body: JSON.stringify(params),
+  });
+}
+
+/** End the active poll on the DJ's session. */
+export function endPoll(): Promise<{ success: boolean }> {
+  return req("/api/live/poll/end", { method: "POST", headers: JSON_CSRF });
 }
 
 /** Top-level navigation target to (re)connect Spotify — sends the session cookie. */
