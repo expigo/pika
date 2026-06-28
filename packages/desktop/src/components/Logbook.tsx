@@ -3,6 +3,7 @@
  * History browser for past DJ sessions with detailed reports.
  */
 
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ask } from "@tauri-apps/plugin-dialog";
 import {
   BarChart3,
@@ -16,11 +17,12 @@ import {
   Flame,
   Heart,
   Link2,
+  ListMusic,
   Music,
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { getRecapUrl } from "../config";
 import {
@@ -33,8 +35,7 @@ import {
 import { trackRepository } from "../db/repositories/trackRepository";
 import { getConfiguredUrls } from "../hooks/useDjSettings";
 import { apiFetch } from "../services/apiClient";
-import { useVirtualizer } from "@tanstack/react-virtual";
-import { useRef } from "react";
+import { BuildPlaylistModal } from "./BuildPlaylistModal";
 
 // ============================================================================
 // Helper Functions
@@ -81,7 +82,7 @@ function sanitizeCsvField(value: string | null | undefined): string {
   // Escape quotes
   const escaped = str.replace(/"/g, '""');
   // Prevent formula injection (OWASP)
-  if (/^[=\+\-@]/.test(str)) {
+  if (/^[=+\-@]/.test(str)) {
     return `"'${escaped}"`; // Prepend single quote and wrap in quotes
   }
   return `"${escaped}"`;
@@ -170,6 +171,7 @@ export function Logbook() {
   const [showSummary, setShowSummary] = useState(false);
   const [recapCopied, setRecapCopied] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showPlaylistModal, setShowPlaylistModal] = useState(false);
 
   // Load all sessions and summary
   useEffect(() => {
@@ -587,6 +589,15 @@ export function Logbook() {
                   <Download size={16} />
                   Export CSV
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPlaylistModal(true)}
+                  style={styles.spotifyButton}
+                  title="Build a Spotify playlist from this set"
+                >
+                  <ListMusic size={16} />
+                  Spotify Playlist
+                </button>
               </div>
             </div>
 
@@ -705,6 +716,13 @@ export function Logbook() {
           </div>
         )}
       </div>
+
+      {showPlaylistModal && sessionDetails && (
+        <BuildPlaylistModal
+          session={{ id: sessionDetails.session.id, name: sessionDetails.session.name }}
+          onClose={() => setShowPlaylistModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -869,6 +887,19 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "0.625rem 1rem",
     background: "#22c55e",
     color: "white",
+    border: "none",
+    borderRadius: "8px",
+    fontSize: "0.875rem",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
+  spotifyButton: {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.625rem 1rem",
+    background: "#1DB954",
+    color: "black",
     border: "none",
     borderRadius: "8px",
     fontSize: "0.875rem",

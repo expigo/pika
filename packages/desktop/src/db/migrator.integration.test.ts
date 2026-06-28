@@ -103,7 +103,8 @@ const appliedTags = (bdb: Bdb): string[] =>
   );
 
 const indexExists = (bdb: Bdb, name: string): boolean =>
-  bdb.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name = ?").get(name) !== undefined;
+  bdb.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name = ?").get(name) !==
+  undefined;
 
 describe("desktop migrator", () => {
   let bdb: Bdb;
@@ -133,21 +134,20 @@ describe("desktop migrator", () => {
     expect(indexExists(bdb, "idx_plays_track_played")).toBe(true);
     expect(fkTargets(bdb, "plays")).toEqual(["sessions", "tracks"]);
     expect(fkTargets(bdb, "saved_set_tracks")).toEqual(["saved_sets", "tracks"]);
-    // Baseline recorded.
-    expect(appliedTags(bdb)).toEqual(["0000_black_unicorn"]);
+    // Baseline + forward migrations recorded.
+    expect(appliedTags(bdb)).toEqual(["0000_black_unicorn", "0001_mature_cobalt_man"]);
   });
 
   it("baseline-adopts a pre-existing hand-rolled DB without recreating it or losing data", async () => {
     bdb.exec(LEGACY_DDL);
-    bdb.prepare("INSERT INTO tracks (file_path, artist, title) VALUES (?, ?, ?)").run(
-      "/music/x.mp3",
-      "Legacy",
-      "Track",
-    );
+    bdb
+      .prepare("INSERT INTO tracks (file_path, artist, title) VALUES (?, ?, ?)")
+      .run("/music/x.mp3", "Legacy", "Track");
 
     await runMigrations(asSqlite(bdb));
 
-    expect(appliedTags(bdb)).toEqual(["0000_black_unicorn"]); // adopted, not re-run
+    // 0000 is adopted (stamped, not re-run); the forward 0001 then applies its ALTERs.
+    expect(appliedTags(bdb)).toEqual(["0000_black_unicorn", "0001_mature_cobalt_man"]);
     const row = bdb.prepare("SELECT artist FROM tracks WHERE file_path = ?").get("/music/x.mp3") as
       | { artist: string }
       | undefined;
@@ -178,7 +178,7 @@ describe("desktop migrator", () => {
   it("is idempotent — re-running applies nothing and keeps a single baseline row", async () => {
     await runMigrations(asSqlite(bdb));
     await runMigrations(asSqlite(bdb));
-    expect(appliedTags(bdb)).toEqual(["0000_black_unicorn"]);
+    expect(appliedTags(bdb)).toEqual(["0000_black_unicorn", "0001_mature_cobalt_man"]);
   });
 });
 
@@ -227,7 +227,10 @@ describe("migrator engine (synthetic migrations)", () => {
   it("baseline-adopts a legacy DB AND then applies a forward migration to it", async () => {
     bdb.exec(LEGACY_DDL);
     const adoptBaseline: Migration = { tag: "0000_base", sql: "CREATE TABLE tracks (id integer);" };
-    const alterTracks: Migration = { tag: "0001_extra", sql: "ALTER TABLE tracks ADD COLUMN extra text;" };
+    const alterTracks: Migration = {
+      tag: "0001_extra",
+      sql: "ALTER TABLE tracks ADD COLUMN extra text;",
+    };
 
     await applyMigrations(asSqlite(bdb), [adoptBaseline, alterTracks]);
 

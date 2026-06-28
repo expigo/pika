@@ -575,7 +575,71 @@ export const trackRepository = {
 
     return result;
   },
+
+  /**
+   * Distinct tracks played in a session (B3 playlist builder), in set order, each with its
+   * duration + any remembered Spotify match. Repeats collapse to their first play.
+   */
+  async getSessionTracksForMatching(sessionId: number): Promise<SessionMatchTrack[]> {
+    const sqlite = await getSqlite();
+    const rows = await sqlite.select<SessionMatchTrack[]>(
+      `
+      SELECT
+        t.id as trackId,
+        t.artist as artist,
+        t.title as title,
+        t.duration as durationSec,
+        t.spotify_id as spotifyId,
+        t.spotify_url as spotifyUrl,
+        t.spotify_match_source as spotifyMatchSource,
+        t.spotify_match_confidence as spotifyMatchConfidence,
+        MIN(p.played_at) as firstPlayedAt
+      FROM plays p
+      JOIN tracks t ON p.track_id = t.id
+      WHERE p.session_id = ?
+      GROUP BY t.id
+      ORDER BY firstPlayedAt ASC
+    `,
+      [sessionId],
+    );
+    return rows;
+  },
+
+  /** Remember a Spotify match for a local track (file-keyed); `dj_confirmed` is sticky. */
+  async setTrackSpotifyMatch(
+    trackId: number,
+    match: {
+      spotifyId: string;
+      spotifyUrl: string;
+      confidence: number | null;
+      source: "auto" | "dj_confirmed";
+    },
+  ): Promise<void> {
+    await db
+      .update(tracks)
+      .set({
+        spotifyId: match.spotifyId,
+        spotifyUrl: match.spotifyUrl,
+        spotifyMatchConfidence: match.confidence,
+        spotifyMatchSource: match.source,
+        spotifyMatchedAt: Math.floor(Date.now() / 1000),
+      })
+      .where(eq(tracks.id, trackId));
+  },
 };
+
+/** A session's distinct track with its duration + remembered Spotify match (B3). */
+export interface SessionMatchTrack {
+  trackId: number;
+  artist: string | null;
+  title: string | null;
+  durationSec: number | null;
+  spotifyId: string | null;
+  spotifyUrl: string | null;
+  spotifyMatchSource: string | null; // 'auto' | 'dj_confirmed'
+  spotifyMatchConfidence: number | null;
+  firstPlayedAt: number;
+}
 
 /**
  * Maps a raw database row to a clean Track object

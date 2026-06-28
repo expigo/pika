@@ -45,6 +45,14 @@ export const tracks = sqliteTable(
 
     // DJ personal notes for the track
     notes: text("notes"),
+
+    // Spotify match cache (B3 playlist tool). Remembered per local file so matches compound
+    // across nights; a `dj_confirmed` source is locked and never re-searched.
+    spotifyId: text("spotify_id"),
+    spotifyUrl: text("spotify_url"),
+    spotifyMatchConfidence: real("spotify_match_confidence"),
+    spotifyMatchSource: text("spotify_match_source"), // 'auto' | 'dj_confirmed'
+    spotifyMatchedAt: int("spotify_matched_at"), // unix seconds
   },
   (t) => ({
     // UNIQUE so the same normalized artist::title can't be inserted twice.
