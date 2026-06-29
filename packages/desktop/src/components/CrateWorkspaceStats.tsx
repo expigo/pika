@@ -1,11 +1,31 @@
+import type { SpotifyAudioFeatures } from "@pika/shared";
 import { useMemo } from "react";
-import { useSetStore, getSetStats } from "../hooks/useSetBuilder";
-import { TrackFingerprint } from "./TrackFingerprint";
 import type { Track } from "../db/repositories/trackRepository";
+import { getSetStats, useSetStore } from "../hooks/useSetBuilder";
+import { useSpotifyFeaturesBatch } from "../hooks/useSpotifyFeatures";
+import { TrackFingerprint } from "./TrackFingerprint";
 
 export function CrateWorkspaceStats() {
   const { activeSet } = useSetStore();
   const stats = useMemo(() => getSetStats(activeSet), [activeSet]);
+
+  // Aggregate Spotify features across the set's matched tracks (shown beside the Pika averages).
+  const spotifyIds = useMemo(() => activeSet.map((t) => t.spotifyId), [activeSet]);
+  const { features: spotifyFeatures } = useSpotifyFeaturesBatch(spotifyIds);
+  const spotifyAgg = useMemo(() => {
+    const vals = [...spotifyFeatures.values()];
+    if (vals.length === 0) return null;
+    const avg = (get: (f: SpotifyAudioFeatures) => number | undefined) => {
+      const xs = vals.map(get).filter((x): x is number => x != null);
+      return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+    };
+    return {
+      count: vals.length,
+      tempo: avg((f) => f.tempo),
+      energy: avg((f) => f.energy),
+      valence: avg((f) => f.valence),
+    };
+  }, [spotifyFeatures]);
 
   const setAverageMetrics = useMemo(() => {
     if (activeSet.length === 0) return null;
@@ -72,6 +92,23 @@ export function CrateWorkspaceStats() {
           </div>
         </div>
       </div>
+
+      {/* Spotify aggregate (canonical features for matched tracks) */}
+      {spotifyAgg && (
+        <div className="flex items-center gap-2 px-1 text-[9px] font-bold uppercase tracking-wider text-emerald-400/80">
+          <span>Spotify</span>
+          {spotifyAgg.tempo != null && (
+            <span className="font-mono">{Math.round(spotifyAgg.tempo)} BPM</span>
+          )}
+          {spotifyAgg.energy != null && (
+            <span className="font-mono">E {spotifyAgg.energy.toFixed(2)}</span>
+          )}
+          {spotifyAgg.valence != null && (
+            <span className="font-mono">V {spotifyAgg.valence.toFixed(2)}</span>
+          )}
+          <span className="text-slate-600">n={spotifyAgg.count}</span>
+        </div>
+      )}
 
       {/* Main Chart Area */}
       <div className="flex-1 min-h-0 relative flex flex-col bg-slate-950/40 rounded-2xl border border-white/5 shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] overflow-hidden">

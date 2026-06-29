@@ -6,12 +6,14 @@
  * remembered on the session so it isn't re-created on reopen.
  */
 
+import type { SpotifyAudioFeatures } from "@pika/shared";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Check, ChevronDown, Disc3, ExternalLink, ListMusic, Lock, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
+import { useSpotifyFeaturesBatch } from "../hooks/useSpotifyFeatures";
 import {
   createSpotifyPlaylist,
   type MatchResult,
@@ -81,6 +83,13 @@ function Art({ url }: { url?: string }) {
 
 export function BuildPlaylistModal({ session, onClose }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
+  // Canonical Spotify features for each row's currently-selected candidate (shown as a small badge).
+  const selectedSpotifyIds = useMemo(
+    () =>
+      rows.map((r) => (r.selectedIndex !== null ? r.candidates[r.selectedIndex]?.spotifyId : null)),
+    [rows],
+  );
+  const { features: featureMap } = useSpotifyFeaturesBatch(selectedSpotifyIds);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState(session.name ?? "Pika set");
   const [note, setNote] = useState("");
@@ -452,17 +461,22 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {rows.map((row, i) => (
-                    <PlaylistRow
-                      key={row.trackId}
-                      row={row}
-                      expanded={expandedRow === i}
-                      onToggle={() => setExpandedRow((cur) => (cur === i ? null : i))}
-                      onChoose={(v) => choose(i, v)}
-                      onRematch={() => rematch(i)}
-                      onPaste={(v) => pasteLink(i, v)}
-                    />
-                  ))}
+                  {rows.map((row, i) => {
+                    const sel =
+                      row.selectedIndex !== null ? row.candidates[row.selectedIndex] : null;
+                    return (
+                      <PlaylistRow
+                        key={row.trackId}
+                        row={row}
+                        features={sel ? (featureMap.get(sel.spotifyId) ?? null) : null}
+                        expanded={expandedRow === i}
+                        onToggle={() => setExpandedRow((cur) => (cur === i ? null : i))}
+                        onChoose={(v) => choose(i, v)}
+                        onRematch={() => rematch(i)}
+                        onPaste={(v) => pasteLink(i, v)}
+                      />
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -529,8 +543,20 @@ function PasteLink({ onPaste }: { onPaste: (v: string) => Promise<string | null>
   );
 }
 
+const PITCH = ["C", "C♯", "D", "D♯", "E", "F", "F♯", "G", "G♯", "A", "A♯", "B"];
+/** Compact "128 BPM · Cm · E 0.78" badge from Spotify features (omits missing parts). */
+function spotifyFeatureBadge(f: SpotifyAudioFeatures): string | null {
+  const parts: string[] = [];
+  if (f.tempo != null) parts.push(`${Math.round(f.tempo)} BPM`);
+  if (f.keyPitch != null && f.keyPitch >= 0)
+    parts.push(`${PITCH[f.keyPitch] ?? f.keyPitch}${f.mode === 0 ? "m" : ""}`);
+  if (f.energy != null) parts.push(`E ${f.energy.toFixed(2)}`);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 function PlaylistRow({
   row,
+  features,
   expanded,
   onToggle,
   onChoose,
@@ -538,6 +564,7 @@ function PlaylistRow({
   onPaste,
 }: {
   row: Row;
+  features: SpotifyAudioFeatures | null;
   expanded: boolean;
   onToggle: () => void;
   onChoose: (value: number | null) => void;
@@ -546,6 +573,7 @@ function PlaylistRow({
 }) {
   const selected = row.selectedIndex !== null ? row.candidates[row.selectedIndex] : null;
   const conf = CONF_LABEL[row.confidence];
+  const featBadge = features ? spotifyFeatureBadge(features) : null;
 
   return (
     <li className="rounded-xl border border-slate-800 bg-slate-950/40 p-3">
@@ -593,6 +621,14 @@ function PlaylistRow({
                     {selected.artists} · {fmtDuration(selected.durationMs)}
                     {selected.popularity ? ` · ${selected.popularity}% popular` : ""}
                   </div>
+                  {featBadge && (
+                    <div
+                      className="mt-0.5 text-[11px] text-emerald-400/80"
+                      title="Spotify features"
+                    >
+                      {featBadge}
+                    </div>
+                  )}
                   {conf && !row.locked && (
                     <div className={`text-[11px] ${conf.cls}`}>{conf.text}</div>
                   )}

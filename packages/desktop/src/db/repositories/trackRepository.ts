@@ -58,6 +58,9 @@ export interface Track {
 
   // DJ personal notes
   notes: string | null;
+
+  // Remembered Spotify match (B3) — null until matched via the Build Playlist tool.
+  spotifyId: string | null;
 }
 
 /**
@@ -86,7 +89,8 @@ const TRACK_SELECT_SQL = `
 		analysis_version as analysisVersion,
 		track_key as trackKey,
 		tags,
-		notes
+		notes,
+		spotify_id as spotifyId
 	FROM tracks
 `;
 

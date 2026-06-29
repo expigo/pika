@@ -127,6 +127,7 @@ describe("desktop migrator", () => {
       "sessions",
       "set_templates",
       "settings",
+      "spotify_track_features",
       "tracks",
     ]);
     // Constraints + indexes the app relies on.
@@ -140,6 +141,7 @@ describe("desktop migrator", () => {
       "0001_mature_cobalt_man",
       "0002_slim_mordo",
       "0003_quiet_vindicator",
+      "0004_parallel_steve_rogers",
     ]);
   });
 
@@ -157,6 +159,7 @@ describe("desktop migrator", () => {
       "0001_mature_cobalt_man",
       "0002_slim_mordo",
       "0003_quiet_vindicator",
+      "0004_parallel_steve_rogers",
     ]);
     const row = bdb.prepare("SELECT artist FROM tracks WHERE file_path = ?").get("/music/x.mp3") as
       | { artist: string }
@@ -193,6 +196,7 @@ describe("desktop migrator", () => {
       "0001_mature_cobalt_man",
       "0002_slim_mordo",
       "0003_quiet_vindicator",
+      "0004_parallel_steve_rogers",
     ]);
   });
 });

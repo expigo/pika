@@ -4,6 +4,7 @@
  * candidates, and the confirmed set to `/api/playlist/create` (created on the shared Pika account).
  */
 
+import type { SpotifyAudioFeatures } from "@pika/shared";
 import { apiFetch } from "./apiClient";
 import { getConfiguredUrls } from "./settingsService";
 
@@ -71,6 +72,13 @@ export function resolveSpotifyTrack(spotifyId: string): Promise<{ candidate: Spo
 /** Resolve many track ids at once (≤50) — used to backfill missing album art for remembered matches. */
 export function resolveSpotifyTracks(ids: string[]): Promise<{ candidates: SpotifyCandidate[] }> {
   return postJson("/api/playlist/resolve-batch", { ids });
+}
+
+/** Canonical Spotify audio features for a batch of track ids (≤100). Returns only ids we have. */
+export function fetchSpotifyFeatures(
+  ids: string[],
+): Promise<{ features: Record<string, SpotifyAudioFeatures> }> {
+  return postJson("/api/playlist/features", { ids });
 }
 
 /** Create the playlist on the shared account from the DJ's confirmed tracks. */

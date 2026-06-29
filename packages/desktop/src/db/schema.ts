@@ -212,6 +212,38 @@ export const offlineQueue = sqliteTable("offline_queue", {
 });
 
 // ============================================================================
+// Spotify Track Features - local mirror of the cloud's canonical Spotify audio-features
+// ============================================================================
+
+/**
+ * Cache of Spotify's own audio-features (tempo/key/energy/…) fetched from the cloud by `spotify_id`,
+ * so the desktop can show them BESIDE its own Pika sidecar features (on `tracks`) — labeled, never
+ * merged (different source + scale). Local-first: fetched once per id, then read offline. Coverage is
+ * limited to tracks present in the cloud's seeded catalog (the Spotify audio-features API is dead for
+ * new apps), so most library tracks won't have a row.
+ */
+export const spotifyTrackFeatures = sqliteTable("spotify_track_features", {
+  spotifyId: text("spotify_id").primaryKey(),
+  tempo: real("tempo"), // BPM
+  keyPitch: int("key_pitch"), // pitch class 0-11
+  mode: int("mode"), // 0 minor, 1 major
+  energy: real("energy"), // 0-1
+  danceability: real("danceability"), // 0-1
+  valence: real("valence"), // 0-1
+  acousticness: real("acousticness"), // 0-1
+  instrumentalness: real("instrumentalness"), // 0-1
+  liveness: real("liveness"), // 0-1
+  speechiness: real("speechiness"), // 0-1
+  loudness: real("loudness"), // dB
+  timeSignature: int("time_signature"),
+  popularity: int("popularity"), // 0-100
+  releaseDate: text("release_date"),
+  genres: text("genres"),
+  recordLabel: text("record_label"),
+  fetchedAt: int("fetched_at").notNull(), // unix seconds — when we cached it
+});
+
+// ============================================================================
 // Settings Table - App Configuration
 // ============================================================================
 

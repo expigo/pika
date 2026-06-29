@@ -13,8 +13,8 @@
  * @created 2026-01-23
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Track, VirtualDJTrack, AnalysisResult } from "./trackRepository";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AnalysisResult, Track, VirtualDJTrack } from "./trackRepository";
 import { CURRENT_ANALYSIS_VERSION } from "./trackRepository";
 
 // ============================================================================
@@ -109,6 +109,7 @@ describe("trackRepository", () => {
         trackKey: "test artist:test song",
         tags: ["peak", "opener"],
         notes: "Great crowd reaction",
+        spotifyId: "abc123",
       };
 
       expect(track.energy).toBe(75);
@@ -137,6 +138,7 @@ describe("trackRepository", () => {
         trackKey: null,
         tags: [],
         notes: null,
+        spotifyId: null,
       };
 
       expect(track.analyzed).toBe(false);

@@ -1,0 +1,20 @@
+CREATE TABLE `spotify_track_features` (
+	`spotify_id` text PRIMARY KEY NOT NULL,
+	`tempo` real,
+	`key_pitch` integer,
+	`mode` integer,
+	`energy` real,
+	`danceability` real,
+	`valence` real,
+	`acousticness` real,
+	`instrumentalness` real,
+	`liveness` real,
+	`speechiness` real,
+	`loudness` real,
+	`time_signature` integer,
+	`popularity` integer,
+	`release_date` text,
+	`genres` text,
+	`record_label` text,
+	`fetched_at` integer NOT NULL
+);

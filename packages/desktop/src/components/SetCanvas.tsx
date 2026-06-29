@@ -15,28 +15,30 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import type { SpotifyAudioFeatures } from "@pika/shared";
 import {
+  ChevronRight,
+  FlaskConical,
   GripVertical,
   ListMusic,
   Music,
+  Sparkles,
   Trash2,
   TriangleAlert,
-  FlaskConical,
-  Sparkles,
   Zap,
-  ChevronRight,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 import type { Track } from "../db/repositories/trackRepository";
 import { useAnalyzer } from "../hooks/useAnalyzer";
+import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
 import { useSetStore } from "../hooks/useSetBuilder";
 import { useSidecar } from "../hooks/useSidecar";
-import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
-import { type FingerprintMetrics, TrackFingerprint } from "./TrackFingerprint";
-import { TemplateManager } from "./TemplateManager";
-import { SaveLoadSets } from "./SaveLoadSets";
+import { useSpotifyFeaturesBatch } from "../hooks/useSpotifyFeatures";
 import { getEnergyColor } from "../utils/trackUtils";
+import { analyzeTransition, type TransitionAnalysis } from "../utils/transitionEngine";
+import { SaveLoadSets } from "./SaveLoadSets";
+import { TemplateManager } from "./TemplateManager";
+import { type FingerprintMetrics, TrackFingerprint } from "./TrackFingerprint";
 
 interface SortableTrackRowProps {
   track: Track;
@@ -169,6 +171,24 @@ export function SetCanvas() {
       groove: avg((t) => t.groove),
     };
   }, [activeSet]);
+
+  // Aggregate Spotify (canonical) features across the set's matched tracks.
+  const spotifyIds = useMemo(() => activeSet.map((t) => t.spotifyId), [activeSet]);
+  const { features: spotifyFeatures } = useSpotifyFeaturesBatch(spotifyIds);
+  const spotifyAgg = useMemo(() => {
+    const vals = [...spotifyFeatures.values()];
+    if (vals.length === 0) return null;
+    const avg = (get: (f: SpotifyAudioFeatures) => number | undefined) => {
+      const xs = vals.map(get).filter((x): x is number => x != null);
+      return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+    };
+    return {
+      count: vals.length,
+      tempo: avg((f) => f.tempo),
+      energy: avg((f) => f.energy),
+      valence: avg((f) => f.valence),
+    };
+  }, [spotifyFeatures]);
 
   // Template Manager state
   const [showTemplateManager, setShowTemplateManager] = useState(false);
@@ -332,6 +352,21 @@ export function SetCanvas() {
                       <div className="flex justify-center py-2">
                         <TrackFingerprint metrics={setAverageMetrics} size={160} />
                       </div>
+                      {spotifyAgg && (
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-pika-border pt-2 text-[10px] font-bold uppercase tracking-wider text-emerald-400/80">
+                          <span>Spotify</span>
+                          {spotifyAgg.tempo != null && (
+                            <span className="font-mono">{Math.round(spotifyAgg.tempo)} BPM</span>
+                          )}
+                          {spotifyAgg.energy != null && (
+                            <span className="font-mono">E {spotifyAgg.energy.toFixed(2)}</span>
+                          )}
+                          {spotifyAgg.valence != null && (
+                            <span className="font-mono">V {spotifyAgg.valence.toFixed(2)}</span>
+                          )}
+                          <span className="text-slate-600">n={spotifyAgg.count}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="p-3 bg-pika-surface-2 border border-pika-border rounded-lg space-y-3">

@@ -1,4 +1,6 @@
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { fetch } from "@tauri-apps/plugin-http";
 import {
   ArrowDown,
   ArrowUp,
@@ -21,8 +23,6 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { fetch } from "@tauri-apps/plugin-http";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   type AnalysisResult,
@@ -30,23 +30,23 @@ import {
   type TrackPlayHistory,
   trackRepository,
 } from "../db/repositories/trackRepository";
-import { useSetStore } from "../hooks/useSetBuilder";
-import { useSidecar } from "../hooks/useSidecar";
-import { toCamelot } from "../utils/transitionEngine";
-import { TrackFingerprint } from "./TrackFingerprint";
-import { useLiveStore } from "../hooks/useLiveSession";
-import { TagEditor } from "./TagEditor";
-import { NoteEditor } from "./NoteEditor";
-import { TagPill } from "./TagPill";
-import { getEnergyColor, getEnergyPercent } from "../utils/trackUtils";
-import { ProTooltip } from "./ProTooltip";
-
 // New specialized hooks
 import { useLibraryData } from "../hooks/useLibraryData";
-import { useTrackFiltering, type SortKey, type BpmFilter } from "../hooks/useTrackFiltering";
-import { useTrackSelection } from "../hooks/useTrackSelection";
-
 import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
+import { useLiveStore } from "../hooks/useLiveSession";
+import { useSetStore } from "../hooks/useSetBuilder";
+import { useSidecar } from "../hooks/useSidecar";
+import { useSpotifyFeatures } from "../hooks/useSpotifyFeatures";
+import { type BpmFilter, type SortKey, useTrackFiltering } from "../hooks/useTrackFiltering";
+import { useTrackSelection } from "../hooks/useTrackSelection";
+import { getEnergyColor, getEnergyPercent } from "../utils/trackUtils";
+import { toCamelot } from "../utils/transitionEngine";
+import { NoteEditor } from "./NoteEditor";
+import { ProTooltip } from "./ProTooltip";
+import { SpotifyFeaturePanel } from "./SpotifyFeaturePanel";
+import { TagEditor } from "./TagEditor";
+import { TagPill } from "./TagPill";
+import { TrackFingerprint } from "./TrackFingerprint";
 
 interface Props {
   refreshTrigger?: number; // Deprecated - now uses global store via useLibraryData
@@ -137,6 +137,11 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
   const selectedTrack = useMemo(
     () => tracks.find((t) => t.id === selectedTrackId) ?? null,
     [tracks, selectedTrackId],
+  );
+
+  // Canonical Spotify features for the inspected track (shown beside the Pika radar).
+  const { features: spotifyFeatures, loading: spotifyLoading } = useSpotifyFeatures(
+    selectedTrack?.spotifyId ?? null,
   );
 
   // Load track performance when selection changes
@@ -758,6 +763,12 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                   )}
                 </div>
               </div>
+
+              <SpotifyFeaturePanel
+                features={spotifyFeatures}
+                loading={spotifyLoading}
+                hasMatch={Boolean(selectedTrack.spotifyId)}
+              />
 
               <div className="space-y-4">
                 <div className="p-4 bg-slate-900/30 rounded-xl border border-slate-800/30">
