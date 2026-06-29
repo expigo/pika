@@ -5,7 +5,7 @@
  * admin gate). Owner-driven for the pilot; DJ self-serve is a later evolution.
  */
 
-import { logger } from "@pika/shared";
+import { logger, SpotifyAudioFeaturesSchema } from "@pika/shared";
 import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { requireAdmin } from "../lib/auth";
@@ -74,6 +74,8 @@ const CurateBody = z.object({
         artists: z.string().min(1).max(500),
         durationMs: z.number().int().positive().optional(),
         albumArtUrl: z.string().url().optional(),
+        // Canonical Spotify audio features (CSV import only; profile-load omits these).
+        features: SpotifyAudioFeaturesSchema.optional(),
       }),
     )
     .min(1)

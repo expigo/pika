@@ -6,10 +6,16 @@
  * always outranks an `auto` match. See docs/blueprints/music-provider-integration.md §5 + §12.
  */
 
-import { getFuzzyKey, getTrackKey, normalizeFuzzy } from "@pika/shared";
-import { eq, ne } from "drizzle-orm";
+import { getFuzzyKey, getTrackKey, normalizeFuzzy, type SpotifyAudioFeatures } from "@pika/shared";
+import { eq, inArray, ne } from "drizzle-orm";
 import { db } from "../../db";
-import { curatedTracks, trackLinks } from "../../db/schema";
+import {
+  curatedPlaylists,
+  curatedPlaylistTracks,
+  curatedTracks,
+  spotifyTrackFeatures,
+  trackLinks,
+} from "../../db/schema";
 import { getAppAccessToken } from "./spotify";
 
 const API = "https://api.spotify.com/v1";
@@ -378,19 +384,44 @@ export interface SeedTrack {
   artists: string;
   durationMs?: number | undefined;
   albumArtUrl?: string | undefined;
+  // Spotify's own audio features (CSV import only — the profile-load path omits these).
+  features?: SpotifyAudioFeatures | undefined;
 }
 
 /**
  * Record a DJ's curated playlist tracks: append to `curated_tracks` (their repertoire — distinct
  * from what they *played*) and seed `track_links` (authoritative `playlist` source) so future
  * matching gets a head start. Keyed on the EXACT key from the Spotify track's own artist/title.
+ * When a track carries Spotify's own `features` (CSV import), upserts the canonical per-URI
+ * `spotify_track_features` row too. When `playlistName` is given, the playlist becomes a first-class
+ * entity and per-track membership is recorded (re-import is authoritative — memberships replaced).
  * Returns the number of tracks written.
  */
 export async function seedFromPlaylist(
   djUserId: string,
   playlistName: string,
   tracks: SeedTrack[],
+  source: "csv" | "profile" = "csv",
 ): Promise<number> {
+  // First-class playlist (idempotent by dj+name); membership replaced so a re-import is authoritative.
+  let playlistId: number | null = null;
+  if (playlistName) {
+    const [pl] = await db
+      .insert(curatedPlaylists)
+      .values({ djUserId, name: playlistName, source })
+      .onConflictDoUpdate({
+        target: [curatedPlaylists.djUserId, curatedPlaylists.name],
+        set: { source, updatedAt: new Date() },
+      })
+      .returning({ id: curatedPlaylists.id });
+    playlistId = pl?.id ?? null;
+    if (playlistId !== null) {
+      await db
+        .delete(curatedPlaylistTracks)
+        .where(eq(curatedPlaylistTracks.playlistId, playlistId));
+    }
+  }
+
   let count = 0;
   for (const t of tracks) {
     const url = `https://open.spotify.com/track/${t.spotifyId}`;
@@ -409,6 +440,12 @@ export async function seedFromPlaylist(
         target: [curatedTracks.djUserId, curatedTracks.spotifyId],
         set: { name: t.name, artists: t.artists, playlistName },
       });
+    if (playlistId !== null) {
+      await db
+        .insert(curatedPlaylistTracks)
+        .values({ playlistId, spotifyId: t.spotifyId })
+        .onConflictDoNothing();
+    }
     await cacheAuthoritativeMatch(
       getTrackKey(t.artists, t.name),
       getFuzzyKey(t.artists, t.name),
@@ -416,7 +453,75 @@ export async function seedFromPlaylist(
       url,
       "playlist",
     );
+    if (t.features) await upsertSpotifyFeatures(t.spotifyId, t.features);
     count++;
   }
   return count;
+}
+
+/** Upsert the canonical per-URI Spotify audio features (CSV import). Latest write wins. */
+async function upsertSpotifyFeatures(spotifyId: string, f: SpotifyAudioFeatures): Promise<void> {
+  const row = {
+    tempo: f.tempo ?? null,
+    keyPitch: f.keyPitch ?? null,
+    mode: f.mode ?? null,
+    energy: f.energy ?? null,
+    danceability: f.danceability ?? null,
+    valence: f.valence ?? null,
+    acousticness: f.acousticness ?? null,
+    instrumentalness: f.instrumentalness ?? null,
+    liveness: f.liveness ?? null,
+    speechiness: f.speechiness ?? null,
+    loudness: f.loudness ?? null,
+    timeSignature: f.timeSignature ?? null,
+    popularity: f.popularity ?? null,
+    releaseDate: f.releaseDate ?? null,
+    genres: f.genres ?? null,
+    recordLabel: f.recordLabel ?? null,
+  };
+  await db
+    .insert(spotifyTrackFeatures)
+    .values({ spotifyId, ...row })
+    .onConflictDoUpdate({
+      target: spotifyTrackFeatures.spotifyId,
+      set: { ...row, updatedAt: new Date() },
+    });
+}
+
+/**
+ * Look up canonical Spotify audio features for a set of track ids (the desktop reads these by
+ * `spotify_id` to display Spotify's features beside its own Pika sidecar features). Returns only the
+ * ids we actually have features for; each result drops null fields. Pure DB read — no Spotify call.
+ */
+export async function getSpotifyFeatures(
+  ids: string[],
+): Promise<Record<string, SpotifyAudioFeatures>> {
+  if (ids.length === 0) return {};
+  const rows = await db
+    .select()
+    .from(spotifyTrackFeatures)
+    .where(inArray(spotifyTrackFeatures.spotifyId, ids));
+
+  const out: Record<string, SpotifyAudioFeatures> = {};
+  for (const r of rows) {
+    const f: SpotifyAudioFeatures = {};
+    if (r.tempo != null) f.tempo = r.tempo;
+    if (r.keyPitch != null) f.keyPitch = r.keyPitch;
+    if (r.mode != null) f.mode = r.mode;
+    if (r.energy != null) f.energy = r.energy;
+    if (r.danceability != null) f.danceability = r.danceability;
+    if (r.valence != null) f.valence = r.valence;
+    if (r.acousticness != null) f.acousticness = r.acousticness;
+    if (r.instrumentalness != null) f.instrumentalness = r.instrumentalness;
+    if (r.liveness != null) f.liveness = r.liveness;
+    if (r.speechiness != null) f.speechiness = r.speechiness;
+    if (r.loudness != null) f.loudness = r.loudness;
+    if (r.timeSignature != null) f.timeSignature = r.timeSignature;
+    if (r.popularity != null) f.popularity = r.popularity;
+    if (r.releaseDate != null) f.releaseDate = r.releaseDate;
+    if (r.genres != null) f.genres = r.genres;
+    if (r.recordLabel != null) f.recordLabel = r.recordLabel;
+    out[r.spotifyId] = f;
+  }
+  return out;
 }

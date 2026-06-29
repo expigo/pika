@@ -18,6 +18,7 @@ import { getUser, requireDjAuth } from "../lib/auth";
 import { createPlaylist, SpotifyServiceNotConnectedError } from "../lib/services/spotify";
 import {
   cacheManualMatch,
+  getSpotifyFeatures,
   resolveTrack,
   resolveTracks,
   searchAndRank,
@@ -89,6 +90,21 @@ playlist.post("/resolve-batch", playlistLimiter, async (c) => {
   } catch (e) {
     logger.error("Spotify batch resolve failed", e);
     return c.json({ error: "Spotify lookup failed" }, 502);
+  }
+});
+
+/** Canonical Spotify audio features for a batch of track ids (desktop reads these by spotify_id to
+ *  display Spotify features beside its own Pika features). Pure DB read — no Spotify call. */
+playlist.post("/features", async (c) => {
+  const parsed = z
+    .object({ ids: z.array(z.string().trim().min(1).max(64)).min(1).max(100) })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: "Invalid ids" }, 400);
+  try {
+    return c.json({ features: await getSpotifyFeatures(parsed.data.ids) });
+  } catch (e) {
+    logger.error("Spotify features lookup failed", e);
+    return c.json({ error: "Features lookup failed" }, 502);
   }
 });
 

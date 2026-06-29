@@ -12,6 +12,9 @@ describe("admin routes auth guard", () => {
     ["GET", "/api/admin/djs"],
     ["GET", "/api/admin/overview"],
     ["GET", "/api/admin/audit"],
+    ["GET", "/api/admin/catalog"],
+    ["GET", "/api/admin/catalog/songs"],
+    ["GET", "/api/admin/catalog/songs/abc"],
     ["POST", "/api/admin/djs/1/approve"],
     ["POST", "/api/admin/djs/1/reject"],
   ] as const) {

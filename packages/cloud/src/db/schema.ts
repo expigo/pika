@@ -472,6 +472,72 @@ export const curatedTracks = pgTable(
   }),
 );
 
+// Spotify's OWN audio features (tempo/key/energy/…), CANONICAL per Spotify track id — one row per
+// URI, shared across all DJs (unlike `curated_tracks`, which is the per-(DJ,track) curation edge).
+// Spotify deprecated this endpoint for new apps, so these arrive only via the Exportify CSV import
+// (B3). Kept STRICTLY SEPARATE from Pika's own sidecar features (per-file, 0-100, on `played_tracks`):
+// same concept, different source/scale — never conflated. Native Spotify scales preserved.
+export const spotifyTrackFeatures = pgTable("spotify_track_features", {
+  spotifyId: text("spotify_id").primaryKey(), // Spotify track id (canonical join key)
+  tempo: real("tempo"), // BPM
+  keyPitch: integer("key_pitch"), // pitch class 0-11 (-1 = none)
+  mode: integer("mode"), // 0 minor, 1 major
+  energy: real("energy"), // 0-1
+  danceability: real("danceability"), // 0-1
+  valence: real("valence"), // 0-1
+  acousticness: real("acousticness"), // 0-1
+  instrumentalness: real("instrumentalness"), // 0-1
+  liveness: real("liveness"), // 0-1
+  speechiness: real("speechiness"), // 0-1
+  loudness: real("loudness"), // dB
+  timeSignature: integer("time_signature"),
+  popularity: integer("popularity"), // 0-100
+  releaseDate: text("release_date"),
+  genres: text("genres"),
+  recordLabel: text("record_label"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Playlists as first-class entities (B3) — a DJ's named curated list (CSV import or profile). A track
+// belongs to MANY playlists, so playlist membership lives in `curated_playlist_tracks` (the per-(dj,
+// track) `curated_tracks.playlist_name` only ever held the LAST import — lossy). This is what powers a
+// song's "appears in" view and, later, DJ-facing playlist pages.
+export const curatedPlaylists = pgTable(
+  "curated_playlists",
+  {
+    id: serial("id").primaryKey(),
+    djUserId: text("dj_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    source: text("source").notNull().default("csv"), // 'csv' | 'profile'
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqDjName: unique("uniq_curated_playlist_dj_name").on(table.djUserId, table.name),
+    idxDjUserId: index("idx_curated_playlists_dj_user_id").on(table.djUserId),
+  }),
+);
+
+// Membership edge: which Spotify track is in which curated playlist. The join that makes "this song
+// appears in playlists X/Y across DJs A/B" answerable.
+export const curatedPlaylistTracks = pgTable(
+  "curated_playlist_tracks",
+  {
+    id: serial("id").primaryKey(),
+    playlistId: integer("playlist_id")
+      .notNull()
+      .references(() => curatedPlaylists.id, { onDelete: "cascade" }),
+    spotifyId: text("spotify_id").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqPlaylistTrack: unique("uniq_curated_playlist_track").on(table.playlistId, table.spotifyId),
+    idxSpotifyId: index("idx_curated_playlist_tracks_spotify_id").on(table.spotifyId),
+  }),
+);
+
 // Shared service accounts Pika controls (B3): the single "Pika" Spotify account that owns every
 // generated playlist (scope playlist-modify-public). Owner connects it ONCE per env via the
 // admin OAuth flow; the encrypted refresh token lets the cloud create playlists on its behalf.
