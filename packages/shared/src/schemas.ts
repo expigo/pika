@@ -135,6 +135,38 @@ export const TrackMetadataSchema = z.object({
 export type TrackMetadata = z.infer<typeof TrackMetadataSchema>;
 
 // ============================================================================
+// Spotify Audio Features (canonical, per-URI) — B3 CSV seed
+// ============================================================================
+
+/**
+ * Spotify's own `audio-features` for a track, as exported via Exportify (Spotify deprecated this
+ * endpoint for new apps, so a CSV is the only way to grab it). CANONICAL per Spotify URI — distinct
+ * from Pika's own sidecar features (per-file, 0-100 scale), which are NEVER merged with these.
+ * Every field optional: ~2% of CSV rows lack features, and the profile-load seed path carries none.
+ * Each metric keeps Spotify's native scale (0-1 ratios, dB loudness, BPM tempo, integer key/mode).
+ */
+export const SpotifyAudioFeaturesSchema = z.object({
+  tempo: z.number().min(0).max(400).optional(), // BPM
+  keyPitch: z.number().int().min(-1).max(11).optional(), // pitch class (-1 = none)
+  mode: z.number().int().min(0).max(1).optional(), // 0 minor, 1 major
+  energy: z.number().min(0).max(1).optional(),
+  danceability: z.number().min(0).max(1).optional(),
+  valence: z.number().min(0).max(1).optional(),
+  acousticness: z.number().min(0).max(1).optional(),
+  instrumentalness: z.number().min(0).max(1).optional(),
+  liveness: z.number().min(0).max(1).optional(),
+  speechiness: z.number().min(0).max(1).optional(),
+  loudness: z.number().min(-100).max(20).optional(), // dB
+  timeSignature: z.number().int().min(0).max(12).optional(),
+  popularity: z.number().int().min(0).max(100).optional(),
+  releaseDate: z.string().max(40).optional(),
+  genres: z.string().max(500).optional(),
+  recordLabel: z.string().max(300).optional(),
+});
+
+export type SpotifyAudioFeatures = z.infer<typeof SpotifyAudioFeaturesSchema>;
+
+// ============================================================================
 // Analysis Result Schema (Python Sidecar Output)
 // ============================================================================
 

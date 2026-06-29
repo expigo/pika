@@ -6,6 +6,13 @@
 export const PIKA_VERSION = "0.5.0";
 
 export { LIMITS, TIMEOUTS, URLS } from "./config";
+// Exportify CSV parser (B3 catalog seed) — shared by the web importer + cloud seed tooling
+export {
+  type ExportifyParseResult,
+  type ExportifySeedTrack,
+  parseCsvRows,
+  parseExportifyCsv,
+} from "./exportifyCsv";
 export { type LogContext, type LogLevel, logger } from "./logger";
 export {
   DEFAULT_CLOUD_PORT,
@@ -78,6 +85,9 @@ export {
   SessionValidSchema,
   type Settings,
   SettingsSchema,
+  // Spotify audio features (canonical, per-URI) — B3 CSV seed
+  type SpotifyAudioFeatures,
+  SpotifyAudioFeaturesSchema,
   type Stage,
   StageSchema,
   // Poll schemas
