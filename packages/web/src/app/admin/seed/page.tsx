@@ -1,11 +1,16 @@
 "use client";
 
 /**
- * Catalog seed tool (B3, admin). Owner-driven: pick a cooperating DJ, paste their Spotify profile
- * link, preview their PUBLIC playlists (read via the account-less app token — no DJ OAuth), curate,
- * and seed the chosen ones into that DJ's catalog (`curated_tracks` + `track_links`).
+ * Catalog seed tool (B3, admin). Owner-driven: pick a cooperating DJ, then seed their repertoire
+ * (`curated_tracks` + `track_links`) into the catalog via one of two modes:
+ *  - From profile: paste a Spotify profile link, preview their PUBLIC playlists, curate (read via
+ *    the service account — DORMANT while Spotify blocks new apps from reading playlists, kept ready
+ *    for a grandfathered account).
+ *  - Import CSV: upload an Exportify export, which also carries Spotify's canonical audio features.
+ * Curated tracks are a DJ's *repertoire*, kept separate from what they played live.
  */
 
+import { parseExportifyCsv } from "@pika/shared";
 import { useEffect, useState } from "react";
 import {
   AdminApiError,
@@ -18,14 +23,23 @@ import {
   seedCurated,
 } from "@/lib/admin";
 
+type Mode = "profile" | "csv";
+
 export default function AdminSeedPage() {
   const [djs, setDjs] = useState<AdminDj[]>([]);
   const [djId, setDjId] = useState("");
+  const [mode, setMode] = useState<Mode>("profile");
+  // Profile mode
   const [profile, setProfile] = useState("");
   const [playlists, setPlaylists] = useState<SeedPlaylist[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previews, setPreviews] = useState<Record<string, SeedTrack[]>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
+  // CSV mode
+  const [csvTracks, setCsvTracks] = useState<SeedTrack[] | null>(null);
+  const [csvSkippedLocal, setCsvSkippedLocal] = useState(0);
+  const [csvName, setCsvName] = useState("");
+  // Shared
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<string | null>(null);
@@ -35,6 +49,12 @@ export default function AdminSeedPage() {
       .then((d) => setDjs(d.filter((x) => x.status === "approved")))
       .catch(() => {});
   }, []);
+
+  const switchMode = (m: Mode) => {
+    setMode(m);
+    setError(null);
+    setResult(null);
+  };
 
   const loadPlaylists = async () => {
     setError(null);
@@ -78,7 +98,7 @@ export default function AdminSeedPage() {
     }
   };
 
-  const seed = async () => {
+  const seedProfile = async () => {
     if (!djId || !playlists || selected.size === 0) return;
     setBusy(true);
     setError(null);
@@ -101,53 +121,100 @@ export default function AdminSeedPage() {
     }
   };
 
+  const onCsvFile = async (file: File | undefined) => {
+    setError(null);
+    setResult(null);
+    setCsvTracks(null);
+    setCsvSkippedLocal(0);
+    setCsvName("");
+    if (!file) return;
+    try {
+      const { tracks, skippedLocal } = parseExportifyCsv(await file.text());
+      setCsvTracks(tracks);
+      setCsvSkippedLocal(skippedLocal);
+      setCsvName(file.name);
+      if (tracks.length === 0) setError("No Spotify tracks found in that CSV.");
+    } catch {
+      setError("Couldn't read that CSV — is it an Exportify export?");
+    }
+  };
+
+  const seedCsv = async () => {
+    if (!djId || !csvTracks || csvTracks.length === 0) return;
+    setBusy(true);
+    setError(null);
+    setResult(null);
+    try {
+      const playlistName = csvName.replace(/\.csv$/i, "");
+      let total = 0;
+      // Batch under the curate endpoint's 1000-track cap.
+      for (let i = 0; i < csvTracks.length; i += 500) {
+        const { seeded } = await seedCurated({
+          djUserId: djId,
+          playlistName,
+          tracks: csvTracks.slice(i, i + 500),
+        });
+        total += seeded;
+      }
+      setResult(`Seeded ${total} tracks (with Spotify features) into the catalog.`);
+    } catch (e) {
+      setError(
+        e instanceof AdminApiError ? e.message : "Seeding failed — check the DJ and try again.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const input =
     "rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-purple-500 focus:outline-none";
+  const tab = (active: boolean) =>
+    `rounded-full px-4 py-1.5 text-sm font-medium ${active ? "bg-purple-600 text-white" : "bg-slate-800 text-slate-300"}`;
 
   return (
     <div className="max-w-2xl space-y-6">
       <div>
-        <h1 className="text-lg font-semibold text-white">Seed catalog from Spotify playlists</h1>
+        <h1 className="text-lg font-semibold text-white">Seed catalog from Spotify</h1>
         <p className="mt-1 text-sm text-slate-500">
-          Reads a DJ's <strong>public</strong> playlists via the app token — no DJ login needed.
-          Curated tracks are their <em>repertoire</em>, kept separate from what they played live.
+          Curated tracks are a DJ's <em>repertoire</em>, kept separate from what they played live.
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-xs text-slate-400">
-          Attribute to DJ
-          <select
-            value={djId}
-            onChange={(e) => setDjId(e.target.value)}
-            aria-label="DJ"
-            className={input}
-          >
-            <option value="">Select a DJ…</option>
-            {djs.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
-          Spotify profile link
-          <input
-            value={profile}
-            onChange={(e) => setProfile(e.target.value)}
-            placeholder="https://open.spotify.com/user/…"
-            aria-label="Spotify profile link"
-            className={input}
-          />
-        </label>
+      <label className="flex max-w-xs flex-col gap-1 text-xs text-slate-400">
+        Attribute to DJ
+        <select
+          value={djId}
+          onChange={(e) => setDjId(e.target.value)}
+          aria-label="DJ"
+          className={input}
+        >
+          <option value="">Select a DJ…</option>
+          {djs.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.displayName}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="flex gap-2" role="tablist">
         <button
           type="button"
-          disabled={busy || !profile.trim()}
-          onClick={loadPlaylists}
-          className="rounded-full bg-slate-800 px-4 py-2 text-sm font-medium disabled:opacity-40"
+          role="tab"
+          aria-selected={mode === "profile"}
+          onClick={() => switchMode("profile")}
+          className={tab(mode === "profile")}
         >
-          Load playlists
+          From profile
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === "csv"}
+          onClick={() => switchMode("csv")}
+          className={tab(mode === "csv")}
+        >
+          Import CSV
         </button>
       </div>
 
@@ -165,60 +232,148 @@ export default function AdminSeedPage() {
         </div>
       )}
 
-      {playlists && playlists.length > 0 && (
+      {mode === "profile" && (
         <>
-          <ul className="divide-y divide-white/5 rounded-2xl bg-slate-900">
-            {playlists.map((pl) => (
-              <li key={pl.playlistId} className="px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={selected.has(pl.playlistId)}
-                    onChange={() => toggle(pl.playlistId)}
-                    aria-label={`Select ${pl.name}`}
-                    className="h-4 w-4 accent-purple-600"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm text-slate-100">{pl.name}</div>
-                    <div className="text-xs text-slate-500">{pl.trackCount} tracks</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => togglePreview(pl.playlistId)}
-                    className="text-xs text-slate-400 hover:text-slate-200"
-                  >
-                    {expanded === pl.playlistId ? "Hide" : "Preview"}
-                  </button>
-                </div>
-                {expanded === pl.playlistId && (
-                  <ul className="mt-2 max-h-48 overflow-y-auto pl-7 text-xs text-slate-400">
-                    {previews[pl.playlistId] === undefined ? (
-                      <li>Loading…</li>
-                    ) : previews[pl.playlistId]?.length === 0 ? (
-                      <li className="text-slate-600">No Spotify tracks (local files only).</li>
-                    ) : (
-                      previews[pl.playlistId]?.map((t) => (
-                        <li key={t.spotifyId} className="truncate py-0.5">
-                          {t.artists} – {t.name}
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
+          <p className="text-sm text-slate-500">
+            Reads a DJ's <strong>public</strong> playlists via the service account — no DJ login
+            needed.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-1 flex-col gap-1 text-xs text-slate-400">
+              Spotify profile link
+              <input
+                value={profile}
+                onChange={(e) => setProfile(e.target.value)}
+                placeholder="https://open.spotify.com/user/…"
+                aria-label="Spotify profile link"
+                className={input}
+              />
+            </label>
+            <button
+              type="button"
+              disabled={busy || !profile.trim()}
+              onClick={loadPlaylists}
+              className="rounded-full bg-slate-800 px-4 py-2 text-sm font-medium disabled:opacity-40"
+            >
+              Load playlists
+            </button>
+          </div>
 
-          <button
-            type="button"
-            disabled={busy || !djId || selected.size === 0}
-            onClick={seed}
-            className="rounded-full bg-purple-600 px-6 py-2 text-sm font-semibold disabled:opacity-40"
-          >
-            {busy
-              ? "Seeding…"
-              : `Seed ${selected.size} playlist${selected.size === 1 ? "" : "s"} into catalog`}
-          </button>
+          {playlists && playlists.length > 0 && (
+            <>
+              <ul className="divide-y divide-white/5 rounded-2xl bg-slate-900">
+                {playlists.map((pl) => (
+                  <li key={pl.playlistId} className="px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(pl.playlistId)}
+                        onChange={() => toggle(pl.playlistId)}
+                        aria-label={`Select ${pl.name}`}
+                        className="h-4 w-4 accent-purple-600"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm text-slate-100">{pl.name}</div>
+                        <div className="text-xs text-slate-500">{pl.trackCount} tracks</div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => togglePreview(pl.playlistId)}
+                        className="text-xs text-slate-400 hover:text-slate-200"
+                      >
+                        {expanded === pl.playlistId ? "Hide" : "Preview"}
+                      </button>
+                    </div>
+                    {expanded === pl.playlistId && (
+                      <ul className="mt-2 max-h-48 overflow-y-auto pl-7 text-xs text-slate-400">
+                        {previews[pl.playlistId] === undefined ? (
+                          <li>Loading…</li>
+                        ) : previews[pl.playlistId]?.length === 0 ? (
+                          <li className="text-slate-600">No Spotify tracks (local files only).</li>
+                        ) : (
+                          previews[pl.playlistId]?.map((t) => (
+                            <li key={t.spotifyId} className="truncate py-0.5">
+                              {t.artists} – {t.name}
+                            </li>
+                          ))
+                        )}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              <button
+                type="button"
+                disabled={busy || !djId || selected.size === 0}
+                onClick={seedProfile}
+                className="rounded-full bg-purple-600 px-6 py-2 text-sm font-semibold disabled:opacity-40"
+              >
+                {busy
+                  ? "Seeding…"
+                  : `Seed ${selected.size} playlist${selected.size === 1 ? "" : "s"} into catalog`}
+              </button>
+            </>
+          )}
+        </>
+      )}
+
+      {mode === "csv" && (
+        <>
+          <p className="text-sm text-slate-500">
+            Export a playlist with{" "}
+            <a
+              href="https://exportify.net"
+              target="_blank"
+              rel="noreferrer"
+              className="text-purple-400 hover:underline"
+            >
+              Exportify
+            </a>{" "}
+            and upload the CSV. Imports identity <em>and</em> Spotify's own audio features
+            (tempo/key/energy/…).
+          </p>
+          <label className="flex flex-col gap-1 text-xs text-slate-400">
+            Exportify CSV
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              aria-label="Exportify CSV"
+              onChange={(e) => onCsvFile(e.target.files?.[0])}
+              className="text-sm text-slate-300 file:mr-3 file:rounded-full file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-200"
+            />
+          </label>
+
+          {csvTracks && csvTracks.length > 0 && (
+            <>
+              <div className="text-sm text-slate-400">
+                <span className="text-slate-100">{csvTracks.length}</span> tracks
+                {csvSkippedLocal > 0 && <> · {csvSkippedLocal} local skipped</>} from{" "}
+                <span className="text-slate-300">{csvName}</span>
+              </div>
+              <ul className="max-h-48 overflow-y-auto rounded-2xl bg-slate-900 px-4 py-2 text-xs text-slate-400">
+                {csvTracks.slice(0, 20).map((t) => (
+                  <li key={t.spotifyId} className="truncate py-0.5">
+                    {t.artists} – {t.name}
+                    {t.features?.tempo ? (
+                      <span className="text-slate-600"> · {Math.round(t.features.tempo)} BPM</span>
+                    ) : null}
+                  </li>
+                ))}
+                {csvTracks.length > 20 && (
+                  <li className="py-0.5 text-slate-600">+{csvTracks.length - 20} more…</li>
+                )}
+              </ul>
+              <button
+                type="button"
+                disabled={busy || !djId}
+                onClick={seedCsv}
+                className="rounded-full bg-purple-600 px-6 py-2 text-sm font-semibold disabled:opacity-40"
+              >
+                {busy ? "Seeding…" : `Seed ${csvTracks.length} tracks into catalog`}
+              </button>
+            </>
+          )}
         </>
       )}
     </div>

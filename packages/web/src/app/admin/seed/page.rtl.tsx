@@ -63,4 +63,36 @@ describe("AdminSeedPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /load playlists/i }));
     expect(await screen.findByText(/no public playlists/i)).toBeInTheDocument();
   });
+
+  it("imports an Exportify CSV and seeds tracks WITH features to the chosen DJ", async () => {
+    render(<AdminSeedPage />);
+
+    await userEvent.click(screen.getByRole("tab", { name: /import csv/i }));
+    await userEvent.selectOptions(await screen.findByLabelText("DJ"), "dj1");
+
+    const csv =
+      "Track URI,Track Name,Artist Name(s),Tempo,Energy\nspotify:track:z1,My Song,My Artist,128,0.7\n";
+    const file = new File([csv], "myset.csv", { type: "text/csv" });
+    await userEvent.upload(screen.getByLabelText("Exportify CSV"), file);
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /seed 1 tracks into catalog/i }),
+    );
+
+    expect(admin.seedCurated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        djUserId: "dj1",
+        playlistName: "myset",
+        tracks: [
+          expect.objectContaining({
+            spotifyId: "z1",
+            name: "My Song",
+            artists: "My Artist",
+            features: expect.objectContaining({ tempo: 128, energy: 0.7 }),
+          }),
+        ],
+      }),
+    );
+    expect(await screen.findByText(/seeded 1 tracks/i)).toBeInTheDocument();
+  });
 });

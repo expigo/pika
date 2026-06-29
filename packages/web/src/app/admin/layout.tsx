@@ -57,6 +57,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {tab("/admin", "Overview")}
             {tab("/admin/djs", "DJs")}
             {tab("/admin/seed", "Seed")}
+            {tab("/admin/catalog", "Catalog")}
           </nav>
         </div>
         <div className="flex items-center gap-4">

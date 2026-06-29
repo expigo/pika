@@ -4,6 +4,7 @@
  * `getAdminMe()` maps that (and 401) to `null` so the UI can gate.
  */
 
+import type { SpotifyAudioFeatures } from "@pika/shared";
 import { getApiBaseUrl } from "./api";
 
 const JSON_CSRF: HeadersInit = {
@@ -105,6 +106,8 @@ export interface SeedTrack {
   artists: string;
   durationMs?: number;
   albumArtUrl?: string;
+  // Canonical Spotify audio features — present only for CSV (Exportify) imports.
+  features?: SpotifyAudioFeatures;
 }
 
 /** A DJ's public Spotify playlists, from their profile link. */
@@ -134,6 +137,82 @@ export function seedCurated(body: {
 
 export function getOverview(): Promise<AdminOverview> {
   return req<AdminOverview>("/api/admin/overview");
+}
+
+// --- B3 Songs Catalog (seeded repertoire visualizer) ---
+
+export interface AdminCatalog {
+  totals: { tracks: number; features: number; djs: number; overlap: number };
+  coverage: { tempo: number; genres: number };
+  perDj: Array<{ djName: string; count: number }>;
+  tempo: Array<{ bucket: number; count: number }>; // 10-BPM bins
+  keys: Array<{ key: number; count: number }>; // pitch class 0-11
+  energy: Array<{ bucket: number; count: number }>; // 0-1 in 0.1 bins
+  topOverlap: Array<{
+    name: string;
+    artists: string;
+    djCount: number;
+    popularity: number | null;
+  }>;
+  generatedAt: string;
+}
+
+/** Aggregates over the seeded catalog (feature distributions + cross-DJ overlap). */
+export function getCatalog(): Promise<AdminCatalog> {
+  return req<AdminCatalog>("/api/admin/catalog");
+}
+
+export interface CatalogSong {
+  spotifyId: string;
+  name: string;
+  artists: string;
+  djCount: number;
+  playlistCount: number;
+  tempo: number | null;
+  keyPitch: number | null;
+  mode: number | null;
+  energy: number | null;
+  danceability: number | null;
+  valence: number | null;
+  popularity: number | null;
+}
+
+export interface CatalogSongList {
+  total: number;
+  limit: number;
+  offset: number;
+  songs: CatalogSong[];
+}
+
+export interface CatalogSongDetail {
+  spotifyId: string;
+  name: string;
+  artists: string;
+  durationMs: number | null;
+  albumArtUrl: string | null;
+  // Canonical Spotify features (null fields where Exportify had none).
+  spotify: Record<keyof SpotifyAudioFeatures, number | string | null> | null;
+  // Pika sidecar features — per-file, surfaced once played_tracks carries spotify_id (kept separate).
+  pika: null;
+  appearances: Array<{ playlistName: string; djName: string; source: string }>;
+}
+
+/** Paginated/searchable song list. */
+export function getCatalogSongs(params: {
+  q?: string;
+  sort?: string;
+  dir?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<CatalogSongList> {
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v != null && v !== "") qs.set(k, String(v));
+  return req<CatalogSongList>(`/api/admin/catalog/songs?${qs.toString()}`);
+}
+
+/** One song: full Spotify features + every DJ/playlist it appears in. */
+export function getCatalogSong(spotifyId: string): Promise<CatalogSongDetail> {
+  return req<CatalogSongDetail>(`/api/admin/catalog/songs/${encodeURIComponent(spotifyId)}`);
 }
 
 /** Status of the shared "Pika" Spotify playlist account (B3). */
