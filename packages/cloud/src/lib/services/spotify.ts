@@ -345,7 +345,11 @@ export async function getAppAccessToken(): Promise<string> {
 // every generated playlist. One-time owner OAuth (scope playlist-modify-public).
 // ---------------------------------------------------------------------------
 
-const SERVICE_SCOPE = "playlist-modify-public";
+// playlist-modify-public → create playlists; the read scopes → list/read other DJs' PUBLIC
+// playlists for the catalog seed (Spotify's user-playlists endpoint needs a USER token + these
+// scopes; the app/Client-Credentials token is forbidden there). Adding a scope requires the owner
+// to re-run the one-time /service/authorize consent.
+const SERVICE_SCOPE = "playlist-modify-public playlist-read-private playlist-read-collaborative";
 const SERVICE_NAME = "spotify-playlist";
 
 /** The Pika service account isn't connected (owner must run the one-time OAuth). */
@@ -419,7 +423,7 @@ export async function connectServiceAccount(code: string): Promise<void> {
 
 let serviceToken: { accessToken: string; expiresAt: number } | null = null;
 
-async function getServiceAccessToken(): Promise<string> {
+export async function getServiceAccessToken(): Promise<string> {
   if (serviceToken && Date.now() < serviceToken.expiresAt - ACCESS_TOKEN_SKEW_MS) {
     return serviceToken.accessToken;
   }

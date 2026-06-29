@@ -48,15 +48,22 @@ export interface AdminOverview {
   generatedAt: string;
 }
 
-class AdminApiError extends Error {
-  constructor(public readonly status: number) {
-    super(`admin api ${status}`);
+export class AdminApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message?: string,
+  ) {
+    super(message ?? `admin api ${status}`);
+    this.name = "AdminApiError";
   }
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${getApiBaseUrl()}${path}`, { credentials: "include", ...init });
-  if (!res.ok) throw new AdminApiError(res.status);
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new AdminApiError(res.status, body.error);
+  }
   return (await res.json()) as T;
 }
 

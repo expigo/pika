@@ -8,6 +8,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  AdminApiError,
   type AdminDj,
   getDjs,
   getSeedPlaylists,
@@ -45,8 +46,13 @@ export default function AdminSeedPage() {
       const { playlists } = await getSeedPlaylists(profile);
       setPlaylists(playlists);
       if (playlists.length === 0) setError("No public playlists found for that profile.");
-    } catch {
-      setError("Couldn't read playlists — is the profile link correct and public?");
+    } catch (e) {
+      // Surface the server's reason — esp. "connect the playlist service account (with read access)".
+      setError(
+        e instanceof AdminApiError
+          ? e.message
+          : "Couldn't read playlists — is the profile link correct and public?",
+      );
     } finally {
       setBusy(false);
     }

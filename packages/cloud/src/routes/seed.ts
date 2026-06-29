@@ -6,9 +6,10 @@
  */
 
 import { logger } from "@pika/shared";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { requireAdmin } from "../lib/auth";
+import { SpotifyServiceNotConnectedError } from "../lib/services/spotify";
 import {
   fetchPlaylistTracks,
   fetchUserPlaylists,
@@ -20,6 +21,27 @@ const seed = new Hono();
 
 seed.use("*", requireAdmin);
 
+// Catalog reads use the SERVICE account's user token (Spotify forbids the app token on user
+// playlists). If it isn't connected (with the read scopes), tell the admin to (re)connect it.
+function readError(c: Context, e: unknown) {
+  if (e instanceof SpotifyServiceNotConnectedError) {
+    return c.json(
+      {
+        error: "Connect the playlist service account first (with read access)",
+        needsService: true,
+      },
+      409,
+    );
+  }
+  logger.error("seed: Spotify read failed", e);
+  return c.json(
+    {
+      error: `Spotify read failed (${e instanceof Error ? e.message : "unknown"}) — is the profile public?`,
+    },
+    502,
+  );
+}
+
 /** List a DJ's public playlists from their profile link. */
 seed.get("/playlists", async (c) => {
   const userId = parseSpotifyUserId(c.req.query("profile") ?? "");
@@ -27,8 +49,7 @@ seed.get("/playlists", async (c) => {
   try {
     return c.json({ userId, playlists: await fetchUserPlaylists(userId) });
   } catch (e) {
-    logger.error("seed: list playlists failed", e);
-    return c.json({ error: "Could not read playlists — is the profile public?" }, 502);
+    return readError(c, e);
   }
 });
 
@@ -37,8 +58,7 @@ seed.get("/playlist/:id/tracks", async (c) => {
   try {
     return c.json({ tracks: await fetchPlaylistTracks(c.req.param("id")) });
   } catch (e) {
-    logger.error("seed: read tracks failed", e);
-    return c.json({ error: "Could not read playlist tracks" }, 502);
+    return readError(c, e);
   }
 });
 

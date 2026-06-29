@@ -1,10 +1,12 @@
 /**
- * Spotify catalog reads (B3 seed) — fetch a DJ's PUBLIC playlists + their tracks via the app token
- * (Client Credentials; no per-user OAuth, no 5-seat cap). Used by the admin seed tool to bootstrap
- * the catalog from real curated WCS playlists. Only public playlists are visible to the app token.
+ * Spotify catalog reads (B3 seed) — fetch a DJ's PUBLIC playlists + their tracks for the admin seed
+ * tool. Uses the SERVICE account's user token (the owner's connected account): Spotify's
+ * user-playlists endpoint is deprecated + needs a USER token with playlist-read scopes; the
+ * app/Client-Credentials token is forbidden there. The service account must be connected with the
+ * read scopes (re-run /api/spotify/service/authorize after this change).
  */
 
-import { getAppAccessToken } from "./spotify";
+import { getServiceAccessToken } from "./spotify";
 
 const API = "https://api.spotify.com/v1";
 
@@ -51,7 +53,7 @@ interface SpotifyPlaylistsPage {
 
 /** A user's PUBLIC playlists (paginated). */
 export async function fetchUserPlaylists(userId: string): Promise<PlaylistSummary[]> {
-  const token = await getAppAccessToken();
+  const token = await getServiceAccessToken();
   const out: PlaylistSummary[] = [];
   let url: string | null = `${API}/users/${encodeURIComponent(userId)}/playlists?limit=50`;
   while (url) {
@@ -86,7 +88,7 @@ interface SpotifyPlaylistItemsPage {
 
 /** Every (non-local) track in a public playlist (paginated). */
 export async function fetchPlaylistTracks(playlistId: string): Promise<PlaylistTrack[]> {
-  const token = await getAppAccessToken();
+  const token = await getServiceAccessToken();
   const out: PlaylistTrack[] = [];
   let url: string | null = `${API}/playlists/${encodeURIComponent(playlistId)}/tracks?limit=100`;
   while (url) {
