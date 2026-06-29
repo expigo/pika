@@ -7,27 +7,53 @@
 
 import type { TrackInfo } from "./schemas";
 
+// Special letters that DON'T decompose under NFD (so the combining-mark strip below misses them).
+const SPECIAL_LETTERS: Record<string, string> = {
+  ł: "l",
+  ø: "o",
+  đ: "d",
+  ß: "ss",
+  æ: "ae",
+  œ: "oe",
+  ð: "d",
+  þ: "th",
+};
+
 /**
- * Minimal normalization for exact matching.
- * Preserves: (Remix), feat. XYZ, [Radio Edit], etc.
+ * Fold accents/diacritics to ASCII so different rips of the same track match regardless of encoding
+ * (e.g. "Emeli Sandé" ↔ "Emeli Sande", "Jhené" ↔ "Jhene"). ~5% of real WCS-playlist tracks carry
+ * accents. Apply AFTER lowercasing.
  */
-export function normalizeExact(text: string): string {
-  return text.toLowerCase().trim().replace(/\s+/g, " "); // Collapse multiple spaces
+function foldDiacritics(lower: string): string {
+  return lower
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "") // strip combining marks (é→e, ñ→n, ż→z, ç→c …)
+    .replace(/[łøđßæœðþ]/g, (c) => SPECIAL_LETTERS[c] ?? c);
 }
 
 /**
- * Aggressive normalization for fuzzy matching.
- * Strips: parentheses, brackets, feat., &, punctuation
+ * Minimal normalization for exact matching. Preserves versions ((Remix), feat. X, "- Acoustic"),
+ * but folds diacritics (an encoding difference, not a version difference).
+ */
+export function normalizeExact(text: string): string {
+  return foldDiacritics(text.toLowerCase()).trim().replace(/\s+/g, " "); // Collapse multiple spaces
+}
+
+/**
+ * Aggressive normalization for fuzzy matching. Folds diacritics, then strips version qualifiers so
+ * a played title collapses to its base "song": Spotify's `" - <descriptor>"` notation (≈10% of
+ * tracks: "- Acoustic", "- TEEMID Remix", "- Stripped", "- Remastered"), parentheses/brackets,
+ * feat./ft. and `;`/`&` collaborators (Exportify separates multiple artists with `;`).
  */
 export function normalizeFuzzy(text: string): string {
-  return text
-    .toLowerCase()
+  return foldDiacritics(text.toLowerCase())
     .trim()
+    .replace(/\s+-\s+.*$/, "") // Spotify version suffix: "Song - Acoustic / Remix / Live / …"
     .replace(/\s*\([^)]*\)/g, "") // Remove (anything in parens)
     .replace(/\s*\[[^\]]*\]/g, "") // Remove [anything in brackets]
     .replace(/\s*feat\.?\s+.*/i, "") // Remove feat. and everything after
     .replace(/\s*ft\.?\s+.*/i, "") // Remove ft. and everything after
-    .replace(/\s*&\s+.*/g, "") // Remove & collaborators
+    .replace(/\s*[;&]\s*.*/g, "") // Remove ; or & collaborators (and everything after)
     .replace(/[^\w\s]/g, "") // Remove punctuation
     .replace(/\s+/g, " ") // Collapse spaces
     .trim();

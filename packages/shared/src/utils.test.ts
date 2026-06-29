@@ -70,3 +70,33 @@ describe("normalizeFuzzy", () => {
     expect(normalizeFuzzy("It's A Song!")).toBe("its a song");
   });
 });
+
+// Hardening from real WCS-playlist data (Exportify CSVs): diacritics, Spotify "- <version>"
+// suffixes, and the `;` multi-artist separator.
+describe("normalization hardening (real-data patterns)", () => {
+  test("folds diacritics in both keys (encoding ≠ a different track)", () => {
+    expect(normalizeExact("Emeli Sandé")).toBe("emeli sande");
+    expect(normalizeFuzzy("Jhené Aiko")).toBe("jhene aiko");
+    expect(normalizeFuzzy("Canopée")).toBe("canopee");
+    // non-decomposing special letters (Polish ł, ø, ß)
+    expect(normalizeFuzzy("Księżycowa")).toBe("ksiezycowa");
+  });
+
+  test("fuzzy strips Spotify's '- <version>' suffix (collapses to the base song)", () => {
+    expect(normalizeFuzzy("Believer - Acoustic")).toBe("believer");
+    expect(normalizeFuzzy("Levels - TEEMID Remix")).toBe("levels");
+    expect(normalizeFuzzy("Photograph - Stripped")).toBe("photograph");
+  });
+
+  test("exact key KEEPS the version (so acoustic ≠ original)", () => {
+    expect(getTrackKey("Imagine Dragons", "Believer - Acoustic")).toBe(
+      "imagine dragons::believer - acoustic",
+    );
+    expect(getFuzzyKey("Imagine Dragons", "Believer - Acoustic")).toBe("imagine dragons::believer");
+  });
+
+  test("fuzzy drops secondary artists (Exportify ';' + '&')", () => {
+    expect(normalizeFuzzy("John Legend;Jhené Aiko")).toBe("john legend");
+    expect(normalizeFuzzy("Polo & Pan")).toBe("polo");
+  });
+});
