@@ -486,6 +486,37 @@ suite("DB integration (real Postgres)", () => {
       await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
       await db.delete(schema.user).where(eq(schema.user.id, userId));
     });
+
+    // --- auth guards: route-level branches (status + role), with real sessions ---
+
+    test("guard: requireDjAuth 403s a pending (unapproved) user", async () => {
+      const { userId, token } = await signUpDj({ approved: false });
+      const res = await pushRoute.request("/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ payload: "hi", filter: "debug" }),
+      });
+      expect(res.status).toBe(403); // authenticated but status !== 'approved'
+      await db.delete(schema.user).where(eq(schema.user.id, userId));
+    });
+
+    test("guard: requireAdmin 404s a non-admin DJ but passes an admin", async () => {
+      const djUser = await signUpDj({ approved: true });
+      const denied = await adminRoute.request("/me", {
+        headers: { Authorization: `Bearer ${djUser.token}` },
+      });
+      expect(denied.status).toBe(404); // hideExistence: role mismatch is not leaked
+
+      const adminUser = await signUpDj({ approved: true, admin: true });
+      const ok = await adminRoute.request("/me", {
+        headers: { Authorization: `Bearer ${adminUser.token}` },
+      });
+      expect(ok.status).toBe(200);
+      expect(((await ok.json()) as { role?: string }).role).toBe("admin");
+
+      await db.delete(schema.user).where(eq(schema.user.id, djUser.userId));
+      await db.delete(schema.user).where(eq(schema.user.id, adminUser.userId));
+    });
   });
 
   // ==========================================================================

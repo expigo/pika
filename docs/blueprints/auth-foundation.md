@@ -1,10 +1,21 @@
 # Blueprint: Auth Foundation (Authentication & Authorization)
 
-**Status:** Assessment + recommendation. Decision pending owner sign-off; not yet built.
-**TL;DR recommendation:** **Adopt Better Auth now** (while there are zero prod users) as the cloud's
-auth authority — credential + session + bearer, Drizzle/Postgres. Model **admin / organizer**
+**Status (updated 2026-06-30):** **Core ADOPTED + live.** Better Auth is the cloud auth authority —
+credential + session + **bearer** (desktop) on the Drizzle/Postgres adapter, the **admin** plugin
+(roles `dj`/`admin` + access-control), the `pending→approved` approval gate (`status`), and `slug`
+for `/dj/[slug]`. See `packages/cloud/src/lib/auth/server.ts`, `lib/auth.ts` (guards), `lib/auth/permissions.ts`.
+Route-level guard branches (401 / pending-403 / admin-404 / bearer) are covered by `lib/auth.test.ts`
+(unit) + `__tests__/db.integration.test.ts` (real sessions).
+**Remaining §7 — DEFERRED to pilot-prep:** the **organization** plugin (organizer/events), the
+**anonymous** plugin (note: anonymous *participation* already works via `clientId`; the plugin only
+adds the optional account-**upgrade** path — do it just before real dancer data accumulates), and
+**password reset + email verification** (needs an email transport; deferred to avoid DB-wipe friction
+during functional testing).
+
+**Original TL;DR (the adopt-now recommendation, now realized for the core):** Adopt Better Auth as the
+cloud's auth authority — credential + session + bearer, Drizzle/Postgres. Model **admin / organizer**
 roles and **anonymous (optional) dancers** via its plugins. Keep authorization as **RBAC** (no
-policy engine yet). Treat it as a focused 2–3-session workstream, NOT a sprawling account system.
+policy engine yet). A focused workstream, NOT a sprawling account system.
 
 ---
 
