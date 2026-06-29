@@ -19,6 +19,7 @@ import {
   connectServiceAccount,
   connectSpotify,
   getConnectionStatus,
+  getServiceStatus,
 } from "../lib/services/spotify";
 
 const spotify = new Hono();
@@ -86,6 +87,11 @@ spotify.get("/status", requireDjAuth, async (c) => {
 // account used to create every generated playlist. Its own redirect URI
 // (…/api/spotify/service/callback) must also be registered in the Spotify app.
 // ---------------------------------------------------------------------------
+
+/** Admin: is the shared playlist account connected? (drives the admin-panel button) */
+spotify.get("/service/status", requireAdmin, async (c) => {
+  return c.json(await getServiceStatus());
+});
 
 /** Admin: start the one-time consent for the shared playlist account. */
 spotify.get("/service/authorize", requireAdmin, (c) => {

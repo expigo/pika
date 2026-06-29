@@ -25,12 +25,23 @@ export interface MatchResult {
   cached: boolean;
 }
 
+/** Thrown on a non-2xx playlist API response; `status` lets callers special-case auth (401/403). */
+export class PlaylistApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = "PlaylistApiError";
+  }
+}
+
 async function postJson<T>(path: string, body: unknown): Promise<T> {
   const { apiUrl } = getConfiguredUrls();
   const res = await apiFetch(`${apiUrl}${path}`, { method: "POST", body: JSON.stringify(body) });
   if (!res.ok) {
     const detail = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(detail.error ?? `Request failed: ${res.status}`);
+    throw new PlaylistApiError(res.status, detail.error ?? `Request failed: ${res.status}`);
   }
   return (await res.json()) as T;
 }

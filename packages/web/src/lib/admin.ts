@@ -85,3 +85,13 @@ export function rejectDj(id: number): Promise<{ success: boolean }> {
 export function getOverview(): Promise<AdminOverview> {
   return req<AdminOverview>("/api/admin/overview");
 }
+
+/** Status of the shared "Pika" Spotify playlist account (B3). */
+export function getPlaylistServiceStatus(): Promise<{ connected: boolean; status: string | null }> {
+  return req("/api/spotify/service/status");
+}
+
+/** Top-level navigation target to connect/reconnect the shared playlist account (admin, one-time). */
+export function playlistServiceAuthorizeUrl(): string {
+  return `${getApiBaseUrl()}/api/spotify/service/authorize`;
+}

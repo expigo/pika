@@ -11,9 +11,13 @@ import { createPortal } from "react-dom";
 import { trackRepository } from "../db/repositories/trackRepository";
 import {
   createSpotifyPlaylist,
+  PlaylistApiError,
   type SpotifyCandidate,
   searchSpotify,
 } from "../services/spotifyPlaylist";
+
+const isAuthError = (e: unknown): boolean =>
+  e instanceof PlaylistApiError && (e.status === 401 || e.status === 403);
 
 interface Props {
   session: { id: number; name: string | null };
@@ -46,6 +50,7 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
   const [creating, setCreating] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [authError, setAuthError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -116,8 +121,12 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
                 : p,
             ),
           );
-        } catch {
+        } catch (e) {
           if (cancelled) return;
+          if (isAuthError(e)) {
+            setAuthError(true);
+            return; // stop searching — every call will fail the same way
+          }
           setRows((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "error" } : p)));
         }
       }
@@ -166,7 +175,8 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
       );
       setResultUrl(result.playlistUrl);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create playlist");
+      if (isAuthError(e)) setAuthError(true);
+      else setError(e instanceof Error ? e.message : "Failed to create playlist");
     } finally {
       setCreating(false);
     }
@@ -208,6 +218,15 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
             >
               Done
             </button>
+          </div>
+        ) : authError ? (
+          <div className="px-6 py-10 text-center">
+            <p className="mb-2 text-base font-semibold text-amber-300">This app isn't signed in</p>
+            <p className="mx-auto max-w-sm text-sm text-slate-400">
+              Building a playlist needs your DJ account. Open <strong>Settings</strong> and paste a
+              fresh token from <strong>/dj/login</strong> on the web app (for the same server
+              environment), then reopen this dialog.
+            </p>
           </div>
         ) : (
           <>

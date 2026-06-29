@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 import { useVisibility } from "@/hooks/ui/useVisibility";
-import { type AdminOverview, getOverview } from "@/lib/admin";
+import {
+  type AdminOverview,
+  getOverview,
+  getPlaylistServiceStatus,
+  playlistServiceAuthorizeUrl,
+} from "@/lib/admin";
 
 function Stat({ label, value }: { label: string; value: number | string }) {
   return (
@@ -17,6 +22,10 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 export default function AdminOverviewPage() {
   const [data, setData] = useState<AdminOverview | null>(null);
   const [error, setError] = useState(false);
+  const [playlistService, setPlaylistService] = useState<{
+    connected: boolean;
+    status: string | null;
+  } | null>(null);
   const isVisible = useVisibility();
 
   const refresh = useCallback(async () => {
@@ -26,6 +35,9 @@ export default function AdminOverviewPage() {
     } catch {
       setError(true);
     }
+    getPlaylistServiceStatus()
+      .then(setPlaylistService)
+      .catch(() => setPlaylistService(null));
   }, []);
 
   // Visibility-aware ~15s polling — pause when the tab is hidden.
@@ -47,6 +59,30 @@ export default function AdminOverviewPage() {
         <Stat label="Live sessions" value={data.sessions.length} />
         <Stat label="Spotify pollers" value={data.pollers.length} />
         <Stat label="Stages / Events" value={`${data.stages.length} / ${data.events.length}`} />
+      </section>
+
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-slate-900 p-5">
+        <div>
+          <div className="text-sm font-semibold text-white">Spotify playlist account</div>
+          <div className="mt-0.5 text-xs text-slate-500">
+            The shared account that owns every DJ's generated playlist.{" "}
+            {playlistService === null ? (
+              "Checking…"
+            ) : playlistService.connected && playlistService.status === "active" ? (
+              <span className="text-emerald-400">Connected.</span>
+            ) : playlistService.connected ? (
+              <span className="text-amber-400">Needs reconnect ({playlistService.status}).</span>
+            ) : (
+              <span className="text-amber-400">Not connected — playlist creation is disabled.</span>
+            )}
+          </div>
+        </div>
+        <a
+          href={playlistServiceAuthorizeUrl()}
+          className="rounded-full bg-[#1DB954] px-5 py-2 text-sm font-bold text-black"
+        >
+          {playlistService?.connected ? "Reconnect" : "Connect account"}
+        </a>
       </section>
 
       <section>

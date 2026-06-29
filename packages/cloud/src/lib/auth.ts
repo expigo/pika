@@ -26,7 +26,14 @@ export function getUser(c: Context): AuthUser {
 
 async function resolveUser(c: Context): Promise<AuthUser | null> {
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
-  return session?.user ?? null;
+  if (session?.user) return session.user;
+  // Fallback: validate the bearer token explicitly (mirrors getUserFromToken). The Tauri desktop
+  // sends a valid `Authorization: Bearer` token, but getSession(rawHeaders) can fail to resolve it
+  // when other request headers (Origin/cookie) are present — extract + validate it directly so the
+  // REST guards accept exactly what the WS handler + sync-fingerprints already do.
+  const authHeader = c.req.header("Authorization");
+  const token = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  return token ? getUserFromToken(token) : null;
 }
 
 /** Resolve a user from a raw bearer token (used by the WebSocket REGISTER_SESSION handler). */

@@ -207,11 +207,18 @@ app.use(
   "*",
   cors({
     // Dev/test: reflect any localhost/127.0.0.1 origin so the web-DJ cookie flow works
-    // cross-port with credentials (a literal "*" can't be used with credentials).
+    // cross-port with credentials (a literal "*" can't be used with credentials). Also reflect
+    // private LAN IPs (10/8, 172.16/12, 192.168/16) so a recap opened on a phone via the machine's
+    // LAN IP (the desktop's QR/recap link) isn't CORS-blocked in dev.
     origin:
       process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test"
         ? (origin) =>
-            origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) ? origin : ""
+            origin &&
+            /^https?:\/\/(localhost|127\.0\.0\.1|10(\.\d{1,3}){3}|192\.168(\.\d{1,3}){2}|172\.(1[6-9]|2\d|3[01])(\.\d{1,3}){2})(:\d+)?$/.test(
+              origin,
+            )
+              ? origin
+              : ""
         : [
             URLS.getWebUrl("production"),
             URLS.getApiUrl("production"),
