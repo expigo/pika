@@ -318,12 +318,16 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
 
       // Spotify can't hold text "tracks", so list the un-matched songs in the playlist description
       // (alongside the DJ's optional note) — the closest thing to a per-song placeholder.
+      // Number un-matched songs by their position in the set so a dancer reading the description
+      // knows where the gap is. (Spotify collapses newlines in descriptions, so we separate with
+      // " · " — the position number carries the ordering.)
       const unmatchedNames = rows
-        .filter((r) => !(r.selectedIndex !== null && r.candidates[r.selectedIndex]))
-        .map((r) => `${r.artist} – ${r.title}`);
+        .map((r, i) => ({ r, pos: i + 1 }))
+        .filter(({ r }) => !(r.selectedIndex !== null && r.candidates[r.selectedIndex]))
+        .map(({ r, pos }) => `${pos}. ${r.artist} - ${r.title}`);
       const descParts: string[] = [];
       if (note.trim()) descParts.push(note.trim());
-      if (unmatchedNames.length) descParts.push(`Not on Spotify: ${unmatchedNames.join(", ")}`);
+      if (unmatchedNames.length) descParts.push(`Not on Spotify — ${unmatchedNames.join(" · ")}`);
       descParts.push("Made with Pika · pika.stream");
       const description = descParts.join(" — ").slice(0, 300);
 
