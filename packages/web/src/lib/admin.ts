@@ -192,8 +192,18 @@ export interface CatalogSongDetail {
   albumArtUrl: string | null;
   // Canonical Spotify features (null fields where Exportify had none).
   spotify: Record<keyof SpotifyAudioFeatures, number | string | null> | null;
-  // Pika sidecar features — per-file, surfaced once played_tracks carries spotify_id (kept separate).
-  pika: null;
+  // Pika sidecar consensus — averaged 0-100 fingerprints over all plays of this track (null if never
+  // played). Kept separate from Spotify's 0-1 features, never merged.
+  pika: {
+    energy: number | null;
+    danceability: number | null;
+    brightness: number | null;
+    acousticness: number | null;
+    groove: number | null;
+    bpm: number | null;
+    plays: number;
+    djs: number;
+  } | null;
   appearances: Array<{ playlistName: string; djName: string; source: string }>;
 }
 

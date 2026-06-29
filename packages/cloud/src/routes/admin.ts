@@ -299,10 +299,23 @@ admin.get("/catalog/songs/:id", async (c) => {
       join "user" u on u.id = cp.dj_user_id
       where cpt.spotify_id = ${id}
       order by u.name, cp.name`),
+    // Pika (sidecar) consensus: average the 0-100 fingerprints over every PLAY of this Spotify track,
+    // joined via the normalized match_key (auto-reflects new resolutions; kept separate from Spotify's).
+    db.execute(sql`
+      select avg(pt.energy)::int as energy, avg(pt.danceability)::int as danceability,
+             avg(pt.brightness)::int as brightness, avg(pt.acousticness)::int as acousticness,
+             avg(pt.groove)::int as groove, avg(pt.bpm)::int as bpm,
+             count(*)::int as plays, count(distinct s.dj_user_id)::int as djs
+      from played_tracks pt
+      join track_links tl on tl.match_key = pt.match_key
+        and tl.provider_id = ${id} and tl.status in ('matched', 'manual')
+      left join sessions s on s.id = pt.session_id
+      where pt.match_key is not null`),
   ])) as unknown as Row[][];
   const metaR = detailRes[0] ?? [];
   const featR = detailRes[1] ?? [];
   const appsR = detailRes[2] ?? [];
+  const pikaR = detailRes[3] ?? [];
 
   const meta = metaR[0];
   if (!meta?.["name"]) return c.json({ error: "Song not found" }, 404);
@@ -328,6 +341,22 @@ admin.get("/catalog/songs/:id", async (c) => {
       }
     : null;
 
+  // Pika consensus — null when this track was never played (no matched plays).
+  const p = pikaR[0];
+  const pika =
+    p && n(p["plays"]) > 0
+      ? {
+          energy: p["energy"] == null ? null : n(p["energy"]),
+          danceability: p["danceability"] == null ? null : n(p["danceability"]),
+          brightness: p["brightness"] == null ? null : n(p["brightness"]),
+          acousticness: p["acousticness"] == null ? null : n(p["acousticness"]),
+          groove: p["groove"] == null ? null : n(p["groove"]),
+          bpm: p["bpm"] == null ? null : n(p["bpm"]),
+          plays: n(p["plays"]),
+          djs: n(p["djs"]),
+        }
+      : null;
+
   return c.json({
     spotifyId: id,
     name: String(meta["name"]),
@@ -335,7 +364,7 @@ admin.get("/catalog/songs/:id", async (c) => {
     durationMs: meta["durationMs"] == null ? null : n(meta["durationMs"]),
     albumArtUrl: meta["albumArtUrl"] == null ? null : String(meta["albumArtUrl"]),
     spotify,
-    pika: null, // per-file sidecar features (#5 — joins via played_tracks once it carries spotify_id)
+    pika,
     appearances: appsR.map((r) => ({
       playlistName: String(r["playlistName"] ?? ""),
       djName: String(r["djName"] ?? ""),

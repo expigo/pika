@@ -136,6 +136,9 @@ export const playedTracks = pgTable(
       .references(() => sessions.id, { onDelete: "cascade" }),
     artist: text("artist").notNull(),
     title: text("title").notNull(),
+    // Normalized exact key (getTrackKey) — joins to `track_links.match_key` to reach the Spotify
+    // identity (and its features) without a denormalized spotify_id that would go stale.
+    matchKey: text("match_key"),
     // Core metrics
     bpm: integer("bpm"),
     key: text("key"),
@@ -152,6 +155,8 @@ export const playedTracks = pgTable(
   (table) => ({
     // Fast lookup for history and "Similar Tracks" logic
     idxArtistTitle: index("idx_played_tracks_artist_title").on(table.artist, table.title),
+    // Join key to track_links (→ Spotify identity / features) for the catalog's Pika aggregate.
+    idxMatchKey: index("idx_played_tracks_match_key").on(table.matchKey),
     // Composite index for session history ordered by time (descending)
     idxSessionPlayedAt: index("idx_played_tracks_session_played_at").on(
       table.sessionId,

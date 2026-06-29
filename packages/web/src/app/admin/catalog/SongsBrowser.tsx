@@ -97,13 +97,41 @@ function Detail({ id, onClose }: { id: string; onClose: () => void }) {
           </div>
 
           <div>
-            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-sky-400">
-              Pika features
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wide text-sky-400">
+                Pika features
+              </span>
+              {d.pika && (
+                <span className="text-[10px] text-slate-500">
+                  consensus · {d.pika.plays} play{d.pika.plays === 1 ? "" : "s"} · {d.pika.djs} DJ
+                  {d.pika.djs === 1 ? "" : "s"}
+                </span>
+              )}
             </div>
-            <div className="text-xs text-slate-600">
-              Per-file analysis from the Pika sidecar — shown here once played-track linkage lands
-              (lives in the desktop app today). Kept separate from Spotify's, never merged.
-            </div>
+            {d.pika ? (
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
+                {(
+                  [
+                    ["BPM", d.pika.bpm],
+                    ["Energy", d.pika.energy],
+                    ["Danceability", d.pika.danceability],
+                    ["Brightness", d.pika.brightness],
+                    ["Acousticness", d.pika.acousticness],
+                    ["Groove", d.pika.groove],
+                  ] as const
+                ).map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-2">
+                    <span className="text-slate-500">{k}</span>
+                    <span className="text-slate-200">{v == null ? "—" : v}</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs text-slate-600">
+                Pika's own analysis (0–100) — appears once this track has been played in a live
+                session. Kept separate from Spotify's, never merged.
+              </div>
+            )}
           </div>
 
           <div>

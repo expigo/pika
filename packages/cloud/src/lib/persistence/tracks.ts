@@ -10,7 +10,7 @@
  */
 
 import type { TrackInfo } from "@pika/shared";
-import { logger } from "@pika/shared";
+import { getTrackKey, logger } from "@pika/shared";
 import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "../../db";
 import { enqueuePersistence } from "./queue";
@@ -112,6 +112,7 @@ export async function persistTrack(sessionId: string, track: TrackInfo): Promise
           sessionId,
           artist: track.artist,
           title: track.title,
+          matchKey: getTrackKey(track.artist, track.title),
           // Core metrics
           bpm: track.bpm ? Math.round(track.bpm) : null,
           key: track.key ?? null,
@@ -182,6 +183,7 @@ export async function persistTracksBulk(sessionId: string, tracks: TrackInfo[]):
         sessionId,
         artist: track.artist,
         title: track.title,
+        matchKey: getTrackKey(track.artist, track.title),
         bpm: track.bpm ? Math.round(track.bpm) : null,
         key: track.key ?? null,
         energy: track.energy ? Math.round(track.energy) : null,
