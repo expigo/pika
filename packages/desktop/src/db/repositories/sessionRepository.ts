@@ -117,6 +117,24 @@ export const sessionRepository = {
     await db.update(sessions).set({ cloudSessionId }).where(eq(sessions.id, sessionId));
   },
 
+  /** B3: remember the Spotify playlist generated for this set. */
+  async setSessionPlaylist(sessionId: number, url: string, playlistId: string): Promise<void> {
+    await db
+      .update(sessions)
+      .set({ spotifyPlaylistUrl: url, spotifyPlaylistId: playlistId })
+      .where(eq(sessions.id, sessionId));
+  },
+
+  /** B3: the previously-generated playlist URL for this set, or null. */
+  async getSessionPlaylistUrl(sessionId: number): Promise<string | null> {
+    const sqlite = await getSqlite();
+    const rows = await sqlite.select<{ url: string | null }[]>(
+      "SELECT spotify_playlist_url as url FROM sessions WHERE id = ?",
+      [sessionId],
+    );
+    return rows[0]?.url ?? null;
+  },
+
   /**
    * Get a session by ID
    */

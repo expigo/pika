@@ -19,6 +19,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<LoginSuccess | null>(null);
   const [tokenCopied, setTokenCopied] = useState(false);
+  const [tokenRevealed, setTokenRevealed] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,17 +110,21 @@ export default function LoginPage() {
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
                   Private Access Token
                 </label>
-                <div
-                  className="bg-slate-950 border border-white/10 rounded-2xl p-6 font-mono text-sm text-purple-400 break-all leading-relaxed shadow-inner group/token relative cursor-pointer active:scale-[0.99] transition-transform"
-                  onClick={copyToken}
+                <button
+                  type="button"
+                  onClick={() => setTokenRevealed((v) => !v)}
+                  aria-label={tokenRevealed ? "Hide token" : "Reveal token"}
+                  className="relative block w-full text-left bg-slate-950 border border-white/10 rounded-2xl p-6 font-mono text-sm text-purple-400 break-all leading-relaxed shadow-inner active:scale-[0.99] transition-transform"
                 >
-                  {success.token}
-                  <div className="absolute inset-0 bg-purple-500/0 group-hover/token:bg-purple-500/5 transition-colors rounded-2xl flex items-center justify-end pr-4">
-                    <span className="text-[9px] font-bold text-purple-400/0 group-hover/token:text-purple-400/80 uppercase tracking-widest">
-                      Click to Copy
+                  <span className={tokenRevealed ? "" : "blur-sm select-none"}>
+                    {success.token}
+                  </span>
+                  {!tokenRevealed && (
+                    <span className="absolute inset-0 flex items-center justify-center rounded-2xl bg-slate-950/40 text-[10px] font-bold uppercase tracking-widest text-purple-300/80">
+                      Click to reveal
                     </span>
-                  </div>
-                </div>
+                  )}
+                </button>
               </div>
 
               <div className="p-6 bg-purple-500/5 border border-purple-500/10 rounded-3xl">

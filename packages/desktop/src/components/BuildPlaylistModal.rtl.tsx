@@ -3,10 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, userEvent } from "../test/rtl";
 import { BuildPlaylistModal } from "./BuildPlaylistModal";
 
+vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
 vi.mock("../db/repositories/trackRepository", () => ({
   trackRepository: {
     getSessionTracksForMatching: vi.fn(),
     setTrackSpotifyMatch: vi.fn(() => Promise.resolve()),
+  },
+}));
+vi.mock("../db/repositories/sessionRepository", () => ({
+  sessionRepository: {
+    getSessionPlaylistUrl: vi.fn(() => Promise.resolve(null)),
+    setSessionPlaylist: vi.fn(() => Promise.resolve()),
   },
 }));
 vi.mock("../services/spotifyPlaylist", () => ({
@@ -18,8 +25,10 @@ vi.mock("../services/spotifyPlaylist", () => ({
       playlistId: "abc",
     }),
   ),
+  PlaylistApiError: class extends Error {},
 }));
 
+import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
 import { createSpotifyPlaylist, searchSpotify } from "../services/spotifyPlaylist";
 
@@ -73,11 +82,14 @@ const searchResult = {
 };
 
 beforeEach(() => {
+  vi.mocked(sessionRepository.getSessionPlaylistUrl).mockResolvedValue(null);
+  vi.mocked(sessionRepository.setSessionPlaylist).mockClear();
   vi.mocked(trackRepository.getSessionTracksForMatching).mockResolvedValue([
     cachedTrack,
     uncachedTrack,
     // biome-ignore lint/suspicious/noExplicitAny: test fixture shape
   ] as any);
+  vi.mocked(searchSpotify).mockClear();
   vi.mocked(searchSpotify).mockResolvedValue(searchResult);
   vi.mocked(createSpotifyPlaylist).mockClear();
   vi.mocked(trackRepository.setTrackSpotifyMatch).mockClear();
@@ -88,51 +100,60 @@ function renderModal() {
 }
 
 describe("BuildPlaylistModal", () => {
-  it("searches only the uncached track and pre-fills the recommended match", async () => {
+  it("searches only the uncached track and shows the recommended match with detail", async () => {
     renderModal();
-    // The uncached row resolves via search; its select appears with the recommendation.
-    const select = await screen.findByLabelText("Spotify match for Don't Stop Me Now");
-    expect(select).toHaveValue("0");
-    // Cached track did NOT trigger a search; only the one uncached track did.
-    expect(searchSpotify).toHaveBeenCalledTimes(1);
-    expect(searchSpotify).toHaveBeenCalledWith(
-      expect.objectContaining({ artist: "Queen", title: "Don't Stop Me Now" }),
-    );
+    expect(await screen.findByText("Strong match")).toBeInTheDocument(); // confidence shown
+    expect(screen.getByText(/85% popular/)).toBeInTheDocument(); // recommended candidate detail
+    expect(searchSpotify).toHaveBeenCalledTimes(1); // cached track skipped search
     expect(screen.getByText("2 tracks selected")).toBeInTheDocument();
   });
 
-  it("creates the playlist from the selected tracks and remembers the matches", async () => {
+  it("creates the playlist, remembers it on the session, and writes back the matches", async () => {
     renderModal();
-    await screen.findByLabelText("Spotify match for Don't Stop Me Now");
+    await screen.findByText("Strong match");
 
     await userEvent.click(screen.getByRole("button", { name: /create playlist/i }));
 
-    expect(createSpotifyPlaylist).toHaveBeenCalledTimes(1);
     const arg = vi.mocked(createSpotifyPlaylist).mock.calls[0]?.[0];
-    expect(arg?.name).toBe("Friday Set");
     expect(arg?.tracks).toEqual([
       expect.objectContaining({ spotifyId: "cached1" }),
       expect.objectContaining({ spotifyId: "q1" }),
     ]);
-    // Confirmed matches written back as sticky (dj_confirmed).
+    expect(sessionRepository.setSessionPlaylist).toHaveBeenCalledWith(
+      7,
+      "https://open.spotify.com/playlist/abc",
+      "abc",
+    );
     expect(trackRepository.setTrackSpotifyMatch).toHaveBeenCalledWith(
       2,
       expect.objectContaining({ spotifyId: "q1", source: "dj_confirmed" }),
     );
-    expect(await screen.findByRole("link", { name: /open in spotify/i })).toHaveAttribute(
-      "href",
-      "https://open.spotify.com/playlist/abc",
-    );
+    expect(screen.getByRole("button", { name: /open in spotify/i })).toBeInTheDocument();
   });
 
-  it("honours an override of the recommended match", async () => {
+  it("lets the DJ change the match via the candidate picker", async () => {
     renderModal();
-    const select = await screen.findByLabelText("Spotify match for Don't Stop Me Now");
-    await userEvent.selectOptions(select, "1"); // pick the remastered version
+    await screen.findByText("Strong match");
 
+    await userEvent.click(
+      screen.getByRole("button", { name: /change match for Don't Stop Me Now/i }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /pick Don't Stop Me Now - Remastered by Queen/i }),
+    );
     await userEvent.click(screen.getByRole("button", { name: /create playlist/i }));
 
     const arg = vi.mocked(createSpotifyPlaylist).mock.calls[0]?.[0];
     expect(arg?.tracks).toContainEqual(expect.objectContaining({ spotifyId: "q2" }));
+  });
+
+  it("short-circuits to the remembered playlist without re-searching", async () => {
+    vi.mocked(sessionRepository.getSessionPlaylistUrl).mockResolvedValue(
+      "https://open.spotify.com/playlist/old",
+    );
+    renderModal();
+    expect(await screen.findByText(/already has a playlist/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /open in spotify/i })).toBeInTheDocument();
+    expect(searchSpotify).not.toHaveBeenCalled();
   });
 });

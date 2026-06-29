@@ -6,13 +6,22 @@
  * always outranks an `auto` match. See docs/blueprints/music-provider-integration.md §5 + §12.
  */
 
-import { getFuzzyKey } from "@pika/shared";
+import { getFuzzyKey, normalizeFuzzy } from "@pika/shared";
 import { eq, ne } from "drizzle-orm";
 import { db } from "../../db";
 import { trackLinks } from "../../db/schema";
 import { getAppAccessToken } from "./spotify";
 
 const API = "https://api.spotify.com/v1";
+
+/** One Spotify track search (app token), returning the raw items. */
+async function spotifySearch(token: string, q: string): Promise<SpotifySearchResponse["tracks"]> {
+  const res = await fetch(`${API}/search?type=track&limit=10&q=${encodeURIComponent(q)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`);
+  return ((await res.json()) as SpotifySearchResponse).tracks;
+}
 
 export interface MatchCandidate {
   spotifyId: string;
@@ -205,14 +214,17 @@ export async function searchAndRank(input: {
     };
   }
 
-  // 2. Search via the app token.
+  // 2. Search via the app token. VDJ titles are noisy ("… (live at ATP-NY 2010)", "(Remix)"),
+  // and a raw `track:` filter then finds nothing — so we search on the FUZZY-cleaned title
+  // (parens/brackets/feat. stripped) and fall back to a plain lenient query if the filtered
+  // search is empty. Ranking below still favours the closest version.
   const token = await getAppAccessToken();
-  const q = encodeURIComponent(`track:${input.title} artist:${input.artist}`);
-  const res = await fetch(`${API}/search?type=track&limit=10&q=${q}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) throw new Error(`Spotify search failed: ${res.status}`);
-  const items = ((await res.json()) as SpotifySearchResponse).tracks?.items ?? [];
+  const cleanTitle = normalizeFuzzy(input.title) || input.title;
+  let items =
+    (await spotifySearch(token, `track:${cleanTitle} artist:${input.artist}`))?.items ?? [];
+  if (items.length === 0) {
+    items = (await spotifySearch(token, `${input.artist} ${cleanTitle}`))?.items ?? [];
+  }
 
   const candidates: MatchCandidate[] = items.map((t) => ({
     spotifyId: t.id,

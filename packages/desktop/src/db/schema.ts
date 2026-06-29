@@ -87,6 +87,10 @@ export const sessions = sqliteTable(
 
     /** Unix timestamp when session ended (null if still active) */
     endedAt: int("ended_at"),
+
+    /** B3: the Spotify playlist generated for this set (so it's not re-created on reopen) */
+    spotifyPlaylistUrl: text("spotify_playlist_url"),
+    spotifyPlaylistId: text("spotify_playlist_id"),
   },
   (t) => ({
     endedAtIdx: index("idx_sessions_ended_at").on(t.endedAt),
