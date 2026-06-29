@@ -9,7 +9,7 @@ const statusVariant = (s: string) =>
 
 export default function AdminDjsPage() {
   const [djs, setDjs] = useState<AdminDj[] | null>(null);
-  const [busyId, setBusyId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -24,7 +24,7 @@ export default function AdminDjsPage() {
     load();
   }, [load]);
 
-  const act = async (id: number, fn: (id: number) => Promise<unknown>) => {
+  const act = async (id: string, fn: (id: string) => Promise<unknown>) => {
     setBusyId(id);
     setError(null);
     try {

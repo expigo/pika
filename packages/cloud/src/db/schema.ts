@@ -431,18 +431,44 @@ export const trackLinks = pgTable(
   "track_links",
   {
     id: serial("id").primaryKey(),
-    matchKey: text("match_key").notNull().unique(), // getFuzzyKey(artist, title)
+    matchKey: text("match_key").notNull().unique(), // getTrackKey — EXACT (version-precise) key
+    songKey: text("song_key"), // getFuzzyKey — version-collapsing "song" axis for analytics grouping
     provider: text("provider").notNull().default("spotify"), // 'spotify' (Apple later)
     providerId: text("provider_id"), // Spotify track id
     providerUrl: text("provider_url"), // open.spotify.com/track/...
     status: text("status").notNull().default("matched"), // 'matched' | 'unmatched' | 'manual'
     confidence: real("confidence"), // 0..1 from the match tier (null for manual)
-    source: text("source").notNull().default("auto"), // 'auto' | 'manual'
+    source: text("source").notNull().default("auto"), // 'auto' | 'manual' | 'playlist'
     resolvedAt: timestamp("resolved_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
   (table) => ({
     idxProviderId: index("idx_track_links_provider_id").on(table.providerId),
+    idxSongKey: index("idx_track_links_song_key").on(table.songKey),
+  }),
+);
+
+// A WCS DJ's curated Spotify repertoire (B3 seed) — what a DJ PUTS IN A PLAYLIST, distinct from
+// what they PLAYED live (`played_tracks`). Seeded via the app token from public playlists (no DJ
+// OAuth). Also the Spotify-metadata cache the future "songs catalog" admin view reads.
+export const curatedTracks = pgTable(
+  "curated_tracks",
+  {
+    id: serial("id").primaryKey(),
+    djUserId: text("dj_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    spotifyId: text("spotify_id").notNull(),
+    name: text("name").notNull(),
+    artists: text("artists").notNull(),
+    durationMs: integer("duration_ms"),
+    albumArtUrl: text("album_art_url"),
+    playlistName: text("playlist_name"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqDjTrack: unique("uniq_curated_dj_track").on(table.djUserId, table.spotifyId),
+    idxSpotifyId: index("idx_curated_spotify_id").on(table.spotifyId),
   }),
 );
 

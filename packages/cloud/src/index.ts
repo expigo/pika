@@ -23,6 +23,7 @@ import { dj as djRoutes } from "./routes/dj";
 import { djLiveRoutes } from "./routes/dj-live";
 import { playlistRoutes } from "./routes/playlist";
 import { push as pushRoutes } from "./routes/push";
+import { seedRoutes } from "./routes/seed";
 import { sessions as sessionsRoutes } from "./routes/sessions";
 import { spotifyRoutes } from "./routes/spotify";
 import { stageRoutes } from "./routes/stages";
@@ -482,6 +483,7 @@ app.route("/api/live", djLiveRoutes);
 app.use("/api/playlist/*", csrfCheck); // B3 — Spotify playlist tools (state-changing → CSRF header)
 app.route("/api/playlist", playlistRoutes);
 app.use("/api/admin/*", csrfCheck); // Admin panel (state-changing → CSRF header)
+app.route("/api/admin/seed", seedRoutes); // B3 catalog seed tool (admin-gated within the router)
 app.route("/api/admin", adminRoutes);
 app.route("/api", stageRoutes); // /api/events, /api/stages (+ public reads)
 app.route("/sessions", sessionsRoutes); // Legacy WebSocket-style endpoint

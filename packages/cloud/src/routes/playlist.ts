@@ -10,7 +10,7 @@
  * are per-DJ rate-limited (each hits the Spotify API).
  */
 
-import { getFuzzyKey, logger } from "@pika/shared";
+import { getFuzzyKey, getTrackKey, logger } from "@pika/shared";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
@@ -124,6 +124,7 @@ playlist.post("/create", playlistLimiter, async (c) => {
     await Promise.allSettled(
       tracks.map((t) =>
         cacheManualMatch(
+          getTrackKey(t.artist, t.title),
           getFuzzyKey(t.artist, t.title),
           t.spotifyId,
           `https://open.spotify.com/track/${t.spotifyId}`,

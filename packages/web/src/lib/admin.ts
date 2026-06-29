@@ -18,7 +18,7 @@ export interface AdminMe {
 }
 
 export interface AdminDj {
-  id: number;
+  id: string; // Better Auth user id (string)
   email: string;
   displayName: string;
   slug: string;
@@ -74,12 +74,55 @@ export async function getDjs(): Promise<AdminDj[]> {
   return (await req<{ djs: AdminDj[] }>("/api/admin/djs")).djs;
 }
 
-export function approveDj(id: number): Promise<{ success: boolean }> {
+export function approveDj(id: string): Promise<{ success: boolean }> {
   return req(`/api/admin/djs/${id}/approve`, { method: "POST", headers: JSON_CSRF });
 }
 
-export function rejectDj(id: number): Promise<{ success: boolean }> {
+export function rejectDj(id: string): Promise<{ success: boolean }> {
   return req(`/api/admin/djs/${id}/reject`, { method: "POST", headers: JSON_CSRF });
+}
+
+// --- B3 catalog seed tool ---
+
+export interface SeedPlaylist {
+  playlistId: string;
+  name: string;
+  trackCount: number;
+  url: string;
+}
+
+export interface SeedTrack {
+  spotifyId: string;
+  uri: string;
+  name: string;
+  artists: string;
+  durationMs?: number;
+  albumArtUrl?: string;
+}
+
+/** A DJ's public Spotify playlists, from their profile link. */
+export function getSeedPlaylists(
+  profile: string,
+): Promise<{ userId: string; playlists: SeedPlaylist[] }> {
+  return req(`/api/admin/seed/playlists?profile=${encodeURIComponent(profile)}`);
+}
+
+/** Preview a playlist's tracks before seeding. */
+export function getSeedPlaylistTracks(playlistId: string): Promise<{ tracks: SeedTrack[] }> {
+  return req(`/api/admin/seed/playlist/${encodeURIComponent(playlistId)}/tracks`);
+}
+
+/** Seed the chosen tracks into the catalog, attributed to a DJ. */
+export function seedCurated(body: {
+  djUserId: string;
+  playlistName?: string;
+  tracks: SeedTrack[];
+}): Promise<{ success: boolean; seeded: number }> {
+  return req("/api/admin/seed/curate", {
+    method: "POST",
+    headers: JSON_CSRF,
+    body: JSON.stringify(body),
+  });
 }
 
 export function getOverview(): Promise<AdminOverview> {

@@ -11,7 +11,7 @@ vi.mock("@/lib/admin", () => ({
 import * as admin from "@/lib/admin";
 
 const pendingDj = {
-  id: 7,
+  id: "dj_7",
   email: "dj@x.co",
   displayName: "DJ Pending",
   slug: "dj-pending",
@@ -40,7 +40,7 @@ describe("AdminDjsPage", () => {
     vi.mocked(admin.getDjs).mockResolvedValue([pendingDj]);
     render(<AdminDjsPage />);
     await userEvent.click(await screen.findByRole("button", { name: /approve/i }));
-    expect(admin.approveDj).toHaveBeenCalledWith(7);
+    expect(admin.approveDj).toHaveBeenCalledWith("dj_7");
     expect(admin.getDjs).toHaveBeenCalledTimes(2); // initial + reload
   });
 

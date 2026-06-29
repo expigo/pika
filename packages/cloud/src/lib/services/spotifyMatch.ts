@@ -6,10 +6,10 @@
  * always outranks an `auto` match. See docs/blueprints/music-provider-integration.md §5 + §12.
  */
 
-import { getFuzzyKey, normalizeFuzzy } from "@pika/shared";
+import { getFuzzyKey, getTrackKey, normalizeFuzzy } from "@pika/shared";
 import { eq, ne } from "drizzle-orm";
 import { db } from "../../db";
-import { trackLinks } from "../../db/schema";
+import { curatedTracks, trackLinks } from "../../db/schema";
 import { getAppAccessToken } from "./spotify";
 
 const API = "https://api.spotify.com/v1";
@@ -210,6 +210,7 @@ export function confidenceTier(score: number): MatchConfidence {
 /** Write-through an auto match — but NEVER downgrade an existing DJ-confirmed (`manual`) row. */
 export async function cacheAutoMatch(
   matchKey: string,
+  songKey: string,
   providerId: string,
   providerUrl: string,
   confidence: number,
@@ -218,6 +219,7 @@ export async function cacheAutoMatch(
     .insert(trackLinks)
     .values({
       matchKey,
+      songKey,
       provider: "spotify",
       providerId,
       providerUrl,
@@ -228,6 +230,7 @@ export async function cacheAutoMatch(
     .onConflictDoUpdate({
       target: trackLinks.matchKey,
       set: {
+        songKey,
         providerId,
         providerUrl,
         status: "matched",
@@ -239,34 +242,48 @@ export async function cacheAutoMatch(
     });
 }
 
-/** A DJ-confirmed match — authoritative; overwrites any prior auto match. */
-export async function cacheManualMatch(
+/** An authoritative match (DJ confirmation or a curated-playlist seed) — overwrites an auto match. */
+export async function cacheAuthoritativeMatch(
   matchKey: string,
+  songKey: string,
   providerId: string,
   providerUrl: string,
+  source: "manual" | "playlist",
 ): Promise<void> {
   await db
     .insert(trackLinks)
     .values({
       matchKey,
+      songKey,
       provider: "spotify",
       providerId,
       providerUrl,
       status: "manual",
       confidence: null,
-      source: "manual",
+      source,
     })
     .onConflictDoUpdate({
       target: trackLinks.matchKey,
       set: {
+        songKey,
         providerId,
         providerUrl,
         status: "manual",
         confidence: null,
-        source: "manual",
+        source,
         updatedAt: new Date(),
       },
     });
+}
+
+/** A DJ-confirmed match (from the desktop Build-Playlist tool). */
+export function cacheManualMatch(
+  matchKey: string,
+  songKey: string,
+  providerId: string,
+  providerUrl: string,
+): Promise<void> {
+  return cacheAuthoritativeMatch(matchKey, songKey, providerId, providerUrl, "manual");
 }
 
 // ---------------------------------------------------------------------------
@@ -278,13 +295,16 @@ export async function searchAndRank(input: {
   title: string;
   durationMs?: number | undefined;
 }): Promise<MatchResult> {
-  const fuzzyKey = getFuzzyKey(input.artist, input.title);
+  // EXACT key for the cache (version-precise: "Believer" ≠ "Believer (Acoustic)"); FUZZY song key
+  // is stored alongside for analytics grouping only.
+  const matchKey = getTrackKey(input.artist, input.title);
+  const songKey = getFuzzyKey(input.artist, input.title);
 
   // 1. Cache hit (matched/manual) short-circuits the Spotify call.
   const [cached] = await db
     .select()
     .from(trackLinks)
-    .where(eq(trackLinks.matchKey, fuzzyKey))
+    .where(eq(trackLinks.matchKey, matchKey))
     .limit(1);
   if (cached?.providerId && (cached.status === "matched" || cached.status === "manual")) {
     const id = cached.providerId;
@@ -301,7 +321,12 @@ export async function searchAndRank(input: {
         },
       ],
       recommendedIndex: 0,
-      confidence: cached.source === "manual" || (cached.confidence ?? 0) >= 0.8 ? "high" : "medium",
+      confidence:
+        cached.source === "manual" ||
+        cached.source === "playlist" ||
+        (cached.confidence ?? 0) >= 0.8
+          ? "high"
+          : "medium",
       cached: true,
     };
   }
@@ -336,8 +361,62 @@ export async function searchAndRank(input: {
   // 4. Write-through a confident auto match.
   const top = ordered[0];
   if (confidence === "high" && top && best) {
-    await cacheAutoMatch(fuzzyKey, top.spotifyId, top.url, best.score);
+    await cacheAutoMatch(matchKey, songKey, top.spotifyId, top.url, best.score);
   }
 
   return { candidates: ordered, recommendedIndex: 0, confidence, cached: false };
+}
+
+// ---------------------------------------------------------------------------
+// Seed (B3) — bootstrap the catalog from a DJ's curated public playlist
+// ---------------------------------------------------------------------------
+
+export interface SeedTrack {
+  spotifyId: string;
+  uri: string;
+  name: string;
+  artists: string;
+  durationMs?: number | undefined;
+  albumArtUrl?: string | undefined;
+}
+
+/**
+ * Record a DJ's curated playlist tracks: append to `curated_tracks` (their repertoire — distinct
+ * from what they *played*) and seed `track_links` (authoritative `playlist` source) so future
+ * matching gets a head start. Keyed on the EXACT key from the Spotify track's own artist/title.
+ * Returns the number of tracks written.
+ */
+export async function seedFromPlaylist(
+  djUserId: string,
+  playlistName: string,
+  tracks: SeedTrack[],
+): Promise<number> {
+  let count = 0;
+  for (const t of tracks) {
+    const url = `https://open.spotify.com/track/${t.spotifyId}`;
+    await db
+      .insert(curatedTracks)
+      .values({
+        djUserId,
+        spotifyId: t.spotifyId,
+        name: t.name,
+        artists: t.artists,
+        durationMs: t.durationMs ?? null,
+        albumArtUrl: t.albumArtUrl ?? null,
+        playlistName,
+      })
+      .onConflictDoUpdate({
+        target: [curatedTracks.djUserId, curatedTracks.spotifyId],
+        set: { name: t.name, artists: t.artists, playlistName },
+      });
+    await cacheAuthoritativeMatch(
+      getTrackKey(t.artists, t.name),
+      getFuzzyKey(t.artists, t.name),
+      t.spotifyId,
+      url,
+      "playlist",
+    );
+    count++;
+  }
+  return count;
 }
