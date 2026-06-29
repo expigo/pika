@@ -38,6 +38,7 @@ interface Row {
   selectedIndex: number | null; // index into candidates, or null = skip
   confidence: Confidence;
   locked: boolean; // dj_confirmed — already remembered
+  fromCache: boolean; // seeded from the remembered match (single candidate, no art/alternatives)
 }
 
 const isAuthError = (e: unknown): boolean =>
@@ -131,6 +132,7 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
               selectedIndex: 0,
               confidence: "high" as const,
               locked: t.spotifyMatchSource === "dj_confirmed",
+              fromCache: true,
             };
           }
           return {
@@ -143,6 +145,7 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
             selectedIndex: null,
             confidence: "none" as const,
             locked: false,
+            fromCache: false,
           };
         });
       if (cancelled) return;
@@ -195,6 +198,40 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
   const choose = (rowIndex: number, value: number | null) => {
     setRows((prev) => prev.map((r, i) => (i === rowIndex ? { ...r, selectedIndex: value } : r)));
     setExpandedRow(null);
+  };
+
+  // Re-run the search for a remembered track so the DJ can see album art + alternatives and re-pick
+  // (a remembered match is a single stored candidate with no art). A new pick overwrites it on create.
+  const rematch = async (rowIndex: number) => {
+    const row = rows[rowIndex];
+    if (!row) return;
+    setRows((prev) => prev.map((r, i) => (i === rowIndex ? { ...r, status: "searching" } : r)));
+    try {
+      const r = await searchSpotify({
+        artist: row.artist,
+        title: row.title,
+        ...(row.durationMs ? { durationMs: row.durationMs } : {}),
+      });
+      setRows((prev) =>
+        prev.map((p, i) =>
+          i === rowIndex
+            ? {
+                ...p,
+                status: r.candidates.length ? "ready" : "unmatched",
+                candidates: r.candidates,
+                selectedIndex: r.recommendedIndex,
+                confidence: r.confidence,
+                locked: false,
+                fromCache: false,
+              }
+            : p,
+        ),
+      );
+      setExpandedRow(rowIndex); // open the list so the alternatives are visible
+    } catch (e) {
+      if (isAuthError(e)) setAuthError(true);
+      else setRows((prev) => prev.map((p, i) => (i === rowIndex ? { ...p, status: "error" } : p)));
+    }
   };
 
   const handleCreate = async () => {
@@ -327,6 +364,7 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
                       expanded={expandedRow === i}
                       onToggle={() => setExpandedRow((cur) => (cur === i ? null : i))}
                       onChoose={(v) => choose(i, v)}
+                      onRematch={() => rematch(i)}
                     />
                   ))}
                 </ul>
@@ -363,11 +401,13 @@ function PlaylistRow({
   expanded,
   onToggle,
   onChoose,
+  onRematch,
 }: {
   row: Row;
   expanded: boolean;
   onToggle: () => void;
   onChoose: (value: number | null) => void;
+  onRematch: () => void;
 }) {
   const selected = row.selectedIndex !== null ? row.candidates[row.selectedIndex] : null;
   const conf = CONF_LABEL[row.confidence];
@@ -429,20 +469,52 @@ function PlaylistRow({
             ) : (
               <span className="flex-1 text-sm text-slate-500">Skipped</span>
             )}
-            <button
-              type="button"
-              onClick={onToggle}
-              aria-label={`Change match for ${row.title}`}
-              className="flex shrink-0 items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300"
-            >
-              Change ({row.candidates.length})
-              <ChevronDown size={13} className={expanded ? "rotate-180" : ""} />
-            </button>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onChoose(selected ? null : 0)}
+                className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
+              >
+                {selected ? "Skip" : "Use"}
+              </button>
+              {row.fromCache && row.candidates.length <= 1 ? (
+                <button
+                  type="button"
+                  onClick={onRematch}
+                  aria-label={`Re-match ${row.title}`}
+                  className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:text-white"
+                  title="Search Spotify again to see album art + alternatives"
+                >
+                  Re-match
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onToggle}
+                  aria-label={`Change match for ${row.title}`}
+                  className="flex items-center gap-1 rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300"
+                >
+                  Change ({row.candidates.length})
+                  <ChevronDown size={13} className={expanded ? "rotate-180" : ""} />
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Candidate picker */}
           {expanded && (
             <ul className="mt-2 space-y-1">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onChoose(null)}
+                  className={`w-full rounded-lg p-2 text-left text-sm hover:bg-slate-800/60 ${
+                    row.selectedIndex === null ? "bg-slate-800/60 text-slate-200" : "text-slate-500"
+                  }`}
+                >
+                  ⊘ Skip this track
+                </button>
+              </li>
               {row.candidates.map((c, ci) => (
                 <li key={c.spotifyId}>
                   <button
@@ -467,17 +539,6 @@ function PlaylistRow({
                   </button>
                 </li>
               ))}
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onChoose(null)}
-                  className={`w-full rounded-lg p-2 text-left text-sm hover:bg-slate-800/60 ${
-                    row.selectedIndex === null ? "bg-slate-800/60 text-slate-200" : "text-slate-500"
-                  }`}
-                >
-                  Skip this track
-                </button>
-              </li>
             </ul>
           )}
         </>

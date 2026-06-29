@@ -147,6 +147,20 @@ describe("BuildPlaylistModal", () => {
     expect(arg?.tracks).toContainEqual(expect.objectContaining({ spotifyId: "q2" }));
   });
 
+  it("re-matches a remembered track on demand (fetches fresh candidates)", async () => {
+    renderModal();
+    await screen.findByText("Strong match"); // wait for initial load (uncached row searched once)
+    expect(searchSpotify).toHaveBeenCalledTimes(1);
+
+    // The remembered (cached) track shows Re-match, not Change.
+    await userEvent.click(screen.getByRole("button", { name: /re-match Get Lucky/i }));
+
+    expect(searchSpotify).toHaveBeenCalledTimes(2);
+    expect(searchSpotify).toHaveBeenLastCalledWith(
+      expect.objectContaining({ artist: "Daft Punk", title: "Get Lucky" }),
+    );
+  });
+
   it("short-circuits to the remembered playlist without re-searching", async () => {
     vi.mocked(sessionRepository.getSessionPlaylistUrl).mockResolvedValue(
       "https://open.spotify.com/playlist/old",

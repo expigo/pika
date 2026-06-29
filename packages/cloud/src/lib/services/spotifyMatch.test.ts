@@ -32,10 +32,10 @@ describe("scoreCandidate", () => {
     expect(s).toBeGreaterThanOrEqual(0.85);
   });
 
-  test("strips remix/feat. noise via the fuzzy key (still an identity match)", () => {
+  test("ignores feat./collaborator noise via the fuzzy key (still an identity match)", () => {
     const s = scoreCandidate(
       query,
-      cand({ artists: "Daft Punk feat. Pharrell", name: "Get Lucky (Radio Edit)" }),
+      cand({ artists: "Daft Punk feat. Pharrell", name: "Get Lucky" }),
     );
     expect(s).toBeGreaterThanOrEqual(0.85);
   });
@@ -69,5 +69,39 @@ describe("scoreCandidate", () => {
       (a, b) => scoreCandidate(query, b) - scoreCandidate(query, a),
     );
     expect(ranked[0]?.spotifyId).toBe("radio");
+  });
+});
+
+describe("scoreCandidate — version awareness (WCS covers/edits)", () => {
+  const original = (id: string) =>
+    cand({ spotifyId: id, artists: "Imagine Dragons", name: "Believer", popularity: 90 });
+  const acoustic = (id: string) =>
+    cand({
+      spotifyId: id,
+      artists: "Imagine Dragons",
+      name: "Believer (Acoustic)",
+      popularity: 40,
+    });
+
+  test("a plain title prefers the studio original over an acoustic version", () => {
+    const q = { artist: "Imagine Dragons", title: "Believer" };
+    expect(scoreCandidate(q, original("og"))).toBeGreaterThan(scoreCandidate(q, acoustic("ac")));
+  });
+
+  test("an acoustic title prefers the acoustic recording over the original", () => {
+    const q = { artist: "Imagine Dragons", title: "Believer (Acoustic)" };
+    expect(scoreCandidate(q, acoustic("ac"))).toBeGreaterThan(scoreCandidate(q, original("og")));
+  });
+
+  test("a remix title prefers the remix even though it's less popular", () => {
+    const q = { artist: "Avicii", title: "Levels (Skrillex Remix)" };
+    const orig = cand({ spotifyId: "o", artists: "Avicii", name: "Levels", popularity: 85 });
+    const remix = cand({
+      spotifyId: "r",
+      artists: "Avicii",
+      name: "Levels - Skrillex Remix",
+      popularity: 30,
+    });
+    expect(scoreCandidate(q, remix)).toBeGreaterThan(scoreCandidate(q, orig));
   });
 });

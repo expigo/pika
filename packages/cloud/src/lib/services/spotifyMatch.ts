@@ -88,6 +88,44 @@ function durationScore(queryMs: number | undefined, candMs: number): number {
   return Math.max(0, 1 - (diff - 3000) / 30000);
 }
 
+// Version descriptors that distinguish recordings of the "same" song — the signal we must keep
+// for WCS (acoustic/slow/remix/cover edits are the norm, not the studio original).
+const DESCRIPTORS = [
+  "acoustic",
+  "unplugged",
+  "instrumental",
+  "live",
+  "remix",
+  "edit",
+  "cover",
+  "remaster",
+  "remastered",
+  "extended",
+  "version",
+  "demo",
+  "reprise",
+];
+
+function descriptorSet(s: string): Set<string> {
+  const l = s.toLowerCase();
+  return new Set(DESCRIPTORS.filter((d) => l.includes(d)));
+}
+
+/**
+ * Reward a candidate whose version descriptors match the played title's, and penalise mismatches —
+ * so a played "Believer (Acoustic)" prefers the acoustic recording, and a plain "Believer" prefers
+ * the studio original over a remix/live. (The fuzzy-key floor below treats all versions as the same
+ * song, so this delta is what separates them.)
+ */
+function descriptorDelta(queryTitle: string, candidateName: string): number {
+  const want = descriptorSet(queryTitle);
+  const have = descriptorSet(candidateName);
+  let d = 0;
+  for (const x of want) d += have.has(x) ? 0.12 : -0.12; // a wanted descriptor present / missing
+  for (const x of have) if (!want.has(x)) d -= 0.06; // candidate carries an un-asked-for version
+  return d;
+}
+
 export function scoreCandidate(
   query: { artist: string; title: string; durationMs?: number | undefined },
   c: MatchCandidate,
@@ -101,7 +139,9 @@ export function scoreCandidate(
   if (getFuzzyKey(c.artists, c.name) === getFuzzyKey(query.artist, query.title)) {
     score = Math.max(score, 0.85);
   }
-  return score;
+  // …then nudge by version alignment so the right *recording* wins, not just the right song.
+  score += descriptorDelta(query.title, c.name);
+  return Math.max(0, Math.min(1, score));
 }
 
 export function confidenceTier(score: number): MatchConfidence {
@@ -214,16 +254,17 @@ export async function searchAndRank(input: {
     };
   }
 
-  // 2. Search via the app token. VDJ titles are noisy ("… (live at ATP-NY 2010)", "(Remix)"),
-  // and a raw `track:` filter then finds nothing — so we search on the FUZZY-cleaned title
-  // (parens/brackets/feat. stripped) and fall back to a plain lenient query if the filtered
-  // search is empty. Ranking below still favours the closest version.
+  // 2. Search via the app token. Use a PLAIN query with the FULL title (keep "(Acoustic)"/"(Remix)"
+  // etc. — that's the version signal WCS needs; a plain query tolerates the noise that a strict
+  // `track:` filter chokes on). Only if that finds nothing do we retry with the stripped/base title
+  // for recall. Ranking (descriptorDelta + duration) then prefers the right *recording*.
   const token = await getAppAccessToken();
-  const cleanTitle = normalizeFuzzy(input.title) || input.title;
-  let items =
-    (await spotifySearch(token, `track:${cleanTitle} artist:${input.artist}`))?.items ?? [];
+  let items = (await spotifySearch(token, `${input.artist} ${input.title}`))?.items ?? [];
   if (items.length === 0) {
-    items = (await spotifySearch(token, `${input.artist} ${cleanTitle}`))?.items ?? [];
+    const cleanTitle = normalizeFuzzy(input.title) || input.title;
+    if (cleanTitle && cleanTitle !== input.title.toLowerCase()) {
+      items = (await spotifySearch(token, `${input.artist} ${cleanTitle}`))?.items ?? [];
+    }
   }
 
   const candidates: MatchCandidate[] = items.map((t) => ({
