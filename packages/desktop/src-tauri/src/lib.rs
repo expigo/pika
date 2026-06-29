@@ -517,6 +517,7 @@ pub struct VdjTrackMetadata {
     bpm: Option<f64>,
     key: Option<String>,
     volume: Option<f64>,
+    duration: Option<i32>,
 }
 
 /// Find VirtualDJ database.xml location
@@ -591,10 +592,16 @@ async fn lookup_vdj_track_metadata(file_path: String) -> Result<Option<VdjTrackM
             let volume = s.scan.as_ref()
                 .and_then(|scan| scan.volume.as_ref())
                 .and_then(|v| v.parse::<f64>().ok());
-            
-            // println!("[VDJ] Found metadata: bpm={:?}, key={:?}, volume={:?}", bpm, key, volume);
-            
-            Ok(Some(VdjTrackMetadata { bpm, key, volume }))
+
+            // Track length (seconds) from Infos.SongLength — the immediate, accurate duration
+            // signal for Spotify version-matching (B3). Same parse as the library import.
+            let duration = s.infos.as_ref()
+                .and_then(|i| i.song_length.as_ref())
+                .and_then(|sl| sl.parse::<f64>().ok())
+                .filter(|d| *d > 0.1)
+                .map(|d| d.round() as i32);
+
+            Ok(Some(VdjTrackMetadata { bpm, key, volume, duration }))
         }
         None => {
             // println!("[VDJ] Track not found in database: {}", file_path);

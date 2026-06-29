@@ -16,7 +16,7 @@ import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { getUser, requireDjAuth } from "../lib/auth";
 import { createPlaylist, SpotifyServiceNotConnectedError } from "../lib/services/spotify";
-import { cacheManualMatch, searchAndRank } from "../lib/services/spotifyMatch";
+import { cacheManualMatch, resolveTrack, searchAndRank } from "../lib/services/spotifyMatch";
 
 const playlist = new Hono();
 
@@ -54,6 +54,22 @@ const CreateBody = z.object({
     )
     .min(1)
     .max(500),
+});
+
+/** Resolve a pasted Spotify track id → a single candidate (the "paste a link" override). */
+playlist.post("/resolve", playlistLimiter, async (c) => {
+  const parsed = z
+    .object({ spotifyId: z.string().trim().min(1).max(64) })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: "Invalid track id" }, 400);
+  try {
+    const candidate = await resolveTrack(parsed.data.spotifyId);
+    if (!candidate) return c.json({ error: "Track not found" }, 404);
+    return c.json({ candidate });
+  } catch (e) {
+    logger.error("Spotify track resolve failed", e);
+    return c.json({ error: "Spotify lookup failed" }, 502);
+  }
 });
 
 /** Resolve one track → ranked Spotify candidates (recommended first). */

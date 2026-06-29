@@ -8,7 +8,11 @@ import { playlistRoutes } from "./playlist";
 const app = new Hono().route("/api/playlist", playlistRoutes);
 
 describe("playlist route auth guard", () => {
-  for (const path of ["/api/playlist/search", "/api/playlist/create"] as const) {
+  for (const path of [
+    "/api/playlist/search",
+    "/api/playlist/resolve",
+    "/api/playlist/create",
+  ] as const) {
     test(`POST ${path} → 401 without a session`, async () => {
       const res = await app.request(path, {
         method: "POST",

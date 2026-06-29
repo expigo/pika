@@ -139,6 +139,7 @@ describe("desktop migrator", () => {
       "0000_black_unicorn",
       "0001_mature_cobalt_man",
       "0002_slim_mordo",
+      "0003_quiet_vindicator",
     ]);
   });
 
@@ -155,6 +156,7 @@ describe("desktop migrator", () => {
       "0000_black_unicorn",
       "0001_mature_cobalt_man",
       "0002_slim_mordo",
+      "0003_quiet_vindicator",
     ]);
     const row = bdb.prepare("SELECT artist FROM tracks WHERE file_path = ?").get("/music/x.mp3") as
       | { artist: string }
@@ -190,6 +192,7 @@ describe("desktop migrator", () => {
       "0000_black_unicorn",
       "0001_mature_cobalt_man",
       "0002_slim_mordo",
+      "0003_quiet_vindicator",
     ]);
   });
 });

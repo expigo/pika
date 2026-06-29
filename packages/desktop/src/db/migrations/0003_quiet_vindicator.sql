@@ -1,0 +1,1 @@
+ALTER TABLE `tracks` ADD `spotify_album_art_url` text;

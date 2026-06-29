@@ -50,6 +50,7 @@ export const tracks = sqliteTable(
     // across nights; a `dj_confirmed` source is locked and never re-searched.
     spotifyId: text("spotify_id"),
     spotifyUrl: text("spotify_url"),
+    spotifyAlbumArtUrl: text("spotify_album_art_url"),
     spotifyMatchConfidence: real("spotify_match_confidence"),
     spotifyMatchSource: text("spotify_match_source"), // 'auto' | 'dj_confirmed'
     spotifyMatchedAt: int("spotify_matched_at"), // unix seconds

@@ -25,12 +25,21 @@ vi.mock("../services/spotifyPlaylist", () => ({
       playlistId: "abc",
     }),
   ),
+  resolveSpotifyTrack: vi.fn(),
+  parseSpotifyTrackId: (s: string) => {
+    const m = s.match(/track[/:]([A-Za-z0-9]{22})/);
+    return m?.[1] ?? (/^[A-Za-z0-9]{22}$/.test(s.trim()) ? s.trim() : null);
+  },
   PlaylistApiError: class extends Error {},
 }));
 
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
-import { createSpotifyPlaylist, searchSpotify } from "../services/spotifyPlaylist";
+import {
+  createSpotifyPlaylist,
+  resolveSpotifyTrack,
+  searchSpotify,
+} from "../services/spotifyPlaylist";
 
 const cachedTrack = {
   trackId: 1,
@@ -159,6 +168,33 @@ describe("BuildPlaylistModal", () => {
     expect(searchSpotify).toHaveBeenLastCalledWith(
       expect.objectContaining({ artist: "Daft Punk", title: "Get Lucky" }),
     );
+  });
+
+  it("lets the DJ paste a Spotify link for an unmatched track", async () => {
+    vi.mocked(searchSpotify).mockResolvedValue({
+      candidates: [],
+      recommendedIndex: null,
+      confidence: "none",
+      cached: false,
+    });
+    vi.mocked(resolveSpotifyTrack).mockResolvedValue({
+      candidate: {
+        spotifyId: "pasted1",
+        uri: "spotify:track:pasted1",
+        url: "https://open.spotify.com/track/pasted1",
+        name: "Pasted Song",
+        artists: "Someone",
+        durationMs: 200_000,
+        popularity: 50,
+      },
+    });
+    renderModal();
+
+    const input = await screen.findByLabelText("Paste a Spotify track link"); // the unmatched row
+    await userEvent.type(input, "https://open.spotify.com/track/abcdefghij1234567890ab");
+    await userEvent.click(screen.getByRole("button", { name: /use link/i }));
+
+    expect(resolveSpotifyTrack).toHaveBeenCalledWith("abcdefghij1234567890ab");
   });
 
   it("short-circuits to the remembered playlist without re-searching", async () => {

@@ -220,6 +220,7 @@ export const trackRepository = {
     title?: string | null;
     bpm?: number | null;
     key?: string | null;
+    duration?: number | null;
   }): Promise<number> {
     const sqlite = await getSqlite();
     const { getTrackKey } = await import("@pika/shared");
@@ -229,14 +230,15 @@ export const trackRepository = {
     // COALESCE(excluded.x, x) intentionally preserves existing metadata when the
     // incoming value is null — re-inserting a track without metadata must not wipe it.
     await sqlite.execute(
-      `INSERT INTO tracks (file_path, artist, title, bpm, key, track_key, analyzed) 
-       VALUES (?, ?, ?, ?, ?, ?, 0)
+      `INSERT INTO tracks (file_path, artist, title, bpm, key, duration, track_key, analyzed)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0)
        ON CONFLICT(track_key) DO UPDATE SET
          artist = COALESCE(excluded.artist, artist),
          title = COALESCE(excluded.title, title),
          file_path = COALESCE(excluded.file_path, file_path),
          bpm = COALESCE(excluded.bpm, bpm),
-         key = COALESCE(excluded.key, key)
+         key = COALESCE(excluded.key, key),
+         duration = COALESCE(excluded.duration, duration)
       `,
       [
         track.filePath,
@@ -244,6 +246,7 @@ export const trackRepository = {
         track.title ?? null,
         track.bpm ?? null,
         track.key ?? null,
+        track.duration ?? null,
         trackKey,
       ],
     );
@@ -591,6 +594,7 @@ export const trackRepository = {
         t.duration as durationSec,
         t.spotify_id as spotifyId,
         t.spotify_url as spotifyUrl,
+        t.spotify_album_art_url as spotifyAlbumArtUrl,
         t.spotify_match_source as spotifyMatchSource,
         t.spotify_match_confidence as spotifyMatchConfidence,
         MIN(p.played_at) as firstPlayedAt
@@ -611,6 +615,7 @@ export const trackRepository = {
     match: {
       spotifyId: string;
       spotifyUrl: string;
+      albumArtUrl?: string | null;
       confidence: number | null;
       source: "auto" | "dj_confirmed";
     },
@@ -620,6 +625,7 @@ export const trackRepository = {
       .set({
         spotifyId: match.spotifyId,
         spotifyUrl: match.spotifyUrl,
+        spotifyAlbumArtUrl: match.albumArtUrl ?? null,
         spotifyMatchConfidence: match.confidence,
         spotifyMatchSource: match.source,
         spotifyMatchedAt: Math.floor(Date.now() / 1000),
@@ -636,6 +642,7 @@ export interface SessionMatchTrack {
   durationSec: number | null;
   spotifyId: string | null;
   spotifyUrl: string | null;
+  spotifyAlbumArtUrl: string | null;
   spotifyMatchSource: string | null; // 'auto' | 'dj_confirmed'
   spotifyMatchConfidence: number | null;
   firstPlayedAt: number;

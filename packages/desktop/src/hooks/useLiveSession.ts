@@ -370,6 +370,7 @@ interface VdjTrackMetadata {
   bpm: number | null;
   key: string | null;
   volume: number | null;
+  duration: number | null; // seconds, from VDJ Infos.SongLength
 }
 
 /**
@@ -414,6 +415,7 @@ async function findOrCreateTrack(
             title,
             bpm: bpmToSave,
             key: vdjMeta.key || existing.key,
+            duration: vdjMeta.duration,
           });
 
           return {
@@ -442,6 +444,7 @@ async function findOrCreateTrack(
   // New track - try VDJ lookup for BPM/key (lazy extraction)
   let vdjBpm: number | null = null;
   let vdjKey: string | null = null;
+  let vdjDuration: number | null = null;
 
   if (filePath && !filePath.startsWith(GHOST_FILE_PREFIX)) {
     try {
@@ -451,7 +454,12 @@ async function findOrCreateTrack(
       if (vdjMeta) {
         vdjBpm = vdjMeta.bpm;
         vdjKey = vdjMeta.key;
-        logger.debug("Live", "Got VDJ metadata", { bpm: vdjBpm, key: vdjKey });
+        vdjDuration = vdjMeta.duration;
+        logger.debug("Live", "Got VDJ metadata", {
+          bpm: vdjBpm,
+          key: vdjKey,
+          duration: vdjDuration,
+        });
       }
     } catch (error) {
       logger.warn("Live", "VDJ lookup failed", error);
@@ -468,6 +476,7 @@ async function findOrCreateTrack(
     artist,
     title,
     bpm: bpmToSave,
+    duration: vdjDuration,
     key: vdjKey,
   });
 

@@ -55,6 +55,19 @@ export function searchSpotify(input: {
   return postJson<MatchResult>("/api/playlist/search", input);
 }
 
+/** Extract a Spotify track id from a pasted URL / URI / bare id (22-char base62), or null. */
+export function parseSpotifyTrackId(input: string): string | null {
+  const s = input.trim();
+  const m = s.match(/track[/:]([A-Za-z0-9]{22})/);
+  if (m?.[1]) return m[1];
+  return /^[A-Za-z0-9]{22}$/.test(s) ? s : null;
+}
+
+/** Resolve a pasted Spotify track id → a candidate (manual override for un-/mis-matched tracks). */
+export function resolveSpotifyTrack(spotifyId: string): Promise<{ candidate: SpotifyCandidate }> {
+  return postJson("/api/playlist/resolve", { spotifyId });
+}
+
 /** Create the playlist on the shared account from the DJ's confirmed tracks. */
 export function createSpotifyPlaylist(input: {
   name: string;

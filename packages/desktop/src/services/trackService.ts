@@ -20,6 +20,7 @@ interface VdjTrackMetadata {
   bpm: number | null;
   key: string | null;
   volume: number | null;
+  duration: number | null; // seconds, from VDJ Infos.SongLength
 }
 
 /**
@@ -64,6 +65,7 @@ export async function findOrCreateTrack(
             title,
             bpm: bpmToSave,
             key: vdjMeta.key || existing.key,
+            duration: vdjMeta.duration,
           });
 
           return {

@@ -16,6 +16,8 @@ import {
   createSpotifyPlaylist,
   type MatchResult,
   PlaylistApiError,
+  parseSpotifyTrackId,
+  resolveSpotifyTrack,
   type SpotifyCandidate,
   searchSpotify,
 } from "../services/spotifyPlaylist";
@@ -121,6 +123,7 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
               artists: t.artist,
               durationMs: durationMs ?? 0,
               popularity: 0,
+              ...(t.spotifyAlbumArtUrl ? { albumArtUrl: t.spotifyAlbumArtUrl } : {}),
             };
             return {
               trackId: t.trackId,
@@ -200,6 +203,41 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
     setExpandedRow(null);
   };
 
+  // Paste a Spotify link to override the match (covers tracks Spotify search can't find). Returns an
+  // error message, or null on success (the resolved track becomes the selected candidate).
+  const pasteLink = async (rowIndex: number, input: string): Promise<string | null> => {
+    const id = parseSpotifyTrackId(input);
+    if (!id) return "That doesn't look like a Spotify track link";
+    try {
+      const { candidate } = await resolveSpotifyTrack(id);
+      setRows((prev) =>
+        prev.map((r, i) =>
+          i === rowIndex
+            ? {
+                ...r,
+                status: "ready",
+                candidates: [
+                  candidate,
+                  ...r.candidates.filter((c) => c.spotifyId !== candidate.spotifyId),
+                ],
+                selectedIndex: 0,
+                confidence: "high",
+                locked: false,
+                fromCache: false,
+              }
+            : r,
+        ),
+      );
+      return null;
+    } catch (e) {
+      if (isAuthError(e)) {
+        setAuthError(true);
+        return null;
+      }
+      return e instanceof Error ? e.message : "Couldn't resolve that link";
+    }
+  };
+
   // Re-run the search for a remembered track so the DJ can see album art + alternatives and re-pick
   // (a remembered match is a single stored candidate with no art). A new pick overwrites it on create.
   const rematch = async (rowIndex: number) => {
@@ -261,6 +299,7 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
           trackRepository.setTrackSpotifyMatch(row.trackId, {
             spotifyId: c.spotifyId,
             spotifyUrl: c.url,
+            albumArtUrl: c.albumArtUrl ?? null,
             confidence: null,
             source: "dj_confirmed",
           }),
@@ -365,6 +404,7 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
                       onToggle={() => setExpandedRow((cur) => (cur === i ? null : i))}
                       onChoose={(v) => choose(i, v)}
                       onRematch={() => rematch(i)}
+                      onPaste={(v) => pasteLink(i, v)}
                     />
                   ))}
                 </ul>
@@ -396,18 +436,57 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
   );
 }
 
+function PasteLink({ onPaste }: { onPaste: (v: string) => Promise<string | null> }) {
+  const [value, setValue] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!value.trim()) return;
+    setBusy(true);
+    setErr(null);
+    const e = await onPaste(value);
+    setBusy(false);
+    if (e) setErr(e);
+    else setValue("");
+  };
+  return (
+    <div className="mt-1.5">
+      <div className="flex items-center gap-2">
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="…or paste a Spotify track link"
+          aria-label="Paste a Spotify track link"
+          className="flex-1 rounded-md border border-slate-700 bg-slate-950 px-2 py-1.5 text-xs text-slate-200"
+        />
+        <button
+          type="button"
+          disabled={busy || !value.trim()}
+          onClick={submit}
+          className="shrink-0 rounded-md border border-slate-700 px-2 py-1.5 text-xs text-slate-300 disabled:opacity-40"
+        >
+          {busy ? "…" : "Use link"}
+        </button>
+      </div>
+      {err && <p className="mt-1 text-[11px] text-red-400/80">{err}</p>}
+    </div>
+  );
+}
+
 function PlaylistRow({
   row,
   expanded,
   onToggle,
   onChoose,
   onRematch,
+  onPaste,
 }: {
   row: Row;
   expanded: boolean;
   onToggle: () => void;
   onChoose: (value: number | null) => void;
   onRematch: () => void;
+  onPaste: (value: string) => Promise<string | null>;
 }) {
   const selected = row.selectedIndex !== null ? row.candidates[row.selectedIndex] : null;
   const conf = CONF_LABEL[row.confidence];
@@ -426,10 +505,16 @@ function PlaylistRow({
 
       {row.status === "searching" ? (
         <p className="text-xs text-slate-500">Searching Spotify…</p>
-      ) : row.status === "unmatched" ? (
-        <p className="text-xs text-amber-400/80">No Spotify match — will be skipped</p>
-      ) : row.status === "error" ? (
-        <p className="text-xs text-red-400/80">Search failed — will be skipped</p>
+      ) : row.status === "unmatched" || row.status === "error" ? (
+        <>
+          <p
+            className={`text-xs ${row.status === "error" ? "text-red-400/80" : "text-amber-400/80"}`}
+          >
+            {row.status === "error" ? "Search failed" : "No Spotify match"} — will be skipped unless
+            you paste a link
+          </p>
+          <PasteLink onPaste={onPaste} />
+        </>
       ) : (
         <>
           {/* Current selection */}
@@ -539,6 +624,9 @@ function PlaylistRow({
                   </button>
                 </li>
               ))}
+              <li className="px-2 pb-1">
+                <PasteLink onPaste={onPaste} />
+              </li>
             </ul>
           )}
         </>

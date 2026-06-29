@@ -23,6 +23,41 @@ async function spotifySearch(token: string, q: string): Promise<SpotifySearchRes
   return ((await res.json()) as SpotifySearchResponse).tracks;
 }
 
+interface SpotifyTrackItem {
+  id: string;
+  uri: string;
+  name: string;
+  duration_ms: number;
+  popularity: number;
+  external_urls?: { spotify?: string };
+  artists: Array<{ name: string }>;
+  album?: { images?: Array<{ url: string }> };
+}
+
+function toCandidate(t: SpotifyTrackItem): MatchCandidate {
+  return {
+    spotifyId: t.id,
+    uri: t.uri,
+    url: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
+    name: t.name,
+    artists: t.artists.map((a) => a.name).join(", "),
+    durationMs: t.duration_ms,
+    popularity: t.popularity,
+    albumArtUrl: t.album?.images?.[0]?.url,
+  };
+}
+
+/** Resolve a specific Spotify track id → a candidate (for the "paste a link" override). */
+export async function resolveTrack(spotifyId: string): Promise<MatchCandidate | null> {
+  const token = await getAppAccessToken();
+  const res = await fetch(`${API}/tracks/${encodeURIComponent(spotifyId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (res.status === 404 || res.status === 400) return null;
+  if (!res.ok) throw new Error(`Spotify track lookup failed: ${res.status}`);
+  return toCandidate((await res.json()) as SpotifyTrackItem);
+}
+
 export interface MatchCandidate {
   spotifyId: string;
   uri: string; // spotify:track:ID
@@ -254,29 +289,21 @@ export async function searchAndRank(input: {
     };
   }
 
-  // 2. Search via the app token. Use a PLAIN query with the FULL title (keep "(Acoustic)"/"(Remix)"
-  // etc. — that's the version signal WCS needs; a plain query tolerates the noise that a strict
-  // `track:` filter chokes on). Only if that finds nothing do we retry with the stripped/base title
-  // for recall. Ranking (descriptorDelta + duration) then prefers the right *recording*.
+  // 2. Search via the app token. A strict `track:<base title> artist:<artist>` filter is precise
+  // AND still returns versions (Spotify's `track:` matches names CONTAINING the term, so
+  // "Believer (Acoustic)" comes back for `track:believer`) — while tolerating noisy VDJ titles
+  // ("… (live at ATP-NY 2010)") that a plain query turns into garbage. We clean the title for the
+  // QUERY (recall) but rank with the ORIGINAL title (version awareness via descriptorDelta), so the
+  // right *recording* wins. Plain cleaned query is a recall fallback only.
   const token = await getAppAccessToken();
-  let items = (await spotifySearch(token, `${input.artist} ${input.title}`))?.items ?? [];
+  const cleanTitle = normalizeFuzzy(input.title) || input.title;
+  let items =
+    (await spotifySearch(token, `track:${cleanTitle} artist:${input.artist}`))?.items ?? [];
   if (items.length === 0) {
-    const cleanTitle = normalizeFuzzy(input.title) || input.title;
-    if (cleanTitle && cleanTitle !== input.title.toLowerCase()) {
-      items = (await spotifySearch(token, `${input.artist} ${cleanTitle}`))?.items ?? [];
-    }
+    items = (await spotifySearch(token, `${input.artist} ${cleanTitle}`))?.items ?? [];
   }
 
-  const candidates: MatchCandidate[] = items.map((t) => ({
-    spotifyId: t.id,
-    uri: t.uri,
-    url: t.external_urls?.spotify ?? `https://open.spotify.com/track/${t.id}`,
-    name: t.name,
-    artists: t.artists.map((a) => a.name).join(", "),
-    durationMs: t.duration_ms,
-    popularity: t.popularity,
-    albumArtUrl: t.album?.images?.[0]?.url,
-  }));
+  const candidates: MatchCandidate[] = items.map(toCandidate);
   if (candidates.length === 0) {
     return { candidates: [], recommendedIndex: null, confidence: "none", cached: false };
   }
