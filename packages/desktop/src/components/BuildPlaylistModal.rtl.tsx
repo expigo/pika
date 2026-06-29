@@ -26,6 +26,7 @@ vi.mock("../services/spotifyPlaylist", () => ({
     }),
   ),
   resolveSpotifyTrack: vi.fn(),
+  resolveSpotifyTracks: vi.fn(() => Promise.resolve({ candidates: [] })),
   parseSpotifyTrackId: (s: string) => {
     const m = s.match(/track[/:]([A-Za-z0-9]{22})/);
     return m?.[1] ?? (/^[A-Za-z0-9]{22}$/.test(s.trim()) ? s.trim() : null);

@@ -58,6 +58,23 @@ export async function resolveTrack(spotifyId: string): Promise<MatchCandidate | 
   return toCandidate((await res.json()) as SpotifyTrackItem);
 }
 
+/** Resolve many Spotify track ids → candidates (≤50/request) — used to backfill missing album art. */
+export async function resolveTracks(ids: string[]): Promise<MatchCandidate[]> {
+  if (ids.length === 0) return [];
+  const token = await getAppAccessToken();
+  const out: MatchCandidate[] = [];
+  for (let i = 0; i < ids.length; i += 50) {
+    const batch = ids.slice(i, i + 50);
+    const res = await fetch(`${API}/tracks?ids=${batch.map(encodeURIComponent).join(",")}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!res.ok) throw new Error(`Spotify tracks lookup failed: ${res.status}`);
+    const json = (await res.json()) as { tracks: Array<SpotifyTrackItem | null> };
+    for (const t of json.tracks) if (t) out.push(toCandidate(t));
+  }
+  return out;
+}
+
 export interface MatchCandidate {
   spotifyId: string;
   uri: string; // spotify:track:ID

@@ -11,6 +11,7 @@ describe("playlist route auth guard", () => {
   for (const path of [
     "/api/playlist/search",
     "/api/playlist/resolve",
+    "/api/playlist/resolve-batch",
     "/api/playlist/create",
   ] as const) {
     test(`POST ${path} → 401 without a session`, async () => {

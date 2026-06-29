@@ -476,6 +476,7 @@ export async function getServiceStatus(): Promise<{ connected: boolean; status: 
 export async function createPlaylist(
   name: string,
   trackUris: string[],
+  description?: string,
 ): Promise<{ playlistUrl: string; playlistId: string }> {
   const token = await getServiceAccessToken();
   const authHeaders = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -483,7 +484,13 @@ export async function createPlaylist(
   const createRes = await fetch(`${API}/me/playlists`, {
     method: "POST",
     headers: authHeaders,
-    body: JSON.stringify({ name, public: true, description: "Created with Pika · pika.stream" }),
+    body: JSON.stringify({
+      name,
+      public: true,
+      // Spotify caps the description ~300 chars; a playlist can't hold text "tracks", so unmatched
+      // songs are listed here (built by the client).
+      description: (description?.trim() || "Created with Pika · pika.stream").slice(0, 300),
+    }),
   });
   if (!createRes.ok) {
     throw new Error(`Create playlist failed: ${createRes.status} ${await createRes.text()}`);

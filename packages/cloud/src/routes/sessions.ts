@@ -420,6 +420,7 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
       title: string;
       bpm?: number | null;
       key?: string | null;
+      duration?: number | null;
       energy?: number | null;
       danceability?: number | null;
       brightness?: number | null;
@@ -457,7 +458,9 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
 
   try {
     // Filter tracks that have data to update
-    const tracksToUpdate = body.tracks.filter((track) => track.bpm || track.key || track.energy);
+    const tracksToUpdate = body.tracks.filter(
+      (track) => track.bpm || track.key || track.energy || track.duration,
+    );
 
     if (tracksToUpdate.length === 0) {
       return c.json({ synced: 0, total: body.tracks.length, sessionId });
@@ -472,6 +475,7 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
         const updateData: Record<string, unknown> = {};
         if (track.bpm != null) updateData["bpm"] = Math.round(track.bpm);
         if (track.key != null) updateData["key"] = track.key;
+        if (track.duration != null) updateData["durationSec"] = Math.round(track.duration);
         if (track.energy != null) updateData["energy"] = Math.round(track.energy);
         if (track.danceability != null) updateData["danceability"] = Math.round(track.danceability);
         if (track.brightness != null) updateData["brightness"] = Math.round(track.brightness);

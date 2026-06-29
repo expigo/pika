@@ -68,9 +68,15 @@ export function resolveSpotifyTrack(spotifyId: string): Promise<{ candidate: Spo
   return postJson("/api/playlist/resolve", { spotifyId });
 }
 
+/** Resolve many track ids at once (≤50) — used to backfill missing album art for remembered matches. */
+export function resolveSpotifyTracks(ids: string[]): Promise<{ candidates: SpotifyCandidate[] }> {
+  return postJson("/api/playlist/resolve-batch", { ids });
+}
+
 /** Create the playlist on the shared account from the DJ's confirmed tracks. */
 export function createSpotifyPlaylist(input: {
   name: string;
+  description?: string;
   tracks: Array<{ artist: string; title: string; spotifyId: string; uri: string }>;
 }): Promise<{ success: boolean; playlistUrl: string; playlistId: string }> {
   return postJson("/api/playlist/create", input);

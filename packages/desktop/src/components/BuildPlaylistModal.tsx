@@ -18,6 +18,7 @@ import {
   PlaylistApiError,
   parseSpotifyTrackId,
   resolveSpotifyTrack,
+  resolveSpotifyTracks,
   type SpotifyCandidate,
   searchSpotify,
 } from "../services/spotifyPlaylist";
@@ -82,6 +83,7 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
   const [rows, setRows] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState(session.name ?? "Pika set");
+  const [note, setNote] = useState("");
   const [creating, setCreating] = useState(false);
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [existingUrl, setExistingUrl] = useState<string | null>(null);
@@ -154,6 +156,37 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
       if (cancelled) return;
       setRows(seeded);
       setLoading(false);
+
+      // Backfill album art for remembered matches saved before art was stored (older confirmations).
+      const needArt = seeded
+        .filter((r) => r.fromCache && r.candidates[0]?.spotifyId && !r.candidates[0]?.albumArtUrl)
+        .map((r) => ({ trackId: r.trackId, spotifyId: r.candidates[0]?.spotifyId as string }));
+      if (needArt.length > 0) {
+        try {
+          const { candidates } = await resolveSpotifyTracks(needArt.map((n) => n.spotifyId));
+          if (cancelled) return;
+          const artById = new Map(
+            candidates
+              .filter((c) => c.albumArtUrl)
+              .map((c) => [c.spotifyId, c.albumArtUrl as string]),
+          );
+          setRows((prev) =>
+            prev.map((r) => {
+              const c0 = r.candidates[0];
+              const art = c0 ? artById.get(c0.spotifyId) : undefined;
+              return r.fromCache && c0 && art && !c0.albumArtUrl
+                ? { ...r, candidates: [{ ...c0, albumArtUrl: art }, ...r.candidates.slice(1)] }
+                : r;
+            }),
+          );
+          for (const n of needArt) {
+            const art = artById.get(n.spotifyId);
+            if (art) void trackRepository.setTrackAlbumArt(n.trackId, art);
+          }
+        } catch {
+          /* art is cosmetic — ignore (auth failures surface via the search loop below) */
+        }
+      }
 
       for (let i = 0; i < seeded.length; i++) {
         if (seeded[i]?.status !== "searching") continue;
@@ -283,8 +316,20 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
         }))
         .filter((x): x is { c: SpotifyCandidate; row: Row } => Boolean(x.c && x.row));
 
+      // Spotify can't hold text "tracks", so list the un-matched songs in the playlist description
+      // (alongside the DJ's optional note) — the closest thing to a per-song placeholder.
+      const unmatchedNames = rows
+        .filter((r) => !(r.selectedIndex !== null && r.candidates[r.selectedIndex]))
+        .map((r) => `${r.artist} – ${r.title}`);
+      const descParts: string[] = [];
+      if (note.trim()) descParts.push(note.trim());
+      if (unmatchedNames.length) descParts.push(`Not on Spotify: ${unmatchedNames.join(", ")}`);
+      descParts.push("Made with Pika · pika.stream");
+      const description = descParts.join(" — ").slice(0, 300);
+
       const result = await createSpotifyPlaylist({
         name: name.trim() || "Pika set",
+        description,
         tracks: chosen.map(({ c, row }) => ({
           artist: row.artist,
           title: row.title,
@@ -384,6 +429,13 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
                 onChange={(e) => setName(e.target.value.slice(0, 100))}
                 aria-label="Playlist name"
                 className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 focus:border-pika-accent focus:outline-none"
+              />
+              <input
+                value={note}
+                onChange={(e) => setNote(e.target.value.slice(0, 180))}
+                aria-label="Playlist note"
+                placeholder="Optional note for the description (skipped tracks are listed automatically)"
+                className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-1.5 text-xs text-slate-300 focus:border-pika-accent focus:outline-none"
               />
             </div>
 

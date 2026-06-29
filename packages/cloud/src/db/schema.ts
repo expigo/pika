@@ -139,6 +139,7 @@ export const playedTracks = pgTable(
     // Core metrics
     bpm: integer("bpm"),
     key: text("key"),
+    durationSec: integer("duration_sec"), // track length (B3 — Spotify version-match + analytics)
     // Fingerprint metrics (0-100 scale) for energy flow analysis
     energy: integer("energy"),
     danceability: integer("danceability"),

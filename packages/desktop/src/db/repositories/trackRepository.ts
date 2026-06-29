@@ -536,6 +536,7 @@ export const trackRepository = {
       title: string;
       bpm: number | null;
       key: string | null;
+      duration: number | null;
       energy: number | null;
       danceability: number | null;
       brightness: number | null;
@@ -550,6 +551,7 @@ export const trackRepository = {
       title: string;
       bpm: number | null;
       key: string | null;
+      duration: number | null;
       energy: number | null;
       danceability: number | null;
       brightness: number | null;
@@ -564,6 +566,7 @@ export const trackRepository = {
         t.title,
         t.bpm,
         t.key,
+        t.duration,
         t.energy,
         t.danceability,
         t.brightness,
@@ -631,6 +634,11 @@ export const trackRepository = {
         spotifyMatchedAt: Math.floor(Date.now() / 1000),
       })
       .where(eq(tracks.id, trackId));
+  },
+
+  /** Backfill just the album-art URL for a remembered match (doesn't touch source/confidence). */
+  async setTrackAlbumArt(trackId: number, albumArtUrl: string): Promise<void> {
+    await db.update(tracks).set({ spotifyAlbumArtUrl: albumArtUrl }).where(eq(tracks.id, trackId));
   },
 };
 

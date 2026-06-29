@@ -1,0 +1,1 @@
+ALTER TABLE "played_tracks" ADD COLUMN "duration_sec" integer;

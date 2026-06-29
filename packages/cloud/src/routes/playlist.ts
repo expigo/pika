@@ -16,7 +16,12 @@ import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { getUser, requireDjAuth } from "../lib/auth";
 import { createPlaylist, SpotifyServiceNotConnectedError } from "../lib/services/spotify";
-import { cacheManualMatch, resolveTrack, searchAndRank } from "../lib/services/spotifyMatch";
+import {
+  cacheManualMatch,
+  resolveTrack,
+  resolveTracks,
+  searchAndRank,
+} from "../lib/services/spotifyMatch";
 
 const playlist = new Hono();
 
@@ -43,6 +48,7 @@ const SearchBody = z.object({
 
 const CreateBody = z.object({
   name: z.string().trim().min(1).max(100),
+  description: z.string().max(300).optional(),
   tracks: z
     .array(
       z.object({
@@ -72,6 +78,20 @@ playlist.post("/resolve", playlistLimiter, async (c) => {
   }
 });
 
+/** Resolve many track ids → candidates (backfills album art for remembered matches). */
+playlist.post("/resolve-batch", playlistLimiter, async (c) => {
+  const parsed = z
+    .object({ ids: z.array(z.string().trim().min(1).max(64)).min(1).max(50) })
+    .safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: "Invalid ids" }, 400);
+  try {
+    return c.json({ candidates: await resolveTracks(parsed.data.ids) });
+  } catch (e) {
+    logger.error("Spotify batch resolve failed", e);
+    return c.json({ error: "Spotify lookup failed" }, 502);
+  }
+});
+
 /** Resolve one track → ranked Spotify candidates (recommended first). */
 playlist.post("/search", playlistLimiter, async (c) => {
   const parsed = SearchBody.safeParse(await c.req.json().catch(() => ({})));
@@ -92,12 +112,13 @@ playlist.post("/create", playlistLimiter, async (c) => {
   if (!parsed.success) {
     return c.json({ error: "Invalid playlist", issues: parsed.error.issues }, 400);
   }
-  const { name, tracks } = parsed.data;
+  const { name, description, tracks } = parsed.data;
 
   try {
     const result = await createPlaylist(
       name,
       tracks.map((t) => t.uri),
+      description,
     );
     // Slice 4: write-through the DJ's confirmed matches to the canonical cache (authoritative).
     await Promise.allSettled(
