@@ -18,7 +18,9 @@
  * does not scope or restore mock.module between files — so these real-DB queries would hit
  * that leaked mock and fail. The unit suite and this integration file are separate CI jobs.
  */
+
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { getTrackKey } from "@pika/shared";
 import type { ServerWebSocket } from "bun";
 import { and, eq } from "drizzle-orm";
 import { client, db, schema } from "../db";
@@ -50,6 +52,7 @@ import {
   persistTracksBulk,
 } from "../lib/persistence/tracks";
 import { fetchNowPlaying, getConnectionStatus, SpotifyAuthError } from "../lib/services/spotify";
+import { getSpotifyFeatures, seedFromPlaylist } from "../lib/services/spotifyMatch";
 import { getStageTopic } from "../lib/topics";
 import { adminRoutes as adminRoute } from "../routes/admin";
 import { dj as djRoute } from "../routes/dj";
@@ -200,6 +203,8 @@ suite("DB integration (real Postgres)", () => {
       expect(rows.length).toBe(1);
       expect(rows[0]?.bpm).toBe(96);
       expect(rows[0]?.energy).toBe(50);
+      // The play carries the normalized match_key → joins to track_links for the catalog Pika consensus.
+      expect(rows[0]?.matchKey).toBe(getTrackKey("Dedup", "Song"));
     });
 
     test("persistTracksBulk writes every row", async () => {
@@ -983,6 +988,197 @@ suite("DB integration (real Postgres)", () => {
       const body = (await res.json()) as { sessions: unknown[]; connections: number };
       expect(Array.isArray(body.sessions)).toBe(true);
       expect(typeof body.connections).toBe("number");
+    });
+  });
+
+  // ==========================================================================
+  // 5. Songs Catalog (B3) — seed→catalog read path incl. the Pika consensus join
+  // ==========================================================================
+
+  describe("Songs Catalog (real Postgres)", () => {
+    const SP = "itest_catalog_sp1";
+    const ART = "ITest Artist Cat";
+    const TIT = "ITest Song Cat";
+    const KEY = getTrackKey(ART, TIT);
+    let adminId: string;
+    let adminToken: string;
+    let djId: string;
+    let djName: string;
+    let sessionId: string;
+
+    const asAdmin = (path: string) =>
+      adminRoute.request(path, { headers: { Authorization: `Bearer ${adminToken}` } });
+
+    beforeAll(async () => {
+      ({ userId: adminId, token: adminToken } = await signUpDj({ admin: true, approved: true }));
+      const dj = await signUpDj({ approved: true, name: `Cat DJ ${Date.now().toString(36)}` });
+      djId = dj.userId;
+      const [u] = await db
+        .select({ name: schema.user.name })
+        .from(schema.user)
+        .where(eq(schema.user.id, djId));
+      djName = u?.name ?? "";
+
+      // Canonical Spotify features (per-URI).
+      await db.insert(schema.spotifyTrackFeatures).values({
+        spotifyId: SP,
+        tempo: 120,
+        keyPitch: 0,
+        mode: 1,
+        energy: 0.8,
+        danceability: 0.6,
+        valence: 0.5,
+        popularity: 42,
+      });
+      // Repertoire edge + first-class playlist membership.
+      await db
+        .insert(schema.curatedTracks)
+        .values({ djUserId: djId, spotifyId: SP, name: TIT, artists: ART });
+      const [pl] = await db
+        .insert(schema.curatedPlaylists)
+        .values({ djUserId: djId, name: "ITest Cat List" })
+        .returning({ id: schema.curatedPlaylists.id });
+      await db
+        .insert(schema.curatedPlaylistTracks)
+        .values({ playlistId: pl?.id ?? 0, spotifyId: SP });
+      // Identity link: the normalized match_key resolves to this Spotify id.
+      await db.insert(schema.trackLinks).values({
+        matchKey: KEY,
+        songKey: KEY,
+        provider: "spotify",
+        providerId: SP,
+        status: "matched",
+        source: "playlist",
+      });
+      // Two plays carrying the same match_key + Pika fingerprints → the consensus.
+      sessionId = `itest_cat_${Date.now().toString(36)}`;
+      await db
+        .insert(schema.sessions)
+        .values({ id: sessionId, djUserId: djId, djName, endedAt: new Date() });
+      await db.insert(schema.playedTracks).values([
+        {
+          sessionId,
+          artist: ART,
+          title: TIT,
+          matchKey: KEY,
+          energy: 70,
+          danceability: 60,
+          bpm: 120,
+        },
+        {
+          sessionId,
+          artist: ART,
+          title: TIT,
+          matchKey: KEY,
+          energy: 80,
+          danceability: 40,
+          bpm: 122,
+        },
+      ]);
+    });
+
+    afterAll(async () => {
+      await db.delete(schema.playedTracks).where(eq(schema.playedTracks.sessionId, sessionId));
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, sessionId));
+      await db.delete(schema.trackLinks).where(eq(schema.trackLinks.matchKey, KEY));
+      await db
+        .delete(schema.spotifyTrackFeatures)
+        .where(eq(schema.spotifyTrackFeatures.spotifyId, SP));
+      // curated_tracks / curated_playlists cascade from the user.
+      await db.delete(schema.user).where(eq(schema.user.id, djId));
+      await db.delete(schema.user).where(eq(schema.user.id, adminId));
+    });
+
+    test("song detail: Spotify features + Pika consensus + appearances", async () => {
+      const res = await asAdmin(`/catalog/songs/${SP}`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        spotify: { tempo: number; energy: number } | null;
+        pika: {
+          energy: number;
+          danceability: number;
+          bpm: number;
+          plays: number;
+          djs: number;
+        } | null;
+        appearances: Array<{ playlistName: string; djName: string }>;
+      };
+      expect(body.spotify?.tempo).toBe(120);
+      // Consensus = averages over both plays: energy (70,80)→75, dance (60,40)→50, bpm (120,122)→121.
+      expect(body.pika).toMatchObject({ plays: 2, djs: 1, energy: 75, danceability: 50, bpm: 121 });
+      expect(
+        body.appearances.some((a) => a.playlistName === "ITest Cat List" && a.djName === djName),
+      ).toBe(true);
+    });
+
+    test("seedFromPlaylist + getSpotifyFeatures write/read the catalog rows", async () => {
+      const SP2 = "itest_seed_sp2";
+      const A2 = "Seed Artist Two";
+      const T2 = "Seed Song Two";
+      const seeded = await seedFromPlaylist(djId, "ITest Seed List", [
+        {
+          spotifyId: SP2,
+          uri: `spotify:track:${SP2}`,
+          name: T2,
+          artists: A2,
+          features: { tempo: 100, energy: 0.5 },
+        },
+      ]);
+      expect(seeded).toBe(1);
+
+      // curated_tracks + track_link (playlist source, exact match_key) + features all written.
+      const ct = await db
+        .select()
+        .from(schema.curatedTracks)
+        .where(eq(schema.curatedTracks.spotifyId, SP2));
+      expect(ct.length).toBe(1);
+      const tl = await db
+        .select()
+        .from(schema.trackLinks)
+        .where(eq(schema.trackLinks.providerId, SP2));
+      expect(tl[0]?.matchKey).toBe(getTrackKey(A2, T2));
+      expect(tl[0]?.source).toBe("playlist");
+
+      // getSpotifyFeatures returns known ids and omits unknown ones.
+      const map = await getSpotifyFeatures([SP2, "itest_not_seeded"]);
+      expect(map[SP2]?.tempo).toBe(100);
+      expect("itest_not_seeded" in map).toBe(false);
+
+      await db.delete(schema.trackLinks).where(eq(schema.trackLinks.providerId, SP2));
+      await db
+        .delete(schema.spotifyTrackFeatures)
+        .where(eq(schema.spotifyTrackFeatures.spotifyId, SP2));
+    });
+
+    test("song list: search finds it with DJ/playlist counts", async () => {
+      const res = await asAdmin(
+        `/catalog/songs?q=${encodeURIComponent("ITest Song Cat")}&sort=tempo`,
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        total: number;
+        songs: Array<{
+          spotifyId: string;
+          djCount: number;
+          playlistCount: number;
+          tempo: number | null;
+        }>;
+      };
+      const row = body.songs.find((s) => s.spotifyId === SP);
+      expect(row).toBeDefined();
+      expect(row?.djCount).toBe(1);
+      expect(row?.playlistCount).toBe(1);
+      expect(row?.tempo).toBe(120);
+    });
+
+    test("catalog aggregates count the seeded track; unknown id → 404", async () => {
+      const agg = await asAdmin("/catalog");
+      expect(agg.status).toBe(200);
+      const body = (await agg.json()) as { totals: { tracks: number; features: number } };
+      expect(body.totals.tracks).toBeGreaterThanOrEqual(1);
+      expect(body.totals.features).toBeGreaterThanOrEqual(1);
+
+      expect((await asAdmin("/catalog/songs/nope_unknown_xyz")).status).toBe(404);
     });
   });
 });

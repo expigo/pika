@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test && vitest run",
     "test:rtl": "vitest run",
+    "test:coverage": "bun test --coverage && vitest run --coverage",
     "generate-icons": "bun run scripts/generate-icons.ts"
   },
   "dependencies": {
@@ -43,6 +44,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "4.6.0",
+    "@vitest/coverage-v8": "4.0.17",
     "esbuild": "^0.27.2",
     "happy-dom": "^20.10.6",
     "serwist": "^9.5.0",

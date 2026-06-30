@@ -33,6 +33,13 @@ vi.mock("../services/spotifyPlaylist", () => ({
   },
   PlaylistApiError: class extends Error {},
 }));
+// Canonical Spotify features for the matched rows → the per-row badge.
+vi.mock("../hooks/useSpotifyFeatures", () => ({
+  useSpotifyFeaturesBatch: () => ({
+    features: new Map([["q1", { tempo: 120, keyPitch: 0, mode: 1, energy: 0.78 }]]),
+    loading: false,
+  }),
+}));
 
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
@@ -116,6 +123,12 @@ describe("BuildPlaylistModal", () => {
     expect(screen.getByText(/85% popular/)).toBeInTheDocument(); // recommended candidate detail
     expect(searchSpotify).toHaveBeenCalledTimes(1); // cached track skipped search
     expect(screen.getByText("2 tracks selected")).toBeInTheDocument();
+  });
+
+  it("shows a Spotify tempo/key/energy badge for a row with canonical features", async () => {
+    renderModal();
+    await screen.findByText("Strong match"); // q1 is the recommended candidate (has features)
+    expect(screen.getByText(/120 BPM · C · E 0\.78/)).toBeInTheDocument();
   });
 
   it("creates the playlist, remembers it on the session, and writes back the matches", async () => {

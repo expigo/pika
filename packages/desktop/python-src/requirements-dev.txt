@@ -1,0 +1,4 @@
+# Dev/test-only deps for the Python sidecar. Runtime deps are in requirements.txt.
+# Install into the sidecar venv:  uv pip install -r requirements-dev.txt
+-r requirements.txt
+pytest>=8.0.0

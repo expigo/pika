@@ -9,6 +9,7 @@
     "start:prod": "bun run db:migrate && bun run src/index.ts",
     "test": "bun test",
     "test:integration": "RUN_DB_TESTS=1 bun test src/__tests__/db.integration.test.ts",
+    "test:coverage": "bun test --coverage",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
     "typecheck": "tsc --noEmit",

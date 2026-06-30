@@ -16,7 +16,8 @@
     "db:generate": "drizzle-kit generate",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:python": "cd python-src && python -m pytest tests/"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
