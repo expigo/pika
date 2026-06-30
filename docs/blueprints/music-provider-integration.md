@@ -1,5 +1,11 @@
 # Blueprint: Music Provider Integration (Spotify / Apple Music)
 
+> **STATUS (June 30 2026): LARGELY BUILT + on staging.** Spotify side shipped — B3 DJ-assist playlist,
+> Exportify **CSV importer** → `spotify_track_features`, the **Songs Catalog**, desktop **feature display**,
+> and the **Pika consensus** join. The current, accurate description of what exists is
+> **[architecture/music-data-model.md](../architecture/music-data-model.md)**. Apple Music remains future.
+> This blueprint is retained for the strategy/decision record below.
+
 **Status:** Research complete, design draft — NOT scheduled for implementation.
 **Author:** Lead eng research pass, June 2026. Track A design decisions resolved (§7); spike
 scoped (§8). Track D (web DJ broadcaster) added; "can't we do both?" answered (§3a); Track D

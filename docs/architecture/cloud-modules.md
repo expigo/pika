@@ -13,7 +13,7 @@ The Cloud service has been refactored from a monolithic `index.ts` (~3000 lines)
 | Category | Files | Purpose |
 |----------|-------|---------|
 | **Handlers** | 8 files | WebSocket message processing (21 handlers) |
-| **Routes** | 7 files | REST API endpoints |
+| **Routes** | ~11 files | REST API endpoints (see §2 note) |
 | **Lib** | 14 files | State management & utilities |
 | **Entry** | 1 file | ~570 lines, wiring + global cleanup |
 
@@ -107,6 +107,12 @@ export const handleSendLike = safeHandler(_handleSendLike);
 ## 2. REST Routes (`src/routes/`)
 
 REST endpoints are organized by resource type.
+
+> **Updated June 2026:** `auth.ts` is gone — **Better Auth** owns `/api/auth/*` (mounted in `index.ts`
+> as `auth.handler`; see [auth-system.md](auth-system.md)). Added since: `seed.ts` (admin catalog seed),
+> `playlist.ts` (B3 Spotify tools incl. `POST /api/playlist/features`), `spotify.ts` (DJ + service OAuth),
+> `dj-live.ts` (web-DJ control), and the **catalog** endpoints on `admin.ts`
+> (`/api/admin/catalog{,/songs,/songs/:id}` — see [music-data-model.md](music-data-model.md)).
 
 ### File Structure
 

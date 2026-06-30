@@ -23,6 +23,12 @@ DJ rotation seamlessly; push is scoped per stage/event. Cloud tables: `events`, 
 `stage_subscriptions`, plus a nullable `sessions.stage_id` (additive — a stage-less session is
 unchanged). See [architecture/stage-event-model.md](architecture/stage-event-model.md).
 
+**Music data model (Spotify catalog + Pika analytics):** a cross-DJ catalog built from CSV-imported
+Spotify features (`spotify_track_features`) + curated playlists (`curated_tracks`/`curated_playlists`),
+linked by an identity spine (`track_links`, keyed on `getTrackKey`). Plays (`played_tracks.match_key`)
+join in to yield a per-track **Pika consensus**. Two feature sources (Spotify canonical vs Pika sidecar)
+are shown side-by-side, **never merged**. See [architecture/music-data-model.md](architecture/music-data-model.md).
+
 ---
 
 ## 3. Key Directory Map (Where is the Magic?)
@@ -59,9 +65,12 @@ Pika! adheres to a "Premium First" design philosophy:
 ---
 
 ## 6. Security Mandates
-- **Authentication:** BCrypt hashing for passwords. SHA-256 with per-token salt for API tokens.
-- **Rate Limiting:** Enforced on Auth endpoints (5/15min) and Engagement actions (e.g., likes/polls).
-- **CSRF:** Multi-layered — `X-Requested-With: Pika` on auth endpoints (`routes/auth.ts`) and `X-Pika-Client` on all state-changing requests (`index.ts`), plus custom CORS policies.
+- **Authentication:** **Better Auth** is the cloud auth authority — credential (email+password) + sessions
+  + **bearer** (desktop) / **cookie** (web), Drizzle/Postgres, with an `admin` plugin (roles `dj`/`admin`)
+  and a `pending→approved` approval gate. (Replaced the former bcrypt/SHA-256-token custom auth.) See
+  [architecture/auth-system.md](architecture/auth-system.md) + [blueprints/auth-foundation.md](blueprints/auth-foundation.md).
+- **Rate Limiting:** Better Auth built-in (prod) + `hono-rate-limiter` on admin/playlist routers; Engagement actions throttled.
+- **CSRF:** Better Auth origin checks on `/api/auth/*`; `X-Pika-Client` header required on non-GET for `/api/{live,playlist,admin}` (`index.ts`), plus CORS allow-list.
 - **Audit Logs:** Metadata sanitization in Sentry (PII scrubbing) and structured logging via `@pika/shared/logger`.
 - **Environment:** Critical secrets (`DATABASE_URL`, `SENTRY_AUTH_TOKEN`, `VAPID_KEYS`) must be configured in `.env` per package.
 
@@ -80,7 +89,7 @@ bun --filter @pika/desktop tauri dev # Run only the Desktop dev server
 
 ### 6.2. Standards
 - **Linting:** Biome (`bun run lint`).
-- **Testing:** Bun Test (Cloud/Web/Shared), Vitest (Desktop + Web/Desktop `*.rtl.tsx` RTL). **~913 tests** total (355 cloud, 399 desktop, 135 web, 24 shared).
+- **Testing:** Bun Test (Cloud/Web/Shared), Vitest (Desktop + Web/Desktop `*.rtl.tsx` RTL), pytest (sidecar). **~1,040 tests** total (~416 cloud, 417 desktop, 163 web, 38 shared) + 41 gated DB-integration + 8 Python. See `docs/TEST_AUDIT_2026_06_30.md`.
 - **Logging:** Always use the shared `logger`. Avoid `console.log` in production-ready code.
 
 ### 6.3. Versioning

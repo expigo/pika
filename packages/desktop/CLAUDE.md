@@ -467,7 +467,11 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 399 passing tests (Vitest, +1 skipped) — ~372 logic/unit + 27 `*.rtl.tsx` React-Testing-Library component tests.
+**Current coverage:** 417 passing tests (Vitest, +1 skipped) — logic/unit + `*.rtl.tsx` component tests.
+Plus the Python sidecar: 8 `pytest` tests (`bun run test:python`; `python-src/tests/`,
+deps in `requirements-dev.txt`). Coverage: `bun run test:coverage` (vitest v8). The desktop also mirrors
+the cloud's canonical Spotify features locally (`spotify_track_features` table + `spotifyFeaturesService`)
+to show them beside the Pika sidecar radar — see `SpotifyFeaturePanel` + `docs/architecture/music-data-model.md`.
 
 ### Test Files
 

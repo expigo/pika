@@ -92,11 +92,16 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of June 2026):** ~913 passing tests total (+ gated DB-integration)
-- Desktop: 399 tests (Vitest; ~372 unit + 27 `*.rtl.tsx` React-Testing-Library component tests, +1 skipped)
-- Cloud: 355 unit tests (Bun) + real-Postgres integration (`test:integration`, gated `RUN_DB_TESTS` — exercises the real `persist*` functions incl. the C3 buffer-and-flush; skipped under plain `bun test`)
-- Shared: 24 tests (Bun)
-- Web: 94 pure tests (`bun test`) + 41 `*.rtl.tsx` RTL component tests (`vitest run`) = 135. **Dual-runner** (see [RTL harness](#rtl-component-tests-web--desktop) below)
+**Test Coverage (as of June 30 2026 — see `docs/TEST_AUDIT_2026_06_30.md`):** ~1,040 passing JS/TS
+tests + 41 gated DB-integration + 8 Python sidecar.
+- Desktop: 417 tests (Vitest; unit + `*.rtl.tsx` React-Testing-Library component tests, +1 skipped)
+- Cloud: ~416 unit tests (Bun) + **41** real-Postgres integration (`test:integration`, gated `RUN_DB_TESTS` —
+  exercises the real `persist*` functions incl. the C3 buffer-and-flush, the auth guards, and the
+  Songs-Catalog read path incl. the Pika-consensus join; skipped under plain `bun test`)
+- Shared: 38 tests (Bun)
+- Web: 94 pure tests (`bun test`) + 69 `*.rtl.tsx` RTL component tests (`vitest run`) = 163. **Dual-runner** (see [RTL harness](#rtl-component-tests-web--desktop) below)
+- Python sidecar: 8 tests (`pytest`, `bun run --filter @pika/desktop test:python`) — `clamp` + librosa
+  extractors on synthetic signals. Coverage tooling: `test:coverage` per package (advisory, not CI-gating).
 
 ### Code Quality
 
@@ -231,7 +236,8 @@ chore: bump version to 0.4.0
 - Use `parseMessage<T>()` in Cloud handlers for type-safe parsing
 
 ### Testing Philosophy
-- **~913 passing tests** across all packages (399 desktop, 355 cloud, 135 web, 24 shared) + gated DB-integration
+- **~1,040 passing tests** across all packages (417 desktop, ~416 cloud, 163 web, 38 shared) + 41 gated
+  DB-integration + 8 Python sidecar (see `docs/TEST_AUDIT_2026_06_30.md`)
 - Test files colocated with source: `*.test.ts` / `__tests__/` (logic) and `*.rtl.tsx` (React components)
 - Use Vitest (desktop) / `bun test` (cloud, web, shared) for TS/JS, pytest for Python
 

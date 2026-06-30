@@ -16,8 +16,8 @@ This document outlines the security architecture of Pika!, including implemented
 
 | Asset | Threat | Mitigation |
 | :--- | :--- | :--- |
-| DJ Credentials | Brute force, credential stuffing | bcrypt hashing, rate limiting ✅ |
-| API Tokens | Token theft, replay attacks | SHA-256 hashed storage, HTTPS only |
+| DJ Credentials | Brute force, credential stuffing | **Better Auth** (scrypt) + rate limiting ✅ |
+| Sessions / bearer | Token theft, replay attacks | Better Auth sessions (httpOnly cookie / desktop bearer), HTTPS only ✅ |
 | Session Data | Session hijacking | Token validation, ownership tracking ✅ |
 | User Privacy | Data exposure | No PII stored for dancers, localStorage-based identity |
 | Telemetry | Data leak via monitoring | Mandatory Sentry PII scrubbing (cookies/headers/IP) ✅ |
@@ -45,11 +45,15 @@ This document outlines the security architecture of Pika!, including implemented
 
 ## 2. Authentication Security
 
+> **Updated June 2026:** auth is now **Better Auth** (sessions + bearer + admin plugin + approval gate),
+> not the former custom bcrypt/SHA-256-token system. The table below is retained for historical context;
+> the authoritative, current description is **[auth-system.md](auth-system.md)**.
+
 ### 2.1 Password Protection
 
 | Control | Implementation | Status |
 | :--- | :--- | :---: |
-| Hash Algorithm | bcrypt | ✅ |
+| Hash Algorithm | Better Auth (scrypt) — formerly bcrypt | ✅ |
 | Cost Factor | 10 | ✅ |
 | Min Length | 8 characters | ✅ |
 | Max Length | 128 characters | ✅ |

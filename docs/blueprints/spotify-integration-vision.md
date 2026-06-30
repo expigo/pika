@@ -1,5 +1,10 @@
 # Blueprint: Spotify Playlist Integration
 
+> **SUPERSEDED (June 30 2026).** The "auto-export history to Spotify" vision was reshaped by Spotify's
+> Nov-2024 API lockdown into a **DJ-assist** flow + a CSV-fed analytics catalog. Current design:
+> **[music-provider-integration.md](music-provider-integration.md)** (strategy) and
+> **[../architecture/music-data-model.md](../architecture/music-data-model.md)** (what's built). Kept for history.
+
 This document outlines the **Future Vision** for Spotify playlist generation.
 This feature allows DJs to automatically export their history to Spotify for easy sharing.
 

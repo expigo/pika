@@ -1,121 +1,75 @@
 # Architecture: Authentication System
 
-This document describes the *current* implementation of the Authentication System in Pika!, which handles DJ identity and API security.
+Describes the *current* authentication/authorization in Pika!. The cloud's auth authority is
+**[Better Auth](https://better-auth.com)** (adopted June 2026, replacing the former custom bcrypt/
+SHA-256-token system). Design rationale: `docs/blueprints/auth-foundation.md`.
 
 ## 1. Overview
+- **DJs / admins** authenticate with **email + password** → a Better Auth **session**. The web uses a
+  **cookie** session; the **Tauri desktop** uses a **bearer token** (Better Auth `bearer` plugin).
+- **Dancers stay anonymous** — identified by a persistent `clientId` in localStorage (no account).
+  (The Better Auth *anonymous plugin* — optional account-upgrade carrying a dancer's likes/history —
+  is deferred; see auth-foundation §7.)
+- **Approval gate:** new accounts are `status: 'pending'`; protected DJ routes require `'approved'`.
+- **Roles:** `dj` (default) and `admin` (Better Auth admin plugin). RBAC, not a policy engine.
 
-The authentication system is currently focused solely on **DJ Accounts**.
-*   **Purpose:** To verify DJ identity, prevent session spoofing, and allow DJs to manage their "Slug" (URL).
-*   **Listeners:** Listeners (Dancers) remain **anonymous** (identified by a persistent `clientId` stored in localStorage).
+## 2. Technical stack
+- **Server instance:** `packages/cloud/src/lib/auth/server.ts` — `betterAuth({...})` with the
+  **Drizzle/Postgres** adapter, `emailAndPassword`, plugins `[bearer(), admin({ ac, roles:{dj,admin} })]`,
+  `trustedOrigins` (web origins; bearer is origin-exempt), and a `databaseHook` that derives `slug` from
+  the display name on signup.
+- **Handler mount:** `app.on(["POST","GET"], "/api/auth/*", (c) => auth.handler(c.req.raw))` in `index.ts`
+  — Better Auth owns sign-up/in/out/session/admin endpoints + its own origin-based CSRF.
+- **Guards:** `packages/cloud/src/lib/auth.ts` — `requireDjAuth` (authenticated **and** `approved`),
+  `requireRole(role,{hideExistence})` / `requireAdmin` (admin → 404 on mismatch so the panel's existence
+  isn't leaked), `getUserFromToken` (WS `REGISTER_SESSION`). `resolveUser` accepts a cookie session OR an
+  `Authorization: Bearer` token.
+- **Permissions:** `packages/cloud/src/lib/auth/permissions.ts` — access-control roles for the admin plugin.
 
-## 2. Technical Stack
+## 3. Data model
+Better Auth owns `user` / `session` / `account` / `verification` (`packages/cloud/src/db/auth-schema.ts`,
+CLI-generated). Pika specifics on `user`: `status` (`pending`|`approved`|`rejected`), `role` (`dj`|`admin`),
+`slug` (`/dj/[slug]`). FK columns across the schema (`sessions.djUserId`, `spotify_connections`,
+`curated_tracks`, …) reference `user.id` (text). The former `dj_users`/`dj_tokens` tables are gone.
 
-*   **Location:** `packages/cloud/src/routes/auth.ts` (Auth Logic) and `packages/cloud/src/db/schema.ts` (Data Model).
-*   **Hashing:**
-    *   **Passwords:** `bcrypt` (Cost 10) via `Bun.password`.
-    *   **API Tokens:** `SHA-256` (stored hash) for high-entropy tokens.
-*   **Transport:** Tokens are sent in the WebSocket `REGISTER_SESSION` payload or via `Authorization: Bearer <token>` for REST.
+## 4. Auth flow
+1. **Sign up** — `POST /api/auth/sign-up/email` → creates a `user` (`status='pending'`, `role='dj'`,
+   `slug` from name) + session; returns a session token (also usable as a bearer token).
+2. **Sign in** — `POST /api/auth/sign-in/email` → sets the cookie session (web) / returns the bearer token
+   (`set-auth-token`, desktop).
+3. **Protected REST** — guards call `auth.api.getSession({ headers })`; `requireDjAuth` 401s no-session,
+   403s a non-`approved` user; `requireAdmin` 404s a non-admin.
+4. **WebSocket** — `REGISTER_SESSION` carries the bearer token → `getUserFromToken` resolves the user and
+   links `djUserId` (else the session falls back to anonymous).
+5. **Admin/approval** — admins approve/reject DJs in-app via `/api/admin/djs/:id/{approve,reject}` (audited);
+   first admin is a bootstrap DB update.
 
-## 3. Data Model
+## 5. Security measures
+| Measure | Status | Detail |
+|---|:--:|---|
+| Password hashing | ✅ | Better Auth (scrypt) — maintained, not our own crypto. |
+| Sessions | ✅ | 30-day expiry; httpOnly cookie (web) + bearer token (desktop). |
+| CSRF | ✅ | Better Auth origin checks on `/api/auth/*`; `X-Pika-Client` header required on non-GET for
+  `/api/{live,playlist,admin}` (`csrfCheck`, `index.ts`). |
+| CORS / trusted origins | ✅ | `trustedOrigins` (Better Auth) + the CORS allow-list mirror prod/staging web. |
+| Role gating | ✅ | `requireAdmin` hides existence (404). Covered by `lib/auth.test.ts` + the gated
+  `db.integration.test.ts` (pending→403, dj→404, admin→200, bearer resolution). |
+| Approval gate | ✅ | `status !== 'approved'` → 403 on all DJ routes. |
+| Rate limiting | ✅ | Better Auth built-in (prod) + `hono-rate-limiter` on admin/playlist routers. |
 
-```typescript
-export const djUsers = pgTable("dj_users", {
-  id: serial("id").primaryKey(),
-  email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  displayName: text("display_name").notNull(),
-  slug: text("slug").notNull().unique(),
-});
+## 6. Known limitations (deferred to pilot-prep — auth-foundation §7)
+- **No email verification / password reset** wired (needs an email transport) — deliberately deferred
+  while functional testing wipes the DB often.
+- **No organization plugin** (organizer + event/stage ownership/invites) — events carry `ownerUserId` but
+  org membership/roles aren't modeled yet.
+- **Anonymous plugin** not adopted — dancer participation works via `clientId`; the plugin only adds the
+  optional account-**upgrade** path (do it just before real dancer data accumulates).
 
-export const djTokens = pgTable("dj_tokens", {
-  id: serial("id").primaryKey(),
-  djUserId: integer("dj_user_id").notNull().references(() => djUsers.id, { onDelete: "cascade" }),
-  token: text("token").notNull().unique(), // Hashed (SHA-256)
-  name: text("name").default("Default"),
-  lastUsed: timestamp("last_used"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
-```
-
-*   **Note:** We store the *Hash* of the API token, not the token itself. This means if the DB is leaked, API keys cannot be reverse-engineered easily.
-
-## 4. Auth Flow
-
-1.  **Registration:**
-    *   `POST /api/auth/register` (Email, Password, Display Name, Slug).
-    *   Server creates user + generates initial API Token.
-    *   Returns `{ user, token }`.
-2.  **Login:**
-    *   `POST /api/auth/login` (Email, Password).
-    *   Server validates bcrypt hash.
-    *   **Always generates a NEW token** and returns `{ user, token }`. Multiple active tokens per DJ account are supported (M7).
-3.  **Session Start:**
-    *   Desktop Client allows user to input API Token.
-    *   WebSocket `REGISTER_SESSION` message includes `{ token: "pk_dj_..." }`.
-    *   Server validates token hash.
-    *   If valid: Session is marked `authenticated: true`, `djUserId` is linked.
-    *   If invalid: Session falls back to **Anonymous Mode** (warns in logs).
-
-## 5. Security Measures
-
-### ✅ Implemented (Verified Feb 2026 Audit - v0.4.0)
-
-| Measure | Status | Details |
-| :--- | :---: | :--- |
-| **Token Entropy** | ✅ Pass | `pk_dj_<uuid>` format via `crypto.randomUUID()`. |
-| **Password Hashing** | ✅ Pass | bcrypt cost 10 via `Bun.password.hash()`. |
-| **Token Storage** | ✅ Pass | SHA-256 hashed before DB storage. Raw token never stored. |
-| **Rate Limiting** | ✅ Pass | `hono-rate-limiter` active (5 req/15min) on all auth routes. |
-| **CORS Restriction** | ✅ Pass | Restricted to `pika.stream` and verified origins in production. |
-| **Email Validation** | ✅ Pass | Strict Zod `.email()` validation. |
-| **CSRF Protection** | ✅ Pass | Multi-layered: `X-Requested-With: Pika` (Auth) + `X-Pika-Client` (State). |
-
-### Implementation: Rate Limiting
-
-```typescript
-// packages/cloud/src/index.ts
-import { rateLimiter } from "hono-rate-limiter";
-
-const authLimiter = rateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  limit: 5,
-  keyGenerator: (c) => c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown",
-});
-
-app.post("/api/auth/login", authLimiter, async (c) => { ... });
-app.post("/api/auth/register", authLimiter, async (c) => { ... });
-```
-
-### Global CSRF Shield
-The system uses a unique tiered defense:
-1.  **Auth Layer:** Requires `X-Requested-With: Pika` on Login/Register.
-2.  **Global Layer:** Requires `X-Pika-Client` (valid values: `pika-web`, `pika-desktop`) for all POST/PUT/DELETE requests in `index.ts`.
-
-## 6. Known Limitations & Vulnerabilities
-
-### Functional Limitations
-*   **No Email Verification:** Users can register with fake emails.
-*   **No Password Reset:** If a DJ forgets their password, they are locked out (needs manual DB intervention).
-*   **Single Role:** Only "DJ" role exists. No Admins or Organizers yet.
-*   **Password Complexity:** Only minimum length (8) enforced. No max length or blocklist.
-
-### Security Vulnerabilities (Feb 2026 Audit - v0.4.0)
-
-| Vulnerability | Risk | Status | Remediation |
-| :--- | :---: | :---: | :--- |
-| **No Email Verification** | � Med | Open | Plan for Magic Link or OTP verification. |
-| **No Password Reset** | � Med | Open | Requires DJ management dashboard. |
-| **Secrets in Version Control** | 🟡 Med | Open | Auditing `.env.example` vs Production secrets. |
-| **Brute Force Login** | ✅ Resolved | Closed | Rate limiting implemented. |
-| **Cross-Origin Requests** | ✅ Resolved | Closed | CORS strictly restricted. |
-
-## 7. Audit History
-
-| Date | Auditor | Scope | Findings |
-| :--- | :--- | :--- | :--- |
-| **2026-02-01** | Antigravity | v0.4.0 Audit | All high-risk auth flags resolved. Modularized auth routes. |
-| **2026-01-13** | Security Lead | Full codebase | 0 Critical, 2 High, 4 Medium, 3 Low |
+## 7. CSRF coverage note (open follow-up)
+`csrfCheck` (the `X-Pika-Client` requirement on non-GET) guards `/api/{live,playlist,admin}` but **not**
+`/api/stages` or `/api/push/send`. Those are `requireDjAuth`-gated and Better Auth origin-validates cookie
+sessions, so it's a defense-in-depth gap, not an open hole. Adding it needs per-caller verification first —
+notably `POST /api/push/subscribe` is the **public** dancer endpoint (no auth) and must keep working.
 
 ---
-
-*Last Updated: February 1, 2026 (v0.4.0 - Onboarding & Intelligence Release)*
+*Last updated: June 30, 2026 — Better Auth adoption + harden pass. See `docs/blueprints/auth-foundation.md`.*

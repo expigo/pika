@@ -17,6 +17,17 @@ This is the central index for the Pika! project, tracking active development, fu
 *   **[Prioritized Feature Matrix](projects/prioritized-roadmap.md)** - *Living Document*
     *   Detailed weighted scoring of features and tech debt.
     *   Tracks the remaining tasks for the initial real-world deployment.
+    *   **Recent Completions (June 2026 — Spotify Catalog + Better Auth):**
+        *   ✅ **Better Auth** adopted as the cloud auth authority (credential + session + bearer + admin
+            plugin + approval gate), replacing the custom bcrypt/token auth. See `blueprints/auth-foundation.md`.
+        *   ✅ **B3 DJ-assist** (VDJ→Spotify playlist) + **Exportify CSV importer** → `spotify_track_features`.
+        *   ✅ **Songs Catalog** (web `/admin/catalog`: distributions, cross-DJ overlap, per-song browser) +
+            first-class `curated_playlists`.
+        *   ✅ **Desktop feature display** — canonical Spotify features beside the Pika sidecar radar (all surfaces).
+        *   ✅ **Pika consensus** — `played_tracks.match_key` → `track_links` join populates the catalog's Pika side.
+            See `architecture/music-data-model.md`.
+        *   ✅ **Test + docs chore** — `+~120` tests (catalog/auth integration, desktop feature tests, Python
+            sidecar pytest), coverage tooling, docs sweep. See `TEST_AUDIT_2026_06_30.md`.
     *   **Recent Completions (Feb 4, 2026 - v0.5.0 Release):**
         *   ✅ **CORS Mitigation:** Implemented native `apiClient` to bypass browser restrictions.
         *   ✅ **History Sync:** Fixed race conditions with deferred sync and reliable batching.
