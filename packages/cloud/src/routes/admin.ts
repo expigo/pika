@@ -18,6 +18,7 @@ import { logger } from "@pika/shared";
 import { desc, eq, isNull, max, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
+import { z } from "zod";
 import { db } from "../db";
 import {
   adminAudit,
@@ -30,6 +31,7 @@ import {
 } from "../db/schema";
 import { recordAdminAction } from "../lib/admin-audit";
 import { getUser, requireAdmin } from "../lib/auth";
+import { auth } from "../lib/auth/server";
 import { getActiveConnectionCount } from "../lib/connection-registry";
 import { getListenerCount } from "../lib/listeners";
 import { getAllSessions } from "../lib/sessions";
@@ -94,6 +96,43 @@ async function setDjStatus(c: Context, status: "approved" | "rejected", action: 
 
 admin.post("/djs/:id/approve", (c) => setDjStatus(c, "approved", "dj.approve"));
 admin.post("/djs/:id/reject", (c) => setDjStatus(c, "rejected", "dj.reject"));
+
+const CreateDjBody = z.object({
+  email: z.string().trim().email().max(200),
+  displayName: z.string().trim().min(1).max(100),
+  password: z.string().min(8).max(200),
+});
+
+/**
+ * Create a DJ account as an admin — via Better Auth's admin-plugin `createUser`, which does NOT
+ * establish a session for the new user, so the admin stays logged in (unlike public sign-up). The
+ * account is created `approved` (the admin vouched for it). Passing the admin's headers lets Better
+ * Auth verify the `user:create` permission.
+ */
+admin.post("/djs", async (c) => {
+  const parsed = CreateDjBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: "Invalid DJ", issues: parsed.error.issues }, 400);
+  const { email, displayName, password } = parsed.data;
+  try {
+    const res = await auth.api.createUser({
+      body: { email, password, name: displayName, role: "dj" },
+      headers: c.req.raw.headers,
+    });
+    // Guarantee the approval status regardless of the additionalField input rules.
+    await db.update(user).set({ status: "approved" }).where(eq(user.id, res.user.id));
+    recordAdminAction(getUser(c).id, "dj.create", { type: "user", id: res.user.id });
+    return c.json({ success: true, id: res.user.id });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "";
+    logger.warn("admin: createUser failed", { msg });
+    return c.json(
+      {
+        error: /exist/i.test(msg) ? "A user with that email already exists" : "Failed to create DJ",
+      },
+      409,
+    );
+  }
+});
 
 /** Read-only live overview for supervision. */
 admin.get("/overview", async (c) => {

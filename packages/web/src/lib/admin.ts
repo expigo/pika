@@ -90,6 +90,15 @@ export function rejectDj(id: string): Promise<{ success: boolean }> {
   return req(`/api/admin/djs/${id}/reject`, { method: "POST", headers: JSON_CSRF });
 }
 
+/** Create a DJ account as admin (does NOT log the admin out — uses Better Auth's admin createUser). */
+export function createDj(body: {
+  email: string;
+  displayName: string;
+  password: string;
+}): Promise<{ success: boolean; id: string }> {
+  return req("/api/admin/djs", { method: "POST", headers: JSON_CSRF, body: JSON.stringify(body) });
+}
+
 // --- B3 catalog seed tool ---
 
 export interface SeedPlaylist {

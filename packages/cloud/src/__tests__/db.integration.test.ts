@@ -989,6 +989,36 @@ suite("DB integration (real Postgres)", () => {
       expect(Array.isArray(body.sessions)).toBe(true);
       expect(typeof body.connections).toBe("number");
     });
+
+    test("create DJ: admin makes an approved 'dj' WITHOUT clobbering the admin session", async () => {
+      const email = `created_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}@itest.dev`;
+      const created = await asAdmin("/djs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, displayName: "Created DJ", password: "validpassword123" }),
+      });
+      expect(created.status).toBe(200);
+      const { id } = (await created.json()) as { id: string };
+      cleanupUsers.push(id);
+
+      const [row] = await db
+        .select({ role: schema.user.role, status: schema.user.status })
+        .from(schema.user)
+        .where(eq(schema.user.id, id));
+      expect(row?.role).toBe("dj");
+      expect(row?.status).toBe("approved"); // admin-created → approved, not pending
+
+      // The admin's own session is untouched (Better Auth createUser issues NO session for the new user).
+      expect((await asAdmin("/me")).status).toBe(200);
+
+      // Duplicate email → 409.
+      const dup = await asAdmin("/djs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, displayName: "Dup", password: "validpassword123" }),
+      });
+      expect(dup.status).toBe(409);
+    });
   });
 
   // ==========================================================================

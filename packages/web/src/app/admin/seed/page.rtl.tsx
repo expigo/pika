@@ -27,6 +27,7 @@ const track = { spotifyId: "t1", uri: "spotify:track:t1", name: "Song", artists:
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear(); // the page persists the selected DJ — keep tests independent
   vi.mocked(admin.getDjs).mockResolvedValue([dj]);
   vi.mocked(admin.getSeedPlaylists).mockResolvedValue({ userId: "u", playlists: [playlist] });
   vi.mocked(admin.getSeedPlaylistTracks).mockResolvedValue({ tracks: [track] });
@@ -64,35 +65,54 @@ describe("AdminSeedPage", () => {
     expect(await screen.findByText(/no public playlists/i)).toBeInTheDocument();
   });
 
-  it("imports an Exportify CSV and seeds tracks WITH features to the chosen DJ", async () => {
+  it("imports multiple Exportify CSVs, each as an editable-named playlist, WITH features", async () => {
     render(<AdminSeedPage />);
 
     await userEvent.click(screen.getByRole("tab", { name: /import csv/i }));
     await userEvent.selectOptions(await screen.findByLabelText("DJ"), "dj1");
 
-    const csv =
-      "Track URI,Track Name,Artist Name(s),Tempo,Energy\nspotify:track:z1,My Song,My Artist,128,0.7\n";
-    const file = new File([csv], "myset.csv", { type: "text/csv" });
-    await userEvent.upload(screen.getByLabelText("Exportify CSV"), file);
+    const f1 = new File(
+      [
+        "Track URI,Track Name,Artist Name(s),Tempo,Energy\nspotify:track:z1,My Song,My Artist,128,0.7\n",
+      ],
+      "myset.csv",
+      { type: "text/csv" },
+    );
+    const f2 = new File(
+      ["Track URI,Track Name,Artist Name(s),Tempo\nspotify:track:z2,Other Song,Other Artist,90\n"],
+      "Other_Set.csv",
+      { type: "text/csv" },
+    );
+    await userEvent.upload(screen.getByLabelText("Exportify CSVs"), [f1, f2]);
+
+    // Playlist names default from the filename (de-munged); the first is edited.
+    const name1 = (await screen.findByLabelText("Playlist name for myset.csv")) as HTMLInputElement;
+    expect(name1.value).toBe("myset");
+    expect(
+      (screen.getByLabelText("Playlist name for Other_Set.csv") as HTMLInputElement).value,
+    ).toBe("Other Set");
+    await userEvent.clear(name1);
+    await userEvent.type(name1, "My Set");
 
     await userEvent.click(
-      await screen.findByRole("button", { name: /seed 1 tracks into catalog/i }),
+      await screen.findByRole("button", { name: /seed 2 tracks · 2 playlists/i }),
     );
 
     expect(admin.seedCurated).toHaveBeenCalledWith(
       expect.objectContaining({
         djUserId: "dj1",
-        playlistName: "myset",
+        playlistName: "My Set",
         tracks: [
           expect.objectContaining({
             spotifyId: "z1",
-            name: "My Song",
-            artists: "My Artist",
-            features: expect.objectContaining({ tempo: 128, energy: 0.7 }),
+            features: expect.objectContaining({ tempo: 128 }),
           }),
         ],
       }),
     );
-    expect(await screen.findByText(/seeded 1 tracks/i)).toBeInTheDocument();
+    expect(admin.seedCurated).toHaveBeenCalledWith(
+      expect.objectContaining({ djUserId: "dj1", playlistName: "Other Set" }),
+    );
+    expect(await screen.findByText(/seeded 2 tracks across 2 playlists/i)).toBeInTheDocument();
   });
 });

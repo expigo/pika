@@ -6,6 +6,8 @@ vi.mock("@/lib/admin", () => ({
   getDjs: vi.fn(),
   approveDj: vi.fn(),
   rejectDj: vi.fn(),
+  createDj: vi.fn(),
+  AdminApiError: class AdminApiError extends Error {},
 }));
 
 import * as admin from "@/lib/admin";
@@ -49,5 +51,25 @@ describe("AdminDjsPage", () => {
     render(<AdminDjsPage />);
     expect(await screen.findByText("DJ Pending")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
+  });
+
+  it("adds a DJ via the admin path (no logout) and reloads the list", async () => {
+    vi.mocked(admin.getDjs).mockResolvedValue([pendingDj]);
+    vi.mocked(admin.createDj).mockResolvedValue({ success: true, id: "new_1" });
+    render(<AdminDjsPage />);
+    await screen.findByText("DJ Pending");
+
+    await userEvent.type(screen.getByLabelText("Display name"), "New DJ");
+    await userEvent.type(screen.getByLabelText("Email"), "new@x.co");
+    await userEvent.type(screen.getByLabelText("Password"), "supersecret");
+    await userEvent.click(screen.getByRole("button", { name: /^add dj$/i }));
+
+    expect(admin.createDj).toHaveBeenCalledWith({
+      email: "new@x.co",
+      displayName: "New DJ",
+      password: "supersecret",
+    });
+    expect(await screen.findByText(/still signed in as admin/i)).toBeInTheDocument();
+    expect(admin.getDjs).toHaveBeenCalledTimes(2); // initial + reload
   });
 });

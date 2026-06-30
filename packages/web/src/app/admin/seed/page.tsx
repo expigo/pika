@@ -24,6 +24,16 @@ import {
 } from "@/lib/admin";
 
 type Mode = "profile" | "csv";
+type CsvFile = { name: string; playlistName: string; tracks: SeedTrack[]; skippedLocal: number };
+
+const DJ_KEY = "pika_admin_seed_dj";
+/** Exportify names the file after the playlist (spaces→underscores) — de-munge as the default name. */
+function defaultPlaylistName(fileName: string): string {
+  return fileName
+    .replace(/\.csv$/i, "")
+    .replace(/_/g, " ")
+    .trim();
+}
 
 export default function AdminSeedPage() {
   const [djs, setDjs] = useState<AdminDj[]>([]);
@@ -35,10 +45,8 @@ export default function AdminSeedPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [previews, setPreviews] = useState<Record<string, SeedTrack[]>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
-  // CSV mode
-  const [csvTracks, setCsvTracks] = useState<SeedTrack[] | null>(null);
-  const [csvSkippedLocal, setCsvSkippedLocal] = useState(0);
-  const [csvName, setCsvName] = useState("");
+  // CSV mode — multiple files, each seeded as its own (editable-name) playlist.
+  const [csvFiles, setCsvFiles] = useState<CsvFile[]>([]);
   // Shared
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +57,18 @@ export default function AdminSeedPage() {
       .then((d) => setDjs(d.filter((x) => x.status === "approved")))
       .catch(() => {});
   }, []);
+
+  // Restore the selected DJ — admin tabs remount this page (and a SW nav can hard-reload), so the
+  // choice is persisted in localStorage rather than lost on every tab switch.
+  useEffect(() => {
+    const saved = localStorage.getItem(DJ_KEY);
+    if (saved) setDjId(saved);
+  }, []);
+  const chooseDj = (id: string) => {
+    setDjId(id);
+    if (id) localStorage.setItem(DJ_KEY, id);
+    else localStorage.removeItem(DJ_KEY);
+  };
 
   const switchMode = (m: Mode) => {
     setMode(m);
@@ -121,42 +141,59 @@ export default function AdminSeedPage() {
     }
   };
 
-  const onCsvFile = async (file: File | undefined) => {
+  const onCsvFiles = async (files: FileList | null) => {
     setError(null);
     setResult(null);
-    setCsvTracks(null);
-    setCsvSkippedLocal(0);
-    setCsvName("");
-    if (!file) return;
+    setCsvFiles([]);
+    if (!files || files.length === 0) return;
     try {
-      const { tracks, skippedLocal } = parseExportifyCsv(await file.text());
-      setCsvTracks(tracks);
-      setCsvSkippedLocal(skippedLocal);
-      setCsvName(file.name);
-      if (tracks.length === 0) setError("No Spotify tracks found in that CSV.");
+      const parsed: CsvFile[] = [];
+      for (const file of Array.from(files)) {
+        const { tracks, skippedLocal } = parseExportifyCsv(await file.text());
+        parsed.push({
+          name: file.name,
+          playlistName: defaultPlaylistName(file.name),
+          tracks,
+          skippedLocal,
+        });
+      }
+      setCsvFiles(parsed);
+      if (parsed.every((f) => f.tracks.length === 0))
+        setError("No Spotify tracks found in those CSVs.");
     } catch {
-      setError("Couldn't read that CSV — is it an Exportify export?");
+      setError("Couldn't read those CSVs — are they Exportify exports?");
     }
   };
 
+  const setPlaylistName = (idx: number, name: string) =>
+    setCsvFiles((fs) => fs.map((f, i) => (i === idx ? { ...f, playlistName: name } : f)));
+
+  const csvTrackTotal = csvFiles.reduce((n, f) => n + f.tracks.length, 0);
+
   const seedCsv = async () => {
-    if (!djId || !csvTracks || csvTracks.length === 0) return;
+    const files = csvFiles.filter((f) => f.tracks.length > 0);
+    if (!djId || files.length === 0) return;
     setBusy(true);
     setError(null);
     setResult(null);
     try {
-      const playlistName = csvName.replace(/\.csv$/i, "");
       let total = 0;
-      // Batch under the curate endpoint's 1000-track cap.
-      for (let i = 0; i < csvTracks.length; i += 500) {
-        const { seeded } = await seedCurated({
-          djUserId: djId,
-          playlistName,
-          tracks: csvTracks.slice(i, i + 500),
-        });
-        total += seeded;
+      for (const f of files) {
+        const playlistName = f.playlistName.trim() || defaultPlaylistName(f.name);
+        // Batch under the curate endpoint's 1000-track cap.
+        for (let i = 0; i < f.tracks.length; i += 500) {
+          const { seeded } = await seedCurated({
+            djUserId: djId,
+            playlistName,
+            tracks: f.tracks.slice(i, i + 500),
+          });
+          total += seeded;
+        }
       }
-      setResult(`Seeded ${total} tracks (with Spotify features) into the catalog.`);
+      setResult(
+        `Seeded ${total} tracks across ${files.length} playlist${files.length === 1 ? "" : "s"}.`,
+      );
+      setCsvFiles([]);
     } catch (e) {
       setError(
         e instanceof AdminApiError ? e.message : "Seeding failed — check the DJ and try again.",
@@ -184,7 +221,7 @@ export default function AdminSeedPage() {
         Attribute to DJ
         <select
           value={djId}
-          onChange={(e) => setDjId(e.target.value)}
+          onChange={(e) => chooseDj(e.target.value)}
           aria-label="DJ"
           className={input}
         >
@@ -321,7 +358,7 @@ export default function AdminSeedPage() {
       {mode === "csv" && (
         <>
           <p className="text-sm text-slate-500">
-            Export a playlist with{" "}
+            Export playlists with{" "}
             <a
               href="https://exportify.net"
               target="_blank"
@@ -330,47 +367,52 @@ export default function AdminSeedPage() {
             >
               Exportify
             </a>{" "}
-            and upload the CSV. Imports identity <em>and</em> Spotify's own audio features
-            (tempo/key/energy/…).
+            and upload one or more CSVs — each becomes a playlist (name editable below). Imports
+            identity <em>and</em> Spotify's own audio features (tempo/key/energy/…).
           </p>
           <label className="flex flex-col gap-1 text-xs text-slate-400">
-            Exportify CSV
+            Exportify CSV(s) — select multiple
             <input
               type="file"
               accept=".csv,text/csv"
-              aria-label="Exportify CSV"
-              onChange={(e) => onCsvFile(e.target.files?.[0])}
+              multiple
+              aria-label="Exportify CSVs"
+              onChange={(e) => onCsvFiles(e.target.files)}
               className="text-sm text-slate-300 file:mr-3 file:rounded-full file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-200"
             />
           </label>
 
-          {csvTracks && csvTracks.length > 0 && (
+          {csvFiles.length > 0 && (
             <>
-              <div className="text-sm text-slate-400">
-                <span className="text-slate-100">{csvTracks.length}</span> tracks
-                {csvSkippedLocal > 0 && <> · {csvSkippedLocal} local skipped</>} from{" "}
-                <span className="text-slate-300">{csvName}</span>
-              </div>
-              <ul className="max-h-48 overflow-y-auto rounded-2xl bg-slate-900 px-4 py-2 text-xs text-slate-400">
-                {csvTracks.slice(0, 20).map((t) => (
-                  <li key={t.spotifyId} className="truncate py-0.5">
-                    {t.artists} – {t.name}
-                    {t.features?.tempo ? (
-                      <span className="text-slate-600"> · {Math.round(t.features.tempo)} BPM</span>
-                    ) : null}
+              <ul className="space-y-2">
+                {csvFiles.map((f, idx) => (
+                  <li key={f.name} className="rounded-2xl bg-slate-900 px-4 py-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        value={f.playlistName}
+                        onChange={(e) => setPlaylistName(idx, e.target.value)}
+                        aria-label={`Playlist name for ${f.name}`}
+                        placeholder="Playlist name"
+                        className={`${input} flex-1`}
+                      />
+                      <span className="shrink-0 text-xs text-slate-500">
+                        {f.tracks.length} tracks
+                        {f.skippedLocal > 0 && <> · {f.skippedLocal} local skipped</>}
+                      </span>
+                    </div>
+                    <div className="mt-1 truncate text-[11px] text-slate-600">{f.name}</div>
                   </li>
                 ))}
-                {csvTracks.length > 20 && (
-                  <li className="py-0.5 text-slate-600">+{csvTracks.length - 20} more…</li>
-                )}
               </ul>
               <button
                 type="button"
-                disabled={busy || !djId}
+                disabled={busy || !djId || csvTrackTotal === 0}
                 onClick={seedCsv}
                 className="rounded-full bg-purple-600 px-6 py-2 text-sm font-semibold disabled:opacity-40"
               >
-                {busy ? "Seeding…" : `Seed ${csvTracks.length} tracks into catalog`}
+                {busy
+                  ? "Seeding…"
+                  : `Seed ${csvTrackTotal} tracks · ${csvFiles.length} playlist${csvFiles.length === 1 ? "" : "s"}`}
               </button>
             </>
           )}

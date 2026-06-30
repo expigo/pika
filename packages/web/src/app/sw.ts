@@ -29,6 +29,13 @@ const serwist = new Serwist({
       matcher: /\/live.*/i,
       handler: new NetworkOnly(),
     },
+    {
+      // NETWORK ONLY for the admin panel. Admin pages are dynamic + not precached, so the default
+      // network-first navigation handler had no fallback and surfaced transient nav failures as a
+      // workbox "no-response" error (and forced a hard reload that wiped the Seed page's state).
+      matcher: /\/admin(\/.*)?$/i,
+      handler: new NetworkOnly(),
+    },
     ...defaultCache,
   ],
 });
