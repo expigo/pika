@@ -22,7 +22,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { getTrackKey } from "@pika/shared";
 import type { ServerWebSocket } from "bun";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { client, db, schema } from "../db";
 import { handleSubscribeStage } from "../handlers/subscriber";
 import type { WSContext } from "../handlers/ws-context";
@@ -1178,6 +1178,43 @@ suite("DB integration (real Postgres)", () => {
       await db
         .delete(schema.spotifyTrackFeatures)
         .where(eq(schema.spotifyTrackFeatures.spotifyId, SP2));
+    });
+
+    test("seedFromPlaylist dedupes duplicate ids and replaces a playlist's memberships on re-import", async () => {
+      const A = "Dedup Artist";
+      const ids = ["itest_dd1", "itest_dd2", "itest_dd3"];
+      // A DUPLICATE id (would crash a naive multi-row upsert) + a distinct one.
+      await seedFromPlaylist(djId, "Dedup List", [
+        { spotifyId: ids[0] as string, uri: `spotify:track:${ids[0]}`, name: "A", artists: A },
+        { spotifyId: ids[0] as string, uri: `spotify:track:${ids[0]}`, name: "A", artists: A },
+        { spotifyId: ids[1] as string, uri: `spotify:track:${ids[1]}`, name: "B", artists: A },
+      ]);
+      const [pl] = await db
+        .select({ id: schema.curatedPlaylists.id })
+        .from(schema.curatedPlaylists)
+        .where(
+          and(
+            eq(schema.curatedPlaylists.djUserId, djId),
+            eq(schema.curatedPlaylists.name, "Dedup List"),
+          ),
+        );
+      const members1 = await db
+        .select()
+        .from(schema.curatedPlaylistTracks)
+        .where(eq(schema.curatedPlaylistTracks.playlistId, pl?.id ?? 0));
+      expect(members1.length).toBe(2); // the duplicate id collapsed
+
+      // Re-import the SAME playlist with a different track → memberships replaced (not appended).
+      await seedFromPlaylist(djId, "Dedup List", [
+        { spotifyId: ids[2] as string, uri: `spotify:track:${ids[2]}`, name: "C", artists: A },
+      ]);
+      const members2 = await db
+        .select()
+        .from(schema.curatedPlaylistTracks)
+        .where(eq(schema.curatedPlaylistTracks.playlistId, pl?.id ?? 0));
+      expect(members2.map((m) => m.spotifyId)).toEqual([ids[2]]);
+
+      await db.delete(schema.trackLinks).where(inArray(schema.trackLinks.providerId, ids));
     });
 
     test("song list: search finds it with DJ/playlist counts", async () => {

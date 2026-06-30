@@ -79,7 +79,7 @@ const CurateBody = z.object({
       }),
     )
     .min(1)
-    .max(1000),
+    .max(2000), // a whole Exportify playlist in one call (seedFromPlaylist batch-upserts it)
 });
 
 /** Seed the chosen tracks into the catalog, attributed to `djUserId`. */

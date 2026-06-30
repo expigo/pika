@@ -47,6 +47,9 @@ export default function AdminSeedPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   // CSV mode — multiple files, each seeded as its own (editable-name) playlist.
   const [csvFiles, setCsvFiles] = useState<CsvFile[]>([]);
+  const [progress, setProgress] = useState<{ done: number; total: number; current: string } | null>(
+    null,
+  );
   // Shared
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -176,19 +179,15 @@ export default function AdminSeedPage() {
     setBusy(true);
     setError(null);
     setResult(null);
+    setProgress({ done: 0, total: files.length, current: "" });
     try {
       let total = 0;
-      for (const f of files) {
+      // One request per file (the cloud batch-upserts the whole playlist); shows per-file progress.
+      for (const [i, f] of files.entries()) {
         const playlistName = f.playlistName.trim() || defaultPlaylistName(f.name);
-        // Batch under the curate endpoint's 1000-track cap.
-        for (let i = 0; i < f.tracks.length; i += 500) {
-          const { seeded } = await seedCurated({
-            djUserId: djId,
-            playlistName,
-            tracks: f.tracks.slice(i, i + 500),
-          });
-          total += seeded;
-        }
+        setProgress({ done: i, total: files.length, current: playlistName });
+        const { seeded } = await seedCurated({ djUserId: djId, playlistName, tracks: f.tracks });
+        total += seeded;
       }
       setResult(
         `Seeded ${total} tracks across ${files.length} playlist${files.length === 1 ? "" : "s"}.`,
@@ -200,6 +199,7 @@ export default function AdminSeedPage() {
       );
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -411,7 +411,9 @@ export default function AdminSeedPage() {
                 className="rounded-full bg-purple-600 px-6 py-2 text-sm font-semibold disabled:opacity-40"
               >
                 {busy
-                  ? "Seeding…"
+                  ? progress
+                    ? `Seeding ${Math.min(progress.done + 1, progress.total)}/${progress.total}: ${progress.current}…`
+                    : "Seeding…"
                   : `Seed ${csvTrackTotal} tracks · ${csvFiles.length} playlist${csvFiles.length === 1 ? "" : "s"}`}
               </button>
             </>

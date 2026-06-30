@@ -7,7 +7,7 @@
  */
 
 import { getFuzzyKey, getTrackKey, normalizeFuzzy, type SpotifyAudioFeatures } from "@pika/shared";
-import { eq, inArray, ne } from "drizzle-orm";
+import { eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "../../db";
 import {
   curatedPlaylists,
@@ -403,65 +403,124 @@ export async function seedFromPlaylist(
   tracks: SeedTrack[],
   source: "csv" | "profile" = "csv",
 ): Promise<number> {
-  // First-class playlist (idempotent by dj+name); membership replaced so a re-import is authoritative.
-  let playlistId: number | null = null;
-  if (playlistName) {
-    const [pl] = await db
-      .insert(curatedPlaylists)
-      .values({ djUserId, name: playlistName, source })
-      .onConflictDoUpdate({
-        target: [curatedPlaylists.djUserId, curatedPlaylists.name],
-        set: { source, updatedAt: new Date() },
-      })
-      .returning({ id: curatedPlaylists.id });
-    playlistId = pl?.id ?? null;
-    if (playlistId !== null) {
-      await db
-        .delete(curatedPlaylistTracks)
-        .where(eq(curatedPlaylistTracks.playlistId, playlistId));
-    }
-  }
+  // Dedupe by spotify id (a multi-row upsert can't touch the same conflict target twice); latest wins.
+  const byId = new Map<string, SeedTrack>();
+  for (const t of tracks) byId.set(t.spotifyId, t);
+  const uniq = [...byId.values()];
 
-  let count = 0;
-  for (const t of tracks) {
-    const url = `https://open.spotify.com/track/${t.spotifyId}`;
-    await db
+  // One transaction with a handful of MULTI-ROW upserts — vs the old ~4 writes/track (a 600-track
+  // playlist was ~2,400 sequential round-trips). Keeps a big CSV import to a couple of statements.
+  return db.transaction(async (tx) => {
+    let playlistId: number | null = null;
+    if (playlistName) {
+      const [pl] = await tx
+        .insert(curatedPlaylists)
+        .values({ djUserId, name: playlistName, source })
+        .onConflictDoUpdate({
+          target: [curatedPlaylists.djUserId, curatedPlaylists.name],
+          set: { source, updatedAt: new Date() },
+        })
+        .returning({ id: curatedPlaylists.id });
+      playlistId = pl?.id ?? null;
+      // Membership replaced so a re-import is authoritative (done ONCE, not per chunk).
+      if (playlistId !== null) {
+        await tx
+          .delete(curatedPlaylistTracks)
+          .where(eq(curatedPlaylistTracks.playlistId, playlistId));
+      }
+    }
+    if (uniq.length === 0) return 0;
+
+    // 1. curated_tracks (repertoire edge).
+    await tx
       .insert(curatedTracks)
-      .values({
-        djUserId,
-        spotifyId: t.spotifyId,
-        name: t.name,
-        artists: t.artists,
-        durationMs: t.durationMs ?? null,
-        albumArtUrl: t.albumArtUrl ?? null,
-        playlistName,
-      })
+      .values(
+        uniq.map((t) => ({
+          djUserId,
+          spotifyId: t.spotifyId,
+          name: t.name,
+          artists: t.artists,
+          durationMs: t.durationMs ?? null,
+          albumArtUrl: t.albumArtUrl ?? null,
+          playlistName,
+        })),
+      )
       .onConflictDoUpdate({
         target: [curatedTracks.djUserId, curatedTracks.spotifyId],
-        set: { name: t.name, artists: t.artists, playlistName },
+        set: {
+          name: sql`excluded.name`,
+          artists: sql`excluded.artists`,
+          playlistName: sql`excluded.playlist_name`,
+        },
       });
+
+    // 2. playlist membership.
     if (playlistId !== null) {
-      await db
+      await tx
         .insert(curatedPlaylistTracks)
-        .values({ playlistId, spotifyId: t.spotifyId })
+        .values(uniq.map((t) => ({ playlistId: playlistId as number, spotifyId: t.spotifyId })))
         .onConflictDoNothing();
     }
-    await cacheAuthoritativeMatch(
-      getTrackKey(t.artists, t.name),
-      getFuzzyKey(t.artists, t.name),
-      t.spotifyId,
-      url,
-      "playlist",
-    );
-    if (t.features) await upsertSpotifyFeatures(t.spotifyId, t.features);
-    count++;
-  }
-  return count;
+
+    // 3. track_links (identity spine, authoritative `playlist`). Dedupe by match_key.
+    const linkByKey = new Map<string, { matchKey: string; songKey: string; spotifyId: string }>();
+    for (const t of uniq) {
+      const matchKey = getTrackKey(t.artists, t.name);
+      linkByKey.set(matchKey, {
+        matchKey,
+        songKey: getFuzzyKey(t.artists, t.name),
+        spotifyId: t.spotifyId,
+      });
+    }
+    await tx
+      .insert(trackLinks)
+      .values(
+        [...linkByKey.values()].map((l) => ({
+          matchKey: l.matchKey,
+          songKey: l.songKey,
+          provider: "spotify",
+          providerId: l.spotifyId,
+          providerUrl: `https://open.spotify.com/track/${l.spotifyId}`,
+          status: "manual",
+          confidence: null,
+          source: "playlist",
+        })),
+      )
+      .onConflictDoUpdate({
+        target: trackLinks.matchKey,
+        set: {
+          songKey: sql`excluded.song_key`,
+          providerId: sql`excluded.provider_id`,
+          providerUrl: sql`excluded.provider_url`,
+          status: "manual",
+          confidence: null,
+          source: "playlist",
+          updatedAt: new Date(),
+        },
+      });
+
+    // 4. canonical Spotify features (CSV import) for the tracks that carry them.
+    const featRows = uniq
+      .filter((t) => t.features)
+      .map((t) => spotifyFeatureRow(t.spotifyId, t.features!));
+    if (featRows.length > 0) {
+      await tx
+        .insert(spotifyTrackFeatures)
+        .values(featRows)
+        .onConflictDoUpdate({
+          target: spotifyTrackFeatures.spotifyId,
+          set: SPOTIFY_FEATURE_EXCLUDED,
+        });
+    }
+
+    return uniq.length;
+  });
 }
 
-/** Upsert the canonical per-URI Spotify audio features (CSV import). Latest write wins. */
-async function upsertSpotifyFeatures(spotifyId: string, f: SpotifyAudioFeatures): Promise<void> {
-  const row = {
+/** Map shared features → the per-URI features row (null-filled). */
+function spotifyFeatureRow(spotifyId: string, f: SpotifyAudioFeatures) {
+  return {
+    spotifyId,
     tempo: f.tempo ?? null,
     keyPitch: f.keyPitch ?? null,
     mode: f.mode ?? null,
@@ -479,14 +538,28 @@ async function upsertSpotifyFeatures(spotifyId: string, f: SpotifyAudioFeatures)
     genres: f.genres ?? null,
     recordLabel: f.recordLabel ?? null,
   };
-  await db
-    .insert(spotifyTrackFeatures)
-    .values({ spotifyId, ...row })
-    .onConflictDoUpdate({
-      target: spotifyTrackFeatures.spotifyId,
-      set: { ...row, updatedAt: new Date() },
-    });
 }
+
+/** The `excluded.*` SET clause for the bulk per-URI features upsert (latest write wins). */
+const SPOTIFY_FEATURE_EXCLUDED = {
+  tempo: sql`excluded.tempo`,
+  keyPitch: sql`excluded.key_pitch`,
+  mode: sql`excluded.mode`,
+  energy: sql`excluded.energy`,
+  danceability: sql`excluded.danceability`,
+  valence: sql`excluded.valence`,
+  acousticness: sql`excluded.acousticness`,
+  instrumentalness: sql`excluded.instrumentalness`,
+  liveness: sql`excluded.liveness`,
+  speechiness: sql`excluded.speechiness`,
+  loudness: sql`excluded.loudness`,
+  timeSignature: sql`excluded.time_signature`,
+  popularity: sql`excluded.popularity`,
+  releaseDate: sql`excluded.release_date`,
+  genres: sql`excluded.genres`,
+  recordLabel: sql`excluded.record_label`,
+  updatedAt: new Date(),
+};
 
 /**
  * Look up canonical Spotify audio features for a set of track ids (the desktop reads these by
