@@ -110,6 +110,10 @@ describe("trackRepository", () => {
         tags: ["peak", "opener"],
         notes: "Great crowd reaction",
         spotifyId: "abc123",
+        spotifyUrl: "https://open.spotify.com/track/abc123",
+        spotifyAlbumArtUrl: "https://i.scdn.co/image/abc123",
+        spotifyMatchConfidence: 0.92,
+        spotifyMatchSource: "dj_confirmed",
       };
 
       expect(track.energy).toBe(75);
@@ -139,6 +143,10 @@ describe("trackRepository", () => {
         tags: [],
         notes: null,
         spotifyId: null,
+        spotifyUrl: null,
+        spotifyAlbumArtUrl: null,
+        spotifyMatchConfidence: null,
+        spotifyMatchSource: null,
       };
 
       expect(track.analyzed).toBe(false);
@@ -470,6 +478,48 @@ describe("trackRepository", () => {
       const track = await trackRepository.findByTrackKey("nonexistent:track");
 
       expect(track).toBeNull();
+    });
+
+    it("maps the remembered Spotify identity columns (for the live broadcast)", async () => {
+      mockSelect.mockResolvedValueOnce([
+        {
+          id: 7,
+          filePath: "/music/matched.mp3",
+          artist: "A",
+          title: "T",
+          trackKey: "a:t",
+          tags: "[]",
+          bpm: 120,
+          energy: null,
+          key: null,
+          danceability: null,
+          brightness: null,
+          acousticness: null,
+          groove: null,
+          duration: null,
+          analyzed: true,
+          analysisVersion: 1,
+          notes: null,
+          spotifyId: "sp7",
+          spotifyUrl: "https://open.spotify.com/track/sp7",
+          spotifyAlbumArtUrl: "https://i.scdn.co/image/sp7",
+          spotifyMatchConfidence: 0.91,
+          spotifyMatchSource: "dj_confirmed",
+        },
+      ]);
+
+      const track = await trackRepository.findByTrackKey("a:t");
+
+      // The live path reads these off the track row to enrich the broadcast — must survive remapping.
+      expect(track?.spotifyUrl).toBe("https://open.spotify.com/track/sp7");
+      expect(track?.spotifyAlbumArtUrl).toBe("https://i.scdn.co/image/sp7");
+      expect(track?.spotifyMatchConfidence).toBe(0.91);
+      expect(track?.spotifyMatchSource).toBe("dj_confirmed");
+      // The SELECT must actually request the columns.
+      expect(mockSelect).toHaveBeenCalledWith(
+        expect.stringContaining("spotify_album_art_url as spotifyAlbumArtUrl"),
+        ["a:t"],
+      );
     });
   });
 

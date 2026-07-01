@@ -500,6 +500,11 @@ export const spotifyTrackFeatures = pgTable("spotify_track_features", {
   releaseDate: text("release_date"),
   genres: text("genres"),
   recordLabel: text("record_label"),
+  isrc: text("isrc"), // recording id (Chosic CSV) — Apple cross-match key; Exportify lacks it
+  camelot: text("camelot"), // harmonic-mixing wheel notation e.g. "9B" (Chosic CSV)
+  // Provenance of the numeric feature block, driving accretive-merge precision precedence
+  // (exportify 0-1 floats > chosic rounded 0-100 ints > other). Never let a rounded value clobber a float.
+  featuresSource: text("features_source"), // 'exportify' | 'chosic' | 'csv'
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

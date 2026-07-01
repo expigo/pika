@@ -8,6 +8,7 @@
 
 import { getFuzzyKey, getTrackKey, normalizeFuzzy, type SpotifyAudioFeatures } from "@pika/shared";
 import { eq, inArray, ne, sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import { db } from "../../db";
 import {
   curatedPlaylists,
@@ -402,6 +403,7 @@ export async function seedFromPlaylist(
   playlistName: string,
   tracks: SeedTrack[],
   source: "csv" | "profile" = "csv",
+  featuresSource = "csv",
 ): Promise<number> {
   // Dedupe by spotify id (a multi-row upsert can't touch the same conflict target twice); latest wins.
   const byId = new Map<string, SeedTrack>();
@@ -502,23 +504,20 @@ export async function seedFromPlaylist(
     // 4. canonical Spotify features (CSV import) for the tracks that carry them.
     const featRows = uniq
       .filter((t) => t.features)
-      .map((t) => spotifyFeatureRow(t.spotifyId, t.features!));
+      .map((t) => spotifyFeatureRow(t.spotifyId, t.features!, featuresSource));
     if (featRows.length > 0) {
-      await tx
-        .insert(spotifyTrackFeatures)
-        .values(featRows)
-        .onConflictDoUpdate({
-          target: spotifyTrackFeatures.spotifyId,
-          set: SPOTIFY_FEATURE_EXCLUDED,
-        });
+      await tx.insert(spotifyTrackFeatures).values(featRows).onConflictDoUpdate({
+        target: spotifyTrackFeatures.spotifyId,
+        set: SPOTIFY_FEATURE_EXCLUDED,
+      });
     }
 
     return uniq.length;
   });
 }
 
-/** Map shared features → the per-URI features row (null-filled). */
-function spotifyFeatureRow(spotifyId: string, f: SpotifyAudioFeatures) {
+/** Map shared features → the per-URI features row (null-filled). `featuresSource` drives merge precedence. */
+function spotifyFeatureRow(spotifyId: string, f: SpotifyAudioFeatures, featuresSource: string) {
   return {
     spotifyId,
     tempo: f.tempo ?? null,
@@ -537,27 +536,58 @@ function spotifyFeatureRow(spotifyId: string, f: SpotifyAudioFeatures) {
     releaseDate: f.releaseDate ?? null,
     genres: f.genres ?? null,
     recordLabel: f.recordLabel ?? null,
+    isrc: f.isrc ?? null,
+    camelot: f.camelot ?? null,
+    featuresSource,
   };
 }
 
-/** The `excluded.*` SET clause for the bulk per-URI features upsert (latest write wins). */
+// Precision rank of a features source: exportify (0-1 floats) > chosic (rounded 0-100 ints) > other.
+const RANK_EXC = sql.raw(
+  "(case excluded.features_source when 'exportify' then 2 when 'chosic' then 1 else 0 end)",
+);
+const RANK_CUR = sql.raw(
+  "(case spotify_track_features.features_source when 'exportify' then 2 when 'chosic' then 1 else 0 end)",
+);
+
+/**
+ * Numeric-block merge: prefer the incoming value when its source ranks ≥ the stored one (a rounded
+ * Chosic value never clobbers an Exportify float), but `coalesce` both ways so a null never wipes an
+ * existing value. `col` is the raw DB column name (e.g. "key_pitch"), `cur` the Drizzle column.
+ */
+function precMerge(col: string, cur: AnyPgColumn) {
+  const exc = sql.raw(`excluded.${col}`);
+  return sql`case when ${RANK_EXC} >= ${RANK_CUR} then coalesce(${exc}, ${cur}) else coalesce(${cur}, ${exc}) end`;
+}
+
+/**
+ * The ON CONFLICT SET clause for the per-URI features upsert — ACCRETIVE (best-of-both across
+ * Exportify + Chosic, any upload order): numeric block is precision-guarded (`precMerge`); the
+ * identity/extras are fill-if-missing (never overwrite an existing value); `features_source` tracks
+ * the winning numeric block.
+ */
 const SPOTIFY_FEATURE_EXCLUDED = {
-  tempo: sql`excluded.tempo`,
-  keyPitch: sql`excluded.key_pitch`,
-  mode: sql`excluded.mode`,
-  energy: sql`excluded.energy`,
-  danceability: sql`excluded.danceability`,
-  valence: sql`excluded.valence`,
-  acousticness: sql`excluded.acousticness`,
-  instrumentalness: sql`excluded.instrumentalness`,
-  liveness: sql`excluded.liveness`,
-  speechiness: sql`excluded.speechiness`,
-  loudness: sql`excluded.loudness`,
-  timeSignature: sql`excluded.time_signature`,
-  popularity: sql`excluded.popularity`,
-  releaseDate: sql`excluded.release_date`,
-  genres: sql`excluded.genres`,
-  recordLabel: sql`excluded.record_label`,
+  tempo: precMerge("tempo", spotifyTrackFeatures.tempo),
+  keyPitch: precMerge("key_pitch", spotifyTrackFeatures.keyPitch),
+  mode: precMerge("mode", spotifyTrackFeatures.mode),
+  energy: precMerge("energy", spotifyTrackFeatures.energy),
+  danceability: precMerge("danceability", spotifyTrackFeatures.danceability),
+  valence: precMerge("valence", spotifyTrackFeatures.valence),
+  acousticness: precMerge("acousticness", spotifyTrackFeatures.acousticness),
+  instrumentalness: precMerge("instrumentalness", spotifyTrackFeatures.instrumentalness),
+  liveness: precMerge("liveness", spotifyTrackFeatures.liveness),
+  speechiness: precMerge("speechiness", spotifyTrackFeatures.speechiness),
+  loudness: precMerge("loudness", spotifyTrackFeatures.loudness),
+  timeSignature: precMerge("time_signature", spotifyTrackFeatures.timeSignature),
+  // Extras: fill-if-missing (keep existing, fill only when null) — isrc/camelot are Chosic-only,
+  // recordLabel is Exportify-only, so each source enriches the other without clobbering.
+  popularity: sql`coalesce(${spotifyTrackFeatures.popularity}, excluded.popularity)`,
+  releaseDate: sql`coalesce(${spotifyTrackFeatures.releaseDate}, excluded.release_date)`,
+  genres: sql`coalesce(${spotifyTrackFeatures.genres}, excluded.genres)`,
+  recordLabel: sql`coalesce(${spotifyTrackFeatures.recordLabel}, excluded.record_label)`,
+  isrc: sql`coalesce(${spotifyTrackFeatures.isrc}, excluded.isrc)`,
+  camelot: sql`coalesce(${spotifyTrackFeatures.camelot}, excluded.camelot)`,
+  featuresSource: sql`case when ${RANK_EXC} >= ${RANK_CUR} then excluded.features_source else ${spotifyTrackFeatures.featuresSource} end`,
   updatedAt: new Date(),
 };
 
@@ -594,6 +624,8 @@ export async function getSpotifyFeatures(
     if (r.releaseDate != null) f.releaseDate = r.releaseDate;
     if (r.genres != null) f.genres = r.genres;
     if (r.recordLabel != null) f.recordLabel = r.recordLabel;
+    if (r.isrc != null) f.isrc = r.isrc;
+    if (r.camelot != null) f.camelot = r.camelot;
     out[r.spotifyId] = f;
   }
   return out;

@@ -65,6 +65,8 @@ seed.get("/playlist/:id/tracks", async (c) => {
 const CurateBody = z.object({
   djUserId: z.string().min(1),
   playlistName: z.string().max(200).optional(),
+  // Which CSV tool produced `features` — drives accretive-merge precision precedence cloud-side.
+  featuresSource: z.enum(["exportify", "chosic", "csv"]).optional(),
   tracks: z
     .array(
       z.object({
@@ -91,6 +93,8 @@ seed.post("/curate", async (c) => {
       parsed.data.djUserId,
       parsed.data.playlistName ?? "",
       parsed.data.tracks,
+      "csv",
+      parsed.data.featuresSource ?? "csv",
     );
     return c.json({ success: true, seeded });
   } catch (e) {

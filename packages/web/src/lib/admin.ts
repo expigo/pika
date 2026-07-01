@@ -135,6 +135,7 @@ export function getSeedPlaylistTracks(playlistId: string): Promise<{ tracks: See
 export function seedCurated(body: {
   djUserId: string;
   playlistName?: string;
+  featuresSource?: "exportify" | "chosic" | "csv";
   tracks: SeedTrack[];
 }): Promise<{ success: boolean; seeded: number }> {
   return req("/api/admin/seed/curate", {

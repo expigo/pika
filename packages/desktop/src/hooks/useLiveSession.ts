@@ -361,6 +361,11 @@ interface DbTrackInfo {
   brightness: number | null;
   acousticness: number | null;
   groove: number | null;
+  // Remembered Spotify identity (B3) — surfaced to dancers on the live broadcast when confident.
+  spotifyUrl: string | null;
+  spotifyAlbumArtUrl: string | null;
+  spotifyMatchConfidence: number | null;
+  spotifyMatchSource: string | null; // 'auto' | 'dj_confirmed'
 }
 
 /**
@@ -438,6 +443,10 @@ async function findOrCreateTrack(
       brightness: existing.brightness,
       acousticness: existing.acousticness,
       groove: existing.groove,
+      spotifyUrl: existing.spotifyUrl,
+      spotifyAlbumArtUrl: existing.spotifyAlbumArtUrl,
+      spotifyMatchConfidence: existing.spotifyMatchConfidence,
+      spotifyMatchSource: existing.spotifyMatchSource,
     };
   }
 
@@ -489,6 +498,11 @@ async function findOrCreateTrack(
     brightness: null,
     acousticness: null,
     groove: null,
+    // A brand-new track has never been matched to Spotify.
+    spotifyUrl: null,
+    spotifyAlbumArtUrl: null,
+    spotifyMatchConfidence: null,
+    spotifyMatchSource: null,
   };
 }
 
@@ -677,6 +691,11 @@ export function useLiveSession() {
             brightness: result.trackInfo.brightness ?? undefined,
             acousticness: result.trackInfo.acousticness ?? undefined,
             groove: result.trackInfo.groove ?? undefined,
+            // Remembered Spotify identity → gated into the broadcast by toTrackInfo.
+            spotifyUrl: result.trackInfo.spotifyUrl ?? undefined,
+            spotifyAlbumArtUrl: result.trackInfo.spotifyAlbumArtUrl ?? undefined,
+            spotifyMatchConfidence: result.trackInfo.spotifyMatchConfidence ?? undefined,
+            spotifyMatchSource: result.trackInfo.spotifyMatchSource ?? undefined,
           };
 
           // Queue for progressive analysis if track lacks BPM

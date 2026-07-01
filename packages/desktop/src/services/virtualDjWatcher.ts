@@ -36,6 +36,24 @@ export interface NowPlayingTrack extends TrackInfo {
   filePath: string;
   timestamp: Date;
   rawTimestamp?: number;
+  // Remembered Spotify identity for the played local file (from the library match cache); surfaced
+  // to dancers on the broadcast only when the match is confident (see `toTrackInfo`). Absent for
+  // unmatched tracks and for the raw watcher/panic paths.
+  spotifyUrl?: string;
+  spotifyAlbumArtUrl?: string;
+  spotifyMatchConfidence?: number;
+  spotifyMatchSource?: string; // 'auto' | 'dj_confirmed'
+}
+
+// Only surface a Spotify identity to dancers when we're confident it's the right recording: a
+// DJ-confirmed match, or an auto-match in the "high" tier (mirrors the cloud `confidenceTier` ≥ 0.8).
+// Never show a low-confidence guess live.
+const LIVE_MATCH_MIN_CONFIDENCE = 0.8;
+function spotifyIdentityIsTrusted(track: NowPlayingTrack): boolean {
+  return (
+    track.spotifyMatchSource === "dj_confirmed" ||
+    (track.spotifyMatchConfidence ?? 0) >= LIVE_MATCH_MIN_CONFIDENCE
+  );
 }
 
 /**
@@ -56,6 +74,7 @@ function normalizeMetric(value: unknown, min: number, max: number): number | und
  * payload (see TrackInfoSchema in @pika/shared).
  */
 export function toTrackInfo(track: NowPlayingTrack): TrackInfo {
+  const trusted = spotifyIdentityIsTrusted(track);
   return {
     artist: track.artist,
     title: track.title,
@@ -68,6 +87,10 @@ export function toTrackInfo(track: NowPlayingTrack): TrackInfo {
     brightness: normalizeMetric(track.brightness, 0, 100),
     acousticness: normalizeMetric(track.acousticness, 0, 100),
     groove: normalizeMetric(track.groove, 0, 100),
+    // Spotify identity → dancers see album art + "Listen on Spotify" live, but only for a trusted
+    // match (never a low-confidence guess). Unmatched/untrusted → omitted (dancer sees text-only).
+    albumArtUrl: trusted ? track.spotifyAlbumArtUrl : undefined,
+    spotifyUrl: trusted ? track.spotifyUrl : undefined,
   };
 }
 
@@ -247,7 +270,7 @@ class VirtualDJWatcher {
     // but we usually need to enrich it with BPM/Key from database lookup.
 
     // Fast path: Construct basic track
-    let track: NowPlayingTrack = {
+    const track: NowPlayingTrack = {
       artist: historyTrack.artist,
       title: historyTrack.title,
       filePath: historyTrack.file_path,

@@ -162,6 +162,8 @@ export const SpotifyAudioFeaturesSchema = z.object({
   releaseDate: z.string().max(40).optional(),
   genres: z.string().max(500).optional(),
   recordLabel: z.string().max(300).optional(),
+  isrc: z.string().max(40).optional(), // recording id (Chosic CSV / Spotify track endpoint) — Apple cross-match key
+  camelot: z.string().max(6).optional(), // harmonic-mixing wheel notation e.g. "9B" (Chosic CSV)
 });
 
 export type SpotifyAudioFeatures = z.infer<typeof SpotifyAudioFeaturesSchema>;

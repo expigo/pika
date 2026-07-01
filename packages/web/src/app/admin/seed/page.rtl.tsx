@@ -83,7 +83,7 @@ describe("AdminSeedPage", () => {
       "Other_Set.csv",
       { type: "text/csv" },
     );
-    await userEvent.upload(screen.getByLabelText("Exportify CSVs"), [f1, f2]);
+    await userEvent.upload(screen.getByLabelText("Playlist CSVs"), [f1, f2]);
 
     // Playlist names default from the filename (de-munged); the first is edited.
     const name1 = (await screen.findByLabelText("Playlist name for myset.csv")) as HTMLInputElement;
@@ -102,6 +102,7 @@ describe("AdminSeedPage", () => {
       expect.objectContaining({
         djUserId: "dj1",
         playlistName: "My Set",
+        featuresSource: "exportify",
         tracks: [
           expect.objectContaining({
             spotifyId: "z1",
@@ -114,5 +115,46 @@ describe("AdminSeedPage", () => {
       expect.objectContaining({ djUserId: "dj1", playlistName: "Other Set" }),
     );
     expect(await screen.findByText(/seeded 2 tracks across 2 playlists/i)).toBeInTheDocument();
+  });
+
+  it("auto-detects a Chosic CSV and seeds it with rescaled features + ISRC/Camelot", async () => {
+    render(<AdminSeedPage />);
+
+    await userEvent.click(screen.getByRole("tab", { name: /import csv/i }));
+    await userEvent.selectOptions(await screen.findByLabelText("DJ"), "dj1");
+
+    // Chosic header (detected by "Spotify Track Id" / "Camelot"); 0-100 features, mm:ss duration.
+    const chosic = new File(
+      [
+        "Song,Artist,BPM,Camelot,Energy,Duration,Spotify Track Id,ISRC,Key,Time Signature\n" +
+          "My Song,My Artist,90,9B,25,02:28,c1,CAN1,G Major,4\n",
+      ],
+      "Baltic_Swing.csv",
+      { type: "text/csv" },
+    );
+    await userEvent.upload(screen.getByLabelText("Playlist CSVs"), [chosic]);
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /seed 1 tracks · 1 playlist/i }),
+    );
+
+    expect(admin.seedCurated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        djUserId: "dj1",
+        playlistName: "Baltic Swing",
+        featuresSource: "chosic",
+        tracks: [
+          expect.objectContaining({
+            spotifyId: "c1",
+            features: expect.objectContaining({
+              tempo: 90,
+              energy: 0.25, // rescaled from 25
+              isrc: "CAN1",
+              camelot: "9B",
+            }),
+          }),
+        ],
+      }),
+    );
   });
 });

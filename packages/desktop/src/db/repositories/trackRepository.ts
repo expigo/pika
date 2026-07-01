@@ -61,6 +61,10 @@ export interface Track {
 
   // Remembered Spotify match (B3) — null until matched via the Build Playlist tool.
   spotifyId: string | null;
+  spotifyUrl: string | null;
+  spotifyAlbumArtUrl: string | null;
+  spotifyMatchConfidence: number | null;
+  spotifyMatchSource: string | null; // 'auto' | 'dj_confirmed'
 }
 
 /**
@@ -90,7 +94,11 @@ const TRACK_SELECT_SQL = `
 		track_key as trackKey,
 		tags,
 		notes,
-		spotify_id as spotifyId
+		spotify_id as spotifyId,
+		spotify_url as spotifyUrl,
+		spotify_album_art_url as spotifyAlbumArtUrl,
+		spotify_match_confidence as spotifyMatchConfidence,
+		spotify_match_source as spotifyMatchSource
 	FROM tracks
 `;
 

@@ -1180,6 +1180,106 @@ suite("DB integration (real Postgres)", () => {
         .where(eq(schema.spotifyTrackFeatures.spotifyId, SP2));
     });
 
+    test("dual-CSV accretive merge: Exportify precision + Chosic ISRC/Camelot, any order", async () => {
+      const readFeat = (id: string) =>
+        db
+          .select()
+          .from(schema.spotifyTrackFeatures)
+          .where(eq(schema.spotifyTrackFeatures.spotifyId, id));
+
+      // Chosic carries ISRC/Camelot but rounded values (energy 0.25); Exportify carries precision
+      // (0.248) + recordLabel but no ISRC/Camelot. The merge must keep the best of both, either order.
+      const chosicFeat = { tempo: 90, energy: 0.25, camelot: "9B", isrc: "CAN112402678" } as const;
+      const exportifyFeat = { tempo: 90.012, energy: 0.248, recordLabel: "Nettwerk" } as const;
+
+      const assertMerged = async (id: string, order: string) => {
+        const [row] = await readFeat(id);
+        expect(row, order).toBeDefined();
+        expect(row?.energy, `${order} energy = Exportify precision`).toBeCloseTo(0.248, 5);
+        expect(row?.tempo, `${order} tempo = Exportify precision`).toBeCloseTo(90.012, 3);
+        expect(row?.isrc, `${order} isrc from Chosic`).toBe("CAN112402678");
+        expect(row?.camelot, `${order} camelot from Chosic`).toBe("9B");
+        expect(row?.recordLabel, `${order} recordLabel from Exportify (not nulled by Chosic)`).toBe(
+          "Nettwerk",
+        );
+        expect(row?.featuresSource, `${order} winning numeric source`).toBe("exportify");
+      };
+
+      // Order A: Chosic then Exportify.
+      const SPA = "itest_merge_a";
+      await seedFromPlaylist(
+        djId,
+        "Merge A",
+        [
+          {
+            spotifyId: SPA,
+            uri: `spotify:track:${SPA}`,
+            name: "MA",
+            artists: "Merge A Art",
+            features: chosicFeat,
+          },
+        ],
+        "csv",
+        "chosic",
+      );
+      await seedFromPlaylist(
+        djId,
+        "Merge A",
+        [
+          {
+            spotifyId: SPA,
+            uri: `spotify:track:${SPA}`,
+            name: "MA",
+            artists: "Merge A Art",
+            features: exportifyFeat,
+          },
+        ],
+        "csv",
+        "exportify",
+      );
+      await assertMerged(SPA, "chosic→exportify");
+
+      // Order B: Exportify then Chosic — a rounded Chosic value must NOT clobber the Exportify float.
+      const SPB = "itest_merge_b";
+      await seedFromPlaylist(
+        djId,
+        "Merge B",
+        [
+          {
+            spotifyId: SPB,
+            uri: `spotify:track:${SPB}`,
+            name: "MB",
+            artists: "Merge B Art",
+            features: exportifyFeat,
+          },
+        ],
+        "csv",
+        "exportify",
+      );
+      await seedFromPlaylist(
+        djId,
+        "Merge B",
+        [
+          {
+            spotifyId: SPB,
+            uri: `spotify:track:${SPB}`,
+            name: "MB",
+            artists: "Merge B Art",
+            features: chosicFeat,
+          },
+        ],
+        "csv",
+        "chosic",
+      );
+      await assertMerged(SPB, "exportify→chosic");
+
+      const ids = [SPA, SPB];
+      await db.delete(schema.trackLinks).where(inArray(schema.trackLinks.providerId, ids));
+      await db
+        .delete(schema.spotifyTrackFeatures)
+        .where(inArray(schema.spotifyTrackFeatures.spotifyId, ids));
+    });
+
     test("seedFromPlaylist dedupes duplicate ids and replaces a playlist's memberships on re-import", async () => {
       const A = "Dedup Artist";
       const ids = ["itest_dd1", "itest_dd2", "itest_dd3"];

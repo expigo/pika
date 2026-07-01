@@ -96,7 +96,7 @@ const STR_FEATURES: Array<[keyof SpotifyAudioFeatures, string, number]> = [
   ["recordLabel", "Record Label", 300],
 ];
 
-function toNumber(v: string | undefined, kind: "float" | "int"): number | undefined {
+export function toNumber(v: string | undefined, kind: "float" | "int"): number | undefined {
   const t = v?.trim();
   if (!t) return undefined;
   const n = Number(t);
@@ -104,7 +104,7 @@ function toNumber(v: string | undefined, kind: "float" | "int"): number | undefi
   return kind === "int" ? Math.trunc(n) : n;
 }
 
-function toStr(v: string | undefined, maxLen?: number): string | undefined {
+export function toStr(v: string | undefined, maxLen?: number): string | undefined {
   const t = v?.trim();
   if (!t) return undefined;
   return maxLen && t.length > maxLen ? t.slice(0, maxLen) : t;

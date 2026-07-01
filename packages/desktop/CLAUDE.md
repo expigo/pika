@@ -467,11 +467,19 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 417 passing tests (Vitest, +1 skipped) — logic/unit + `*.rtl.tsx` component tests.
+**Current coverage:** 422 passing tests (Vitest, +1 skipped) — logic/unit + `*.rtl.tsx` component tests.
 Plus the Python sidecar: 8 `pytest` tests (`bun run test:python`; `python-src/tests/`,
 deps in `requirements-dev.txt`). Coverage: `bun run test:coverage` (vitest v8). The desktop also mirrors
 the cloud's canonical Spotify features locally (`spotify_track_features` table + `spotifyFeaturesService`)
 to show them beside the Pika sidecar radar — see `SpotifyFeaturePanel` + `docs/architecture/music-data-model.md`.
+
+**Live Spotify identity (the dancer wedge):** when a *matched* local track is played live, its remembered
+Spotify identity is broadcast to dancers as album art + "Listen on Spotify". `TRACK_SELECT_SQL`
+(`trackRepository.ts`) selects `spotify_url`/`spotify_album_art_url`/confidence/source; `useLiveSession`
+threads them onto the played track; `toTrackInfo` (`virtualDjWatcher.ts`) maps them to the broadcast's
+`albumArtUrl`/`spotifyUrl` **only for a trusted match** (`dj_confirmed` or confidence ≥ 0.8 — never a
+low-confidence guess). Unmatched/untrusted → text-only. The panic/forceSync path broadcasts without
+identity (no DB round-trip). Gate tests: `virtualDjWatcher.test.ts` (`toTrackInfo`).
 
 ### Test Files
 

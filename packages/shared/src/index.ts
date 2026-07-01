@@ -5,8 +5,9 @@
 
 export const PIKA_VERSION = "0.5.0";
 
-export { LIMITS, TIMEOUTS, URLS } from "./config";
 // Exportify CSV parser (B3 catalog seed) — shared by the web importer + cloud seed tooling
+export { parseChosicCsv } from "./chosicCsv";
+export { LIMITS, TIMEOUTS, URLS } from "./config";
 export {
   type ExportifyParseResult,
   type ExportifySeedTrack,

@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isTrackFresh, type NowPlayingTrack, toTrackInfo, virtualDjWatcher } from "./virtualDjWatcher";
+import {
+  isTrackFresh,
+  type NowPlayingTrack,
+  toTrackInfo,
+  virtualDjWatcher,
+} from "./virtualDjWatcher";
 
 // Mock Tauri APIs
 const mockInvoke = vi.fn();
@@ -201,6 +206,38 @@ describe("toTrackInfo — outgoing payload normalization", () => {
 
   it("parses numeric-string bpm", () => {
     expect(toTrackInfo(base({ bpm: "128" as unknown as number })).bpm).toBe(128);
+  });
+
+  // Spotify identity is surfaced to dancers ONLY for a trusted match (never a low-confidence guess).
+  const ID = {
+    spotifyUrl: "https://open.spotify.com/track/x",
+    spotifyAlbumArtUrl: "https://i.scdn.co/image/x",
+  };
+
+  it("includes Spotify identity for a dj_confirmed match", () => {
+    const r = toTrackInfo(base({ ...ID, spotifyMatchSource: "dj_confirmed" }));
+    expect(r.spotifyUrl).toBe(ID.spotifyUrl);
+    expect(r.albumArtUrl).toBe(ID.spotifyAlbumArtUrl);
+  });
+
+  it("includes Spotify identity for a high-confidence auto match (>= 0.8)", () => {
+    const r = toTrackInfo(
+      base({ ...ID, spotifyMatchSource: "auto", spotifyMatchConfidence: 0.85 }),
+    );
+    expect(r.spotifyUrl).toBe(ID.spotifyUrl);
+    expect(r.albumArtUrl).toBe(ID.spotifyAlbumArtUrl);
+  });
+
+  it("omits Spotify identity for a low-confidence auto match (< 0.8)", () => {
+    const r = toTrackInfo(base({ ...ID, spotifyMatchSource: "auto", spotifyMatchConfidence: 0.6 }));
+    expect(r.spotifyUrl).toBeUndefined();
+    expect(r.albumArtUrl).toBeUndefined();
+  });
+
+  it("omits Spotify identity for an unmatched track (no match fields)", () => {
+    const r = toTrackInfo(base({ bpm: 96 }));
+    expect(r.spotifyUrl).toBeUndefined();
+    expect(r.albumArtUrl).toBeUndefined();
   });
 });
 

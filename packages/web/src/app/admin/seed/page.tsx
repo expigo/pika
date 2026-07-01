@@ -6,11 +6,12 @@
  *  - From profile: paste a Spotify profile link, preview their PUBLIC playlists, curate (read via
  *    the service account — DORMANT while Spotify blocks new apps from reading playlists, kept ready
  *    for a grandfathered account).
- *  - Import CSV: upload an Exportify export, which also carries Spotify's canonical audio features.
+ *  - Import CSV: upload an Exportify or Chosic export (auto-detected), which also carries Spotify's
+ *    canonical audio features. Both formats of the same track are merged accretively cloud-side.
  * Curated tracks are a DJ's *repertoire*, kept separate from what they played live.
  */
 
-import { parseExportifyCsv } from "@pika/shared";
+import { parseChosicCsv, parseExportifyCsv } from "@pika/shared";
 import { useEffect, useState } from "react";
 import {
   AdminApiError,
@@ -24,7 +25,14 @@ import {
 } from "@/lib/admin";
 
 type Mode = "profile" | "csv";
-type CsvFile = { name: string; playlistName: string; tracks: SeedTrack[]; skippedLocal: number };
+type CsvFormat = "exportify" | "chosic";
+type CsvFile = {
+  name: string;
+  playlistName: string;
+  tracks: SeedTrack[];
+  skippedLocal: number;
+  featuresSource: CsvFormat;
+};
 
 const DJ_KEY = "pika_admin_seed_dj";
 /** Exportify names the file after the playlist (spaces→underscores) — de-munge as the default name. */
@@ -33,6 +41,13 @@ function defaultPlaylistName(fileName: string): string {
     .replace(/\.csv$/i, "")
     .replace(/_/g, " ")
     .trim();
+}
+/** Sniff the CSV tool by its header so either export imports without a manual toggle. */
+function detectCsvFormat(text: string): CsvFormat | null {
+  const header = (text.split(/\r?\n/, 1)[0] ?? "").toLowerCase();
+  if (header.includes("track uri")) return "exportify";
+  if (header.includes("spotify track id") || header.includes("camelot")) return "chosic";
+  return null;
 }
 
 export default function AdminSeedPage() {
@@ -152,19 +167,24 @@ export default function AdminSeedPage() {
     try {
       const parsed: CsvFile[] = [];
       for (const file of Array.from(files)) {
-        const { tracks, skippedLocal } = parseExportifyCsv(await file.text());
+        const text = await file.text();
+        const fmt = detectCsvFormat(text);
+        if (!fmt) continue; // unrecognized header — skip (reported below if nothing parsed)
+        const { tracks, skippedLocal } =
+          fmt === "chosic" ? parseChosicCsv(text) : parseExportifyCsv(text);
         parsed.push({
           name: file.name,
           playlistName: defaultPlaylistName(file.name),
           tracks,
           skippedLocal,
+          featuresSource: fmt,
         });
       }
       setCsvFiles(parsed);
-      if (parsed.every((f) => f.tracks.length === 0))
-        setError("No Spotify tracks found in those CSVs.");
+      if (parsed.length === 0 || parsed.every((f) => f.tracks.length === 0))
+        setError("No Spotify tracks found — are they Exportify or Chosic exports?");
     } catch {
-      setError("Couldn't read those CSVs — are they Exportify exports?");
+      setError("Couldn't read those CSVs — are they Exportify or Chosic exports?");
     }
   };
 
@@ -186,7 +206,12 @@ export default function AdminSeedPage() {
       for (const [i, f] of files.entries()) {
         const playlistName = f.playlistName.trim() || defaultPlaylistName(f.name);
         setProgress({ done: i, total: files.length, current: playlistName });
-        const { seeded } = await seedCurated({ djUserId: djId, playlistName, tracks: f.tracks });
+        const { seeded } = await seedCurated({
+          djUserId: djId,
+          playlistName,
+          tracks: f.tracks,
+          featuresSource: f.featuresSource,
+        });
         total += seeded;
       }
       setResult(
@@ -367,16 +392,18 @@ export default function AdminSeedPage() {
             >
               Exportify
             </a>{" "}
-            and upload one or more CSVs — each becomes a playlist (name editable below). Imports
-            identity <em>and</em> Spotify's own audio features (tempo/key/energy/…).
+            (or Chosic) and upload one or more CSVs — each becomes a playlist (name editable below).
+            Imports identity <em>and</em> Spotify's own audio features (tempo/key/energy/…);
+            Exportify + Chosic exports of the same track are merged (best of both). Format is
+            auto-detected.
           </p>
           <label className="flex flex-col gap-1 text-xs text-slate-400">
-            Exportify CSV(s) — select multiple
+            Exportify / Chosic CSV(s) — select multiple
             <input
               type="file"
               accept=".csv,text/csv"
               multiple
-              aria-label="Exportify CSVs"
+              aria-label="Playlist CSVs"
               onChange={(e) => onCsvFiles(e.target.files)}
               className="text-sm text-slate-300 file:mr-3 file:rounded-full file:border-0 file:bg-slate-800 file:px-4 file:py-2 file:text-sm file:font-medium file:text-slate-200"
             />

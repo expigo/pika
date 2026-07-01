@@ -50,6 +50,13 @@
       "when": 1782776602458,
       "tag": "0006_busy_maximus",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1782917471805,
+      "tag": "0007_pink_vapor",
+      "breakpoints": true
     }
   ]
 }
