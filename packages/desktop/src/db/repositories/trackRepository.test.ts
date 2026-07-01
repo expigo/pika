@@ -788,5 +788,18 @@ describe("trackRepository", () => {
       expect(payload).toEqual({ spotifyMatchedAt: null });
       expect(mockUpdate).toHaveBeenCalledTimes(1); // WHERE spotify_id IS NULL
     });
+
+    it("clearTrackSpotifyMatch nulls the match columns but SETS matched_at (sticky unmatch)", async () => {
+      await trackRepository.clearTrackSpotifyMatch(9);
+      const payload = mockSet.mock.calls[0]![0] as Record<string, unknown>;
+      expect(payload.spotifyId).toBeNull();
+      expect(payload.spotifyUrl).toBeNull();
+      expect(payload.spotifyAlbumArtUrl).toBeNull();
+      expect(payload.spotifyMatchConfidence).toBeNull();
+      expect(payload.spotifyMatchSource).toBeNull();
+      // matched_at is SET (not null) so the auto-matcher won't re-grab the removed track.
+      expect(typeof payload.spotifyMatchedAt).toBe("number");
+      expect(mockUpdate).toHaveBeenCalledTimes(1); // WHERE id = ?
+    });
   });
 });

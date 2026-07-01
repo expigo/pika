@@ -63,6 +63,13 @@ const CreateBody = z.object({
     .max(500),
 });
 
+const ConfirmBody = z.object({
+  artist: z.string().trim().min(1).max(500),
+  title: z.string().trim().min(1).max(500),
+  spotifyId: z.string().trim().min(1).max(64),
+  spotifyUrl: z.string().trim().url().max(200).optional(),
+});
+
 /** Resolve a pasted Spotify track id → a single candidate (the "paste a link" override). */
 playlist.post("/resolve", playlistLimiter, async (c) => {
   const parsed = z
@@ -155,6 +162,33 @@ playlist.post("/create", playlistLimiter, async (c) => {
     }
     logger.error("Create playlist failed", e);
     return c.json({ error: "Failed to create playlist" }, 502);
+  }
+});
+
+/**
+ * Slice 3 — promote a single DJ-confirmed match to the shared `track_links` cache (no playlist).
+ * `cacheManualMatch` writes an authoritative `manual` row (overrides any `auto` match, can't be
+ * downgraded), keyed by the version-precise `getTrackKey(artist,title)` — so the correction helps
+ * every DJ whose library has that song. Best-effort from the client (local `dj_confirmed` is the DJ's
+ * source of truth).
+ */
+playlist.post("/confirm", playlistLimiter, async (c) => {
+  const parsed = ConfirmBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return c.json({ error: "Invalid confirmation", issues: parsed.error.issues }, 400);
+  }
+  const { artist, title, spotifyId, spotifyUrl } = parsed.data;
+  try {
+    await cacheManualMatch(
+      getTrackKey(artist, title),
+      getFuzzyKey(artist, title),
+      spotifyId,
+      spotifyUrl ?? `https://open.spotify.com/track/${spotifyId}`,
+    );
+    return c.json({ success: true });
+  } catch (e) {
+    logger.error("Confirm match failed", e);
+    return c.json({ error: "Failed to confirm match" }, 502);
   }
 });
 

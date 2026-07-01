@@ -74,6 +74,13 @@ version-suffix stripping hardened from real WCS playlists).
    rest attempted (`spotify_matched_at` reused as the "tried, no match" marker). Cache-hit matches carry
    no cover, so art is backfilled via `resolveSpotifyTracks`. Cap-free (app-token search); needs only the
    DJ's Pika login. Pre-warms coverage so the live wedge fires for the bulk of a set.
+7. **Verify / correct a match (human-in-the-loop)** — auto-matching is fuzzy, so `SpotifyMatchManager`
+   (LibraryBrowser inspector) lets the DJ see a track's match + confidence and **Change** (re-search / pick
+   / paste-link), **Confirm** (→ `setTrackSpotifyMatch(source:"dj_confirmed")`), or **Remove**
+   (`clearTrackSpotifyMatch` — sticky). A confirm is **promoted to the shared cache** best-effort via
+   `POST /api/playlist/confirm` → `cacheManualMatch`, which writes an authoritative `manual` `track_links`
+   row that **overrides any `auto` match for every DJ** (keyed by the version-precise `match_key`). So DJ
+   corrections compound: the crowd continuously improves the shared identity spine.
 
 ## Why CSV (not the API)
 Spotify's Nov-2024 lockdown blocks new apps from reading playlists *and* deprecated the `audio-features`
@@ -90,8 +97,11 @@ RTL (Exportify **and** Chosic import, format auto-detect, `featuresSource`); clo
 seed/`getSpotifyFeatures` cases, and the **order-independent accretive merge**); desktop
 `spotifyFeaturesService`/`spotifyFeaturesRepository` + feature-panel/analytics RTL, `trackRepository`
 identity-column mapping + library-pre-match queries, the `toTrackInfo` live-identity **gate** cases, and
-`useSpotifyMatcher` (gate/backfill/429/401 loop) + `SpotifyMatchStatus` RTL.
+`useSpotifyMatcher` (gate/backfill/429/401 loop) + `SpotifyMatchStatus` RTL; `clearTrackSpotifyMatch` +
+`SpotifyMatchManager` RTL + the `/api/playlist/confirm` route guard and its real-Postgres
+`track_links` manual-write/override-auto integration tests.
 
 ---
-*Added June 30, 2026; dual-CSV accretive import + live dancer identity + background library pre-match
-added July 1, 2026. Related: `music-provider-integration.md` (strategy), `schema-versioning.md`.*
+*Added June 30, 2026; dual-CSV accretive import + live dancer identity + background library pre-match +
+match verify/correct (shared-cache promote) added July 1, 2026. Related:
+`music-provider-integration.md` (strategy), `schema-versioning.md`.*

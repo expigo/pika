@@ -56,6 +56,7 @@ import { getSpotifyFeatures, seedFromPlaylist } from "../lib/services/spotifyMat
 import { getStageTopic } from "../lib/topics";
 import { adminRoutes as adminRoute } from "../routes/admin";
 import { dj as djRoute } from "../routes/dj";
+import { playlistRoutes } from "../routes/playlist";
 import { push as pushRoute } from "../routes/push";
 import { sessions as sessionsRoute } from "../routes/sessions";
 import { stageRoutes } from "../routes/stages";
@@ -1024,6 +1025,66 @@ suite("DB integration (real Postgres)", () => {
   // ==========================================================================
   // 5. Songs Catalog (B3) — seed→catalog read path incl. the Pika consensus join
   // ==========================================================================
+
+  describe("playlist /confirm — promote a DJ correction to the shared cache (real Postgres)", () => {
+    test("writes a manual track_link keyed by artist::title", async () => {
+      const { userId, token } = await signUpDj({ approved: true });
+      const artist = `Confirm Art ${Date.now().toString(36)}`;
+      const title = "Confirm Song";
+      const spotifyId = "itest_confirm_sp";
+      const res = await playlistRoutes.request("/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ artist, title, spotifyId }),
+      });
+      expect(res.status).toBe(200);
+
+      const key = getTrackKey(artist, title);
+      const [row] = await db
+        .select()
+        .from(schema.trackLinks)
+        .where(eq(schema.trackLinks.matchKey, key));
+      expect(row?.providerId).toBe(spotifyId);
+      expect(row?.source).toBe("manual");
+      expect(row?.status).toBe("manual");
+
+      await db.delete(schema.trackLinks).where(eq(schema.trackLinks.matchKey, key));
+      await db.delete(schema.user).where(eq(schema.user.id, userId));
+    });
+
+    test("a manual confirm overrides an existing auto match", async () => {
+      const { userId, token } = await signUpDj({ approved: true });
+      const artist = `Override Art ${Date.now().toString(36)}`;
+      const title = "Override Song";
+      const key = getTrackKey(artist, title);
+      await db.insert(schema.trackLinks).values({
+        matchKey: key,
+        songKey: key,
+        provider: "spotify",
+        providerId: "auto_id",
+        status: "matched",
+        source: "auto",
+        confidence: 0.9,
+      });
+
+      const res = await playlistRoutes.request("/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ artist, title, spotifyId: "manual_id" }),
+      });
+      expect(res.status).toBe(200);
+
+      const [row] = await db
+        .select()
+        .from(schema.trackLinks)
+        .where(eq(schema.trackLinks.matchKey, key));
+      expect(row?.providerId).toBe("manual_id"); // manual overwrote auto
+      expect(row?.source).toBe("manual");
+
+      await db.delete(schema.trackLinks).where(eq(schema.trackLinks.matchKey, key));
+      await db.delete(schema.user).where(eq(schema.user.id, userId));
+    });
+  });
 
   describe("Songs Catalog (real Postgres)", () => {
     const SP = "itest_catalog_sp1";

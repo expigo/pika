@@ -81,6 +81,19 @@ export function fetchSpotifyFeatures(
   return postJson("/api/playlist/features", { ids });
 }
 
+/**
+ * Promote a single DJ-confirmed match to the shared cloud cache (Slice 3, no playlist). Best-effort:
+ * the local `dj_confirmed` write is authoritative for this DJ; this just shares the correction.
+ */
+export function confirmSpotifyMatch(input: {
+  artist: string;
+  title: string;
+  spotifyId: string;
+  spotifyUrl?: string;
+}): Promise<{ success: boolean }> {
+  return postJson("/api/playlist/confirm", input);
+}
+
 /** Create the playlist on the shared account from the DJ's confirmed tracks. */
 export function createSpotifyPlaylist(input: {
   name: string;

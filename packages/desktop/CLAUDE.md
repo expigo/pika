@@ -467,7 +467,7 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 436 passing tests (Vitest, +1 skipped) — logic/unit + `*.rtl.tsx` component tests.
+**Current coverage:** 443 passing tests (Vitest, +1 skipped) — logic/unit + `*.rtl.tsx` component tests.
 Plus the Python sidecar: 8 `pytest` tests (`bun run test:python`; `python-src/tests/`,
 deps in `requirements-dev.txt`). Coverage: `bun run test:coverage` (vitest v8). The desktop also mirrors
 the cloud's canonical Spotify features locally (`spotify_track_features` table + `spotifyFeaturesService`)
@@ -491,6 +491,17 @@ resumable + terminating). Cache-hit matches carry no cover, so their art is back
 `resolveSpotifyTracks` → `setTrackAlbumArt`. Errors: 401 stops, 429 backs off + retries the same track,
 others skip. Cap-free (app-token search); needs only the DJ's Pika login. Tests: `useSpotifyMatcher.test.ts`,
 `SpotifyMatchStatus.rtl.tsx`, `trackRepository.test.ts` (library pre-match queries).
+
+**Verify / change a match (`SpotifyMatchManager`):** the LibraryBrowser inspector block (below
+`SpotifyFeaturePanel`) shows a track's current match + confidence tier (or a `dj_confirmed` lock) and lets
+the DJ **Change** (re-`searchSpotify` → pick a candidate), **paste a Spotify link**
+(`parseSpotifyTrackId`→`resolveSpotifyTrack`), or **Remove** (`trackRepository.clearTrackSpotifyMatch` —
+nulls the match cols but SETS `spotify_matched_at` so the auto-matcher won't re-grab it). A confirm writes
+`setTrackSpotifyMatch(source:"dj_confirmed")` locally **and** best-effort promotes it to the shared cache
+(`confirmSpotifyMatch` → `POST /api/playlist/confirm` → `cacheManualMatch`, which overrides any `auto` row
+for every DJ). No-reload refresh via `getTrackById`→`updateTrackInList`. A per-row Title-cell dot shows
+matched (faint=auto, bright=confirmed). Tests: `SpotifyMatchManager.rtl.tsx`, `trackRepository.test.ts`
+(`clearTrackSpotifyMatch`), cloud `playlist.test.ts` + `db.integration.test.ts` (`/confirm`).
 
 ### Test Files
 

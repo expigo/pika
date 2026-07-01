@@ -44,6 +44,7 @@ import { toCamelot } from "../utils/transitionEngine";
 import { NoteEditor } from "./NoteEditor";
 import { ProTooltip } from "./ProTooltip";
 import { SpotifyFeaturePanel } from "./SpotifyFeaturePanel";
+import { SpotifyMatchManager } from "./SpotifyMatchManager";
 import { TagEditor } from "./TagEditor";
 import { TagPill } from "./TagPill";
 import { TrackFingerprint } from "./TrackFingerprint";
@@ -549,6 +550,20 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                     {isPlayed && (
                       <span className="ml-1.5 text-[10px] text-emerald-500 font-black">✓</span>
                     )}
+                    {track.spotifyId && (
+                      <span
+                        className={`ml-1.5 inline-block h-1.5 w-1.5 rounded-full align-middle ${
+                          track.spotifyMatchSource === "dj_confirmed"
+                            ? "bg-emerald-400"
+                            : "bg-emerald-600/50"
+                        }`}
+                        title={
+                          track.spotifyMatchSource === "dj_confirmed"
+                            ? "Spotify: confirmed"
+                            : "Spotify: auto-matched"
+                        }
+                      />
+                    )}
                   </div>
                   <div className="w-16 pro-table-cell justify-center font-mono text-[11px] text-slate-300 tabular-nums">
                     {track.bpm ? track.bpm.toFixed(0) : "-"}
@@ -769,6 +784,8 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                 loading={spotifyLoading}
                 hasMatch={Boolean(selectedTrack.spotifyId)}
               />
+
+              <SpotifyMatchManager track={selectedTrack} onChanged={updateTrackInList} />
 
               <div className="space-y-4">
                 <div className="p-4 bg-slate-900/30 rounded-xl border border-slate-800/30">

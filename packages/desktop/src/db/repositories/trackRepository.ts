@@ -653,6 +653,25 @@ export const trackRepository = {
     await db.update(tracks).set({ spotifyAlbumArtUrl: albumArtUrl }).where(eq(tracks.id, trackId));
   },
 
+  /**
+   * Remove a track's Spotify match (Slice 3 "unmatch"). Nulls the match columns but SETS
+   * `spotify_matched_at` so the background auto-matcher (which skips rows with `matched_at` set) won't
+   * re-grab it — the DJ's removal is sticky until they "Re-match unmatched" (`clearUnmatchedAttempts`).
+   */
+  async clearTrackSpotifyMatch(trackId: number): Promise<void> {
+    await db
+      .update(tracks)
+      .set({
+        spotifyId: null,
+        spotifyUrl: null,
+        spotifyAlbumArtUrl: null,
+        spotifyMatchConfidence: null,
+        spotifyMatchSource: null,
+        spotifyMatchedAt: Math.floor(Date.now() / 1000),
+      })
+      .where(eq(tracks.id, trackId));
+  },
+
   // ── Slice 2: background library pre-match ──────────────────────────────────────────────────────
   // `spotify_matched_at IS NULL` is reused as the "not yet attempted" marker (nothing else reads it):
   // matched rows AND attempted-but-no-match rows both have it set, so a run is resumable + terminating
