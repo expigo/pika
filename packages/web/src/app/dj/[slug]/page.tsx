@@ -4,6 +4,7 @@ import { logger } from "@pika/shared";
 import { ArrowRight, Clock, History, Music2, User } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
+import { SpotifyPlaylistEmbed } from "@/components/SpotifyPlaylistEmbed";
 import { ProCard } from "@/components/ui/ProCard";
 import { getApiBaseUrl } from "@/lib/api";
 
@@ -15,12 +16,19 @@ interface DjSession {
   trackCount: number;
 }
 
+interface DjPlaylist {
+  id: number;
+  url: string;
+  spotifyPlaylistId: string | null;
+}
+
 interface DjProfile {
   slug: string;
   djName: string;
   sessions: DjSession[];
   totalSessions: number;
   totalTracks: number;
+  playlists?: DjPlaylist[]; // optional: tolerate a stale cached payload from before the deploy
 }
 
 // Format date nicely with time
@@ -171,6 +179,29 @@ export default function DjProfilePage({ params }: DjPageProps) {
             </div>
           </div>
         </ProCard>
+
+        {/* SPOTIFY PLAYLISTS */}
+        {profile.playlists && profile.playlists.length > 0 && (
+          <ProCard className="mb-8">
+            <div className="px-8 sm:px-12 py-6 border-b border-white/[0.03] flex items-center gap-4 bg-white/[0.02]">
+              <Music2 className="w-4 h-4 text-emerald-500" />
+              <h3 className="font-black text-white italic uppercase tracking-widest text-xs">
+                Playlists.
+              </h3>
+            </div>
+            <div className="p-6 sm:p-8 space-y-4">
+              {profile.playlists.map((pl) =>
+                pl.spotifyPlaylistId ? (
+                  <SpotifyPlaylistEmbed
+                    key={pl.id}
+                    spotifyPlaylistId={pl.spotifyPlaylistId}
+                    title={`${profile.djName} playlist`}
+                  />
+                ) : null,
+              )}
+            </div>
+          </ProCard>
+        )}
 
         {/* RECENT SESSIONS LIST */}
         <ProCard>

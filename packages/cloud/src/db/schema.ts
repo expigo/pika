@@ -5,6 +5,7 @@
 
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   index,
   integer,
@@ -108,6 +109,9 @@ export const sessions = pgTable(
     djName: text("dj_name").notNull(),
     startedAt: timestamp("started_at").defaultNow().notNull(),
     endedAt: timestamp("ended_at"),
+    // Slice 5: DJ curates which sessions appear on their public /dj/[slug] profile. Default true so
+    // existing sessions stay visible; the DJ opts to hide.
+    published: boolean("published").notNull().default(true),
   },
   (table) => ({
     idxDjUserId: index("idx_sessions_dj_user_id").on(table.djUserId),
@@ -531,6 +535,25 @@ export const curatedPlaylists = pgTable(
   (table) => ({
     uniqDjName: unique("uniq_curated_playlist_dj_name").on(table.djUserId, table.name),
     idxDjUserId: index("idx_curated_playlists_dj_user_id").on(table.djUserId),
+  }),
+);
+
+// Slice 5: DJ-pasted public Spotify playlists embedded on their /dj/[slug] profile (cap-free — a plain
+// iframe, no OAuth/matching). Distinct from `curated_playlists` (B3 catalog-seed infra).
+export const djPlaylists = pgTable(
+  "dj_playlists",
+  {
+    id: serial("id").primaryKey(),
+    djUserId: text("dj_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    url: text("url").notNull(),
+    spotifyPlaylistId: text("spotify_playlist_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqDjPlaylist: unique("uniq_dj_playlist").on(table.djUserId, table.spotifyPlaylistId),
+    idxDjUserId: index("idx_dj_playlists_dj_user_id").on(table.djUserId),
   }),
 );
 

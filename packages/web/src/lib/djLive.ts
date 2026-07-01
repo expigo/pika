@@ -177,3 +177,53 @@ export function endPoll(): Promise<{ success: boolean }> {
 export function spotifyAuthorizeUrl(): string {
   return `${getApiBaseUrl()}/api/spotify/authorize`;
 }
+
+// ── Slice 5: DJ profile management (publish-toggle + external playlists) ─────────────────────────
+
+export interface MySession {
+  id: string;
+  djName: string;
+  startedAt: string | null;
+  endedAt: string | null;
+  published: boolean;
+  trackCount: number;
+}
+
+export interface MyPlaylist {
+  id: number;
+  url: string;
+  spotifyPlaylistId: string | null;
+}
+
+/** My sessions (incl. hidden) with their publish state — for the profile-management list. */
+export function getMySessions(): Promise<{ sessions: MySession[] }> {
+  return req("/api/dj/me/sessions");
+}
+
+/** Show/hide one of my sessions on my public /dj/[slug] profile. */
+export function setSessionPublished(id: string, published: boolean): Promise<{ success: boolean }> {
+  return req(`/api/dj/me/sessions/${id}`, {
+    method: "PATCH",
+    headers: JSON_CSRF,
+    body: JSON.stringify({ published }),
+  });
+}
+
+/** My embedded Spotify playlists. */
+export function getMyPlaylists(): Promise<{ playlists: MyPlaylist[] }> {
+  return req("/api/dj/me/playlists");
+}
+
+/** Add a public Spotify playlist (paste a link) to my profile. */
+export function addPlaylist(url: string): Promise<{ success: boolean; spotifyPlaylistId: string }> {
+  return req("/api/dj/me/playlists", {
+    method: "POST",
+    headers: JSON_CSRF,
+    body: JSON.stringify({ url }),
+  });
+}
+
+/** Remove one of my embedded playlists. */
+export function removePlaylist(id: number): Promise<{ success: boolean }> {
+  return req(`/api/dj/me/playlists/${id}`, { method: "DELETE", headers: JSON_CSRF });
+}

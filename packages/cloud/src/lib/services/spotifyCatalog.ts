@@ -35,6 +35,14 @@ export function parseSpotifyUserId(input: string): string | null {
   return /^[A-Za-z0-9._~-]+$/.test(s) ? s : null;
 }
 
+/** Extract a Spotify playlist id from a pasted URL / URI / bare id (22-char base62), or null. */
+export function parseSpotifyPlaylistId(input: string): string | null {
+  const s = input.trim();
+  const m = s.match(/playlist[/:]([A-Za-z0-9]{22})/i);
+  if (m?.[1]) return m[1];
+  return /^[A-Za-z0-9]{22}$/.test(s) ? s : null;
+}
+
 async function getJson<T>(token: string, url: string): Promise<T> {
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`Spotify ${url} failed: ${res.status}`);

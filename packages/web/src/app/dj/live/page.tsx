@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DjLiveControls } from "@/components/DjLiveControls";
 import { LivePlayer } from "@/components/LivePlayer";
 import { LogoutButton } from "@/components/LogoutButton";
+import { ProfileManager } from "@/components/ProfileManager";
 import {
   DjApiError,
   type DjUser,
@@ -235,6 +236,10 @@ export default function DjLivePage() {
           </section>
         </>
       )}
+
+      {/* Profile management is available across the whole ready phase (whether or not the DJ is
+          connected/live) — it's how an approved DJ curates their public /dj/[slug] page. */}
+      {user && <ProfileManager user={user} />}
     </main>
   );
 }

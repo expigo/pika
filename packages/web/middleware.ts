@@ -33,6 +33,8 @@ export function middleware(_request: NextRequest) {
     "worker-src 'self' blob:", // PWA / Serwist service worker
     "manifest-src 'self'",
     "object-src 'none'",
+    // Slice 5: DJs embed public Spotify playlists on their /dj/[slug] profile (iframe → open.spotify.com).
+    "frame-src https://open.spotify.com",
     "frame-ancestors 'none'",
     "form-action 'self'",
     "base-uri 'self'",

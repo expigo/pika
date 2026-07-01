@@ -474,6 +474,7 @@ app.on(["POST", "GET"], "/api/auth/*", (c) => betterAuth.handler(c.req.raw));
 app.route("/api/sessions", sessionsRoutes);
 app.route("/api/session", sessionsRoutes); // Alias for recap route
 app.route("/api/stats", statsRoutes);
+app.use("/api/dj/*", csrfCheck); // Slice 5 — profile management mutations (GET /:slug is exempt)
 app.route("/api/dj", djRoutes);
 app.route("/api/client", clientRoutes);
 app.route("/api/push", pushRoutes);

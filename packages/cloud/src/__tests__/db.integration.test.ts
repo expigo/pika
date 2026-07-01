@@ -1138,6 +1138,109 @@ suite("DB integration (real Postgres)", () => {
     });
   });
 
+  describe("dj profile management — publish toggle + external playlists (real Postgres)", () => {
+    const mk = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+    const PLAYLIST = "37i9dQZF1DXcBWIGoYBM5M";
+
+    test("publish toggle hides a session; playlists CRUD; cross-DJ scoping", async () => {
+      const { userId, token } = await signUpDj({ approved: true, name: `PubDJ ${mk()}` });
+      const [u] = await db
+        .select({ slug: schema.user.slug })
+        .from(schema.user)
+        .where(eq(schema.user.id, userId));
+      const slug = u?.slug ?? "";
+      expect(slug).not.toBe("");
+
+      const sidA = `pub_a_${mk()}`;
+      const sidB = `pub_b_${mk()}`;
+      await db.insert(schema.sessions).values([
+        { id: sidA, djUserId: userId, djName: "PubDJ", startedAt: new Date() },
+        { id: sidB, djUserId: userId, djName: "PubDJ", startedAt: new Date() },
+      ]);
+
+      const authed = (path: string, init: RequestInit = {}) =>
+        djRoute.request(path, {
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          ...init,
+        });
+      const publicProfile = async () =>
+        (await (await djRoute.request(`/${slug}`)).json()) as {
+          sessions: Array<{ id: string }>;
+          playlists: Array<{ id: number; spotifyPlaylistId: string }>;
+        };
+
+      // Both sessions default published → both show; no playlists yet.
+      let pub = await publicProfile();
+      expect(pub.sessions.map((s) => s.id).sort()).toEqual([sidA, sidB].sort());
+      expect(pub.playlists).toEqual([]);
+
+      // Hide sidA → it drops off the public profile (cache invalidated on mutation).
+      expect(
+        (
+          await authed(`/me/sessions/${sidA}`, {
+            method: "PATCH",
+            body: JSON.stringify({ published: false }),
+          })
+        ).status,
+      ).toBe(200);
+      pub = await publicProfile();
+      expect(pub.sessions.map((s) => s.id)).toEqual([sidB]);
+
+      // Authed /me/sessions shows BOTH (incl. hidden) with their flags.
+      const mine = (await (await authed("/me/sessions")).json()) as {
+        sessions: Array<{ id: string; published: boolean }>;
+      };
+      expect(mine.sessions.find((s) => s.id === sidA)?.published).toBe(false);
+      expect(mine.sessions.find((s) => s.id === sidB)?.published).toBe(true);
+
+      // Add a playlist (good), reject junk (400).
+      expect(
+        (
+          await authed("/me/playlists", {
+            method: "POST",
+            body: JSON.stringify({ url: `https://open.spotify.com/playlist/${PLAYLIST}?si=x` }),
+          })
+        ).status,
+      ).toBe(200);
+      expect(
+        (
+          await authed("/me/playlists", {
+            method: "POST",
+            body: JSON.stringify({ url: "not a link" }),
+          })
+        ).status,
+      ).toBe(400);
+
+      pub = await publicProfile();
+      expect(pub.playlists.length).toBe(1);
+      expect(pub.playlists[0]?.spotifyPlaylistId).toBe(PLAYLIST);
+
+      // Delete it → gone from the public profile.
+      const myPl = (await (await authed("/me/playlists")).json()) as {
+        playlists: Array<{ id: number }>;
+      };
+      const plId = myPl.playlists[0]?.id;
+      expect((await authed(`/me/playlists/${plId}`, { method: "DELETE" })).status).toBe(200);
+      pub = await publicProfile();
+      expect(pub.playlists.length).toBe(0);
+
+      // Cross-DJ scoping: another DJ can't toggle my session → 404 (not theirs).
+      const other = await signUpDj({ approved: true, name: `OtherDJ ${mk()}` });
+      const forbidden = await djRoute.request(`/me/sessions/${sidA}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${other.token}` },
+        body: JSON.stringify({ published: true }),
+      });
+      expect(forbidden.status).toBe(404);
+      // …and sidA is still hidden on my profile.
+      expect((await publicProfile()).sessions.map((s) => s.id)).toEqual([sidB]);
+
+      await db.delete(schema.sessions).where(inArray(schema.sessions.id, [sidA, sidB]));
+      await db.delete(schema.user).where(eq(schema.user.id, userId));
+      await db.delete(schema.user).where(eq(schema.user.id, other.userId));
+    });
+  });
+
   describe("Songs Catalog (real Postgres)", () => {
     const SP = "itest_catalog_sp1";
     const ART = "ITest Artist Cat";

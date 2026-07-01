@@ -33,6 +33,9 @@ version-suffix stripping hardened from real WCS playlists).
 - `track_links` — the identity spine (above).
 - `played_tracks.match_key` — `getTrackKey` set at persist time; **joins to `track_links`** to reach the
   Spotify identity (and so the cloud catalog can show Pika features) — auto-reflects new resolutions.
+- `dj_playlists` — DJ-pasted public Spotify playlists embedded on `/dj/[slug]` (Slice 5; `unique(dj_user_id,
+  spotify_playlist_id)`). Cap-free marketing embeds (a plain iframe), *not* the OAuth/matching path.
+- `sessions.published` — `boolean DEFAULT true`; the DJ curates which sets appear on their public profile.
 
 ## Data flow
 1. **Seed (identity + Spotify features)** — admin `/admin/seed`: **Import CSV** — Exportify
@@ -88,6 +91,14 @@ version-suffix stripping hardened from real WCS playlists).
    album art + title/artist + "Listen on Spotify" on both surfaces (mirrors the live `LivePlayer`). Snapshot
    semantics (what was live at play time); coverage = tracks matched *before/during* the set, so
    pre-matching (step 6) maximizes it — unmatched plays show a graceful fallback tile.
+9. **DJ profile as a storefront (Slice 5)** — the DJ curates their public `/dj/[slug]`: authed `/api/dj/me/*`
+   routes (per-route `requireDjAuth`, scoped by `getUser(c).id`, CSRF-mounted) let them **hide/show** each
+   recorded set (`PATCH /me/sessions/:id` → `sessions.published`; the public `GET /:slug` filters
+   `published = true`) and **paste public Spotify playlist URLs** to embed (`POST /me/playlists` →
+   `parseSpotifyPlaylistId` → `dj_playlists`). Management lives on `/dj/live` (the `ProfileManager` panel,
+   shown across the whole ready phase — connected or not); the public page renders a lazy
+   `SpotifyPlaylistEmbed` iframe per playlist (needs web CSP `frame-src https://open.spotify.com`). Migration
+   `0009`; cap-free (no OAuth/matching — external embeds + a publish flag).
 
 ## Why CSV (not the API)
 Spotify's Nov-2024 lockdown blocks new apps from reading playlists *and* deprecated the `audio-features`
