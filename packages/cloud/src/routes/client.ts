@@ -56,6 +56,8 @@ client.get("/:clientId/likes", async (c) => {
         sessionId: schema.likes.sessionId,
         artist: schema.playedTracks.artist,
         title: schema.playedTracks.title,
+        albumArtUrl: schema.playedTracks.albumArtUrl,
+        spotifyUrl: schema.playedTracks.spotifyUrl,
         likedAt: schema.likes.createdAt,
       })
       .from(schema.likes)

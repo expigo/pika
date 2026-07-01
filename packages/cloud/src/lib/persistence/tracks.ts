@@ -122,6 +122,9 @@ export async function persistTrack(sessionId: string, track: TrackInfo): Promise
           brightness: track.brightness ? Math.round(track.brightness) : null,
           acousticness: track.acousticness ? Math.round(track.acousticness) : null,
           groove: track.groove ? Math.round(track.groove) : null,
+          // Spotify identity snapshot (Slice 4) — surfaced on recap + my-likes.
+          albumArtUrl: track.albumArtUrl ?? null,
+          spotifyUrl: track.spotifyUrl ?? null,
         })
         .returning({ id: schema.playedTracks.id });
 
@@ -191,6 +194,8 @@ export async function persistTracksBulk(sessionId: string, tracks: TrackInfo[]):
         brightness: track.brightness ? Math.round(track.brightness) : null,
         acousticness: track.acousticness ? Math.round(track.acousticness) : null,
         groove: track.groove ? Math.round(track.groove) : null,
+        albumArtUrl: track.albumArtUrl ?? null,
+        spotifyUrl: track.spotifyUrl ?? null,
       }));
 
       await db.insert(schema.playedTracks).values(values);

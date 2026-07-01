@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
+import { TrackRow } from "@/components/ui/TrackRow";
 import { getApiBaseUrl } from "@/lib/api";
 
 interface RecapTrack {
@@ -31,6 +32,8 @@ interface RecapTrack {
   brightness: number | null;
   acousticness: number | null;
   groove: number | null;
+  albumArtUrl: string | null;
+  spotifyUrl: string | null;
   playedAt: string;
   likes: number;
   tempo: {
@@ -324,66 +327,38 @@ export default function DjRecapPage({ params }: RecapPageProps) {
 
           <div className="divide-y divide-slate-800/30">
             {visibleTracks?.map((track) => (
-              <div
+              <TrackRow
                 key={track.position}
-                className="px-6 sm:px-8 py-4 flex items-center gap-4 sm:gap-6 hover:bg-white/[0.02] transition-colors group relative"
+                position={track.position}
+                title={track.title}
+                artist={track.artist}
+                albumArtUrl={track.albumArtUrl}
+                spotifyUrl={track.spotifyUrl}
               >
-                {/* 1. POSITION TRACKER */}
-                <div className="flex-shrink-0 w-6 sm:w-8 text-[10px] sm:text-[11px] font-black text-slate-800 italic group-hover:text-purple-500/40 transition-colors">
-                  {String(track.position).padStart(2, "0")}
-                </div>
-
-                {/* 2. CORE IDENTITY (TRUNCATED) */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-3">
-                    <p className="text-white font-black italic uppercase tracking-tight text-sm leading-none truncate group-hover:text-purple-400 transition-colors">
-                      {track.title}
-                    </p>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase tracking-[0.2em] truncate mt-1 sm:mt-0 opacity-60">
-                      {track.artist}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 3. PERFORMANCE DATA (FIXED COLUMN) */}
-                <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
-                  {/* Feedback Group */}
-                  <div className="hidden sm:flex items-center gap-2">
-                    {track.tempo &&
-                      (track.tempo.slower > 0 ||
-                        track.tempo.perfect > 0 ||
-                        track.tempo.faster > 0) && (
-                        <div className="flex items-center gap-1.5 opacity-40 group-hover:opacity-100 transition-opacity">
-                          {track.tempo.perfect > 0 && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                          )}
-                          {track.tempo.slower > 0 && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
-                          )}
-                          {track.tempo.faster > 0 && (
-                            <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
-                          )}
-                        </div>
+                {track.tempo &&
+                  (track.tempo.slower > 0 || track.tempo.perfect > 0 || track.tempo.faster > 0) && (
+                    <div className="hidden sm:flex items-center gap-1.5">
+                      {track.tempo.perfect > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
                       )}
-                    {track.likes > 0 && (
-                      <div className="flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-md">
-                        <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
-                        <span className="text-[9px] font-black text-red-500 mt-0.5">
-                          {track.likes}
-                        </span>
-                      </div>
-                    )}
+                      {track.tempo.slower > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.4)]" />
+                      )}
+                      {track.tempo.faster > 0 && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.4)]" />
+                      )}
+                    </div>
+                  )}
+                {track.likes > 0 && (
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-red-500/10 border border-red-500/20 rounded-md">
+                    <Heart className="w-2.5 h-2.5 text-red-500 fill-current" />
+                    <span className="text-[9px] font-black text-red-500 mt-0.5">{track.likes}</span>
                   </div>
-
-                  {/* Timestamp */}
-                  <div className="text-slate-800 font-black text-[9px] uppercase w-12 text-right group-hover:text-slate-600 transition-colors font-mono">
-                    {formatTime(track.playedAt).split(" ")[0]}
-                  </div>
+                )}
+                <div className="text-slate-800 font-black text-[9px] uppercase w-12 text-right font-mono">
+                  {formatTime(track.playedAt).split(" ")[0]}
                 </div>
-
-                {/* Hover Selection Beam */}
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-0 bg-purple-500 group-hover:h-8 transition-all duration-300" />
-              </div>
+              </TrackRow>
             ))}
           </div>
 

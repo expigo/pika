@@ -113,7 +113,8 @@ export const TrackInfoSchema = z.object({
   brightness: optionalMetric(0, 100),
   acousticness: optionalMetric(0, 100),
   groove: optionalMetric(0, 100),
-  // Spotify-only enrichment (broadcast-time, not persisted); absent for VirtualDJ tracks.
+  // Spotify identity enrichment (broadcast-time); persisted on `played_tracks` (Slice 4) → recap +
+  // my-likes. Absent for unmatched VirtualDJ tracks.
   albumArtUrl: optionalUrl,
   spotifyUrl: optionalUrl,
 });

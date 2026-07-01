@@ -81,6 +81,13 @@ version-suffix stripping hardened from real WCS playlists).
    `POST /api/playlist/confirm` → `cacheManualMatch`, which writes an authoritative `manual` `track_links`
    row that **overrides any `auto` match for every DJ** (keyed by the version-precise `match_key`). So DJ
    corrections compound: the crowd continuously improves the shared identity spine.
+8. **Identity after the set (recap + my-likes)** — the wedge closes post-event: `played_tracks` now
+   **persists** the broadcast's `album_art_url`/`spotify_url` (Slice 4 — `persistTrack` stopped dropping
+   them; migration `0008`), so the recap endpoint and the my-likes endpoint (which inherits via the
+   like→played_track FK) return per-track art + link. A shared web **`TrackRow`** (`components/ui`) renders
+   album art + title/artist + "Listen on Spotify" on both surfaces (mirrors the live `LivePlayer`). Snapshot
+   semantics (what was live at play time); coverage = tracks matched *before/during* the set, so
+   pre-matching (step 6) maximizes it — unmatched plays show a graceful fallback tile.
 
 ## Why CSV (not the API)
 Spotify's Nov-2024 lockdown blocks new apps from reading playlists *and* deprecated the `audio-features`
@@ -99,9 +106,11 @@ seed/`getSpotifyFeatures` cases, and the **order-independent accretive merge**);
 identity-column mapping + library-pre-match queries, the `toTrackInfo` live-identity **gate** cases, and
 `useSpotifyMatcher` (gate/backfill/429/401 loop) + `SpotifyMatchStatus` RTL; `clearTrackSpotifyMatch` +
 `SpotifyMatchManager` RTL + the `/api/playlist/confirm` route guard and its real-Postgres
-`track_links` manual-write/override-auto integration tests.
+`track_links` manual-write/override-auto integration tests; `TrackRow` RTL + the real-Postgres
+`persistTrack`-persists-identity and recap/my-likes-return-identity integration tests.
 
 ---
 *Added June 30, 2026; dual-CSV accretive import + live dancer identity + background library pre-match +
-match verify/correct (shared-cache promote) added July 1, 2026. Related:
+match verify/correct (shared-cache promote) + recap/my-likes identity (`TrackRow`) added July 1, 2026.
+Related:
 `music-provider-integration.md` (strategy), `schema-versioning.md`.*

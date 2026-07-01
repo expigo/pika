@@ -5,6 +5,7 @@ import { ArrowRight, Heart, Radio, User } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
+import { TrackRow } from "@/components/ui/TrackRow";
 import { getApiBaseUrl } from "@/lib/api";
 
 // Get or create a stable client ID
@@ -20,6 +21,8 @@ interface LikedTrack {
   sessionDate: string | null;
   artist: string;
   title: string;
+  albumArtUrl: string | null;
+  spotifyUrl: string | null;
   likedAt: string;
 }
 
@@ -209,27 +212,18 @@ export default function MyLikesPage() {
 
                 <div className="divide-y divide-white/[0.03]">
                   {sessionLikes.map((like) => (
-                    <div
+                    <TrackRow
                       key={like.id}
-                      className="px-6 sm:px-8 py-4 flex items-center justify-between group/row hover:bg-white/[0.01] transition-colors"
+                      title={like.title}
+                      artist={like.artist}
+                      albumArtUrl={like.albumArtUrl}
+                      spotifyUrl={like.spotifyUrl}
                     >
-                      <div className="flex-1 min-w-0 flex items-center gap-4">
-                        <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500/20 group-hover/row:fill-red-500 transition-all" />
-                        <div className="min-w-0">
-                          <p className="text-slate-100 font-extrabold text-[13px] tracking-tight uppercase italic truncate leading-none">
-                            {like.title}
-                          </p>
-                          <p className="text-slate-500 text-[9px] font-bold uppercase tracking-[0.2em] truncate mt-1.5 opacity-60">
-                            {like.artist}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex-shrink-0 ml-4">
-                        <span className="text-slate-700 font-black text-[9px] tabular-nums uppercase">
-                          {formatTime(like.likedAt).split(" ")[0]}
-                        </span>
-                      </div>
-                    </div>
+                      <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500/20" />
+                      <span className="text-slate-700 font-black text-[9px] tabular-nums uppercase">
+                        {formatTime(like.likedAt).split(" ")[0]}
+                      </span>
+                    </TrackRow>
                   ))}
                 </div>
               </ProCard>

@@ -149,6 +149,10 @@ export const playedTracks = pgTable(
     brightness: integer("brightness"),
     acousticness: integer("acousticness"),
     groove: integer("groove"),
+    // Spotify identity snapshot at play time (Slice 4) — powers album art + "Listen on Spotify" on the
+    // recap + my-likes surfaces. Present only for matched tracks (the broadcast carried them); nullable.
+    albumArtUrl: text("album_art_url"),
+    spotifyUrl: text("spotify_url"),
     // Timestamp of when the track started playing
     playedAt: timestamp("played_at").defaultNow().notNull(),
   },

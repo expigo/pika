@@ -181,6 +181,8 @@ async function buildRecap(
         brightness: schema.playedTracks.brightness,
         acousticness: schema.playedTracks.acousticness,
         groove: schema.playedTracks.groove,
+        albumArtUrl: schema.playedTracks.albumArtUrl,
+        spotifyUrl: schema.playedTracks.spotifyUrl,
         playedAt: schema.playedTracks.playedAt,
       })
       .from(schema.playedTracks)
@@ -338,6 +340,8 @@ async function buildRecap(
         brightness: t.brightness,
         acousticness: t.acousticness,
         groove: t.groove,
+        albumArtUrl: t.albumArtUrl,
+        spotifyUrl: t.spotifyUrl,
         playedAt: t.playedAt,
         likes: trackLikeCounts.get(t.id) || 0,
         tempo: tempoData

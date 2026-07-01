@@ -55,6 +55,7 @@ import { fetchNowPlaying, getConnectionStatus, SpotifyAuthError } from "../lib/s
 import { getSpotifyFeatures, seedFromPlaylist } from "../lib/services/spotifyMatch";
 import { getStageTopic } from "../lib/topics";
 import { adminRoutes as adminRoute } from "../routes/admin";
+import { client as clientRoutes } from "../routes/client";
 import { dj as djRoute } from "../routes/dj";
 import { playlistRoutes } from "../routes/playlist";
 import { push as pushRoute } from "../routes/push";
@@ -195,7 +196,14 @@ suite("DB integration (real Postgres)", () => {
     test("persistTrack writes a played_track and dedups an immediate repeat", async () => {
       const sid = freshSid();
       await persistSession(sid, "PF DJ");
-      await persistTrack(sid, { artist: "Dedup", title: "Song", bpm: 96, energy: 50 });
+      await persistTrack(sid, {
+        artist: "Dedup",
+        title: "Song",
+        bpm: 96,
+        energy: 50,
+        albumArtUrl: "https://i.scdn.co/image/art",
+        spotifyUrl: "https://open.spotify.com/track/abc",
+      });
       await persistTrack(sid, { artist: "Dedup", title: "Song", bpm: 96 }); // same → skipped
       const rows = await db
         .select()
@@ -204,6 +212,9 @@ suite("DB integration (real Postgres)", () => {
       expect(rows.length).toBe(1);
       expect(rows[0]?.bpm).toBe(96);
       expect(rows[0]?.energy).toBe(50);
+      // Slice 4: the Spotify identity snapshot is persisted (not dropped) → recap + my-likes surfaces.
+      expect(rows[0]?.albumArtUrl).toBe("https://i.scdn.co/image/art");
+      expect(rows[0]?.spotifyUrl).toBe("https://open.spotify.com/track/abc");
       // The play carries the normalized match_key → joins to track_links for the catalog Pika consensus.
       expect(rows[0]?.matchKey).toBe(getTrackKey("Dedup", "Song"));
     });
@@ -436,6 +447,47 @@ suite("DB integration (real Postgres)", () => {
       const hist = await sessionsRoute.request(`/${sid}/history`);
       expect(hist.status).toBe(200);
       expect(((await hist.json()) as unknown[]).length).toBe(2);
+
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
+    });
+
+    test("recap + my-likes surface the persisted Spotify identity (Slice 4)", async () => {
+      const sid = `s4_${uniq()}`;
+      await db.insert(schema.sessions).values({ id: sid, djName: "S4 DJ", endedAt: new Date() });
+      const [pt] = await db
+        .insert(schema.playedTracks)
+        .values({
+          sessionId: sid,
+          artist: "SYML",
+          title: "Careful",
+          albumArtUrl: "https://i.scdn.co/image/careful",
+          spotifyUrl: "https://open.spotify.com/track/careful",
+        })
+        .returning({ id: schema.playedTracks.id });
+      const trackId = pt?.id;
+      if (trackId === undefined) throw new Error("track not created");
+      await db
+        .insert(schema.likes)
+        .values({ sessionId: sid, clientId: "client_s4test", playedTrackId: trackId });
+
+      const recap = await sessionsRoute.request(`/${sid}/recap`);
+      expect(recap.status).toBe(200);
+      const rBody = (await recap.json()) as {
+        tracks: Array<{ title: string; albumArtUrl: string | null; spotifyUrl: string | null }>;
+      };
+      const rt = rBody.tracks.find((t) => t.title === "Careful");
+      expect(rt?.albumArtUrl).toBe("https://i.scdn.co/image/careful");
+      expect(rt?.spotifyUrl).toBe("https://open.spotify.com/track/careful");
+
+      // my-likes inherits identity via the played_track FK.
+      const likes = await clientRoutes.request("/client_s4test/likes");
+      expect(likes.status).toBe(200);
+      const lBody = (await likes.json()) as {
+        likes: Array<{ title: string; albumArtUrl: string | null; spotifyUrl: string | null }>;
+      };
+      const lt = lBody.likes.find((l) => l.title === "Careful");
+      expect(lt?.albumArtUrl).toBe("https://i.scdn.co/image/careful");
+      expect(lt?.spotifyUrl).toBe("https://open.spotify.com/track/careful");
 
       await db.delete(schema.sessions).where(eq(schema.sessions.id, sid));
     });

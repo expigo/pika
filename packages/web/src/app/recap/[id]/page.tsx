@@ -17,6 +17,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
+import { TrackRow } from "@/components/ui/TrackRow";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 import { getApiBaseUrl } from "@/lib/api";
 
@@ -26,6 +27,8 @@ interface RecapTrack {
   title: string;
   bpm: number | null;
   key: string | null;
+  albumArtUrl: string | null;
+  spotifyUrl: string | null;
   playedAt: string;
   likes: number;
 }
@@ -267,32 +270,23 @@ export default function RecapPage() {
           {recap.tracks.length > 0 ? (
             <div className="divide-y divide-slate-800/30">
               {visibleTracks?.map((track) => (
-                <div
+                <TrackRow
                   key={track.position}
-                  className="px-8 py-5 flex items-center gap-6 transition-colors active:bg-slate-900"
+                  position={track.position}
+                  title={track.title}
+                  artist={track.artist}
+                  albumArtUrl={track.albumArtUrl}
+                  spotifyUrl={track.spotifyUrl}
                 >
-                  <span className="text-slate-800 font-black text-xs w-6 italic">
-                    {String(track.position).padStart(2, "0")}
+                  {track.likes > 0 && (
+                    <VibeBadge variant="red" icon={Heart} className="px-2 py-0.5">
+                      {track.likes}
+                    </VibeBadge>
+                  )}
+                  <span className="text-slate-700 font-black text-[10px] uppercase">
+                    {formatTime(track.playedAt)}
                   </span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-black italic truncate tracking-tight uppercase text-sm leading-tight">
-                      {track.title}
-                    </p>
-                    <p className="text-slate-500 text-[10px] font-black uppercase truncate tracking-widest mt-1">
-                      {track.artist}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4 flex-shrink-0">
-                    {track.likes > 0 && (
-                      <VibeBadge variant="red" icon={Heart} className="px-2 py-0.5">
-                        {track.likes}
-                      </VibeBadge>
-                    )}
-                    <span className="text-slate-700 font-black text-[10px] uppercase">
-                      {formatTime(track.playedAt)}
-                    </span>
-                  </div>
-                </div>
+                </TrackRow>
               ))}
             </div>
           ) : (
