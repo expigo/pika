@@ -8,19 +8,20 @@ import {
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { Toaster } from "sonner";
 import { AnalyzerStatus } from "./components/AnalyzerStatus";
+import { CrateWorkspaceStats } from "./components/CrateWorkspaceStats";
+import { EnergyWave } from "./components/EnergyWave";
 import { LibraryBrowser } from "./components/LibraryBrowser";
 import { LiveControl } from "./components/LiveControl";
 import { OfflineQueueIndicator } from "./components/OfflineQueueIndicator";
 import { SetCanvas } from "./components/SetCanvas";
-import { EnergyWave } from "./components/EnergyWave";
-import { CrateWorkspaceStats } from "./components/CrateWorkspaceStats";
-import { useDjSettings } from "./hooks/useDjSettings";
-import { useLiveSession } from "./hooks/useLiveSession";
-import { useSidecar } from "./hooks/useSidecar";
-import { useSettings } from "./hooks/useSettings";
-import { useLayoutResizer } from "./hooks/useLayoutResizer";
-import { setSidecarUrl } from "./services/progressiveAnalysisService";
+import { SpotifyMatchStatus } from "./components/SpotifyMatchStatus";
 import { getLocalIp } from "./config";
+import { useDjSettings } from "./hooks/useDjSettings";
+import { useLayoutResizer } from "./hooks/useLayoutResizer";
+import { useLiveSession } from "./hooks/useLiveSession";
+import { useSettings } from "./hooks/useSettings";
+import { useSidecar } from "./hooks/useSidecar";
+import { setSidecarUrl } from "./services/progressiveAnalysisService";
 import "./App.css";
 
 // Lazy-loaded components (not needed on initial render)
@@ -201,6 +202,7 @@ function App() {
 
         <div className="flex items-center gap-6">
           <AnalyzerStatus baseUrl={baseUrl} onComplete={refreshTracks} />
+          <SpotifyMatchStatus authenticated={isAuthenticated} onComplete={refreshTracks} />
           <div className="h-8 w-[1px] bg-slate-800" />
           <LiveControl />
 

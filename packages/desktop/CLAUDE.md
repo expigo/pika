@@ -467,7 +467,7 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 422 passing tests (Vitest, +1 skipped) — logic/unit + `*.rtl.tsx` component tests.
+**Current coverage:** 436 passing tests (Vitest, +1 skipped) — logic/unit + `*.rtl.tsx` component tests.
 Plus the Python sidecar: 8 `pytest` tests (`bun run test:python`; `python-src/tests/`,
 deps in `requirements-dev.txt`). Coverage: `bun run test:coverage` (vitest v8). The desktop also mirrors
 the cloud's canonical Spotify features locally (`spotify_track_features` table + `spotifyFeaturesService`)
@@ -480,6 +480,17 @@ threads them onto the played track; `toTrackInfo` (`virtualDjWatcher.ts`) maps t
 `albumArtUrl`/`spotifyUrl` **only for a trusted match** (`dj_confirmed` or confidence ≥ 0.8 — never a
 low-confidence guess). Unmatched/untrusted → text-only. The panic/forceSync path broadcasts without
 identity (no DB round-trip). Gate tests: `virtualDjWatcher.test.ts` (`toTrackInfo`).
+
+**Background library pre-match (feeds the wedge):** the opt-in `SpotifyMatchStatus` header pill (single
+home, cloned from `AnalyzerStatus`) drives `useSpotifyMatcher` — a throttled (~1.1s, ≤60/min/DJ),
+resumable serial loop over `trackRepository.getUnmatchedLibraryTracks` that calls the cache-first cloud
+`searchSpotify` and writes **only high-confidence** matches via `setTrackSpotifyMatch(source:"auto",
+confidence:0.8)` (so the live gate above surfaces them), marking the rest attempted
+(`markSpotifyMatchAttempted` — reuses `spotify_matched_at` as the "tried, no match" marker so the run is
+resumable + terminating). Cache-hit matches carry no cover, so their art is backfilled via
+`resolveSpotifyTracks` → `setTrackAlbumArt`. Errors: 401 stops, 429 backs off + retries the same track,
+others skip. Cap-free (app-token search); needs only the DJ's Pika login. Tests: `useSpotifyMatcher.test.ts`,
+`SpotifyMatchStatus.rtl.tsx`, `trackRepository.test.ts` (library pre-match queries).
 
 ### Test Files
 

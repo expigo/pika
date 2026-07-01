@@ -25,6 +25,7 @@ import { CURRENT_ANALYSIS_VERSION } from "./trackRepository";
 const mockExecute = vi.fn();
 const mockSelect = vi.fn();
 const mockInsert = vi.fn();
+const mockSet = vi.fn(); // captures the SET payload of db.update().set(...)
 const mockUpdate = vi.fn();
 const mockDelete = vi.fn();
 
@@ -42,9 +43,10 @@ vi.mock("../index", () => ({
       }),
     }),
     update: () => ({
-      set: () => ({
-        where: mockUpdate,
-      }),
+      set: (vals: unknown) => {
+        mockSet(vals);
+        return { where: mockUpdate };
+      },
     }),
     delete: () => ({
       where: mockDelete,
@@ -71,6 +73,7 @@ describe("trackRepository", () => {
     mockExecute.mockClear();
     mockSelect.mockClear();
     mockInsert.mockClear();
+    mockSet.mockClear();
     mockUpdate.mockClear();
     mockDelete.mockClear();
 
@@ -734,6 +737,56 @@ describe("trackRepository", () => {
       const history = await trackRepository.getTrackPlayHistory(1);
 
       expect(history).toBeNull();
+    });
+  });
+
+  // ==========================================================================
+  // Slice 2 — background library pre-match queries
+  // ==========================================================================
+  describe("library pre-match queries", () => {
+    // mockClear (parent beforeEach) doesn't drain leftover mockResolvedValueOnce queues from earlier
+    // tests, which would leak into these return-value assertions — reset fully here.
+    beforeEach(() => {
+      mockSelect.mockReset();
+      mockSet.mockReset();
+      mockUpdate.mockReset();
+    });
+
+    it("getUnmatchedLibraryTracks selects only unmatched + un-attempted rows, paged", async () => {
+      mockSelect.mockResolvedValue([]);
+      await trackRepository.getUnmatchedLibraryTracks(200);
+      const [sql, params] = mockSelect.mock.calls[0] as [string, unknown[]];
+      expect(sql).toContain("spotify_id IS NULL");
+      expect(sql).toContain("spotify_matched_at IS NULL");
+      expect(sql).toMatch(/ORDER BY id\s+LIMIT \?/);
+      expect(params).toEqual([200]);
+    });
+
+    it("getUnmatchedCount counts the same pending set", async () => {
+      mockSelect.mockResolvedValue([{ cnt: 42 }]);
+      const n = await trackRepository.getUnmatchedCount();
+      const [sql] = mockSelect.mock.calls[0] as [string];
+      expect(sql).toContain("COUNT(*)");
+      expect(sql).toContain("spotify_id IS NULL");
+      expect(sql).toContain("spotify_matched_at IS NULL");
+      expect(n).toBe(42);
+    });
+
+    it("markSpotifyMatchAttempted sets ONLY spotify_matched_at (leaves the track unmatched)", async () => {
+      await trackRepository.markSpotifyMatchAttempted(7);
+      expect(mockSet).toHaveBeenCalledTimes(1);
+      const payload = mockSet.mock.calls[0]![0] as Record<string, unknown>;
+      expect(Object.keys(payload)).toEqual(["spotifyMatchedAt"]);
+      expect(typeof payload.spotifyMatchedAt).toBe("number");
+      expect("spotifyId" in payload).toBe(false);
+      expect(mockUpdate).toHaveBeenCalledTimes(1); // the WHERE id = ? ran
+    });
+
+    it("clearUnmatchedAttempts nulls the attempt marker (for a re-run)", async () => {
+      await trackRepository.clearUnmatchedAttempts();
+      const payload = mockSet.mock.calls[0]![0] as Record<string, unknown>;
+      expect(payload).toEqual({ spotifyMatchedAt: null });
+      expect(mockUpdate).toHaveBeenCalledTimes(1); // WHERE spotify_id IS NULL
     });
   });
 });

@@ -1,5 +1,5 @@
 import { type AnalysisResult, logger } from "@pika/shared";
-import { eq, type InferInsertModel, sql } from "drizzle-orm";
+import { eq, type InferInsertModel, isNull, sql } from "drizzle-orm";
 import { db, getSqlite } from "../index";
 import { tracks } from "../schema";
 
@@ -651,6 +651,50 @@ export const trackRepository = {
   /** Backfill just the album-art URL for a remembered match (doesn't touch source/confidence). */
   async setTrackAlbumArt(trackId: number, albumArtUrl: string): Promise<void> {
     await db.update(tracks).set({ spotifyAlbumArtUrl: albumArtUrl }).where(eq(tracks.id, trackId));
+  },
+
+  // ── Slice 2: background library pre-match ──────────────────────────────────────────────────────
+  // `spotify_matched_at IS NULL` is reused as the "not yet attempted" marker (nothing else reads it):
+  // matched rows AND attempted-but-no-match rows both have it set, so a run is resumable + terminating
+  // and newly-imported tracks (matched_at NULL) are auto-picked-up.
+
+  /** Library tracks still pending a Spotify match attempt (paged; the background matcher's cursor). */
+  async getUnmatchedLibraryTracks(limit: number): Promise<Track[]> {
+    const sqlite = await getSqlite();
+    const result = await sqlite.select<TrackRow[]>(
+      `${TRACK_SELECT_SQL} WHERE spotify_id IS NULL AND spotify_matched_at IS NULL
+         AND artist IS NOT NULL AND trim(artist) != '' AND title IS NOT NULL AND trim(title) != ''
+       ORDER BY id LIMIT ?`,
+      [limit],
+    );
+    return result.map(remapTrack);
+  },
+
+  /** Count of tracks still pending a Spotify match attempt (progress total + idle "Match N" label). */
+  async getUnmatchedCount(): Promise<number> {
+    const sqlite = await getSqlite();
+    const result = await sqlite.select<{ cnt: number }[]>(
+      `SELECT COUNT(*) as cnt FROM tracks
+        WHERE spotify_id IS NULL AND spotify_matched_at IS NULL
+          AND artist IS NOT NULL AND trim(artist) != '' AND title IS NOT NULL AND trim(title) != ''`,
+    );
+    return result[0]?.cnt ?? 0;
+  },
+
+  /**
+   * Mark a track "searched, no confident match" so the matcher skips it next pass. Sets ONLY
+   * `spotify_matched_at` (leaves `spotify_id` NULL → the track stays unmatched).
+   */
+  async markSpotifyMatchAttempted(trackId: number): Promise<void> {
+    await db
+      .update(tracks)
+      .set({ spotifyMatchedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(tracks.id, trackId));
+  },
+
+  /** Clear the "attempted" marker on still-unmatched tracks so a re-run re-tries them (cache warms). */
+  async clearUnmatchedAttempts(): Promise<void> {
+    await db.update(tracks).set({ spotifyMatchedAt: null }).where(isNull(tracks.spotifyId));
   },
 };
 

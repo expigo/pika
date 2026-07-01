@@ -66,6 +66,14 @@ version-suffix stripping hardened from real WCS playlists).
    "high" band); a low-confidence guess is never shown live. The web `LivePlayer` renders album art +
    "Listen on Spotify" from those existing fields — no shared/web change. (This is the local↔Spotify
    *identity* join; it does not touch the two feature catalogs above.)
+6. **Background library pre-match (feeds the wedge)** — step 5 only fires for *matched* tracks, so the
+   desktop `SpotifyMatchStatus` pill drives `useSpotifyMatcher`: an opt-in, throttled (~1.1s, ≤60/min/DJ
+   limiter), resumable serial loop over `trackRepository.getUnmatchedLibraryTracks` that calls the
+   **cache-first** cloud `searchSpotify` and writes **only high-confidence** matches
+   (`setTrackSpotifyMatch(source:"auto", confidence:0.8)` → the step-5 gate surfaces them), marking the
+   rest attempted (`spotify_matched_at` reused as the "tried, no match" marker). Cache-hit matches carry
+   no cover, so art is backfilled via `resolveSpotifyTracks`. Cap-free (app-token search); needs only the
+   DJ's Pika login. Pre-warms coverage so the live wedge fires for the bulk of a set.
 
 ## Why CSV (not the API)
 Spotify's Nov-2024 lockdown blocks new apps from reading playlists *and* deprecated the `audio-features`
@@ -81,8 +89,9 @@ RTL (Exportify **and** Chosic import, format auto-detect, `featuresSource`); clo
 (`db.integration.test.ts` → Songs Catalog features + consensus join + search + appearances, the
 seed/`getSpotifyFeatures` cases, and the **order-independent accretive merge**); desktop
 `spotifyFeaturesService`/`spotifyFeaturesRepository` + feature-panel/analytics RTL, `trackRepository`
-identity-column mapping, and the `toTrackInfo` live-identity **gate** cases.
+identity-column mapping + library-pre-match queries, the `toTrackInfo` live-identity **gate** cases, and
+`useSpotifyMatcher` (gate/backfill/429/401 loop) + `SpotifyMatchStatus` RTL.
 
 ---
-*Added June 30, 2026; dual-CSV accretive import + live dancer identity added July 1, 2026. Related:
-`music-provider-integration.md` (strategy), `schema-versioning.md`.*
+*Added June 30, 2026; dual-CSV accretive import + live dancer identity + background library pre-match
+added July 1, 2026. Related: `music-provider-integration.md` (strategy), `schema-versioning.md`.*
