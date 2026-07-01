@@ -39,7 +39,9 @@ const sessionWaiters = new Map<string, Array<(value: boolean) => void>>();
 export async function waitForSession(sessionId: string, timeoutMs = 4000): Promise<boolean> {
   // Fast path: already persisted
   if (persistedSessions.has(sessionId)) return true;
-  if (process.env.NODE_ENV === "test") return true;
+  // Mock persistence in unit tests. E2E_PERSIST opts the E2E harness back into real DB writes
+  // (it runs NODE_ENV=test but needs persisted rows for the recap/my-likes surfaces).
+  if (process.env.NODE_ENV === "test" && !process.env["E2E_PERSIST"]) return true;
 
   return new Promise<boolean>((resolve) => {
     // Wrap the resolver so resolving early (via signalSessionReady) also clears the timeout —
@@ -102,7 +104,7 @@ function signalSessionReady(sessionId: string, success: boolean): void {
  * Check if session exists in DB (handling server restarts)
  */
 export async function ensureSessionPersisted(sessionId: string): Promise<boolean> {
-  if (process.env.NODE_ENV === "test") return true; // Mock persistence in tests
+  if (process.env.NODE_ENV === "test" && !process.env["E2E_PERSIST"]) return true; // Mock persistence in unit tests (E2E_PERSIST = real DB)
 
   if (persistedSessions.has(sessionId)) return true;
 
@@ -131,7 +133,7 @@ export async function persistSession(
   djUserId?: string | null,
   stageId?: string | null,
 ): Promise<boolean> {
-  if (process.env.NODE_ENV === "test") {
+  if (process.env.NODE_ENV === "test" && !process.env["E2E_PERSIST"]) {
     persistedSessions.add(sessionId);
     signalSessionReady(sessionId, true); // Signal waiters in test mode too
     return true;

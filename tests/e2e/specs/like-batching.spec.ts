@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { createDjSession, DjSimulator } from "../fixtures/ws-dj-simulator";
+import { expect, test } from "@playwright/test";
+import { createDjSession, type DjSimulator } from "../fixtures/ws-dj-simulator";
 
 /**
  * Pika! Like Batching Test (v2)
@@ -22,6 +22,10 @@ test.describe("Pika! Feedback Systems", () => {
   });
 
   test.afterEach(async () => {
+    // End the session immediately (not just close the socket) so it doesn't linger in the 45s
+    // reconnect-grace and collapse the next test's landing banner to "N DJs LIVE NOW".
+    djSession?.endSession();
+    await new Promise((r) => setTimeout(r, 250)); // flush END_SESSION before the socket closes
     djSession?.disconnect();
   });
 
@@ -39,7 +43,7 @@ test.describe("Pika! Feedback Systems", () => {
 
     // 3. Rapid-fire likes
     console.log("❤️ Sending rapid likes (5x)...");
-    const likeButton = page.getByLabel("Like Track");
+    const likeButton = page.getByLabel(/like this track/i);
     await expect(likeButton).toBeVisible();
 
     for (let i = 0; i < 5; i++) {
@@ -77,8 +81,8 @@ test.describe("Pika! Feedback Systems", () => {
     }
 
     // Both send likes
-    await audience1.getByLabel("Like Track").click();
-    await audience2.getByLabel("Like Track").click();
+    await audience1.getByLabel(/like this track/i).click();
+    await audience2.getByLabel(/like this track/i).click();
 
     // Wait for processing
     await audience1.waitForTimeout(2000);

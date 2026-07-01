@@ -17,6 +17,9 @@ export interface TrackInfo {
   bpm?: number;
   energy?: number;
   danceability?: number;
+  // Spotify identity (the live-dancer wedge) — album art + "Listen on Spotify".
+  albumArtUrl?: string;
+  spotifyUrl?: string;
 }
 
 export class DjSimulator {
@@ -116,9 +119,23 @@ export class DjSimulator {
         bpm: track.bpm || 120,
         energy: track.energy || 0.7,
         danceability: track.danceability || 0.8,
+        // Forward Spotify identity when supplied (undefined keys are dropped by JSON) so the
+        // wedge's album-art + "Listen on Spotify" reach the dancer live and get persisted.
+        albumArtUrl: track.albumArtUrl,
+        spotifyUrl: track.spotifyUrl,
       },
     });
     console.log(`[DjSimulator] Broadcasted track: ${track.artist} - ${track.title}`);
+  }
+
+  /**
+   * End the live session (DJ → Cloud). Under E2E_PERSIST this finalizes the session
+   * (endedAt) so the recap endpoint returns a completed set.
+   */
+  endSession(): void {
+    if (!this.isRegistered) return;
+    this.send({ type: "END_SESSION", sessionId: this.sessionId });
+    console.log(`[DjSimulator] Ended session: ${this.sessionId}`);
   }
 
   /**

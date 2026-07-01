@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "../../../test/rtl";
 import DjLivePage from "./page";
 
@@ -29,6 +29,10 @@ const conn = (over = {}) => ({ connected: true, status: "active", ...over });
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+afterEach(() => {
+  // The OAuth-result effect reads window.location.search; reset it between tests.
+  window.history.replaceState({}, "", "/dj/live");
 });
 
 describe("DjLivePage", () => {
@@ -78,5 +82,52 @@ describe("DjLivePage", () => {
     expect(await screen.findByText("LIVE")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /stop/i })).toBeInTheDocument();
     expect(screen.getByTestId("mirror")).toBeInTheDocument();
+    // Not paused, not between songs → the Pause-sharing control is offered.
+    expect(screen.getByRole("button", { name: /pause sharing/i })).toBeInTheDocument();
+  });
+
+  it("shows the PAUSED indicator and a Resume-sharing control when paused", async () => {
+    vi.mocked(djLive.getMe).mockResolvedValue(approved);
+    vi.mocked(djLive.getLiveStatus).mockResolvedValue({
+      live: true,
+      sessionId: "s1",
+      paused: true,
+      spotify: conn(),
+    });
+    render(<DjLivePage />);
+    expect(await screen.findByText("PAUSED")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /resume sharing/i })).toBeInTheDocument();
+  });
+
+  it("shows the between-songs hint while live and mid-transition", async () => {
+    vi.mocked(djLive.getMe).mockResolvedValue(approved);
+    vi.mocked(djLive.getLiveStatus).mockResolvedValue({
+      live: true,
+      sessionId: "s1",
+      paused: false,
+      betweenSongs: true,
+      spotify: conn(),
+    });
+    render(<DjLivePage />);
+    expect(await screen.findByText(/between songs/i)).toBeInTheDocument();
+  });
+
+  it("shows the Reconnect Spotify variant when the token needs reauth", async () => {
+    vi.mocked(djLive.getMe).mockResolvedValue(approved);
+    vi.mocked(djLive.getLiveStatus).mockResolvedValue({
+      live: false,
+      spotify: conn({ status: "needs_reauth" }),
+    });
+    render(<DjLivePage />);
+    expect(await screen.findByRole("button", { name: /reconnect spotify/i })).toBeInTheDocument();
+  });
+
+  it("surfaces the OAuth error banner from ?spotify=denied", async () => {
+    window.history.replaceState({}, "", "/dj/live?spotify=denied");
+    vi.mocked(djLive.getMe).mockResolvedValue(approved);
+    vi.mocked(djLive.getLiveStatus).mockResolvedValue({ live: false, spotify: conn() });
+    render(<DjLivePage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/cancelled/i);
   });
 });

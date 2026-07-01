@@ -27,6 +27,15 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      // The wedge spec is the mobile project's job; keep the desktop suite unchanged.
+      testIgnore: /wedge-mobile\.spec\.ts/,
+    },
+    {
+      // Mobile-viewport coverage of the dancer payoff (album art + "Listen on Spotify").
+      // Needs the persisted surfaces, so the cloud webServer runs with E2E_PERSIST=1.
+      name: "mobile-wedge",
+      use: { ...devices["iPhone 14"] },
+      testMatch: /wedge-mobile\.spec\.ts/,
     },
   ],
 
@@ -42,6 +51,13 @@ export default defineConfig({
         PORT: "3001",
         // High rate limit for tests
         WS_RATE_LIMIT: "1000",
+        // Relax the 5s per-session broadcast throttle so resilience specs can broadcast rapidly.
+        MIN_BROADCAST_INTERVAL_MS: "100",
+        // Opt the E2E cloud into real DB persistence so recap/my-likes surfaces are populated.
+        // Prerequisite: Postgres up (docker compose) + migrations applied (bun run db:migrate).
+        E2E_PERSIST: "1",
+        DATABASE_URL:
+          process.env["DATABASE_URL"] ?? "postgres://pika:pika@localhost:5433/pika_cloud",
       },
     },
     {

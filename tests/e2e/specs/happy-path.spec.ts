@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { createDjSession, DjSimulator } from "../fixtures/ws-dj-simulator";
+import { expect, test } from "@playwright/test";
+import { createDjSession, type DjSimulator } from "../fixtures/ws-dj-simulator";
 
 /**
  * Pika! Happy Path E2E Test (v2)
@@ -29,6 +29,10 @@ test.describe("Pika! Core Flow", () => {
   });
 
   test.afterEach(async () => {
+    // End the session immediately (not just close the socket) so it doesn't linger in the 45s
+    // reconnect-grace and collapse the next test's landing banner to "N DJs LIVE NOW".
+    djSession?.endSession();
+    await new Promise((r) => setTimeout(r, 250)); // flush END_SESSION before the socket closes
     djSession?.disconnect();
   });
 
@@ -55,7 +59,7 @@ test.describe("Pika! Core Flow", () => {
 
     // 5. Click Like button
     console.log("❤️ Audience: Liking track...");
-    const likeButton = page.getByLabel("Like Track");
+    const likeButton = page.getByLabel(/like this track/i);
     await expect(likeButton).toBeVisible();
     await likeButton.click();
 

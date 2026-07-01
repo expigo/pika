@@ -101,7 +101,7 @@ export async function persistTrack(sessionId: string, track: TrackInfo): Promise
     }
 
     try {
-      if (process.env.NODE_ENV === "test") {
+      if (process.env.NODE_ENV === "test" && !process.env["E2E_PERSIST"]) {
         logger.debug("🧪 TEST MODE: Mocking track persistence", { title: track.title });
         return;
       }
@@ -164,7 +164,7 @@ export async function persistTracksBulk(sessionId: string, tracks: TrackInfo[]):
     }
 
     try {
-      if (process.env.NODE_ENV === "test") {
+      if (process.env.NODE_ENV === "test" && !process.env["E2E_PERSIST"]) {
         logger.debug("🧪 TEST MODE: Mocking bulk track persistence", { count: tracks.length });
         return;
       }

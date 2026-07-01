@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "bun run --filter '*' dev",
     "test": "bun test",
+    "test:e2e": "playwright test",
     "test:load": "k6 run tests/load/load-test.js",
     "test:load:big": "k6 run --env SCENARIO=big tests/load/load-test.js",
     "format": "biome format --write packages/cloud packages/web packages/shared",

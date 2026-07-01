@@ -1,5 +1,5 @@
-import { test, expect } from "@playwright/test";
-import { createDjSession, DjSimulator } from "../fixtures/ws-dj-simulator";
+import { expect, test } from "@playwright/test";
+import { createDjSession, type DjSimulator } from "../fixtures/ws-dj-simulator";
 
 /**
  * Pika! Session Discovery Test (v2)
@@ -11,6 +11,10 @@ test.describe("Pika! Session Discovery", () => {
   let djSession: DjSimulator | null = null;
 
   test.afterEach(async () => {
+    // End the session immediately (not just close the socket) so it doesn't linger in the 45s
+    // reconnect-grace and collapse the next test's landing banner to "N DJs LIVE NOW".
+    djSession?.endSession();
+    await new Promise((r) => setTimeout(r, 250)); // flush END_SESSION before the socket closes
     djSession?.disconnect();
   });
 
@@ -60,10 +64,10 @@ test.describe("Pika! Session Discovery", () => {
     await page.goto("http://localhost:3002");
     await expect(page.getByText("Temporary DJ")).toBeVisible({ timeout: 15000 });
 
-    // 3. DJ ends session
+    // 3. DJ ends session — END_SESSION → immediate deleteSession (not the 45s reconnect-grace that
+    //    a bare disconnect() takes), so the removal is observable well within the assertion timeout.
     console.log("🖥️ DJ: Ending session...");
-    djSession.disconnect();
-    djSession = null;
+    djSession.endSession();
 
     // 4. Verify session disappears (after polling refresh)
     console.log("⏳ Waiting for session to disappear...");
