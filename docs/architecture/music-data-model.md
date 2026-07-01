@@ -36,6 +36,9 @@ version-suffix stripping hardened from real WCS playlists).
 - `dj_playlists` — DJ-pasted public Spotify playlists embedded on `/dj/[slug]` (Slice 5; `unique(dj_user_id,
   spotify_playlist_id)`). Cap-free marketing embeds (a plain iframe), *not* the OAuth/matching path.
 - `sessions.published` — `boolean DEFAULT true`; the DJ curates which sets appear on their public profile.
+- `sessions.spotify_playlist_id` / `spotify_playlist_url` — the desktop-built set playlist the DJ **shared**
+  to their profile (mirrors the desktop `sessions` columns; migration `0010`). Embeds on the set's recap +
+  a badge on the profile session row. Null = not shared.
 
 ## Data flow
 1. **Seed (identity + Spotify features)** — admin `/admin/seed`: **Import CSV** — Exportify
@@ -99,6 +102,15 @@ version-suffix stripping hardened from real WCS playlists).
    shown across the whole ready phase — connected or not); the public page renders a lazy
    `SpotifyPlaylistEmbed` iframe per playlist (needs web CSP `frame-src https://open.spotify.com`). Migration
    `0009`; cap-free (no OAuth/matching — external embeds + a publish flag).
+10. **Set-playlist sync (desktop→cloud)** — the desktop `BuildPlaylistModal` creates a real Spotify playlist
+   for a *past* set on the shared Pika account (`POST /api/playlist/create`) and, on the done screen, the DJ
+   can **"Share on my Pika profile"**. That POSTs the real playlist id to `POST /api/dj/me/sessions/:id/playlist`
+   (authed bearer + `requireDjAuth`, scoped by `getUser(c).id` → 404 if not mine; id validated by
+   `parseSpotifyPlaylistId`), storing it on the **cloud** `sessions.spotify_playlist_id/url`. It then embeds on
+   the set's recap (`buildRecap` carries the id → `SpotifyPlaylistEmbed`) and shows a badge on the profile
+   session row (`GET /:slug`). `DELETE` un-shares. The desktop remembers the shared state in
+   `sessions.spotify_playlist_synced_at`. Cap-free (shared-account playlist, no per-DJ OAuth); the set must have
+   gone live (it needs a `cloud_session_id`). Migration `0010` (cloud) + desktop `0005`.
 
 ## Why CSV (not the API)
 Spotify's Nov-2024 lockdown blocks new apps from reading playlists *and* deprecated the `audio-features`

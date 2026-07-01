@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, userEvent } from "../test/rtl";
+import { render, screen, userEvent, waitFor } from "../test/rtl";
 import { BuildPlaylistModal } from "./BuildPlaylistModal";
 
 vi.mock("@tauri-apps/plugin-opener", () => ({ openUrl: vi.fn(() => Promise.resolve()) }));
@@ -14,7 +14,13 @@ vi.mock("../db/repositories/sessionRepository", () => ({
   sessionRepository: {
     getSessionPlaylistUrl: vi.fn(() => Promise.resolve(null)),
     setSessionPlaylist: vi.fn(() => Promise.resolve()),
+    getSessionPlaylistState: vi.fn(),
+    setSessionPlaylistSynced: vi.fn(() => Promise.resolve()),
   },
+}));
+vi.mock("../services/djApi", () => ({
+  syncSessionPlaylist: vi.fn(() => Promise.resolve()),
+  unsyncSessionPlaylist: vi.fn(() => Promise.resolve()),
 }));
 vi.mock("../services/spotifyPlaylist", () => ({
   searchSpotify: vi.fn(),
@@ -42,6 +48,7 @@ vi.mock("../hooks/useSpotifyFeatures", () => ({
 }));
 
 import { sessionRepository } from "../db/repositories/sessionRepository";
+import { syncSessionPlaylist, unsyncSessionPlaylist } from "../services/djApi";
 import { trackRepository } from "../db/repositories/trackRepository";
 import {
   createSpotifyPlaylist,
@@ -110,6 +117,18 @@ beforeEach(() => {
   vi.mocked(searchSpotify).mockResolvedValue(searchResult);
   vi.mocked(createSpotifyPlaylist).mockClear();
   vi.mocked(trackRepository.setTrackSpotifyMatch).mockClear();
+  // Playlist-sync defaults: a live set with a built playlist, not yet shared.
+  vi.mocked(sessionRepository.getSessionPlaylistState).mockResolvedValue({
+    url: "https://open.spotify.com/playlist/abc",
+    playlistId: "abc",
+    cloudSessionId: "pika_1",
+    syncedAt: null,
+  });
+  vi.mocked(sessionRepository.setSessionPlaylistSynced).mockClear();
+  vi.mocked(syncSessionPlaylist).mockClear();
+  vi.mocked(syncSessionPlaylist).mockResolvedValue(undefined);
+  vi.mocked(unsyncSessionPlaylist).mockClear();
+  vi.mocked(unsyncSessionPlaylist).mockResolvedValue(undefined);
 });
 
 function renderModal() {
@@ -219,5 +238,69 @@ describe("BuildPlaylistModal", () => {
     expect(await screen.findByText(/already has a playlist/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /open in spotify/i })).toBeInTheDocument();
     expect(searchSpotify).not.toHaveBeenCalled();
+  });
+
+  describe("share to profile", () => {
+    // Reach the done screen via the remembered-playlist short-circuit (no create flow needed).
+    const openDone = () =>
+      vi.mocked(sessionRepository.getSessionPlaylistUrl).mockResolvedValue(
+        "https://open.spotify.com/playlist/abc",
+      );
+
+    it("shares the set playlist and flips to the synced state", async () => {
+      openDone();
+      renderModal();
+      await userEvent.click(
+        await screen.findByRole("button", { name: /share on my pika profile/i }),
+      );
+      await waitFor(() =>
+        expect(syncSessionPlaylist).toHaveBeenCalledWith(
+          "pika_1",
+          expect.objectContaining({ spotifyPlaylistId: "abc" }),
+        ),
+      );
+      expect(sessionRepository.setSessionPlaylistSynced).toHaveBeenCalledWith(7, expect.any(Number));
+      expect(await screen.findByText(/on your pika profile/i)).toBeInTheDocument();
+    });
+
+    it("disables sharing when the set was never broadcast live (no cloud session)", async () => {
+      openDone();
+      vi.mocked(sessionRepository.getSessionPlaylistState).mockResolvedValue({
+        url: "https://open.spotify.com/playlist/abc",
+        playlistId: "abc",
+        cloudSessionId: null,
+        syncedAt: null,
+      });
+      renderModal();
+      expect(await screen.findByText(/go live with a set to share/i)).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /share on my pika profile/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows the synced state and un-shares on demand", async () => {
+      openDone();
+      vi.mocked(sessionRepository.getSessionPlaylistState).mockResolvedValue({
+        url: "https://open.spotify.com/playlist/abc",
+        playlistId: "abc",
+        cloudSessionId: "pika_1",
+        syncedAt: 1705968000,
+      });
+      renderModal();
+      expect(await screen.findByText(/on your pika profile/i)).toBeInTheDocument();
+      await userEvent.click(screen.getByRole("button", { name: /remove from profile/i }));
+      await waitFor(() => expect(unsyncSessionPlaylist).toHaveBeenCalledWith("pika_1"));
+      expect(sessionRepository.setSessionPlaylistSynced).toHaveBeenCalledWith(7, null);
+    });
+
+    it("surfaces an error when sharing fails", async () => {
+      openDone();
+      vi.mocked(syncSessionPlaylist).mockRejectedValue(new Error("network down"));
+      renderModal();
+      await userEvent.click(
+        await screen.findByRole("button", { name: /share on my pika profile/i }),
+      );
+      expect(await screen.findByText(/network down/i)).toBeInTheDocument();
+    });
   });
 });

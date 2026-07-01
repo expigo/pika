@@ -92,15 +92,15 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of July 1 2026 — see `docs/TEST_AUDIT_2026_06_30.md`):** ~1,087 passing JS/TS
-tests + 48 gated DB-integration + 8 Python sidecar.
-- Desktop: 443 tests (Vitest; unit + `*.rtl.tsx` React-Testing-Library component tests, +1 skipped)
-- Cloud: ~426 unit tests (Bun) + **48** real-Postgres integration (`test:integration`, gated `RUN_DB_TESTS` —
+**Test Coverage (as of July 2 2026 — see `docs/TEST_AUDIT_2026_06_30.md`):** ~1,124 passing JS/TS
+tests + 49 gated DB-integration + 8 Python sidecar.
+- Desktop: 467 tests (Vitest; unit + `*.rtl.tsx` React-Testing-Library component tests, +1 skipped)
+- Cloud: ~428 unit tests (Bun) + **49** real-Postgres integration (`test:integration`, gated `RUN_DB_TESTS` —
   exercises the real `persist*` functions incl. the C3 buffer-and-flush, the auth guards, the
-  Songs-Catalog read path incl. the Pika-consensus join, the dual-CSV accretive merge, and the Slice-5
-  DJ profile management (publish-toggle + embedded playlists); skipped under plain `bun test`)
+  Songs-Catalog read path incl. the Pika-consensus join, the dual-CSV accretive merge, the Slice-5
+  DJ profile management (publish-toggle + embedded playlists), and the set-playlist sync; skipped under plain `bun test`)
 - Shared: 43 tests (Bun)
-- Web: 94 pure tests (`bun test`) + 81 `*.rtl.tsx` RTL component tests (`vitest run`) = 175. **Dual-runner** (see [RTL harness](#rtl-component-tests-web--desktop) below)
+- Web: 94 pure tests (`bun test`) + 92 `*.rtl.tsx` RTL component tests (`vitest run`) = 186. **Dual-runner** (see [RTL harness](#rtl-component-tests-web--desktop) below)
 - Python sidecar: 8 tests (`pytest`, `bun run --filter @pika/desktop test:python`) — `clamp` + librosa
   extractors on synthetic signals. Coverage tooling: `test:coverage` per package (advisory, not CI-gating).
 
@@ -237,7 +237,7 @@ chore: bump version to 0.4.0
 - Use `parseMessage<T>()` in Cloud handlers for type-safe parsing
 
 ### Testing Philosophy
-- **~1,087 passing tests** across all packages (443 desktop, ~426 cloud, 175 web, 43 shared) + 48 gated
+- **~1,124 passing tests** across all packages (467 desktop, ~428 cloud, 186 web, 43 shared) + 49 gated
   DB-integration + 8 Python sidecar (see `docs/TEST_AUDIT_2026_06_30.md`)
 - Test files colocated with source: `*.test.ts` / `__tests__/` (logic) and `*.rtl.tsx` (React components)
 - Use Vitest (desktop) / `bun test` (cloud, web, shared) for TS/JS, pytest for Python

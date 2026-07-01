@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   Heart,
+  ListMusic,
   Music2,
   Radio,
   Share2,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
+import { SpotifyPlaylistEmbed } from "@/components/SpotifyPlaylistEmbed";
 import { ProCard } from "@/components/ui/ProCard";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { getApiBaseUrl } from "@/lib/api";
@@ -51,6 +53,8 @@ interface SessionRecap {
   trackCount: number;
   totalLikes: number;
   tracks: RecapTrack[];
+  // Playlist sync: the DJ shared this set's Spotify playlist (real id → embeds). Null if not shared.
+  spotifyPlaylistId: string | null;
 }
 
 // Format date nicely
@@ -382,6 +386,24 @@ export default function DjRecapPage({ params }: RecapPageProps) {
             </button>
           )}
         </ProCard>
+
+        {/* SET PLAYLIST — the DJ shared this set's Spotify playlist (real, embeddable id). */}
+        {recap.spotifyPlaylistId && (
+          <ProCard className="overflow-hidden mt-8">
+            <div className="px-8 py-6 border-b border-slate-800/50 flex items-center gap-3 bg-slate-900/20">
+              <ListMusic className="w-5 h-5 text-emerald-500" />
+              <h3 className="font-black text-white italic uppercase tracking-tight">
+                Set Playlist.
+              </h3>
+            </div>
+            <div className="p-4">
+              <SpotifyPlaylistEmbed
+                spotifyPlaylistId={recap.spotifyPlaylistId}
+                title={`${recap.djName} — set playlist`}
+              />
+            </div>
+          </ProCard>
+        )}
 
         {/* Back Link & Footer */}
         <div className="mt-16 text-center pb-32">

@@ -92,6 +92,10 @@ export const sessions = sqliteTable(
     /** B3: the Spotify playlist generated for this set (so it's not re-created on reopen) */
     spotifyPlaylistUrl: text("spotify_playlist_url"),
     spotifyPlaylistId: text("spotify_playlist_id"),
+
+    /** Playlist sync: unix ts when this set's playlist was shared to the DJ's public Pika profile
+     *  (null = not shared). Lets the UI show "on profile" + offer un-share. */
+    spotifyPlaylistSyncedAt: int("spotify_playlist_synced_at"),
   },
   (t) => ({
     endedAtIdx: index("idx_sessions_ended_at").on(t.endedAt),

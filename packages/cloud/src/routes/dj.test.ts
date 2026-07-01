@@ -14,6 +14,8 @@ describe("dj /me/* profile-management auth guard", () => {
     ["GET", "/api/dj/me/playlists"],
     ["POST", "/api/dj/me/playlists"],
     ["DELETE", "/api/dj/me/playlists/1"],
+    ["POST", "/api/dj/me/sessions/some-id/playlist"],
+    ["DELETE", "/api/dj/me/sessions/some-id/playlist"],
   ];
   for (const [method, path] of cases) {
     test(`${method} ${path} → 401 without a session`, async () => {

@@ -864,4 +864,36 @@ describe("sessionRepository", () => {
       expect(details?.stats.duration).toBe(0);
     });
   });
+
+  describe("playlist sync state", () => {
+    it("getSessionPlaylistState maps the row into the UI shape", async () => {
+      mockSelect.mockResolvedValueOnce([
+        {
+          url: "https://open.spotify.com/playlist/abc",
+          playlist_id: "abc",
+          cloud_session_id: "pika_1",
+          synced_at: 1705968000,
+        },
+      ]);
+      const state = await sessionRepository.getSessionPlaylistState(1);
+      expect(state).toEqual({
+        url: "https://open.spotify.com/playlist/abc",
+        playlistId: "abc",
+        cloudSessionId: "pika_1",
+        syncedAt: 1705968000,
+      });
+    });
+
+    it("getSessionPlaylistState defaults to nulls when the set has no playlist row", async () => {
+      mockSelect.mockResolvedValueOnce([]);
+      const state = await sessionRepository.getSessionPlaylistState(99);
+      expect(state).toEqual({ url: null, playlistId: null, cloudSessionId: null, syncedAt: null });
+    });
+
+    it("setSessionPlaylistSynced writes via db.update (mark + clear)", async () => {
+      await sessionRepository.setSessionPlaylistSynced(1, 1705968000);
+      await sessionRepository.setSessionPlaylistSynced(1, null);
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
+  });
 });

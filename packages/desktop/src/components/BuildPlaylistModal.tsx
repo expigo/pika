@@ -14,6 +14,7 @@ import { createPortal } from "react-dom";
 import { sessionRepository } from "../db/repositories/sessionRepository";
 import { trackRepository } from "../db/repositories/trackRepository";
 import { useSpotifyFeaturesBatch } from "../hooks/useSpotifyFeatures";
+import { syncSessionPlaylist, unsyncSessionPlaylist } from "../services/djApi";
 import {
   createSpotifyPlaylist,
   type MatchResult,
@@ -100,9 +101,66 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState(false);
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
+  // Playlist-sync (share this set's playlist on the DJ's public profile) state, loaded on the done screen.
+  const [syncState, setSyncState] = useState<{
+    cloudSessionId: string | null;
+    playlistId: string | null;
+    url: string | null;
+    syncedAt: number | null;
+  } | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   // What to show on the "done" screen: a fresh create wins; else the remembered one (unless rebuilding).
   const doneUrl = resultUrl ?? (rebuild ? null : existingUrl);
+
+  // On the done screen, load everything the "share to profile" affordance needs.
+  useEffect(() => {
+    if (!doneUrl) return;
+    let cancelled = false;
+    sessionRepository.getSessionPlaylistState(session.id).then((s) => {
+      if (!cancelled) setSyncState(s);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [doneUrl, session.id]);
+
+  const handleSync = async () => {
+    if (!syncState?.cloudSessionId || !syncState.playlistId) return;
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      await syncSessionPlaylist(syncState.cloudSessionId, {
+        spotifyPlaylistId: syncState.playlistId,
+        ...(syncState.url ? { spotifyPlaylistUrl: syncState.url } : {}),
+      });
+      const ts = Math.floor(Date.now() / 1000);
+      await sessionRepository.setSessionPlaylistSynced(session.id, ts);
+      setSyncState((s) => (s ? { ...s, syncedAt: ts } : s));
+    } catch (e) {
+      if (isAuthError(e)) setAuthError(true);
+      else setSyncError(e instanceof Error ? e.message : "Couldn't share to your profile");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleUnsync = async () => {
+    if (!syncState?.cloudSessionId) return;
+    setSyncing(true);
+    setSyncError(null);
+    try {
+      await unsyncSessionPlaylist(syncState.cloudSessionId);
+      await sessionRepository.setSessionPlaylistSynced(session.id, null);
+      setSyncState((s) => (s ? { ...s, syncedAt: null } : s));
+    } catch (e) {
+      if (isAuthError(e)) setAuthError(true);
+      else setSyncError(e instanceof Error ? e.message : "Couldn't update your profile");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -402,6 +460,42 @@ export function BuildPlaylistModal({ session, onClose }: Props) {
             >
               <ExternalLink size={16} /> Open in Spotify
             </button>
+
+            {/* Share this set's playlist on the DJ's public Pika profile (embeds on the recap). */}
+            {syncState && (
+              <div className="mt-2 w-full max-w-sm border-t border-slate-800 pt-4">
+                {!syncState.cloudSessionId ? (
+                  <p className="text-xs text-slate-500">
+                    Go live with a set to share its playlist on your Pika profile.
+                  </p>
+                ) : syncState.syncedAt ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400">
+                      <Check size={16} /> On your Pika profile
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleUnsync}
+                      disabled={syncing}
+                      className="text-xs text-slate-500 hover:text-red-400 disabled:opacity-50"
+                    >
+                      {syncing ? "Updating…" : "Remove from profile"}
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSync}
+                    disabled={syncing || !syncState.playlistId}
+                    className="inline-flex items-center gap-2 rounded-full border border-pika-accent/40 bg-pika-accent/10 px-5 py-2 text-sm font-semibold text-pika-accent hover:bg-pika-accent/20 disabled:opacity-50"
+                  >
+                    <ListMusic size={16} /> {syncing ? "Sharing…" : "Share on my Pika profile"}
+                  </button>
+                )}
+                {syncError && <p className="mt-2 text-xs italic text-red-400">{syncError}</p>}
+              </div>
+            )}
+
             {!resultUrl && (
               <button
                 type="button"

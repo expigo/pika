@@ -1,0 +1,1 @@
+ALTER TABLE `sessions` ADD `spotify_playlist_synced_at` integer;

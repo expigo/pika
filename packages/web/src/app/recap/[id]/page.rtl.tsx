@@ -78,4 +78,21 @@ describe("RecapPage", () => {
     await userEvent.click(screen.getByRole("button", { name: /expand 12 syncs/i }));
     expect(screen.getByText("Track 12")).toBeInTheDocument();
   });
+
+  it("embeds the set playlist when the DJ shared one", async () => {
+    vi.stubGlobal(
+      "fetch",
+      mockFetch({ "/recap": recap({ spotifyPlaylistId: "37i9dQZF1DXcBWIGoYBM5M" }) }),
+    );
+    render(<RecapPage />);
+    const iframe = await screen.findByTitle(/set playlist/i);
+    expect(iframe.getAttribute("src")).toContain("37i9dQZF1DXcBWIGoYBM5M");
+  });
+
+  it("omits the set-playlist section when none was shared", async () => {
+    vi.stubGlobal("fetch", mockFetch({ "/recap": recap() })); // no spotifyPlaylistId
+    render(<RecapPage />);
+    await screen.findByRole("heading", { name: "DJ Nova" });
+    expect(screen.queryByTitle(/set playlist/i)).not.toBeInTheDocument();
+  });
 });

@@ -142,6 +142,7 @@ describe("desktop migrator", () => {
       "0002_slim_mordo",
       "0003_quiet_vindicator",
       "0004_parallel_steve_rogers",
+      "0005_shocking_nico_minoru",
     ]);
   });
 
@@ -160,6 +161,7 @@ describe("desktop migrator", () => {
       "0002_slim_mordo",
       "0003_quiet_vindicator",
       "0004_parallel_steve_rogers",
+      "0005_shocking_nico_minoru",
     ]);
     const row = bdb.prepare("SELECT artist FROM tracks WHERE file_path = ?").get("/music/x.mp3") as
       | { artist: string }
@@ -197,6 +199,7 @@ describe("desktop migrator", () => {
       "0002_slim_mordo",
       "0003_quiet_vindicator",
       "0004_parallel_steve_rogers",
+      "0005_shocking_nico_minoru",
     ]);
   });
 });

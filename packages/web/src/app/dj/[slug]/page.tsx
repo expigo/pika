@@ -1,7 +1,7 @@
 "use client";
 
 import { logger } from "@pika/shared";
-import { ArrowRight, Clock, History, Music2, User } from "lucide-react";
+import { ArrowRight, Clock, History, ListMusic, Music2, User } from "lucide-react";
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
 import { SpotifyPlaylistEmbed } from "@/components/SpotifyPlaylistEmbed";
@@ -14,6 +14,8 @@ interface DjSession {
   startedAt: string;
   endedAt: string | null;
   trackCount: number;
+  // Playlist sync: set when the DJ shared this set's Spotify playlist → a badge linking to the recap.
+  spotifyPlaylistId?: string | null;
 }
 
 interface DjPlaylist {
@@ -244,6 +246,12 @@ export default function DjProfilePage({ params }: DjPageProps) {
                         <Clock className="w-3 h-3" />
                         {formatDuration(session.startedAt, session.endedAt)}
                       </span>
+                      {session.spotifyPlaylistId && (
+                        <span className="flex items-center gap-2 text-emerald-500/70 group-hover:text-emerald-400 transition-colors">
+                          <ListMusic className="w-3 h-3" />
+                          Playlist
+                        </span>
+                      )}
                     </div>
                   </div>
 

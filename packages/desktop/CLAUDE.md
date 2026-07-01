@@ -503,6 +503,16 @@ for every DJ). No-reload refresh via `getTrackById`→`updateTrackInList`. A per
 matched (faint=auto, bright=confirmed). Tests: `SpotifyMatchManager.rtl.tsx`, `trackRepository.test.ts`
 (`clearTrackSpotifyMatch`), cloud `playlist.test.ts` + `db.integration.test.ts` (`/confirm`).
 
+**Build + share a set playlist (`BuildPlaylistModal`):** for a past set, resolve each played track to a
+Spotify recording, then `createSpotifyPlaylist` (→ `POST /api/playlist/create`, real playlist on the shared
+Pika account) → remembered on the session (`sessions.spotify_playlist_url/id`). On the done screen the DJ can
+**"Share on my Pika profile"** (`services/djApi.ts` → `POST /api/dj/me/sessions/:cloudSessionId/playlist`,
+bearer-authed) — it embeds on the set's recap + a profile session-row badge (cloud
+`sessions.spotify_playlist_id`). "Remove from profile" un-shares (`DELETE`). Local shared-state:
+`sessions.spotify_playlist_synced_at` (via `setSessionPlaylistSynced`); the button is disabled if the set has
+no `cloud_session_id` (never went live). Tests: `BuildPlaylistModal.rtl.tsx` (share flow), `djApi.test.ts`,
+`sessionRepository.test.ts`, cloud `dj.test.ts` + `db.integration.test.ts` (set-playlist sync).
+
 ### Test Files
 
 Located alongside source files:

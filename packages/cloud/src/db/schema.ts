@@ -112,6 +112,10 @@ export const sessions = pgTable(
     // Slice 5: DJ curates which sessions appear on their public /dj/[slug] profile. Default true so
     // existing sessions stay visible; the DJ opts to hide.
     published: boolean("published").notNull().default(true),
+    // Playlist sync: the desktop builds a real Spotify playlist for the set (shared Pika account) and
+    // opts to share it — synced here so it embeds on the recap + a badge on the profile session row.
+    spotifyPlaylistId: text("spotify_playlist_id"),
+    spotifyPlaylistUrl: text("spotify_playlist_url"),
   },
   (table) => ({
     idxDjUserId: index("idx_sessions_dj_user_id").on(table.djUserId),

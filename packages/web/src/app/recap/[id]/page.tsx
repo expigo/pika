@@ -9,6 +9,7 @@ import {
   ChevronUp,
   Flame,
   Heart,
+  ListMusic,
   Radio,
   Share2,
   User,
@@ -16,6 +17,7 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { SpotifyPlaylistEmbed } from "@/components/SpotifyPlaylistEmbed";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { VibeBadge } from "@/components/ui/VibeBadge";
@@ -41,6 +43,8 @@ interface SessionRecap {
   trackCount: number;
   totalLikes: number;
   tracks: RecapTrack[];
+  // Playlist sync: the DJ shared this set's Spotify playlist (real id → embeds). Null if not shared.
+  spotifyPlaylistId: string | null;
 }
 
 function formatDate(dateString: string): string {
@@ -314,6 +318,19 @@ export default function RecapPage() {
             </button>
           )}
         </ProCard>
+
+        {/* SET PLAYLIST — the DJ shared this set's Spotify playlist (real, embeddable id). */}
+        {recap.spotifyPlaylistId && (
+          <ProCard className="overflow-hidden mt-10">
+            <ProHeader title="Set Playlist" icon={ListMusic} subtitle="Listen on Spotify" />
+            <div className="p-4">
+              <SpotifyPlaylistEmbed
+                spotifyPlaylistId={recap.spotifyPlaylistId}
+                title={`${recap.djName} — set playlist`}
+              />
+            </div>
+          </ProCard>
+        )}
 
         <div className="mt-16 text-center pt-8 opacity-30">
           <p className="text-[9px] font-black uppercase tracking-[0.6em] text-slate-500 mb-6">

@@ -57,6 +57,7 @@ dj.get("/:slug", async (c) => {
           djName: schema.sessions.djName,
           startedAt: schema.sessions.startedAt,
           endedAt: schema.sessions.endedAt,
+          spotifyPlaylistId: schema.sessions.spotifyPlaylistId,
         })
         .from(schema.sessions)
         .where(
@@ -75,6 +76,7 @@ dj.get("/:slug", async (c) => {
           djName: schema.sessions.djName,
           startedAt: schema.sessions.startedAt,
           endedAt: schema.sessions.endedAt,
+          spotifyPlaylistId: schema.sessions.spotifyPlaylistId,
         })
         .from(schema.sessions)
         .where(and(isNull(schema.sessions.djUserId), eq(schema.sessions.published, true)))
@@ -120,6 +122,8 @@ dj.get("/:slug", async (c) => {
         startedAt: session.startedAt?.toISOString() || new Date().toISOString(),
         endedAt: session.endedAt?.toISOString() || null,
         trackCount: countsMap.get(session.id) || 0,
+        // Playlist sync: a set's synced Spotify playlist → badge on the profile session row.
+        spotifyPlaylistId: session.spotifyPlaylistId ?? null,
       }));
 
       // Slice 5: DJ-pasted public Spotify playlists embedded on the profile.
@@ -266,6 +270,47 @@ dj.delete("/me/playlists/:id", requireDjAuth, async (c) => {
   await db
     .delete(schema.djPlaylists)
     .where(and(eq(schema.djPlaylists.id, pid), eq(schema.djPlaylists.djUserId, me.id)));
+  if (me.slug) invalidateCache(`dj-profile:${me.slug}`);
+  return c.json({ success: true });
+});
+
+const SyncSessionPlaylistBody = z.object({
+  spotifyPlaylistId: z.string().trim().min(1).max(400),
+  spotifyPlaylistUrl: z.string().trim().max(400).optional(),
+});
+
+/**
+ * Share (sync) the desktop-built Spotify playlist for one of my sets. The desktop POSTs its
+ * shared-account playlist here; it then embeds on that set's recap + shows a badge on the profile
+ * session row. Scoped to me (404 if the session isn't mine — indistinguishable from not-found).
+ */
+dj.post("/me/sessions/:id/playlist", requireDjAuth, async (c) => {
+  const me = getUser(c);
+  const parsed = SyncSessionPlaylistBody.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) return c.json({ error: "Invalid body" }, 400);
+  const id = parseSpotifyPlaylistId(parsed.data.spotifyPlaylistId);
+  if (!id) return c.json({ error: "That doesn't look like a Spotify playlist" }, 400);
+  const url = parsed.data.spotifyPlaylistUrl?.trim() || `https://open.spotify.com/playlist/${id}`;
+
+  const updated = await db
+    .update(schema.sessions)
+    .set({ spotifyPlaylistId: id, spotifyPlaylistUrl: url })
+    .where(and(eq(schema.sessions.id, c.req.param("id")), eq(schema.sessions.djUserId, me.id)))
+    .returning({ id: schema.sessions.id });
+  if (updated.length === 0) return c.json({ error: "Session not found" }, 404);
+  if (me.slug) invalidateCache(`dj-profile:${me.slug}`);
+  return c.json({ success: true, spotifyPlaylistId: id });
+});
+
+/** Un-share the synced playlist from one of my sets. */
+dj.delete("/me/sessions/:id/playlist", requireDjAuth, async (c) => {
+  const me = getUser(c);
+  const updated = await db
+    .update(schema.sessions)
+    .set({ spotifyPlaylistId: null, spotifyPlaylistUrl: null })
+    .where(and(eq(schema.sessions.id, c.req.param("id")), eq(schema.sessions.djUserId, me.id)))
+    .returning({ id: schema.sessions.id });
+  if (updated.length === 0) return c.json({ error: "Session not found" }, 404);
   if (me.slug) invalidateCache(`dj-profile:${me.slug}`);
   return c.json({ success: true });
 });

@@ -135,6 +135,44 @@ export const sessionRepository = {
     return rows[0]?.url ?? null;
   },
 
+  /** Playlist sync: everything the "share to profile" UI needs for a set in one read. */
+  async getSessionPlaylistState(sessionId: number): Promise<{
+    url: string | null;
+    playlistId: string | null;
+    cloudSessionId: string | null;
+    syncedAt: number | null;
+  }> {
+    const sqlite = await getSqlite();
+    const rows = await sqlite.select<
+      {
+        url: string | null;
+        playlist_id: string | null;
+        cloud_session_id: string | null;
+        synced_at: number | null;
+      }[]
+    >(
+      `SELECT spotify_playlist_url AS url, spotify_playlist_id AS playlist_id,
+              cloud_session_id, spotify_playlist_synced_at AS synced_at
+       FROM sessions WHERE id = ?`,
+      [sessionId],
+    );
+    const r = rows[0];
+    return {
+      url: r?.url ?? null,
+      playlistId: r?.playlist_id ?? null,
+      cloudSessionId: r?.cloud_session_id ?? null,
+      syncedAt: r?.synced_at ?? null,
+    };
+  },
+
+  /** Playlist sync: mark (or clear) that this set's playlist is shared on the DJ's public profile. */
+  async setSessionPlaylistSynced(sessionId: number, syncedAt: number | null): Promise<void> {
+    await db
+      .update(sessions)
+      .set({ spotifyPlaylistSyncedAt: syncedAt })
+      .where(eq(sessions.id, sessionId));
+  },
+
   /**
    * Get a session by ID
    */

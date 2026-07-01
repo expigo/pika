@@ -165,6 +165,7 @@ async function buildRecap(
         djName: schema.sessions.djName,
         startedAt: schema.sessions.startedAt,
         endedAt: schema.sessions.endedAt,
+        spotifyPlaylistId: schema.sessions.spotifyPlaylistId,
       })
       .from(schema.sessions)
       .where(eq(schema.sessions.id, sessionId))
@@ -327,6 +328,8 @@ async function buildRecap(
     endedAt: endTime?.toISOString(),
     trackCount: tracks.length,
     totalLikes,
+    // Playlist sync: the set's synced Spotify playlist → embedded on the recap. Null if not shared.
+    spotifyPlaylistId: dbSession.spotifyPlaylistId ?? null,
     tracks: tracks.map((t, index) => {
       const tempoData = trackTempoVotes.get(`${t.artist}:${t.title}`);
       return {
