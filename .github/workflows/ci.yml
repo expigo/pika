@@ -95,3 +95,48 @@ jobs:
 
       - name: Cloud DB integration tests
         run: bun run --filter @pika/cloud test:integration
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: pika
+          POSTGRES_PASSWORD: pika
+          POSTGRES_DB: pika_cloud
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pika -d pika_cloud"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Both the E2E cloud (via playwright.config webServer) and the W1 spec's DB assertions read this.
+      DATABASE_URL: postgres://pika:pika@localhost:5432/pika_cloud
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      # Schema for the E2E cloud (runs with E2E_PERSIST=1 → real `likes`/`played_tracks` rows).
+      - name: Migrate
+        run: bun run --filter @pika/cloud db:migrate
+
+      # Browsers for both Playwright projects (webkit powers the iPhone `mobile-wedge` project).
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium webkit
+
+      # Playwright's webServer block spawns cloud (E2E_PERSIST=1) + web; DATABASE_URL flows through
+      # the config. reuseExistingServer is off under CI, so servers are always spawned fresh.
+      - name: E2E tests (Playwright)
+        run: bun run test:e2e

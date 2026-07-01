@@ -10,6 +10,14 @@ on:
       - 'LICENSE'
       - '.gitignore'
       - '.github/dependabot.yml' # bot config — must not trigger an app redeploy
+      # Test/CI-only changes ship nothing in the Docker images — never redeploy for them.
+      - 'tests/**'
+      - 'playwright.config.ts'
+      - '.github/workflows/**'
+      - '**/*.test.ts'
+      - '**/*.spec.ts'
+      - '**/*.rtl.tsx'
+      - '**/__tests__/**'
 
 # Never interrupt an in-flight deploy; queue the next one instead.
 concurrency:

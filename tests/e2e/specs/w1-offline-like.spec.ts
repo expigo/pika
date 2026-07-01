@@ -1,5 +1,5 @@
-import { execSync } from "node:child_process";
 import { expect, type Page, test } from "@playwright/test";
+import postgres from "postgres";
 import { createDjSession, type DjSimulator } from "../fixtures/ws-dj-simulator";
 
 /**
@@ -14,14 +14,19 @@ import { createDjSession, type DjSimulator } from "../fixtures/ws-dj-simulator";
  *   3. A dropped ACK keeps the queue; the next reconnect re-flushes → still ONE row.
  */
 
-// sessionId is `e2e_<ts>_<rand>` (alphanumeric + underscore) — safe to interpolate.
-function likeCountInDb(sessionId: string): number {
-  const out = execSync(
-    `docker exec pika-postgres psql -U pika -d pika_cloud -tA -c ` +
-      `"SELECT count(*) FROM likes WHERE session_id='${sessionId}'"`,
-    { encoding: "utf8" },
-  ).trim();
-  return Number.parseInt(out, 10) || 0;
+// Harness-agnostic DB read, keyed on DATABASE_URL so it works locally (:5433) and against CI's
+// Postgres service (:5432). The E2E cloud runs with E2E_PERSIST=1, so `likes` rows are real.
+const sql = postgres(
+  process.env["DATABASE_URL"] ?? "postgres://pika:pika@localhost:5433/pika_cloud",
+  {
+    max: 1,
+  },
+);
+
+async function likeCountInDb(sessionId: string): Promise<number> {
+  const [row] = await sql<{ n: number }[]>`
+    SELECT count(*)::int AS n FROM likes WHERE session_id = ${sessionId}`;
+  return row?.n ?? 0;
 }
 
 /** Pending offline likes idb-keyval holds for this session (idb-keyval store: keyval-store/keyval). */
@@ -118,22 +123,22 @@ async function tuneIn(page: Page, sessionId: string, trackTitle: string) {
   await expect(page.getByText(trackTitle)).toBeVisible({ timeout: 15000 });
 }
 
-const SHOT_DIR =
-  "/private/tmp/claude-501/-Users-kryspin-personal-projects-djwcs-pika-pika/de2190ae-6bda-4c85-83aa-8270d9dd4fcf/scratchpad";
-
 test.describe("W1: ACK-gated offline-like flush", () => {
   let dj: DjSimulator;
 
-  // Opt-in: needs a NON-test cloud (real DB writes) + real Postgres reachable via
-  // `docker exec pika-postgres`. The default `test:e2e` harness runs cloud with
-  // NODE_ENV=test (persistence mocked), where these DB assertions can't hold.
-  // Run with: RUN_W1_E2E=1 (cloud on :3001 non-test, web on :3002, postgres on :5433).
-  test.skip(
-    !process.env["RUN_W1_E2E"],
-    "Set RUN_W1_E2E=1 with a non-test cloud + real Postgres to run.",
-  );
+  // Runs under the standard E2E harness: playwright.config.ts sets E2E_PERSIST=1 so `likes` rows are
+  // real. Prerequisite: Postgres up + migrated (docker compose + db:migrate).
+  test.afterAll(async () => {
+    await sql.end();
+  });
 
-  test.afterEach(() => dj?.disconnect());
+  test.afterEach(async () => {
+    // End the session immediately so it doesn't linger in the 45s reconnect-grace (sibling-spec
+    // isolation, matching the other specs).
+    dj?.endSession();
+    await new Promise((r) => setTimeout(r, 250));
+    dj?.disconnect();
+  });
 
   test("offline like → reconnect flush → exactly one DB row, IndexedDB cleared", async ({
     page,
@@ -146,13 +151,13 @@ test.describe("W1: ACK-gated offline-like flush", () => {
     const sid = dj.getSessionId();
 
     await tuneIn(page, sid, "Bad Wifi Blues");
-    expect(likeCountInDb(sid)).toBe(0);
+    expect(await likeCountInDb(sid)).toBe(0);
 
     // Drop the socket, then like → must QUEUE (not reach the server).
     ws.goOffline();
     await page.getByLabel(/like this track/i).click({ force: true });
     await expect.poll(() => pendingIdbCount(page, sid), { timeout: 10000 }).toBe(1);
-    expect(likeCountInDb(sid)).toBe(0);
+    expect(await likeCountInDb(sid)).toBe(0);
 
     // Reconnect → ACK-gated flush drains the queue.
     ws.goOnline();
@@ -161,9 +166,7 @@ test.describe("W1: ACK-gated offline-like flush", () => {
 
     // Still exactly one — the flush did not duplicate.
     await page.waitForTimeout(1000);
-    expect(likeCountInDb(sid)).toBe(1);
-
-    await page.screenshot({ path: `${SHOT_DIR}/w1-happy.png` });
+    expect(await likeCountInDb(sid)).toBe(1);
   });
 
   test("dropped ACK keeps the queue; next reconnect re-flushes → still ONE row", async ({
@@ -192,7 +195,7 @@ test.describe("W1: ACK-gated offline-like flush", () => {
     // ... but with the ACK dropped, the queue is NOT cleared (this is the fix).
     await page.waitForTimeout(7000); // > TIMEOUTS.ACK_TIMEOUT (5s)
     expect(await pendingIdbCount(page, sid)).toBe(1);
-    expect(likeCountInDb(sid)).toBe(1);
+    expect(await likeCountInDb(sid)).toBe(1);
 
     // Force another reconnect → re-flush, this time the ACK gets through.
     ws.goOffline();
@@ -201,8 +204,6 @@ test.describe("W1: ACK-gated offline-like flush", () => {
 
     // Idempotent: still exactly one row, and now the queue clears.
     await expect.poll(() => pendingIdbCount(page, sid), { timeout: 25000 }).toBe(0);
-    expect(likeCountInDb(sid)).toBe(1);
-
-    await page.screenshot({ path: `${SHOT_DIR}/w1-ackdrop.png` });
+    expect(await likeCountInDb(sid)).toBe(1);
   });
 });
