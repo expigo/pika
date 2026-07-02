@@ -830,6 +830,18 @@ function isTauri(): boolean {
 const pollingInterval = document.hidden ? 3000 : 1000; // 3s hidden, 1s visible
 ```
 
+### Library filters
+
+`hooks/useTrackFiltering.ts` is the single in-memory filter/sort pipeline for `LibraryBrowser`
+(the whole library is resident — `getTracks(10000)` → JS state — so filtering is a `useMemo`, no SQL):
+search (artist/title/path/tags/notes) → tags (AND) → **BPM** (slow/medium/fast/custom) → **Energy** +
+**Danceability** (Low/Med/High chips + custom min–max, 0–100, nullable-drop-when-active) → **Unplayed
+this session** (`useTrackFiltering(tracks, playedTrackKeys)`; excludes `` `${artist}:${title}` `` in the
+live `useLiveStore.playedTrackKeys` — same set as the row ✓) → sort. `activeFilterCount` + `resetFilters()`
+drive the header hint + "Clear filters"; controls live in the `showFilters` panel (energy/dance reuse the
+`MetricFilterRow` component). Tests: `useTrackFiltering.test.ts` (renderHook — buckets/custom/null/unplayed/
+combined/reset). Key/Camelot filtering intentionally deferred.
+
 ### Virtual Scrolling
 
 **Pattern:** Library browser uses `@tanstack/react-virtual` for 10k+ tracks

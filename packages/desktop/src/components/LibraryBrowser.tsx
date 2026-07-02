@@ -37,7 +37,12 @@ import { useLiveStore } from "../hooks/useLiveSession";
 import { useSetStore } from "../hooks/useSetBuilder";
 import { useSidecar } from "../hooks/useSidecar";
 import { useSpotifyFeatures } from "../hooks/useSpotifyFeatures";
-import { type BpmFilter, type SortKey, useTrackFiltering } from "../hooks/useTrackFiltering";
+import {
+  type BpmFilter,
+  type MetricFilter,
+  type SortKey,
+  useTrackFiltering,
+} from "../hooks/useTrackFiltering";
 import { useTrackSelection } from "../hooks/useTrackSelection";
 import { getEnergyColor, getEnergyPercent } from "../utils/trackUtils";
 import { toCamelot } from "../utils/transitionEngine";
@@ -54,6 +59,67 @@ interface Props {
 }
 
 /**
+ * A 0–100 metric filter row (Energy / Danceability) — Low/Med/High chips + a custom min–max range,
+ * mirroring the BPM filter. Values are on the Pika 0–100 scale.
+ */
+function MetricFilterRow({
+  label,
+  value,
+  onChange,
+  customRange,
+  onCustomChange,
+}: {
+  label: string;
+  value: MetricFilter;
+  onChange: (f: MetricFilter) => void;
+  customRange: [number, number];
+  onCustomChange: (r: [number, number]) => void;
+}) {
+  return (
+    <div className="flex items-center gap-4 flex-wrap">
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+          {label}:
+        </span>
+        <div className="flex gap-1">
+          {(["all", "low", "med", "high", "custom"] as MetricFilter[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => onChange(f)}
+              className={`px-2 py-0.5 rounded text-[10px] font-medium transition-all ${
+                value === f
+                  ? "bg-pika-accent text-white shadow-lg shadow-pika-accent/20"
+                  : "bg-pika-surface-3 text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {f === "all" ? "All" : f === "med" ? "Med" : f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {value === "custom" && (
+        <div className="flex items-center gap-2 px-3 py-1 bg-slate-900/50 rounded-lg border border-slate-700/50">
+          <input
+            type="number"
+            value={customRange[0]}
+            onChange={(e) => onCustomChange([Number(e.target.value), customRange[1]])}
+            className="w-12 bg-transparent text-[10px] font-mono text-pika-accent outline-none"
+          />
+          <span className="text-[10px] text-slate-600">-</span>
+          <input
+            type="number"
+            value={customRange[1]}
+            onChange={(e) => onCustomChange([customRange[0], Number(e.target.value)])}
+            className="w-12 bg-transparent text-[10px] font-mono text-pika-accent outline-none"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * LibraryBrowser - A high-performance pro-grade music library explorer.
  *
  * Re-architected with specialized hooks for data, filtering, and selection.
@@ -65,6 +131,9 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
   const { tracks, availableTags, loading, inTauri, refreshLibrary, updateTrackInList } =
     useLibraryData();
 
+  // Played-this-session set (live) — powers the row ✓ and the "Unplayed only" filter.
+  const playedTrackKeys = useLiveStore((state) => state.playedTrackKeys);
+
   // 2. Filtering & Sorting Layer
   const {
     searchQuery,
@@ -73,13 +142,25 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
     setBpmFilter,
     customBpmRange,
     setCustomBpmRange,
+    energyFilter,
+    setEnergyFilter,
+    customEnergyRange,
+    setCustomEnergyRange,
+    danceFilter,
+    setDanceFilter,
+    customDanceRange,
+    setCustomDanceRange,
+    unplayedOnly,
+    setUnplayedOnly,
     selectedTags,
     setSelectedTags,
     sortKey,
     sortDirection,
     toggleSort,
+    activeFilterCount,
+    resetFilters,
     filteredAndSortedTracks,
-  } = useTrackFiltering(tracks);
+  } = useTrackFiltering(tracks, playedTrackKeys);
 
   // 3. Selection Layer
   const { selectedTrackIds, selectedTrackId, setSelectedTrackId, clearSelection, handleRowClick } =
@@ -88,7 +169,6 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
   // 4. Stores & Settings
   const addTrack = useSetStore((state) => state.addTrack);
   const activeSet = useSetStore((state) => state.activeSet);
-  const playedTrackKeys = useLiveStore((state) => state.playedTrackKeys);
   const { baseUrl: sidecarBaseUrl } = useSidecar();
 
   const isInSet = useCallback(
@@ -313,7 +393,7 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
             <button
               type="button"
               onClick={() => setShowFilters(!showFilters)}
-              className={`pro-btn pro-btn-secondary !p-1.5 ${showFilters || bpmFilter !== "all" ? "!bg-pika-accent/10 !border-pika-accent/30 !text-pika-accent" : ""}`}
+              className={`pro-btn pro-btn-secondary !p-1.5 ${showFilters || activeFilterCount > 0 ? "!bg-pika-accent/10 !border-pika-accent/30 !text-pika-accent" : ""}`}
             >
               <Filter size={14} />
             </button>
@@ -377,6 +457,44 @@ export function LibraryBrowser({ refreshTrigger: _legacyTrigger }: Props) {
                   className="w-12 bg-transparent text-[10px] font-mono text-pika-accent outline-none"
                 />
               </div>
+            )}
+          </div>
+
+          <MetricFilterRow
+            label="Energy"
+            value={energyFilter}
+            onChange={setEnergyFilter}
+            customRange={customEnergyRange}
+            onCustomChange={setCustomEnergyRange}
+          />
+          <MetricFilterRow
+            label="Danceability"
+            value={danceFilter}
+            onChange={setDanceFilter}
+            customRange={customDanceRange}
+            onCustomChange={setCustomDanceRange}
+          />
+
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setUnplayedOnly(!unplayedOnly)}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest transition-all ${
+                unplayedOnly
+                  ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"
+                  : "bg-pika-surface-3 text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              Unplayed only
+            </button>
+            {activeFilterCount > 0 && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-red-400"
+              >
+                Clear filters
+              </button>
             )}
           </div>
 

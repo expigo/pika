@@ -92,9 +92,9 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of July 2 2026 — see `docs/TEST_AUDIT_2026_06_30.md`):** ~1,124 passing JS/TS
+**Test Coverage (as of July 2 2026 — see `docs/TEST_AUDIT_2026_06_30.md`):** ~1,133 passing JS/TS
 tests + 49 gated DB-integration + 8 Python sidecar.
-- Desktop: 467 tests (Vitest; unit + `*.rtl.tsx` React-Testing-Library component tests, +1 skipped)
+- Desktop: 476 tests (Vitest; unit + `*.rtl.tsx` React-Testing-Library component tests, +1 skipped)
 - Cloud: ~428 unit tests (Bun) + **49** real-Postgres integration (`test:integration`, gated `RUN_DB_TESTS` —
   exercises the real `persist*` functions incl. the C3 buffer-and-flush, the auth guards, the
   Songs-Catalog read path incl. the Pika-consensus join, the dual-CSV accretive merge, the Slice-5
@@ -237,7 +237,7 @@ chore: bump version to 0.4.0
 - Use `parseMessage<T>()` in Cloud handlers for type-safe parsing
 
 ### Testing Philosophy
-- **~1,124 passing tests** across all packages (467 desktop, ~428 cloud, 186 web, 43 shared) + 49 gated
+- **~1,133 passing tests** across all packages (476 desktop, ~428 cloud, 186 web, 43 shared) + 49 gated
   DB-integration + 8 Python sidecar (see `docs/TEST_AUDIT_2026_06_30.md`)
 - Test files colocated with source: `*.test.ts` / `__tests__/` (logic) and `*.rtl.tsx` (React components)
 - Use Vitest (desktop) / `bun test` (cloud, web, shared) for TS/JS, pytest for Python
