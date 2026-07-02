@@ -173,6 +173,8 @@ dj.get("/me/sessions", requireDjAuth, async (c) => {
       startedAt: schema.sessions.startedAt,
       endedAt: schema.sessions.endedAt,
       published: schema.sessions.published,
+      spotifyPlaylistId: schema.sessions.spotifyPlaylistId,
+      spotifyPlaylistUrl: schema.sessions.spotifyPlaylistUrl,
     })
     .from(schema.sessions)
     .where(eq(schema.sessions.djUserId, me.id))
@@ -197,6 +199,8 @@ dj.get("/me/sessions", requireDjAuth, async (c) => {
       startedAt: s.startedAt?.toISOString() ?? null,
       endedAt: s.endedAt?.toISOString() ?? null,
       published: s.published,
+      spotifyPlaylistId: s.spotifyPlaylistId,
+      spotifyPlaylistUrl: s.spotifyPlaylistUrl,
       trackCount: counts.get(s.id) ?? 0,
     })),
   });

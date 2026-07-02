@@ -272,7 +272,14 @@ admin.get("/catalog/songs", async (c) => {
   const dir = c.req.query("dir") === "asc" ? sql`asc` : sql`desc`;
   const limit = Math.min(200, Math.max(1, Number(c.req.query("limit") ?? 50)));
   const offset = Math.max(0, Number(c.req.query("offset") ?? 0));
-  const filter = q ? sql`where (b.name ilike ${like} or b.artists ilike ${like})` : sql``;
+  // `missing=1` → only songs with no Spotify features row yet (the enrichment backlog). Both queries
+  // left-join `f`, so `f.spotify_id is null` is exactly the un-enriched set.
+  const missing = c.req.query("missing") === "1";
+  const conds = [
+    ...(q ? [sql`(b.name ilike ${like} or b.artists ilike ${like})`] : []),
+    ...(missing ? [sql`f.spotify_id is null`] : []),
+  ];
+  const filter = conds.length ? sql`where ${sql.join(conds, sql` and `)}` : sql``;
 
   const listRes = (await Promise.all([
     db.execute(sql`
@@ -295,7 +302,9 @@ admin.get("/catalog/songs", async (c) => {
       select count(*)::int as total from (
         select spotify_id, max(name) as name, max(artists) as artists
         from curated_tracks group by spotify_id
-      ) b ${filter}`),
+      ) b
+      left join spotify_track_features f on f.spotify_id = b.spotify_id
+      ${filter}`),
   ])) as unknown as Row[][];
   const rows = listRes[0] ?? [];
   const totalRows = listRes[1] ?? [];

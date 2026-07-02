@@ -85,4 +85,15 @@ describe("SongsBrowser", () => {
       ),
     );
   });
+
+  it("threads the 'missing features' toggle into the query", async () => {
+    render(<SongsBrowser />);
+    await screen.findByText("500 Miles"); // initial load done
+    await userEvent.click(screen.getByLabelText(/missing spotify features/i));
+    await vi.waitFor(() =>
+      expect(admin.getCatalogSongs).toHaveBeenCalledWith(
+        expect.objectContaining({ missing: true }),
+      ),
+    );
+  });
 });

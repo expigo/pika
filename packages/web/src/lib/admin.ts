@@ -217,16 +217,19 @@ export interface CatalogSongDetail {
   appearances: Array<{ playlistName: string; djName: string; source: string }>;
 }
 
-/** Paginated/searchable song list. */
+/** Paginated/searchable song list. `missing` → only songs still lacking Spotify features. */
 export function getCatalogSongs(params: {
   q?: string;
   sort?: string;
   dir?: string;
   limit?: number;
   offset?: number;
+  missing?: boolean;
 }): Promise<CatalogSongList> {
+  const { missing, ...rest } = params;
   const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) if (v != null && v !== "") qs.set(k, String(v));
+  for (const [k, v] of Object.entries(rest)) if (v != null && v !== "") qs.set(k, String(v));
+  if (missing) qs.set("missing", "1");
   return req<CatalogSongList>(`/api/admin/catalog/songs?${qs.toString()}`);
 }
 

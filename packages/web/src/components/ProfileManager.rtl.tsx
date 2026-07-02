@@ -7,12 +7,14 @@ const getMyPlaylists = vi.fn();
 const setSessionPublished = vi.fn();
 const addPlaylist = vi.fn();
 const removePlaylist = vi.fn();
+const unshareSessionPlaylist = vi.fn();
 vi.mock("@/lib/djLive", () => ({
   getMySessions: (...a: unknown[]) => getMySessions(...a),
   getMyPlaylists: (...a: unknown[]) => getMyPlaylists(...a),
   setSessionPublished: (...a: unknown[]) => setSessionPublished(...a),
   addPlaylist: (...a: unknown[]) => addPlaylist(...a),
   removePlaylist: (...a: unknown[]) => removePlaylist(...a),
+  unshareSessionPlaylist: (...a: unknown[]) => unshareSessionPlaylist(...a),
 }));
 
 import { ProfileManager } from "./ProfileManager";
@@ -33,6 +35,7 @@ describe("ProfileManager", () => {
       setSessionPublished,
       addPlaylist,
       removePlaylist,
+      unshareSessionPlaylist,
     ])
       m.mockReset();
     getMySessions.mockResolvedValue({
@@ -43,6 +46,8 @@ describe("ProfileManager", () => {
           startedAt: new Date().toISOString(),
           endedAt: null,
           published: true,
+          spotifyPlaylistId: null,
+          spotifyPlaylistUrl: null,
           trackCount: 5,
         },
       ],
@@ -90,5 +95,41 @@ describe("ProfileManager", () => {
     render(<ProfileManager user={user} />);
     await userEvent.click(await screen.findByRole("button", { name: /remove playlist/i }));
     await waitFor(() => expect(removePlaylist).toHaveBeenCalledWith(7));
+  });
+
+  it("shows an unshare control only for sessions with a synced playlist, and calls the endpoint", async () => {
+    getMySessions.mockResolvedValue({
+      sessions: [
+        {
+          id: "s-synced",
+          djName: "DJ One",
+          startedAt: new Date().toISOString(),
+          endedAt: null,
+          published: true,
+          spotifyPlaylistId: "pl123",
+          spotifyPlaylistUrl: "https://open.spotify.com/playlist/pl123",
+          trackCount: 8,
+        },
+        {
+          id: "s-none",
+          djName: "DJ One",
+          startedAt: new Date().toISOString(),
+          endedAt: null,
+          published: true,
+          spotifyPlaylistId: null,
+          spotifyPlaylistUrl: null,
+          trackCount: 3,
+        },
+      ],
+    });
+    unshareSessionPlaylist.mockResolvedValue({ success: true });
+    render(<ProfileManager user={user} />);
+
+    // Exactly one unshare button (the synced session only).
+    const unshareBtns = await screen.findAllByRole("button", { name: /unshare playlist/i });
+    expect(unshareBtns).toHaveLength(1);
+
+    await userEvent.click(unshareBtns[0]!);
+    await waitFor(() => expect(unshareSessionPlaylist).toHaveBeenCalledWith("s-synced"));
   });
 });

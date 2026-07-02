@@ -20,6 +20,7 @@ import { getBroadcaster } from "../broadcaster";
 import { applyNowPlaying, createLiveSession, type PublishFn } from "../live-session";
 import { getSessionBroadcastTopic } from "../sessions";
 import { DISCOVERY_TOPIC } from "../topics";
+import { finalizeWebSet } from "./finalizeWebSet";
 import {
   fetchNowPlaying,
   type NowPlaying,
@@ -200,6 +201,11 @@ export async function stopPoller(djUserId: string, reason = "stopped"): Promise<
     .catch((e) => {
       logger.error("Failed to delete live_pollers row", e);
     });
+  // Best-effort, fire-and-forget so it never delays the session-end response: auto-build the set's
+  // Spotify playlist + feed its plays into the catalog (web broadcasts are Spotify-native).
+  void finalizeWebSet(rt.sessionId, rt.djUserId, rt.djName).catch((e) =>
+    logger.error("finalizeWebSet failed", e),
+  );
   reapSession(rt.sessionId);
   logger.info("🛑 Spotify poller stopped", { djUserId, reason });
 }

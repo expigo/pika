@@ -186,6 +186,10 @@ export interface MySession {
   startedAt: string | null;
   endedAt: string | null;
   published: boolean;
+  // The synced Spotify set-playlist (desktop-built or web-broadcast auto-built). Present → the DJ
+  // can unshare it here; re-sharing stays desktop-only (it holds the playlist id).
+  spotifyPlaylistId: string | null;
+  spotifyPlaylistUrl: string | null;
   trackCount: number;
 }
 
@@ -207,6 +211,11 @@ export function setSessionPublished(id: string, published: boolean): Promise<{ s
     headers: JSON_CSRF,
     body: JSON.stringify({ published }),
   });
+}
+
+/** Un-share the synced Spotify set-playlist from one of my sets (nulls it on the session). */
+export function unshareSessionPlaylist(id: string): Promise<{ success: boolean }> {
+  return req(`/api/dj/me/sessions/${id}/playlist`, { method: "DELETE", headers: JSON_CSRF });
 }
 
 /** My embedded Spotify playlists. */

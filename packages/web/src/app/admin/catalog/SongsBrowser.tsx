@@ -166,19 +166,20 @@ function Detail({ id, onClose }: { id: string; onClose: () => void }) {
 export function SongsBrowser() {
   const [q, setQ] = useState("");
   const [sort, setSort] = useState("popularity");
+  const [missing, setMissing] = useState(false);
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<{ total: number; songs: CatalogSong[] } | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  // Debounced search; reset to first page when the query/sort changes.
+  // Debounced search; reset to first page when the query/sort/filter changes.
   useEffect(() => {
     const t = setTimeout(() => {
-      getCatalogSongs({ q, sort, limit: PAGE, offset })
+      getCatalogSongs({ q, sort, missing, limit: PAGE, offset })
         .then(setData)
         .catch(() => setData({ total: 0, songs: [] }));
     }, 250);
     return () => clearTimeout(t);
-  }, [q, sort, offset]);
+  }, [q, sort, missing, offset]);
 
   const input =
     "rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-purple-500 focus:outline-none";
@@ -212,6 +213,19 @@ export function SongsBrowser() {
           <option value="djs">DJ count</option>
           <option value="name">Name</option>
         </select>
+        <label className="flex items-center gap-1.5 text-xs text-slate-400">
+          <input
+            type="checkbox"
+            checked={missing}
+            onChange={(e) => {
+              setOffset(0);
+              setMissing(e.target.checked);
+            }}
+            aria-label="Only songs missing Spotify features"
+            className="accent-purple-500"
+          />
+          Missing features
+        </label>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_360px]">

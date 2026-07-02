@@ -185,8 +185,19 @@ packages/cloud/src/lib/
     ├── polls.ts          # Poll DB ops
     └── queue.ts          # Serialized persistence queue (v0.5.0)
 └── services/
-    └── push.ts           # Web Push service (VAPID)
+    ├── push.ts           # Web Push service (VAPID)
+    ├── spotifyPoller.ts  # Track-D web broadcaster (per-DJ now-playing poll loop)
+    └── finalizeWebSet.ts # Session-end hook: auto-build the set's Spotify playlist (shared
+                          # account) + feed its plays into the catalog as identity-only rows
 ```
+
+**Web-set finalize (`finalizeWebSet.ts`).** When a Track-D web broadcast ends (`stopPoller` →
+before `reapSession`), a best-effort, fire-and-forget pass reconstructs the set's Spotify tracks from
+`played_tracks.spotify_url` (web broadcasts are Spotify-native — no matching) and: (1) creates a
+playlist on the shared Pika service account, writing it to `sessions.spotify_playlist_id` (auto-shows
+on the recap + profile; DJ can unshare from `/dj/live`); (2) feeds those plays into the Songs Catalog
+via `seedFromPlaylist(dj, "", tracks)` as **identity-only** rows (no Spotify features — surfaced by
+the catalog's `?missing=1` enrichment filter). Failures never block the session end.
 
 ### Key Modules
 

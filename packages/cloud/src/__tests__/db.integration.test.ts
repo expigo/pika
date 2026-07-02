@@ -1300,6 +1300,15 @@ suite("DB integration (real Postgres)", () => {
       expect((await profileSession())?.spotifyPlaylistId).toBe(PL1);
       expect(await recapPlaylistId()).toBe(PL1);
 
+      // #1: the authed management list (/me/sessions) also exposes the synced playlist id, so the
+      // web ProfileManager can offer an unshare control.
+      const mySessionRow = (
+        (await (await authed("/me/sessions")).json()) as {
+          sessions: Array<{ id: string; spotifyPlaylistId: string | null }>;
+        }
+      ).sessions.find((s) => s.id === sid);
+      expect(mySessionRow?.spotifyPlaylistId).toBe(PL1);
+
       // Accepts a full URL, normalizes to the id, and re-sync updates in place.
       expect(
         (
@@ -1660,6 +1669,47 @@ suite("DB integration (real Postgres)", () => {
       expect(row?.djCount).toBe(1);
       expect(row?.playlistCount).toBe(1);
       expect(row?.tempo).toBe(120);
+    });
+
+    test("identity-only feed surfaces in the catalog and the ?missing=1 filter (web-broadcast path)", async () => {
+      const SP3 = "itest_missing_sp3";
+      const A3 = "MissFeat Artist";
+      const T3 = "MissFeat Song";
+      // A web-broadcast-style feed: identity only, NO features (empty playlistName → repertoire edge).
+      await seedFromPlaylist(
+        djId,
+        "",
+        [{ spotifyId: SP3, uri: `spotify:track:${SP3}`, name: T3, artists: A3 }],
+        "profile",
+      );
+
+      // No spotify_track_features row was written — it's the un-enriched case.
+      const feat = await db
+        .select()
+        .from(schema.spotifyTrackFeatures)
+        .where(eq(schema.spotifyTrackFeatures.spotifyId, SP3));
+      expect(feat.length).toBe(0);
+
+      const songs = async (q: string, missing: boolean) => {
+        const res = await asAdmin(
+          `/catalog/songs?q=${encodeURIComponent(q)}${missing ? "&missing=1" : ""}`,
+        );
+        expect(res.status).toBe(200);
+        return ((await res.json()) as { songs: Array<{ spotifyId: string; tempo: number | null }> })
+          .songs;
+      };
+
+      // Un-enriched: present in the full list with null features, AND in the missing-only view.
+      const inFull = (await songs(T3, false)).find((s) => s.spotifyId === SP3);
+      expect(inFull).toBeDefined();
+      expect(inFull?.tempo).toBeNull();
+      expect((await songs(T3, true)).some((s) => s.spotifyId === SP3)).toBe(true);
+
+      // The enriched catalog track (SP, which HAS features) is EXCLUDED by ?missing=1.
+      expect((await songs(TIT, false)).some((s) => s.spotifyId === SP)).toBe(true);
+      expect((await songs(TIT, true)).some((s) => s.spotifyId === SP)).toBe(false);
+
+      await db.delete(schema.trackLinks).where(eq(schema.trackLinks.providerId, SP3));
     });
 
     test("catalog aggregates count the seeded track; unknown id → 404", async () => {

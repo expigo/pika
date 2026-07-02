@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, EyeOff, ListMusic, Trash2 } from "lucide-react";
+import { Eye, EyeOff, ListMusic, ListX, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   addPlaylist,
@@ -11,6 +11,7 @@ import {
   type MySession,
   removePlaylist,
   setSessionPublished,
+  unshareSessionPlaylist,
 } from "@/lib/djLive";
 
 /**
@@ -69,6 +70,23 @@ export function ProfileManager({ user }: { user: DjUser }) {
       setPlaylists((prev) => prev.filter((p) => p.id !== id));
       try {
         await removePlaylist(id);
+      } catch {
+        load();
+      }
+    },
+    [load],
+  );
+
+  // Un-share the synced set-playlist (optimistic: drop its id so the embed/badge disappears).
+  const unshare = useCallback(
+    async (s: MySession) => {
+      setSessions((prev) =>
+        prev.map((x) =>
+          x.id === s.id ? { ...x, spotifyPlaylistId: null, spotifyPlaylistUrl: null } : x,
+        ),
+      );
+      try {
+        await unshareSessionPlaylist(s.id);
       } catch {
         load();
       }
@@ -158,21 +176,40 @@ export function ProfileManager({ user }: { user: DjUser }) {
                 <div className="truncate text-xs font-medium text-slate-200">
                   {s.startedAt ? new Date(s.startedAt).toLocaleDateString() : "Session"}
                 </div>
-                <div className="text-[10px] text-slate-500">{s.trackCount} tracks</div>
+                <div className="text-[10px] text-slate-500">
+                  {s.trackCount} tracks
+                  {s.spotifyPlaylistId && (
+                    <span className="text-emerald-500"> · playlist shared</span>
+                  )}
+                </div>
               </div>
-              <button
-                type="button"
-                onClick={() => toggle(s)}
-                aria-label={s.published ? "Hide from profile" : "Show on profile"}
-                className={`ml-3 flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${
-                  s.published
-                    ? "bg-emerald-600/15 text-emerald-400 hover:bg-emerald-600/25"
-                    : "bg-slate-800 text-slate-500 hover:bg-slate-700"
-                }`}
-              >
-                {s.published ? <Eye size={12} /> : <EyeOff size={12} />}
-                {s.published ? "Public" : "Hidden"}
-              </button>
+              <div className="ml-3 flex shrink-0 items-center gap-1.5">
+                {s.spotifyPlaylistId && (
+                  <button
+                    type="button"
+                    onClick={() => unshare(s)}
+                    aria-label="Unshare playlist"
+                    title="Unshare the Spotify playlist (re-share from the desktop app)"
+                    className="flex items-center gap-1 rounded-md bg-slate-800 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:bg-slate-700 hover:text-red-400"
+                  >
+                    <ListX size={12} />
+                    Unshare
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => toggle(s)}
+                  aria-label={s.published ? "Hide from profile" : "Show on profile"}
+                  className={`flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${
+                    s.published
+                      ? "bg-emerald-600/15 text-emerald-400 hover:bg-emerald-600/25"
+                      : "bg-slate-800 text-slate-500 hover:bg-slate-700"
+                  }`}
+                >
+                  {s.published ? <Eye size={12} /> : <EyeOff size={12} />}
+                  {s.published ? "Public" : "Hidden"}
+                </button>
+              </div>
             </li>
           ))}
           {sessions.length === 0 && (
