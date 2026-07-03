@@ -17,6 +17,7 @@ export type ProductEvent =
   | "journal_export_updated"
   | "journal_export_failed"
   | "journal_load_more"
+  | "journal_removed_like"
   | "install_nudge_shown";
 
 export function trackEvent(event: ProductEvent, props?: Record<string, unknown>): void {

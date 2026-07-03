@@ -1,9 +1,10 @@
 "use client";
 
 import { logger } from "@pika/shared";
-import { ArrowRight, Heart, ListMusic, Radio, User } from "lucide-react";
+import { ArrowRight, Heart, ListMusic, Radio, User, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ProCard } from "@/components/ui/ProCard";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { getApiBaseUrl } from "@/lib/api";
@@ -143,8 +144,10 @@ export default function MyLikesPage() {
   const [error, setError] = useState<string | null>(null);
   const [exportState, setExportState] = useState<ExportState>({ phase: "idle" });
   const [showNudge, setShowNudge] = useState(false);
+  const [confirmingRemoveId, setConfirmingRemoveId] = useState<number | null>(null);
   const openedFired = useRef(false);
   const nudgeFired = useRef(false);
+  const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const id = getClientId();
@@ -269,6 +272,53 @@ export default function MyLikesPage() {
       trackEvent("journal_export_failed", { status: 0 });
     }
   }, [exportState.phase]);
+
+  // Two-tap confirm for removal: a past-night like can't be re-liked, so removal is irreversible.
+  const armRemove = useCallback((likeId: number) => {
+    if (disarmTimer.current) clearTimeout(disarmTimer.current);
+    setConfirmingRemoveId(likeId);
+    disarmTimer.current = setTimeout(() => setConfirmingRemoveId(null), 4000);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (disarmTimer.current) clearTimeout(disarmTimer.current);
+    },
+    [],
+  );
+
+  const handleRemove = useCallback(
+    async (like: LikedTrack) => {
+      const id = getClientId();
+      if (!id) return;
+      if (disarmTimer.current) clearTimeout(disarmTimer.current);
+      setConfirmingRemoveId(null);
+      try {
+        const baseUrl = getApiBaseUrl();
+        const response = await fetch(`${baseUrl}/api/client/${id}/likes/${like.id}`, {
+          method: "DELETE",
+          headers: { "X-Pika-Client": "pika-web" },
+        });
+        if (!response.ok) {
+          toast.error("Couldn't remove — try again");
+          return;
+        }
+        const data = (await response.json()) as { totalLikes: number };
+        setEntries((prev) => prev.filter((e) => e.id !== like.id));
+        setTotal(data.totalLikes);
+        trackEvent("journal_removed_like", { sessionId: like.sessionId ?? undefined });
+        toast(
+          playlist
+            ? "Removed from Journal 💔 — update your playlist to sync"
+            : "Removed from Journal 💔",
+        );
+      } catch (e) {
+        logger.error("Failed to remove like", e);
+        toast.error("Couldn't remove — try again");
+      }
+    },
+    [playlist],
+  );
 
   if (loading) {
     return (
@@ -442,6 +492,25 @@ export default function MyLikesPage() {
                       <span className="text-slate-700 font-black text-[9px] tabular-nums uppercase">
                         {formatTime(like.likedAt).split(" ")[0]}
                       </span>
+                      {confirmingRemoveId === like.id ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRemove(like)}
+                          aria-label={`Confirm removing ${like.title} from journal`}
+                          className="px-2 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
+                        >
+                          Remove?
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => armRemove(like.id)}
+                          aria-label={`Remove ${like.title} from journal`}
+                          className="p-1.5 rounded-lg text-slate-700 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </TrackRow>
                   ))}
                 </div>

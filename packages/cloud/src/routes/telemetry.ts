@@ -21,6 +21,7 @@ export const PRODUCT_EVENTS = [
   "journal_export_updated",
   "journal_export_failed",
   "journal_load_more",
+  "journal_removed_like",
   "install_nudge_shown",
 ] as const;
 

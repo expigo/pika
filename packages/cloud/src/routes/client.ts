@@ -9,7 +9,7 @@
  */
 
 import { LIMITS, logger } from "@pika/shared";
-import { count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { db, schema } from "../db";
@@ -225,6 +225,54 @@ client.post("/:clientId/likes/playlist", async (c) => {
     }
     logger.error("❌ Journal playlist export failed", e);
     return c.json({ error: "Failed to create playlist" }, 502);
+  }
+});
+
+// Removal shares the read endpoint's per-IP budget (a cheap ownership-scoped delete). Route-level
+// middleware (playlist.ts pattern) — a path-wide `use` on /:clientId/likes/:likeId would also
+// match the export POST (`playlist` matches `:likeId`) and double-count its budget.
+const likeRemovalLimiter = rateLimiter({
+  windowMs: LIMITS.CLIENT_LIKES_RATE_LIMIT_WINDOW,
+  limit: LIMITS.CLIENT_LIKES_RATE_LIMIT_MAX,
+  standardHeaders: "draft-6",
+  keyGenerator: (c) =>
+    c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown",
+  handler: (c) => c.json({ error: "Too many requests, please try again later" }, 429),
+});
+
+/**
+ * DELETE /:clientId/likes/:likeId
+ * Post-hoc unlike from the Journal (live unlikes go over WS REMOVE_LIKE). Ownership lives in the
+ * WHERE — not-found and not-yours are indistinguishable (dj.ts precedent), and NULL-owner likes
+ * can never match. The exported playlist drops the song on the next export (full rewrite).
+ */
+client.delete("/:clientId/likes/:likeId", likeRemovalLimiter, async (c) => {
+  const clientId = c.req.param("clientId");
+  if (!clientId || !CLIENT_ID_REGEX.test(clientId)) {
+    return c.json({ error: "Invalid client ID format" }, 400);
+  }
+  const likeId = Number.parseInt(c.req.param("likeId") ?? "", 10);
+  if (!Number.isInteger(likeId) || likeId <= 0) {
+    return c.json({ error: "Invalid like id" }, 400);
+  }
+
+  try {
+    const deleted = await db
+      .delete(schema.likes)
+      .where(and(eq(schema.likes.id, likeId), eq(schema.likes.clientId, clientId)))
+      .returning({ id: schema.likes.id });
+    if (deleted.length === 0) {
+      return c.json({ error: "Like not found" }, 404);
+    }
+
+    const countRows = await db
+      .select({ n: count() })
+      .from(schema.likes)
+      .where(eq(schema.likes.clientId, clientId));
+    return c.json({ success: true, totalLikes: countRows[0]?.n ?? 0 });
+  } catch (error) {
+    logger.error("Failed to remove like", error);
+    return c.json({ error: "Failed to remove like" }, 500);
   }
 });
 

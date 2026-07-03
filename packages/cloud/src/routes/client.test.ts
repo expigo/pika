@@ -24,4 +24,16 @@ describe("client routes — clientId format guard", () => {
     expect(res.status).toBe(400);
     expect(((await res.json()) as { error: string }).error).toBe("Invalid client ID format");
   });
+
+  test("DELETE with a malformed clientId → 400", async () => {
+    const res = await client.request("/bad$id/likes/1", { method: "DELETE" });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe("Invalid client ID format");
+  });
+
+  test("DELETE with a non-numeric like id → 400 before any DB work", async () => {
+    const res = await client.request("/client_x/likes/abc", { method: "DELETE" });
+    expect(res.status).toBe(400);
+    expect(((await res.json()) as { error: string }).error).toBe("Invalid like id");
+  });
 });

@@ -43,8 +43,11 @@ Simple binary sentiment feedback with real-time synchronization.
     `GET /api/client/:clientId/likes` (paginated, real total; Spotify identity retro-enriched
     through the trusted `track_links` spine) and exportable as ONE per-dancer "My Pika Journal"
     playlist on the shared Pika Spotify account (`POST /api/client/:clientId/likes/playlist`,
-    regenerated in place; per-IP limit + per-client cooldown + daily budget). Journal usage is
-    measured via `POST /api/telemetry/events` → `product_events` (enum-whitelisted beacons).
+    regenerated in place; per-IP limit + per-client cooldown + daily budget). Likes are also
+    removable post-hoc from the Journal (`DELETE /api/client/:clientId/likes/:likeId`,
+    ownership-scoped; two-tap confirm in the UI) — the playlist drops the song on the next
+    export. Journal usage is measured via `POST /api/telemetry/events` → `product_events`
+    (enum-whitelisted beacons).
 
 > [!NOTE]
 > For deep technical details on the Heart/Unheart message flow and database idempotency, see [Heart & Unheart Logic](./heart-logic.md).

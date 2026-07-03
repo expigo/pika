@@ -52,4 +52,9 @@ describe("POST /events validation", () => {
     });
     expect(res.status).toBe(204);
   });
+
+  test("journal_removed_like is a valid event → 204", async () => {
+    const res = await post({ event: "journal_removed_like", clientId: "client_unit_test" });
+    expect(res.status).toBe(204);
+  });
 });

@@ -2014,6 +2014,84 @@ suite("DB integration (real Postgres)", () => {
   });
 
   // ==========================================================================
+  // Journal like removal (post-hoc unlike, Slice A.1)
+  // ==========================================================================
+
+  describe("journal like removal (real Postgres)", () => {
+    const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const owner = `client_rm_${uniq()}`;
+    const other = `client_rmother_${uniq()}`;
+    const rmSession = `rm_${uniq()}`;
+    let firstLikeId: number;
+    let secondLikeId: number;
+
+    beforeAll(async () => {
+      await db.insert(schema.sessions).values({ id: rmSession, djName: "RM DJ" });
+      const tracks = await db
+        .insert(schema.playedTracks)
+        .values([
+          { sessionId: rmSession, artist: "R", title: "Keep Me" },
+          { sessionId: rmSession, artist: "R", title: "Drop Me" },
+        ])
+        .returning({ id: schema.playedTracks.id });
+      const [t1, t2] = tracks;
+      if (!t1 || !t2) throw new Error("seed failed");
+      const inserted = await db
+        .insert(schema.likes)
+        .values([
+          { sessionId: rmSession, clientId: owner, playedTrackId: t1.id },
+          { sessionId: rmSession, clientId: owner, playedTrackId: t2.id },
+        ])
+        .returning({ id: schema.likes.id });
+      const [l1, l2] = inserted;
+      if (!l1 || !l2) throw new Error("seed failed");
+      firstLikeId = l1.id;
+      secondLikeId = l2.id;
+    });
+
+    afterAll(async () => {
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, rmSession)); // cascades likes
+    });
+
+    test("owner delete → 200 with the decremented real total; row is gone", async () => {
+      const res = await clientRoutes.request(`/${owner}/likes/${firstLikeId}`, {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { success: boolean; totalLikes: number };
+      expect(body.success).toBe(true);
+      expect(body.totalLikes).toBe(1);
+      const rows = await db.select().from(schema.likes).where(eq(schema.likes.id, firstLikeId));
+      expect(rows.length).toBe(0);
+    });
+
+    test("deleting the same id again → 404", async () => {
+      const res = await clientRoutes.request(`/${owner}/likes/${firstLikeId}`, {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(404);
+    });
+
+    test("another client cannot delete the like (404, row survives)", async () => {
+      const res = await clientRoutes.request(`/${other}/likes/${secondLikeId}`, {
+        method: "DELETE",
+      });
+      expect(res.status).toBe(404);
+      const rows = await db.select().from(schema.likes).where(eq(schema.likes.id, secondLikeId));
+      expect(rows.length).toBe(1);
+    });
+
+    test("GET reflects the removal", async () => {
+      const res = await clientRoutes.request(`/${owner}/likes`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { totalLikes: number; likes: Array<{ title: string }> };
+      expect(body.totalLikes).toBe(1);
+      expect(body.likes.some((l) => l.title === "Keep Me")).toBe(false);
+      expect(body.likes.some((l) => l.title === "Drop Me")).toBe(true);
+    });
+  });
+
+  // ==========================================================================
   // Telemetry ingest (product_events)
   // ==========================================================================
 

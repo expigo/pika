@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { mockFetch, render, screen, userEvent } from "../../test/rtl";
+import { mockFetch, render, screen, userEvent, waitFor } from "../../test/rtl";
 import MyLikesPage from "./page";
 
 beforeEach(() => {
@@ -251,6 +251,73 @@ describe("MyLikesPage", () => {
 
     expect(await screen.findByText(/keep your journal safe/i)).toBeInTheDocument();
     expect(beacons(fetchMock, "install_nudge_shown").length).toBe(1);
+  });
+
+  it("remove: arm then confirm deletes the like, updates the pill, fires the beacon", async () => {
+    localStorage.setItem("pika_client_id", "client-1");
+    const fetchMock = mockFetch({
+      "/telemetry/events": { status: 204, body: null },
+      "/likes/1": { success: true, totalLikes: 1 },
+      "/likes?": likesResponse(
+        [like(1, "s1", { title: "Doomed Song" }), like(2, "s1", { title: "Keeper" })],
+        2,
+      ),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MyLikesPage />);
+
+    const deleteCalls = () =>
+      fetchMock.mock.calls.filter(
+        ([url, init]) =>
+          String(url).includes("/likes/1") &&
+          (init as RequestInit | undefined)?.method === "DELETE",
+      );
+
+    // First tap only ARMS the row — nothing is deleted yet.
+    await userEvent.click(
+      await screen.findByRole("button", { name: /remove doomed song from journal/i }),
+    );
+    expect(deleteCalls().length).toBe(0);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /confirm removing doomed song from journal/i }),
+    );
+
+    expect(await screen.findByText(/1 moments captured/i)).toBeInTheDocument();
+    expect(screen.queryByText("Doomed Song")).toBeNull();
+    expect(screen.getByText("Keeper")).toBeInTheDocument();
+    expect(deleteCalls().length).toBe(1);
+    expect(beacons(fetchMock, "journal_removed_like").length).toBe(1);
+  });
+
+  it("remove failure keeps the row", async () => {
+    localStorage.setItem("pika_client_id", "client-1");
+    const fetchMock = mockFetch({
+      "/telemetry/events": { status: 204, body: null },
+      "/likes/1": { status: 500, body: { error: "boom" } },
+      "/likes?": likesResponse([like(1, "s1", { title: "Doomed Song" })], 1),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MyLikesPage />);
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /remove doomed song from journal/i }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /confirm removing doomed song from journal/i }),
+    );
+
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([url, init]) =>
+            String(url).includes("/likes/1") &&
+            (init as RequestInit | undefined)?.method === "DELETE",
+        ),
+      ).toBe(true),
+    );
+    expect(screen.getByText("Doomed Song")).toBeInTheDocument();
+    expect(screen.getByText(/1 moments captured/i)).toBeInTheDocument();
   });
 
   it("hides the nudge when running as an installed app (standalone)", async () => {
