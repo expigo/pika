@@ -48,6 +48,14 @@ export class SpotifyRateLimitError extends Error {
   }
 }
 
+/** The playlist id no longer exists on Spotify (deleted on the service account). */
+export class SpotifyPlaylistNotFoundError extends Error {
+  constructor() {
+    super("Spotify playlist not found");
+    this.name = "SpotifyPlaylistNotFoundError";
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -473,6 +481,14 @@ export async function getServiceStatus(): Promise<{ connected: boolean; status: 
   return { connected: !!conn, status: conn?.status ?? null };
 }
 
+/** Throw `SpotifyRateLimitError` when Spotify says 429 (mirrors fetchNowPlaying's handling). */
+function throwIfRateLimited(res: Response): void {
+  if (res.status === 429) {
+    const retryAfterSec = Number(res.headers.get("Retry-After") ?? "1");
+    throw new SpotifyRateLimitError((Number.isFinite(retryAfterSec) ? retryAfterSec : 1) * 1000);
+  }
+}
+
 /**
  * Create a public playlist on the Pika service account and add `trackUris` (≤100 per request).
  * Endpoints reflect Spotify's current API (Feb 2026): `POST /me/playlists` + `POST /playlists/{id}/items`.
@@ -496,6 +512,7 @@ export async function createPlaylist(
       description: (description?.trim() || "Created with Pika · pika.stream").slice(0, 300),
     }),
   });
+  throwIfRateLimited(createRes);
   if (!createRes.ok) {
     throw new Error(`Create playlist failed: ${createRes.status} ${await createRes.text()}`);
   }
@@ -511,6 +528,7 @@ export async function createPlaylist(
       headers: authHeaders,
       body: JSON.stringify({ uris: batch }),
     });
+    throwIfRateLimited(addRes);
     if (!addRes.ok) {
       throw new Error(`Add playlist items failed: ${addRes.status} ${await addRes.text()}`);
     }
@@ -521,4 +539,53 @@ export async function createPlaylist(
       playlist.external_urls?.spotify ?? `https://open.spotify.com/playlist/${playlist.id}`,
     playlistId: playlist.id,
   };
+}
+
+/**
+ * Split URIs for an in-place replace: one `PUT` (replaces the playlist's entire contents, ≤100
+ * URIs) followed by `POST` appends for the rest. Pure — unit-tested without token/DB.
+ */
+export function planReplaceBatches(trackUris: string[]): { put: string[]; posts: string[][] } {
+  const put = trackUris.slice(0, 100);
+  const posts: string[][] = [];
+  for (let i = 100; i < trackUris.length; i += 100) {
+    posts.push(trackUris.slice(i, i + 100));
+  }
+  return { put, posts };
+}
+
+/**
+ * Replace a playlist's contents in place: `PUT /playlists/{id}/items` overwrites existing items
+ * (verified current endpoint; the `/tracks` variant is deprecated), then remaining 100-URI batches
+ * are appended. Throws `SpotifyPlaylistNotFoundError` on 404 (deleted on the service account),
+ * `SpotifyRateLimitError` on 429.
+ */
+export async function replacePlaylistItems(playlistId: string, trackUris: string[]): Promise<void> {
+  const token = await getServiceAccessToken();
+  const authHeaders = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const { put, posts } = planReplaceBatches(trackUris);
+
+  const putRes = await fetch(`${API}/playlists/${playlistId}/items`, {
+    method: "PUT",
+    headers: authHeaders,
+    body: JSON.stringify({ uris: put }),
+  });
+  if (putRes.status === 404) throw new SpotifyPlaylistNotFoundError();
+  throwIfRateLimited(putRes);
+  if (!putRes.ok) {
+    throw new Error(`Replace playlist items failed: ${putRes.status} ${await putRes.text()}`);
+  }
+
+  for (const batch of posts) {
+    const addRes = await fetch(`${API}/playlists/${playlistId}/items`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({ uris: batch }),
+    });
+    if (addRes.status === 404) throw new SpotifyPlaylistNotFoundError();
+    throwIfRateLimited(addRes);
+    if (!addRes.ok) {
+      throw new Error(`Append playlist items failed: ${addRes.status} ${await addRes.text()}`);
+    }
+  }
 }

@@ -51,7 +51,18 @@ import {
   persistTrack,
   persistTracksBulk,
 } from "../lib/persistence/tracks";
-import { fetchNowPlaying, getConnectionStatus, SpotifyAuthError } from "../lib/services/spotify";
+import {
+  defaultJournalExportDeps,
+  exportJournalPlaylist,
+  JournalExportCooldownError,
+  resetJournalExportGuardsForTests,
+} from "../lib/services/journal";
+import {
+  fetchNowPlaying,
+  getConnectionStatus,
+  SpotifyAuthError,
+  SpotifyPlaylistNotFoundError,
+} from "../lib/services/spotify";
 import { getSpotifyFeatures, seedFromPlaylist } from "../lib/services/spotifyMatch";
 import { getStageTopic } from "../lib/topics";
 import { adminRoutes as adminRoute } from "../routes/admin";
@@ -62,6 +73,7 @@ import { push as pushRoute } from "../routes/push";
 import { sessions as sessionsRoute } from "../routes/sessions";
 import { stageRoutes } from "../routes/stages";
 import { stats as statsRoute } from "../routes/stats";
+import { telemetryRoutes } from "../routes/telemetry";
 
 const RUN = !!process.env.RUN_DB_TESTS;
 const suite = RUN ? describe : describe.skip;
@@ -1720,6 +1732,330 @@ suite("DB integration (real Postgres)", () => {
       expect(body.totals.features).toBeGreaterThanOrEqual(1);
 
       expect((await asAdmin("/catalog/songs/nope_unknown_xyz")).status).toBe(404);
+    });
+  });
+
+  // ==========================================================================
+  // Journal read: real count, pagination + retro-enrichment (Slice A)
+  // ==========================================================================
+
+  describe("journal read: count, pagination + retro-enrichment", () => {
+    const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const jrClient = `client_jr_${uniq()}`;
+    const jrSession = `jr_${uniq()}`;
+    const kManual = `jr-manual-${uniq()}`;
+    const kAuto = `jr-auto-${uniq()}`;
+    const kUnmatched = `jr-un-${uniq()}`;
+
+    beforeAll(async () => {
+      await db
+        .insert(schema.sessions)
+        .values({ id: jrSession, djName: "JR DJ", endedAt: new Date() });
+      const tracks = await db
+        .insert(schema.playedTracks)
+        .values([
+          // Direct snapshot identity (wedge-era play).
+          {
+            sessionId: jrSession,
+            artist: "A",
+            title: "Direct",
+            spotifyUrl: "https://open.spotify.com/track/JRDIRECT",
+          },
+          // Pre-wedge play recovered via a trusted (manual) link.
+          { sessionId: jrSession, artist: "B", title: "RetroManual", matchKey: kManual },
+          // Auto link below the confidence gate — must stay null.
+          { sessionId: jrSession, artist: "C", title: "AutoLow", matchKey: kAuto },
+          // Explicitly unmatched link — must stay null.
+          { sessionId: jrSession, artist: "D", title: "Unmatched", matchKey: kUnmatched },
+          // No match_key at all — three-valued logic keeps the join empty.
+          { sessionId: jrSession, artist: "E", title: "NoKey" },
+        ])
+        .returning({ id: schema.playedTracks.id });
+      await db.insert(schema.trackLinks).values([
+        {
+          matchKey: kManual,
+          providerId: "JRMANUAL",
+          providerUrl: "https://open.spotify.com/track/JRMANUAL",
+          status: "manual",
+          source: "manual",
+        },
+        {
+          matchKey: kAuto,
+          providerId: "JRAUTO",
+          status: "matched",
+          source: "auto",
+          confidence: 0.5,
+        },
+        { matchKey: kUnmatched, status: "unmatched", source: "auto" },
+      ]);
+      await db
+        .insert(schema.likes)
+        .values(
+          tracks.map((t) => ({ sessionId: jrSession, clientId: jrClient, playedTrackId: t.id })),
+        );
+      // NULL-owner like (nullable by design) — must be invisible to every journal.
+      const t0 = tracks[0];
+      if (t0) {
+        await db
+          .insert(schema.likes)
+          .values({ sessionId: jrSession, clientId: null, playedTrackId: t0.id });
+      }
+    });
+
+    afterAll(async () => {
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, jrSession)); // cascades likes/tracks
+      await db
+        .delete(schema.trackLinks)
+        .where(inArray(schema.trackLinks.matchKey, [kManual, kAuto, kUnmatched]));
+    });
+
+    test("real count + limit/offset paging; playlist null; NULL-owner likes invisible", async () => {
+      const page = await clientRoutes.request(`/${jrClient}/likes?limit=2&offset=0`);
+      expect(page.status).toBe(200);
+      const body = (await page.json()) as {
+        totalLikes: number;
+        limit: number;
+        offset: number;
+        likes: unknown[];
+        playlist: unknown;
+      };
+      expect(body.totalLikes).toBe(5); // real count — NOT the page length, NOT 6 (NULL-owner)
+      expect(body.likes.length).toBe(2);
+      expect(body.limit).toBe(2);
+      expect(body.offset).toBe(0);
+      expect(body.playlist).toBeNull();
+
+      const beyond = await clientRoutes.request(`/${jrClient}/likes?limit=50&offset=999`);
+      const bBody = (await beyond.json()) as { totalLikes: number; likes: unknown[] };
+      expect(bBody.likes.length).toBe(0);
+      expect(bBody.totalLikes).toBe(5);
+    });
+
+    test("retro-enrichment: trusted links resolve, untrusted stay null", async () => {
+      const res = await clientRoutes.request(`/${jrClient}/likes?limit=50`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        likes: Array<{ title: string; spotifyUrl: string | null; albumArtUrl: string | null }>;
+      };
+      const byTitle = (t: string) => body.likes.find((l) => l.title === t);
+      expect(byTitle("Direct")?.spotifyUrl).toBe("https://open.spotify.com/track/JRDIRECT");
+      expect(byTitle("RetroManual")?.spotifyUrl).toBe("https://open.spotify.com/track/JRMANUAL");
+      expect(byTitle("AutoLow")?.spotifyUrl).toBeNull();
+      expect(byTitle("Unmatched")?.spotifyUrl).toBeNull();
+      expect(byTitle("NoKey")?.spotifyUrl).toBeNull();
+      // Album art has no retro source — only the snapshot column feeds it.
+      expect(byTitle("RetroManual")?.albumArtUrl).toBeNull();
+    });
+  });
+
+  // ==========================================================================
+  // Journal export (real Postgres, Spotify faked via DI — never touches the API)
+  // ==========================================================================
+
+  describe("journal export (real Postgres, Spotify faked via DI)", () => {
+    const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const jeClient = `client_je_${uniq()}`;
+    const jeSession = `je_${uniq()}`;
+    const kJe = `je-manual-${uniq()}`;
+    const createCalls: Array<{ name: string; uris: string[] }> = [];
+    const replaceCalls: Array<{ playlistId: string; uris: string[] }> = [];
+    let failReplaceWith404 = false;
+
+    const fakeDeps = () => ({
+      ...defaultJournalExportDeps,
+      createPlaylist: async (name: string, uris: string[]) => {
+        createCalls.push({ name, uris });
+        return {
+          playlistId: `pl_${createCalls.length}`,
+          playlistUrl: `https://open.spotify.com/playlist/pl_${createCalls.length}`,
+        };
+      },
+      replacePlaylistItems: async (playlistId: string, uris: string[]) => {
+        replaceCalls.push({ playlistId, uris });
+        if (failReplaceWith404) throw new SpotifyPlaylistNotFoundError();
+      },
+    });
+
+    beforeAll(async () => {
+      await db.insert(schema.sessions).values({ id: jeSession, djName: "JE DJ" });
+      const rows = await db
+        .insert(schema.playedTracks)
+        .values([
+          {
+            sessionId: jeSession,
+            artist: "X",
+            title: "First",
+            spotifyUrl: "https://open.spotify.com/track/JE1",
+          },
+          { sessionId: jeSession, artist: "Y", title: "Retro", matchKey: kJe },
+          {
+            sessionId: jeSession,
+            artist: "X",
+            title: "First",
+            spotifyUrl: "https://open.spotify.com/track/JE1",
+          },
+        ])
+        .returning({ id: schema.playedTracks.id });
+      await db
+        .insert(schema.trackLinks)
+        .values({ matchKey: kJe, providerId: "JE2", status: "manual", source: "manual" });
+      // Explicit like timestamps force first-like ASC order: JE1, then retro JE2, then the dupe.
+      const base = Date.now() - 10_000;
+      await db.insert(schema.likes).values(
+        rows.map((t, i) => ({
+          sessionId: jeSession,
+          clientId: jeClient,
+          playedTrackId: t.id,
+          createdAt: new Date(base + i * 1000),
+        })),
+      );
+    });
+
+    afterAll(async () => {
+      await db
+        .delete(schema.journalPlaylists)
+        .where(eq(schema.journalPlaylists.clientId, jeClient));
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, jeSession));
+      await db.delete(schema.trackLinks).where(eq(schema.trackLinks.matchKey, kJe));
+    });
+
+    test("happy create: first-like order, dupes collapsed, retro row included; row persisted", async () => {
+      resetJournalExportGuardsForTests();
+      const result = await exportJournalPlaylist(jeClient, fakeDeps());
+      expect(result.updated).toBe(false);
+      expect(result.trackCount).toBe(2);
+      expect(result.matchedCount).toBe(2);
+      expect(result.totalLiked).toBe(3);
+      expect(createCalls[0]?.uris).toEqual(["spotify:track:JE1", "spotify:track:JE2"]);
+      const [row] = await db
+        .select()
+        .from(schema.journalPlaylists)
+        .where(eq(schema.journalPlaylists.clientId, jeClient));
+      expect(row?.spotifyPlaylistId).toBe("pl_1");
+      expect(row?.trackCount).toBe(2);
+    });
+
+    test("immediate re-export → cooldown error", async () => {
+      resetJournalExportGuardsForTests();
+      expect(exportJournalPlaylist(jeClient, fakeDeps())).rejects.toThrow(
+        JournalExportCooldownError,
+      );
+    });
+
+    test("past cooldown → replace path on the SAME playlist, updated:true", async () => {
+      resetJournalExportGuardsForTests();
+      await db
+        .update(schema.journalPlaylists)
+        .set({ updatedAt: new Date(Date.now() - 120_000) })
+        .where(eq(schema.journalPlaylists.clientId, jeClient));
+      const result = await exportJournalPlaylist(jeClient, fakeDeps());
+      expect(result.updated).toBe(true);
+      expect(replaceCalls[replaceCalls.length - 1]?.playlistId).toBe("pl_1");
+      expect(createCalls.length).toBe(1); // no new playlist minted
+    });
+
+    test("replace 404 → recreate; row swaps to the new playlist id", async () => {
+      resetJournalExportGuardsForTests();
+      await db
+        .update(schema.journalPlaylists)
+        .set({ updatedAt: new Date(Date.now() - 120_000) })
+        .where(eq(schema.journalPlaylists.clientId, jeClient));
+      failReplaceWith404 = true;
+      const result = await exportJournalPlaylist(jeClient, fakeDeps());
+      failReplaceWith404 = false;
+      expect(result.updated).toBe(true);
+      const [row] = await db
+        .select()
+        .from(schema.journalPlaylists)
+        .where(eq(schema.journalPlaylists.clientId, jeClient));
+      expect(row?.spotifyPlaylistId).toBe("pl_2");
+    });
+
+    test("GET now returns the playlist object", async () => {
+      const res = await clientRoutes.request(`/${jeClient}/likes`);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        playlist: { url: string; trackCount: number } | null;
+      };
+      expect(body.playlist).not.toBeNull();
+      expect(body.playlist?.trackCount).toBe(2);
+    });
+
+    test("route-level 409 when the shared service account is not connected", async () => {
+      resetJournalExportGuardsForTests();
+      // Assert the REAL Spotify boundary — but never fire real Spotify writes: skip when this
+      // env actually has the service account connected (e.g. an owner dev machine).
+      const svc = await db
+        .select({ id: schema.serviceConnections.id })
+        .from(schema.serviceConnections)
+        .where(eq(schema.serviceConnections.name, "spotify-playlist"));
+      if (svc.length > 0) return;
+
+      const c409 = `client_je409_${uniq()}`;
+      const [t] = await db
+        .insert(schema.playedTracks)
+        .values({
+          sessionId: jeSession,
+          artist: "Z",
+          title: "For409",
+          spotifyUrl: "https://open.spotify.com/track/JE409",
+        })
+        .returning({ id: schema.playedTracks.id });
+      if (!t) throw new Error("seed failed");
+      // The export must reach getServiceAccessToken — an empty journal would 404 first.
+      await db
+        .insert(schema.likes)
+        .values({ sessionId: jeSession, clientId: c409, playedTrackId: t.id });
+
+      const res = await clientRoutes.request(`/${c409}/likes/playlist`, { method: "POST" });
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { needsService?: boolean }).needsService).toBe(true);
+    });
+  });
+
+  // ==========================================================================
+  // Telemetry ingest (product_events)
+  // ==========================================================================
+
+  describe("telemetry ingest (real Postgres)", () => {
+    const ttClient = `client_tt_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+    afterAll(async () => {
+      await db.delete(schema.productEvents).where(eq(schema.productEvents.clientId, ttClient));
+    });
+
+    test("valid event → 204 and the row lands", async () => {
+      const res = await telemetryRoutes.request("/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event: "journal_opened",
+          clientId: ttClient,
+          props: { totalLikes: 3 },
+        }),
+      });
+      expect(res.status).toBe(204);
+      const rows = await db
+        .select()
+        .from(schema.productEvents)
+        .where(eq(schema.productEvents.clientId, ttClient));
+      expect(rows.length).toBe(1);
+      expect(rows[0]?.event).toBe("journal_opened");
+      expect(rows[0]?.props).toEqual({ totalLikes: 3 });
+    });
+
+    test("unknown event → 400 and no row", async () => {
+      const res = await telemetryRoutes.request("/events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ event: "made_up", clientId: ttClient }),
+      });
+      expect(res.status).toBe(400);
+      const rows = await db
+        .select()
+        .from(schema.productEvents)
+        .where(eq(schema.productEvents.clientId, ttClient));
+      expect(rows.length).toBe(1); // still only the valid one
     });
   });
 });

@@ -9,7 +9,7 @@ export function BottomNav() {
 
   const navItems = [
     { label: "Live", icon: Radio, href: "/live" },
-    { label: "Hearts", icon: Heart, href: "/my-likes" },
+    { label: "Journal", icon: Heart, href: "/my-likes" },
     { label: "Network", icon: Activity, href: "/analytics" },
     { label: "Menu", icon: LayoutGrid, href: "/menu" },
   ];

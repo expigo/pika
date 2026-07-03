@@ -7,6 +7,8 @@ interface TrackRowProps {
   albumArtUrl?: string | null;
   spotifyUrl?: string | null;
   position?: number;
+  /** Fired when the Spotify link is clicked (telemetry) — never blocks navigation. */
+  onSpotifyClick?: () => void;
   /** Trailing page-specific stats (likes badge, time, tempo dots). */
   children?: ReactNode;
 }
@@ -23,6 +25,7 @@ export function TrackRow({
   albumArtUrl,
   spotifyUrl,
   position,
+  onSpotifyClick,
   children,
 }: TrackRowProps) {
   return (
@@ -58,6 +61,7 @@ export function TrackRow({
           href={spotifyUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={onSpotifyClick}
           aria-label={`Listen to ${title} on Spotify`}
           className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full bg-[#1DB954]/10 border border-[#1DB954]/30 text-[#1DB954] hover:bg-[#1DB954]/20 transition-colors"
         >

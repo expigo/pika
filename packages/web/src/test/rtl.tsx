@@ -41,13 +41,28 @@ export function mockLiveListener(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** A fetch() stub that maps a URL-substring → JSON body (404 for unmatched). */
+/**
+ * A fetch() stub that maps a URL-substring → JSON body (404 for unmatched). First matching key
+ * wins (insertion order), so register more-specific substrings first. A value shaped
+ * `{ status, body }` sets the response status too (204 → empty body); plain values mean 200.
+ */
 export function mockFetch(routes: Record<string, unknown>) {
-  return vi.fn((url: string | URL) => {
+  return vi.fn((url: string | URL, _init?: RequestInit) => {
     const href = String(url);
     const key = Object.keys(routes).find((k) => href.includes(k));
-    const body = key ? routes[key] : { error: "not found" };
-    return Promise.resolve(new Response(JSON.stringify(body), { status: key ? 200 : 404 }));
+    if (!key) {
+      return Promise.resolve(new Response(JSON.stringify({ error: "not found" }), { status: 404 }));
+    }
+    const value = routes[key];
+    const envelope =
+      value !== null && typeof value === "object" && "status" in value && "body" in value
+        ? (value as { status: number; body: unknown })
+        : { status: 200, body: value };
+    return Promise.resolve(
+      new Response(envelope.status === 204 ? null : JSON.stringify(envelope.body), {
+        status: envelope.status,
+      }),
+    );
   });
 }
 

@@ -66,6 +66,18 @@ export const LIMITS = {
   // Per-session cap on push-broadcast announcements (each fans out to every subscriber's device).
   ANNOUNCEMENT_PUSH_RATE_LIMIT_WINDOW: 5 * 60 * 1000, // 5 min
   ANNOUNCEMENT_PUSH_RATE_LIMIT_MAX: 2,
+  // Journal export — each call writes a playlist on the shared Spotify service account, so it is
+  // bounded three ways: per-IP (below), per-clientId cooldown (journal_playlists.updated_at), and
+  // a process-wide daily write budget (in-memory; single-process server per documented architecture).
+  JOURNAL_EXPORT_RATE_LIMIT_WINDOW: 60 * 60 * 1000, // 1 hour
+  JOURNAL_EXPORT_RATE_LIMIT_MAX: 10, // per IP
+  JOURNAL_EXPORT_COOLDOWN_MS: 60 * 1000, // min gap between exports for one clientId
+  JOURNAL_EXPORT_GLOBAL_DAILY_MAX: 500, // process-wide daily Spotify-write budget
+  JOURNAL_EXPORT_MAX_URIS: 1000, // playlist size cap (earliest likes win)
+  // Product telemetry ingest (fire-and-forget beacon; enum-whitelisted events only).
+  TELEMETRY_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
+  TELEMETRY_RATE_LIMIT_MAX: 60, // per IP
+  MAX_TELEMETRY_PROPS_BYTES: 1024,
   // Per-IP cap on WebSocket *connection* attempts. NOTE: this is keyed on the
   // client IP (CF-Connecting-IP / X-Forwarded-For), so an entire venue behind one
   // NAT shares a single bucket. Keep it generous enough to survive a venue-wide

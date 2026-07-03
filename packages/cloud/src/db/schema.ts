@@ -592,3 +592,47 @@ export const serviceConnections = pgTable("service_connections", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+// ============================================================================
+// Dancer Journal Playlists
+// ============================================================================
+
+/**
+ * One exported "My Pika Journal" Spotify playlist per dancer (clientId), living on the shared
+ * Pika service account and regenerated in place on re-export. The clientId PK enforces the
+ * one-playlist-per-dancer product decision and backstops concurrent-export races; `updatedAt`
+ * is the export cooldown gate. No FK: clientId is the anonymous browser identity.
+ */
+export const journalPlaylists = pgTable("journal_playlists", {
+  clientId: text("client_id").primaryKey(),
+  spotifyPlaylistId: text("spotify_playlist_id").notNull(),
+  spotifyPlaylistUrl: text("spotify_playlist_url").notNull(),
+  trackCount: integer("track_count").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// ============================================================================
+// Product Events (feature-usage telemetry)
+// ============================================================================
+
+/**
+ * Product-usage events (journal opens, Spotify click-outs, playlist exports, …) — distinct from
+ * `session_events` (connection telemetry). Ingested via the enum-whitelisted, rate-limited
+ * POST /api/telemetry/events. No FKs: rows are anonymous and must survive session deletion.
+ * Retention/aggregation deliberately deferred until usage gives a signal.
+ */
+export const productEvents = pgTable(
+  "product_events",
+  {
+    id: serial("id").primaryKey(),
+    event: text("event").notNull(),
+    clientId: text("client_id"),
+    sessionId: text("session_id"),
+    props: json("props").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxEventCreated: index("idx_product_events_event_created").on(table.event, table.createdAt),
+  }),
+);

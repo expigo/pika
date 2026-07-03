@@ -28,6 +28,7 @@ import { sessions as sessionsRoutes } from "./routes/sessions";
 import { spotifyRoutes } from "./routes/spotify";
 import { stageRoutes } from "./routes/stages";
 import { stats as statsRoutes } from "./routes/stats";
+import { telemetryRoutes } from "./routes/telemetry";
 
 // Initialize Sentry for production error monitoring
 if (process.env.NODE_ENV === "production" || process.env["SENTRY_DSN"]) {
@@ -476,7 +477,10 @@ app.route("/api/session", sessionsRoutes); // Alias for recap route
 app.route("/api/stats", statsRoutes);
 app.use("/api/dj/*", csrfCheck); // Slice 5 — profile management mutations (GET /:slug is exempt)
 app.route("/api/dj", djRoutes);
+app.use("/api/client/*", csrfCheck); // Journal export POST (GET stays exempt — csrfCheck skips GET/HEAD/OPTIONS)
 app.route("/api/client", clientRoutes);
+app.use("/api/telemetry/*", csrfCheck); // Product beacons (enum-whitelisted POST)
+app.route("/api/telemetry", telemetryRoutes); // NOT /api/events — stageRoutes owns that path
 app.route("/api/push", pushRoutes);
 app.route("/api/spotify", spotifyRoutes); // Track D — Spotify OAuth (BFF)
 app.use("/api/live/*", csrfCheck); // Track D — control channel (state-changing → CSRF header)

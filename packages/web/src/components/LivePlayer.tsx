@@ -907,7 +907,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
               className="text-[10px] font-black text-red-500/70 hover:text-red-500 transition-colors flex items-center gap-2 uppercase tracking-widest"
             >
               <Heart className="w-3.5 h-3.5 fill-current" />
-              Pulse Archive
+              Journal
             </Link>
             <p className="text-[10px] font-black text-slate-700 uppercase tracking-widest">
               POWERED BY PIKA! <span className="text-slate-800">PRO</span>
