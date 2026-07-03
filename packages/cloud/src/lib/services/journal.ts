@@ -4,9 +4,10 @@
  * A dancer's likes resolve to Spotify identity two ways: the broadcast-time snapshot on
  * `played_tracks.spotify_url` (wedge-era plays), else the shared identity spine
  * (`track_links` by `match_key`) — TRUST-GATED so a low-confidence auto guess never reaches a
- * dancer's journal or playlist. Export creates ONE public playlist per clientId on the shared
- * Pika service account and regenerates it in place on re-export (per-dancer OAuth is impossible
- * under Spotify's 5-user dev-mode wall).
+ * dancer's journal or playlist. Export creates ONE unlisted (link-only) playlist per clientId on
+ * the shared Pika service account and regenerates it in place on re-export (per-dancer OAuth is
+ * impossible under Spotify's 5-user dev-mode wall). Until the service account is re-authorized
+ * with `playlist-modify-private`, creation degrades to public with a warning.
  *
  * All I/O is injected (`JournalExportDeps`) so unit tests fake DB + Spotify without
  * `mock.module` (process-global, leaks between files — see CLAUDE.md).
@@ -290,11 +291,12 @@ export async function exportJournalPlaylist(
         playlistUrl = existing.spotifyPlaylistUrl;
       } catch (e) {
         if (!(e instanceof SpotifyPlaylistNotFoundError)) throw e;
-        // Deleted on Spotify's side — recreate and let the upsert swap the row to the new id.
+        // Deleted (= unfollowed) on Spotify's side — recreate; the upsert swaps the row to the new id.
         const created = await deps.createPlaylist(
           JOURNAL_PLAYLIST_NAME,
           uris,
           JOURNAL_PLAYLIST_DESCRIPTION,
+          { isPublic: false },
         );
         playlistId = created.playlistId;
         playlistUrl = created.playlistUrl;
@@ -305,6 +307,7 @@ export async function exportJournalPlaylist(
         JOURNAL_PLAYLIST_NAME,
         uris,
         JOURNAL_PLAYLIST_DESCRIPTION,
+        { isPublic: false },
       );
       playlistId = created.playlistId;
       playlistUrl = created.playlistUrl;

@@ -106,7 +106,7 @@ describe("linkFallbackUrl", () => {
 const NOW = Date.UTC(2026, 6, 3, 12, 0, 0);
 
 interface FakeLog {
-  created: Array<{ name: string; uris: string[]; description?: string }>;
+  created: Array<{ name: string; uris: string[]; description?: string; isPublic?: boolean }>;
   replaced: Array<{ playlistId: string; uris: string[] }>;
   upserts: Array<{
     clientId: string;
@@ -129,8 +129,8 @@ function makeDeps(overrides: Partial<JournalExportDeps> = {}): {
     upsertPlaylistRow: async (rowToUpsert) => {
       log.upserts.push(rowToUpsert);
     },
-    createPlaylist: async (name, uris, description) => {
-      log.created.push({ name, uris, description });
+    createPlaylist: async (name, uris, description, opts) => {
+      log.created.push({ name, uris, description, isPublic: opts?.isPublic });
       return { playlistId: "pl_new", playlistUrl: "https://open.spotify.com/playlist/pl_new" };
     },
     replacePlaylistItems: async (playlistId, uris) => {
@@ -162,6 +162,7 @@ describe("exportJournalPlaylist", () => {
         name: JOURNAL_PLAYLIST_NAME,
         uris: ["spotify:track:AAA"],
         description: JOURNAL_PLAYLIST_DESCRIPTION,
+        isPublic: false, // journal playlists are link-only (unlisted)
       },
     ]);
     expect(log.replaced.length).toBe(0);
@@ -206,6 +207,7 @@ describe("exportJournalPlaylist", () => {
     expect(result.updated).toBe(true);
     expect(result.playlistUrl).toBe("https://open.spotify.com/playlist/pl_new");
     expect(log.created.length).toBe(1);
+    expect(log.created[0]?.isPublic).toBe(false); // recreate stays link-only too
     expect(log.upserts[0]?.spotifyPlaylistId).toBe("pl_new");
   });
 

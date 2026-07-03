@@ -357,7 +357,12 @@ export async function getAppAccessToken(): Promise<string> {
 // playlists for the catalog seed (Spotify's user-playlists endpoint needs a USER token + these
 // scopes; the app/Client-Credentials token is forbidden there). Adding a scope requires the owner
 // to re-run the one-time /service/authorize consent.
-const SERVICE_SCOPE = "playlist-modify-public playlist-read-private playlist-read-collaborative";
+// playlist-modify-private lets journal playlists be created UNLISTED (link-only, off the account
+// profile). NOTE: a stored refresh token keeps its original scopes — after adding a scope here the
+// owner must re-run the one-time service authorize per env; until then createPlaylist degrades
+// private→public with a warning instead of failing exports.
+const SERVICE_SCOPE =
+  "playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative";
 const SERVICE_NAME = "spotify-playlist";
 
 /** The Pika service account isn't connected (owner must run the one-time OAuth). */
@@ -490,28 +495,44 @@ function throwIfRateLimited(res: Response): void {
 }
 
 /**
- * Create a public playlist on the Pika service account and add `trackUris` (≤100 per request).
+ * Create a playlist on the Pika service account and add `trackUris` (≤100 per request).
  * Endpoints reflect Spotify's current API (Feb 2026): `POST /me/playlists` + `POST /playlists/{id}/items`.
+ * `opts.isPublic: false` creates it UNLISTED (link-only, off the account profile — "public" on
+ * Spotify only controls profile/search visibility, never link access). Default stays public
+ * (DJ set playlists are meant for public display/embeds).
  */
 export async function createPlaylist(
   name: string,
   trackUris: string[],
   description?: string,
+  opts?: { isPublic?: boolean },
 ): Promise<{ playlistUrl: string; playlistId: string }> {
   const token = await getServiceAccessToken();
   const authHeaders = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
+  const wantPublic = opts?.isPublic ?? true;
 
-  const createRes = await fetch(`${API}/me/playlists`, {
-    method: "POST",
-    headers: authHeaders,
-    body: JSON.stringify({
-      name,
-      public: true,
-      // Spotify caps the description ~300 chars; a playlist can't hold text "tracks", so unmatched
-      // songs are listed here (built by the client).
-      description: (description?.trim() || "Created with Pika · pika.stream").slice(0, 300),
-    }),
-  });
+  const create = (isPublic: boolean) =>
+    fetch(`${API}/me/playlists`, {
+      method: "POST",
+      headers: authHeaders,
+      body: JSON.stringify({
+        name,
+        public: isPublic,
+        // Spotify caps the description ~300 chars; a playlist can't hold text "tracks", so unmatched
+        // songs are listed here (built by the client).
+        description: (description?.trim() || "Created with Pika · pika.stream").slice(0, 300),
+      }),
+    });
+
+  let createRes = await create(wantPublic);
+  if (!wantPublic && createRes.status === 403) {
+    // The stored token predates the playlist-modify-private scope (service re-auth pending) —
+    // degrade to a public playlist rather than failing the dancer's export.
+    logger.warn(
+      "⚠️ Private playlist creation lacks scope — created PUBLIC; re-authorize the Spotify service account",
+    );
+    createRes = await create(true);
+  }
   throwIfRateLimited(createRes);
   if (!createRes.ok) {
     throw new Error(`Create playlist failed: ${createRes.status} ${await createRes.text()}`);
