@@ -560,6 +560,19 @@ export function planReplaceBatches(trackUris: string[]): { put: string[]; posts:
  * are appended. Throws `SpotifyPlaylistNotFoundError` on 404 (deleted on the service account),
  * `SpotifyRateLimitError` on 429.
  */
+/**
+ * Whether a playlist-write status means the stored playlist is effectively gone/unusable.
+ * Spotify never hard-deletes: "delete" in the app = the owner UNFOLLOWS the playlist (the object
+ * survives, recoverable for ~90 days) — and writes to it then surface as 403/400 rather than the
+ * 404 a true deletion would give. All three mean "stop trying to update this id": the caller
+ * recreates, which either succeeds (playlist was gone) or fails identically (surfacing the real
+ * error). 429 (rate limit) and 5xx (transient) are deliberately NOT included — recreating on a
+ * transient failure would mint orphan playlists.
+ */
+export function isPlaylistGoneStatus(status: number): boolean {
+  return status === 400 || status === 403 || status === 404;
+}
+
 export async function replacePlaylistItems(playlistId: string, trackUris: string[]): Promise<void> {
   const token = await getServiceAccessToken();
   const authHeaders = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
@@ -570,7 +583,7 @@ export async function replacePlaylistItems(playlistId: string, trackUris: string
     headers: authHeaders,
     body: JSON.stringify({ uris: put }),
   });
-  if (putRes.status === 404) throw new SpotifyPlaylistNotFoundError();
+  if (isPlaylistGoneStatus(putRes.status)) throw new SpotifyPlaylistNotFoundError();
   throwIfRateLimited(putRes);
   if (!putRes.ok) {
     throw new Error(`Replace playlist items failed: ${putRes.status} ${await putRes.text()}`);
@@ -582,7 +595,7 @@ export async function replacePlaylistItems(playlistId: string, trackUris: string
       headers: authHeaders,
       body: JSON.stringify({ uris: batch }),
     });
-    if (addRes.status === 404) throw new SpotifyPlaylistNotFoundError();
+    if (isPlaylistGoneStatus(addRes.status)) throw new SpotifyPlaylistNotFoundError();
     throwIfRateLimited(addRes);
     if (!addRes.ok) {
       throw new Error(`Append playlist items failed: ${addRes.status} ${await addRes.text()}`);

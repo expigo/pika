@@ -1,5 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { normalizeNowPlaying, planReplaceBatches, type SpotifyCurrentlyPlaying } from "./spotify";
+import {
+  isPlaylistGoneStatus,
+  normalizeNowPlaying,
+  planReplaceBatches,
+  type SpotifyCurrentlyPlaying,
+} from "./spotify";
 
 // A realistic payload modeled on the Phase 0 spike (Beautiful Things — Benson Boone):
 // note ISRC is absent from currently-playing, but url + album art are present.
@@ -88,5 +93,21 @@ describe("planReplaceBatches", () => {
     const plan = planReplaceBatches(uris(100));
     expect(plan.put.length).toBe(100);
     expect(plan.posts).toEqual([]);
+  });
+});
+
+describe("isPlaylistGoneStatus", () => {
+  test("client errors that mean the playlist is unusable → recreate", () => {
+    // Spotify "delete" = unfollow: writes to the ghost playlist surface as 403/400, not only 404.
+    expect(isPlaylistGoneStatus(400)).toBe(true);
+    expect(isPlaylistGoneStatus(403)).toBe(true);
+    expect(isPlaylistGoneStatus(404)).toBe(true);
+  });
+
+  test("rate limits and transient server errors must NOT trigger a recreate", () => {
+    expect(isPlaylistGoneStatus(429)).toBe(false);
+    expect(isPlaylistGoneStatus(500)).toBe(false);
+    expect(isPlaylistGoneStatus(503)).toBe(false);
+    expect(isPlaylistGoneStatus(200)).toBe(false);
   });
 });
