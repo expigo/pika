@@ -6,6 +6,7 @@ vi.mock("@/lib/authClient", () => ({
   authClient: {
     useSession: vi.fn(() => ({ data: null, isPending: false })),
     signOut: vi.fn(async () => ({})),
+    deleteUser: vi.fn(async () => ({ data: {}, error: null })),
   },
 }));
 
@@ -375,6 +376,101 @@ describe("MyLikesPage", () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/client/"))).toBe(false);
     // Nudge suppressed — the session cookie is the ITP-exempt anchor.
     expect(screen.queryByText(/keep your journal safe/i)).toBeNull();
+  });
+
+  it("signed out with likes: shows the save-journal card and fires account_save_card_shown once", async () => {
+    localStorage.setItem("pika_client_id", "client-1");
+    const fetchMock = mockFetch({
+      "/telemetry/events": { status: 204, body: null },
+      "/likes": likesResponse([like(1)], 1),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MyLikesPage />);
+
+    expect(await screen.findByText(/never lose this/i)).toBeInTheDocument();
+    const cta = screen.getByRole("link", { name: /save my journal/i });
+    expect(cta).toHaveAttribute("href", "/my-likes/save");
+    await waitFor(() => expect(beacons(fetchMock, "account_save_card_shown").length).toBe(1));
+  });
+
+  it("signed in: save-journal card is replaced by the account card", async () => {
+    signedInAs("dancer@x.y");
+    localStorage.setItem("pika_client_id", "client-1");
+    vi.stubGlobal(
+      "fetch",
+      mockFetch({
+        "/telemetry/events": { status: 204, body: null },
+        "/me/journal/claim": { status: "claimed" },
+        "/me/journal": {
+          totalLikes: 1,
+          limit: 100,
+          offset: 0,
+          claimedCount: 1,
+          likes: [like(1)],
+          playlist: null,
+        },
+      }),
+    );
+    render(<MyLikesPage />);
+
+    expect(await screen.findByText("dancer@x.y")).toBeInTheDocument();
+    expect(screen.queryByText(/never lose this/i)).toBeNull();
+  });
+
+  it("delete account: two-tap confirm calls deleteUser with the ?deleted=1 callback", async () => {
+    signedInAs("dancer@x.y");
+    localStorage.setItem("pika_client_id", "client-1");
+    const fetchMock = mockFetch({
+      "/telemetry/events": { status: 204, body: null },
+      "/me/journal/claim": { status: "claimed" },
+      "/me/journal": {
+        totalLikes: 1,
+        limit: 100,
+        offset: 0,
+        claimedCount: 1,
+        likes: [like(1)],
+        playlist: null,
+      },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MyLikesPage />);
+
+    // First tap only ARMS — deletion must never be one tap.
+    await userEvent.click(await screen.findByRole("button", { name: /delete account/i }));
+    expect(vi.mocked(authClient.deleteUser)).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole("button", { name: /send confirmation email/i }));
+    await waitFor(() => expect(vi.mocked(authClient.deleteUser)).toHaveBeenCalledTimes(1));
+    const arg = vi.mocked(authClient.deleteUser).mock.calls[0]?.[0] as { callbackURL?: string };
+    expect(arg?.callbackURL).toContain("/my-likes?deleted=1");
+    expect(beacons(fetchMock, "account_deletion_requested").length).toBe(1);
+  });
+
+  it("post-export success (signed out) offers the save-journal upsell link", async () => {
+    localStorage.setItem("pika_client_id", "client-1");
+    vi.stubGlobal(
+      "fetch",
+      mockFetch({
+        "/telemetry/events": { status: 204, body: null },
+        "/likes/playlist": {
+          playlistUrl: "https://open.spotify.com/playlist/pl9",
+          trackCount: 1,
+          matchedCount: 1,
+          totalLiked: 1,
+          updated: false,
+        },
+        "/likes?": likesResponse([like(1)], 1),
+      }),
+    );
+    render(<MyLikesPage />);
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /create my spotify playlist/i }),
+    );
+    const upsell = await screen.findByRole("link", {
+      name: /save your journal so you never lose it/i,
+    });
+    expect(upsell).toHaveAttribute("href", "/my-likes/save");
   });
 
   it("hides the nudge when running as an installed app (standalone)", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Database, EyeOff, Lock, Mail, Shield } from "lucide-react";
+import { ArrowLeft, BookHeart, Database, EyeOff, Lock, Mail, Shield } from "lucide-react";
 import Link from "next/link";
 
 export default function PrivacyPage() {
@@ -22,6 +22,12 @@ export default function PrivacyPage() {
       icon: <EyeOff className="w-5 h-5" />,
       content:
         "Voting and engagement on the floor are anonymous by default. We track 'vibes' and 'tempo votes' to aggregate community sentiment without attaching it to your specific identity.",
+    },
+    {
+      title: "Dancer Accounts (Optional)",
+      icon: <BookHeart className="w-5 h-5" />,
+      content:
+        "If you save your Journal to an account, we store your email solely to send sign-in links (delivered via Resend, our email processor) and link your devices' anonymous identities so your Journal follows you. Liking never requires an account. Deleting your account — self-service from the Journal page, confirmed by email — erases your email and unlinks your devices; likes return to anonymous per-device history, where each can still be removed individually.",
     },
   ];
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { logger } from "@pika/shared";
-import { ArrowRight, Heart, ListMusic, Radio, User, X } from "lucide-react";
+import { ArrowRight, BookHeart, Heart, ListMusic, Radio, User, X } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -158,8 +158,10 @@ export default function MyLikesPage() {
   const [exportState, setExportState] = useState<ExportState>({ phase: "idle" });
   const [showNudge, setShowNudge] = useState(false);
   const [confirmingRemoveId, setConfirmingRemoveId] = useState<number | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const openedFired = useRef(false);
   const nudgeFired = useRef(false);
+  const saveCardFired = useRef(false);
   const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Magic-link landing / account deletion callbacks (?claimed=1 / ?deleted=1).
@@ -366,6 +368,29 @@ export default function MyLikesPage() {
     window.location.reload(); // full state reset back to the device view
   }, []);
 
+  // GDPR: email-confirmed deletion (dancers have no password; 30d sessions are never "fresh").
+  const handleDeleteAccount = useCallback(async () => {
+    setConfirmingDelete(false);
+    trackEvent("account_deletion_requested");
+    try {
+      const { error: err } = await authClient.deleteUser({
+        callbackURL: `${window.location.origin}/my-likes?deleted=1`,
+      });
+      if (err) toast.error("Couldn't start deletion — try again");
+      else toast("Check your email to confirm deletion");
+    } catch {
+      toast.error("Couldn't start deletion — try again");
+    }
+  }, []);
+
+  // Upsell telemetry: the save card is the primary account funnel entry — fire once per view.
+  useEffect(() => {
+    if (!sessionPending && !isAccountMode && !loading && total > 0 && !saveCardFired.current) {
+      saveCardFired.current = true;
+      trackEvent("account_save_card_shown");
+    }
+  }, [sessionPending, isAccountMode, loading, total]);
+
   // Two-tap confirm for removal: a past-night like can't be re-liked, so removal is irreversible.
   const armRemove = useCallback((likeId: number) => {
     if (disarmTimer.current) clearTimeout(disarmTimer.current);
@@ -505,6 +530,55 @@ export default function MyLikesPage() {
                 Sign out
               </button>
             </div>
+            <div className="mt-4 pt-4 border-t border-white/[0.04] flex items-center justify-between gap-4 flex-wrap">
+              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+                Deleting unlinks your devices — likes stay anonymous on each
+              </p>
+              {confirmingDelete ? (
+                <button
+                  type="button"
+                  onClick={handleDeleteAccount}
+                  className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
+                >
+                  Send confirmation email?
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(true)}
+                  className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
+                >
+                  Delete account
+                </button>
+              )}
+            </div>
+          </ProCard>
+        )}
+
+        {/* SAVE-JOURNAL CARD (signed out) — the account upsell at the moment of value */}
+        {!session && !sessionPending && (
+          <ProCard className="mb-8 p-6" glow glowColor="purple-500">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center shrink-0">
+                  <BookHeart className="w-5 h-5 text-purple-400" />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="font-black text-white uppercase text-xs tracking-wider leading-none mb-1">
+                    Never lose this
+                  </h2>
+                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
+                    Your journal lives only on this device — save it to an account
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/my-likes/save"
+                className="inline-flex items-center gap-2 px-5 py-3 bg-white text-slate-950 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] hover:scale-105 active:scale-95 transition-all shrink-0"
+              >
+                Save my journal
+              </Link>
+            </div>
           </ProCard>
         )}
 
@@ -559,6 +633,17 @@ export default function MyLikesPage() {
           {exportState.phase === "success" && (
             <p className="mt-4 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
               {exportState.updated ? "Playlist updated ✓" : "Playlist created ✓"}
+              {!isAccountMode && (
+                <>
+                  {" · "}
+                  <Link
+                    href="/my-likes/save"
+                    className="underline decoration-emerald-400/40 hover:decoration-emerald-400"
+                  >
+                    save your journal so you never lose it
+                  </Link>
+                </>
+              )}
             </p>
           )}
         </ProCard>
@@ -667,9 +752,13 @@ export default function MyLikesPage() {
               📌 Keep your journal safe
             </p>
             <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+              Best protection:{" "}
+              <Link href="/my-likes/save" className="text-purple-400 underline">
+                save your journal to an account
+              </Link>
               {isIosBrowser()
-                ? "Add Pika to your Home Screen (Share → Add to Home Screen) — Safari clears data for sites you haven't visited in a while, and your journal lives on this device."
-                : "Install Pika from your browser menu so this device keeps your journal between events."}
+                ? ". Also: add Pika to your Home Screen (Share → Add to Home Screen) — Safari clears data for sites you haven't visited in a while."
+                : ". Also: install Pika from your browser menu so this device keeps your journal between events."}
             </p>
           </ProCard>
         )}

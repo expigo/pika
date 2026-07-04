@@ -1,6 +1,15 @@
 "use client";
 
-import { ArrowRight, Download, Globe, LayoutGrid, LogIn, Smartphone, UserPlus } from "lucide-react";
+import {
+  ArrowRight,
+  BookHeart,
+  Download,
+  Globe,
+  LayoutGrid,
+  LogIn,
+  Smartphone,
+  UserPlus,
+} from "lucide-react";
 import Link from "next/link";
 import { NotificationToggle } from "@/components/pwa/NotificationToggle";
 import { ProCard } from "@/components/ui/ProCard";
@@ -15,6 +24,13 @@ export default function MenuPage() {
           href: "/",
           icon: Globe,
           description: "Our Vision & Connection",
+          color: "pink",
+        },
+        {
+          label: "My Journal Account",
+          href: "/my-likes/save",
+          icon: BookHeart,
+          description: "Keep likes across devices",
           color: "pink",
         },
         {
