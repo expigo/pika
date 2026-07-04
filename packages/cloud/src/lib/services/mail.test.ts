@@ -94,6 +94,14 @@ describe("sendMagicLinkEmail", () => {
     expect(body.text).toContain("https://api.test/verify?token=x");
     expect(body.html).toContain("https://api.test/verify?token=x");
   });
+
+  test("carries the Requested-at uniquifier in html AND text (Gmail trims identical bodies)", async () => {
+    const { deps, calls } = makeDeps();
+    await sendMagicLinkEmail({ to: "d@e.f", url: "https://api.test/verify?token=x" }, deps);
+    const body = JSON.parse(String(calls[0]?.init?.body)) as { text: string; html: string };
+    expect(body.html).toMatch(/Requested at .+\d{2}:\d{2}:\d{2}/);
+    expect(body.text).toMatch(/Requested at .+\d{2}:\d{2}:\d{2}/);
+  });
 });
 
 /** Throttle-aware auth send handlers — verdicts map to send/silent-skip/loud-throw. */

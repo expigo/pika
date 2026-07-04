@@ -94,20 +94,35 @@ export async function sendEmail(
   return { delivered: true };
 }
 
+/**
+ * Uniquifier: Gmail collapses a byte-identical body in the same thread behind the three-dots
+ * ("trimmed content") — a rapid second sign-in email looked EMPTY on staging. Seconds
+ * granularity keeps even quick resends distinct.
+ */
+function requestedAtStamp(): string {
+  return new Date().toUTCString();
+}
+
 /** Shared minimal branded shell — dancers read these on phones; keep it one glance. */
-function emailShell(heading: string, body: string, url: string, cta: string): string {
+function emailShell(heading: string, body: string, centerpiece: string, stamp: string): string {
   return `<div style="font-family:system-ui,-apple-system,sans-serif;max-width:420px;margin:0 auto;padding:24px">
 <h2 style="margin:0 0 12px">${heading}</h2>
 <p style="margin:0 0 20px;color:#334155">${body}</p>
-<a href="${url}" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:700">${cta}</a>
+${centerpiece}
 <p style="margin:24px 0 0;color:#94a3b8;font-size:12px">If you didn't request this, you can safely ignore this email.</p>
+<p style="margin:8px 0 0;color:#cbd5e1;font-size:11px">Requested at ${stamp}</p>
 </div>`;
+}
+
+function ctaButton(url: string, cta: string): string {
+  return `<a href="${url}" style="display:inline-block;background:#0f172a;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:700">${cta}</a>`;
 }
 
 export async function sendMagicLinkEmail(
   { to, url }: { to: string; url: string },
   deps: MailDeps = defaultMailDeps,
 ): Promise<{ delivered: boolean }> {
+  const stamp = requestedAtStamp();
   return sendEmail(
     {
       to,
@@ -115,10 +130,10 @@ export async function sendMagicLinkEmail(
       html: emailShell(
         "Sign in to Pika!",
         "Tap the button below on the device you want your Journal on. The link expires in 10 minutes.",
-        url,
-        "Sign in",
+        ctaButton(url, "Sign in"),
+        stamp,
       ),
-      text: `Sign in to Pika!: ${url}\n\nOpen this link on the device you want your Journal on. It expires in 10 minutes. If you didn't request it, ignore this email.`,
+      text: `Sign in to Pika!: ${url}\n\nOpen this link on the device you want your Journal on. It expires in 10 minutes. If you didn't request it, ignore this email.\nRequested at ${stamp}`,
     },
     deps,
   );
@@ -128,6 +143,7 @@ export async function sendAccountDeletionEmail(
   { to, url }: { to: string; url: string },
   deps: MailDeps = defaultMailDeps,
 ): Promise<{ delivered: boolean }> {
+  const stamp = requestedAtStamp();
   return sendEmail(
     {
       to,
@@ -135,10 +151,10 @@ export async function sendAccountDeletionEmail(
       html: emailShell(
         "Delete your Pika! account?",
         "This unlinks your devices from the account. Likes stay anonymous on each device; your email is erased.",
-        url,
-        "Confirm deletion",
+        ctaButton(url, "Confirm deletion"),
+        stamp,
       ),
-      text: `Confirm deleting your Pika! account: ${url}\n\nThis unlinks your devices; likes stay anonymous on each device and your email is erased. If you didn't request it, ignore this email.`,
+      text: `Confirm deleting your Pika! account: ${url}\n\nThis unlinks your devices; likes stay anonymous on each device and your email is erased. If you didn't request it, ignore this email.\nRequested at ${stamp}`,
     },
     deps,
   );
