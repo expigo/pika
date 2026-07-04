@@ -2,7 +2,7 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** v0.5.x on prod — dancer Journal (read-fix + Spotify export + telemetry) shipped; next up: Slice B (durable dancer identity)
+**Current Focus:** v0.5.x — Journal Slice B (dancer magic-link accounts + durable identity) done on local `staging`; next up: staging smoke (needs Resend domain verified) → prod, then pilot instrumentation
 **Status:** living index — completed work lives in [CHANGELOG.md](CHANGELOG.md)
 
 > **📊 Audit Recap:** See [AUDIT_RECAP.md](archive/AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.
@@ -83,7 +83,7 @@ This is the central index for the Pika! project, tracking active development, fu
 
 ### Q2: Accounts & Community 👥
 *   **Goal:** Allow Dancers to save history; Organize Events.
-*   **Key Tech:** Better Auth (✅ shipped June 2026 for DJs/admin) → anonymous-upgrade dancer accounts (Journal Slice B), "Organizations".
+*   **Key Tech:** Better Auth (✅ shipped June 2026 for DJs/admin) → ✅ dancer magic-link accounts + `client_identities` claims (Journal Slice B, July 2026); next: "Organizations".
 
 ### Q3: Ecosystem & Scale 🌍
 *   **Goal:** Global Charts, Public API, Mobile App.

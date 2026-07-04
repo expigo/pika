@@ -124,6 +124,25 @@ The auth migration adds a **required** secret and resets the auth schema. Before
    subdomains), `/admin` gates correctly, and the register→pending→approve cycle works. Only
    promote to prod after staging is green.
 
+#### 📧 First deploy with dancer accounts (Slice B — one-time per env)
+
+Dancer sign-in is a magic-link **email**; without a working sender the flow fails loudly by design.
+Before (or with) the first Slice-B deploy to an env:
+
+1. **Resend:** verify the `pika.stream` domain (DKIM/SPF records per the Resend dashboard — DNS on
+   Cloudflare) and confirm it shows **Verified**. `onboarding@resend.dev` only delivers to the
+   Resend account owner — dev/testing only.
+2. **Set `RESEND_API_KEY`** in that env's VPS `.env` (see `.env.prod.example`). `MAIL_FROM` defaults
+   to `Pika! <journal@pika.stream>`; `MAIL_DAILY_CAP` (default 200) is the process-wide daily send
+   fuse — size it to the Resend plan around events (free tier is ~100/day and Resend rejects above
+   its own cap).
+3. **Migration `0012`** (`client_identities`, `journal_playlists.user_id`) applies itself on boot
+   (`start:prod` runs `db:migrate`) — nothing manual.
+4. **Smoke (staging first):** `/my-likes/save` → email arrives (Received headers: SPF/DKIM pass) →
+   open link on a phone → account card shows; like on phone → sign in on laptop → union shows both;
+   export on laptop adopts the phone's playlist (same URL); sign out → the device id rotates;
+   delete account → confirmation email → journal reverts to the anonymous device view.
+
 ### 🐳 Docker Management
 
 **Re-pull & Recreate Everything (The "Fix It" Button):**

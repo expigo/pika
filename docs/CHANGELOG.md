@@ -3,6 +3,24 @@
 Completed work, newest first — moved out of [ROADMAP.md](ROADMAP.md) so the roadmap stays a
 roadmap. Each block was appended at completion time; see git history for the precise diffs.
 
+*   **Recent Completions (July 2026 — Dancer Journal + Accounts, Slices A/B):**
+    *   ✅ **Journal Slice A** — dancer Journal read (paginated, real totals, retro-enriched with
+        DJ/session), 1-tap Spotify export (link-only playlists, adopt/cooldown/daily-budget guards),
+        post-hoc like removal (A.1), product telemetry (`journal_*` events).
+    *   ✅ **Journal Slice B — durable dancer identity.** Optional **magic-link accounts** (Resend;
+        keyless dev logs links), `dancer` role auto-approved via credential-absence hook; **`hasDjAccess`
+        guard tightening** (approved-but-wrong-role → 403, incl. WS `REGISTER_SESSION`); lazy
+        **`client_identities`** claim map (migration 0012; first-claim-wins, 409 → rotate — kiosk rule;
+        sign-out rotates; push/stage subs carried across rotation); **account journal** (union read
+        de-duped by play, account-wide unlike, adopt-first playlist export); web `/my-likes/save`,
+        account card + upsells, ITP nudge repointed; **GDPR deletion** (email-confirmed, cascade unlink,
+        privacy page section). See `architecture/auth-system.md`.
+    *   ✅ **Slice B post-review hardening** — transactional-email throttle (per-address silent-skip,
+        `MAIL_DAILY_CAP` fuse, Better Auth per-IP `customRules` keyed on `cf-connecting-ip`); clientId
+        masked in logs; zero-like empty state keeps account controls reachable.
+    *   ✅ **v0.6 wedge groundwork** (pre-Slice-A): web-broadcast wedge (unshare toggle, auto-playlist,
+        plays→catalog), set-playlist sync to public profile + recap, DJ profile management
+        (publish-toggle + embedded playlists), desktop library filters, mobile-wedge E2E.
 *   **Recent Completions (June 2026 — Spotify Catalog + Better Auth):**
     *   ✅ **Better Auth** adopted as the cloud auth authority (credential + session + bearer + admin
         plugin + approval gate), replacing the custom bcrypt/token auth. See `blueprints/auth-foundation.md`.
