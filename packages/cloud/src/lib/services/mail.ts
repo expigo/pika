@@ -84,7 +84,13 @@ export async function sendEmail(
       text: input.text,
     }),
   });
-  if (!res.ok) throw new MailSendError(res.status);
+  if (!res.ok) {
+    // A rejected real send (unverified domain, bad key, provider error) — Better Auth swallows this
+    // throw into a 200, so without a log line it's invisible here (only the Resend dashboard shows
+    // it). Recipient masked (PII); status + provider dashboard pinpoint the cause.
+    logger.warn("⚠️ Resend send rejected", { status: res.status, to: maskEmail(input.to) });
+    throw new MailSendError(res.status);
+  }
   return { delivered: true };
 }
 
