@@ -76,6 +76,11 @@ jobs:
           --health-retries 5
     env:
       DATABASE_URL: postgres://pika:pika@localhost:5432/pika_cloud
+      # Slice B: the magic-link/OTP integration tests build verify URLs from the Better Auth
+      # baseURL — an empty BETTER_AUTH_URL makes the plugin throw `TypeError: "" cannot be
+      # parsed as a URL`. Locally .env provides these; CI must too. Test-only values.
+      BETTER_AUTH_URL: http://127.0.0.1:3001
+      BETTER_AUTH_SECRET: ci-integration-test-secret-not-a-real-deployment
     steps:
       - uses: actions/checkout@v7
 
