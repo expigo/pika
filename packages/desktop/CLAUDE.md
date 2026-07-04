@@ -354,7 +354,7 @@ bun run db:generate   # → src/db/migrations/000N_*.sql  (COMMIT these)
 
 ### `useLiveSession` - The Heart of Desktop
 
-**Location:** `src/hooks/useLiveSession.ts` (1239 lines)
+**Location:** `src/hooks/useLiveSession.ts` (the largest file in the package — orchestrator only; growth policy: new live logic goes in `src/hooks/live/` modules)
 
 **Purpose:** Orchestrates the entire "Go Live" flow
 - WebSocket connection to Cloud
@@ -467,8 +467,9 @@ bun run test:watch
 bun run test:coverage
 ```
 
-**Current coverage:** 443 passing tests (Vitest, +1 skipped) — logic/unit + `*.rtl.tsx` component tests.
-Plus the Python sidecar: 8 `pytest` tests (`bun run test:python`; `python-src/tests/`,
+**Current coverage:** run `bun run test` for numbers (hardcoded counts in docs drift) — logic/unit
++ `*.rtl.tsx` component tests via Vitest.
+Plus the Python sidecar: `pytest` tests (`bun run test:python`; `python-src/tests/`,
 deps in `requirements-dev.txt`). Coverage: `bun run test:coverage` (vitest v8). The desktop also mirrors
 the cloud's canonical Spotify features locally (`spotify_track_features` table + `spotifyFeaturesService`)
 to show them beside the Pika sidecar radar — see `SpotifyFeaturePanel` + `docs/architecture/music-data-model.md`.

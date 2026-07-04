@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-We're building the app described in @docs/SPEC.MD. Read that file for general architectural tasks or to double-check the exact database structure, tech stack or application architecture.
+We're building the app described in @docs/SPEC.md. Read that file for general architectural tasks or to double-check the exact database structure, tech stack or application architecture.
 
 Keep your replies extremely concise and focus on conveying the key information. No unnecessary fluff, no long code snippets.
 
@@ -74,8 +74,13 @@ without a measured signal.
 ### Testing
 
 ```bash
-# Run all tests
-bun test
+# Run all tests — fans out to each package's own runner. Do NOT use a plain root
+# `bun test`: Bun's runner would sweep desktop's Vitest files (vi.mock hoisting
+# doesn't exist under Bun) and report dozens of false failures.
+bun run test
+
+# Typecheck every package
+bun run typecheck
 
 # Run tests for specific package
 bun run --filter @pika/cloud test
@@ -92,18 +97,19 @@ bun run test:load
 bun run test:load:big
 ```
 
-**Test Coverage (as of July 2 2026 — see `docs/TEST_AUDIT_2026_06_30.md`):** ~1,142 passing JS/TS
-tests + 50 gated DB-integration + 8 Python sidecar.
-- Desktop: 476 tests (Vitest; unit + `*.rtl.tsx` React-Testing-Library component tests, +1 skipped)
-- Cloud: ~435 unit tests (Bun) + **50** real-Postgres integration (`test:integration`, gated `RUN_DB_TESTS` —
-  exercises the real `persist*` functions incl. the C3 buffer-and-flush, the auth guards, the
-  Songs-Catalog read path incl. the Pika-consensus join + the identity-only feed and `?missing=1`
-  filter, the dual-CSV accretive merge, the Slice-5 DJ profile management (publish-toggle + embedded
-  playlists), and the set-playlist sync (incl. `/me/sessions` exposing the synced playlist);
-  skipped under plain `bun test`)
-- Shared: 43 tests (Bun)
-- Web: 94 pure tests (`bun test`) + 94 `*.rtl.tsx` RTL component tests (`vitest run`) = 188. **Dual-runner** (see [RTL harness](#rtl-component-tests-web--desktop) below)
-- Python sidecar: 8 tests (`pytest`, `bun run --filter @pika/desktop test:python`) — `clamp` + librosa
+**Test coverage:** don't trust hardcoded counts in docs — run the suites for current numbers;
+`docs/TEST_AUDIT_2026_06_30.md` holds the last full audit. Suite shape:
+- Desktop: Vitest — unit + `*.rtl.tsx` React-Testing-Library component tests
+- Cloud: Bun unit + a real-Postgres integration suite (`test:integration`, gated `RUN_DB_TESTS`;
+  skipped under plain `bun test`) — exercises the real `persist*` functions incl. the C3
+  buffer-and-flush, the auth guards, the Songs-Catalog read path (Pika-consensus join, identity
+  feed, `?missing=1`), the dual-CSV accretive merge, DJ profile management, the set-playlist
+  sync, and the dancer Journal (read/pagination/retro-enrichment, export lifecycle, like
+  removal, telemetry ingest)
+- Shared: Bun
+- Web: **dual-runner** — `bun test` (pure modules) + `vitest run` (`*.rtl.tsx`); see
+  [RTL harness](#rtl-component-tests-web--desktop) below
+- Python sidecar: `pytest` (`bun run --filter @pika/desktop test:python`) — `clamp` + librosa
   extractors on synthetic signals. Coverage tooling: `test:coverage` per package (advisory, not CI-gating).
 
 ### Code Quality
@@ -112,12 +118,22 @@ tests + 50 gated DB-integration + 8 Python sidecar.
 # Format code (Biome)
 bun run format
 
-# Lint code (Biome)
+# Lint code (Biome — covers all four packages; CI gates on this)
 bun run lint
 
 # Fix linting issues
 bun run check
 ```
+
+**Lint policy (single root `biome.json` + a nested `packages/desktop/biome.json`):** zero
+diagnostics is the bar — treat any new warning as a failure. Deliberate rule decisions:
+- `useLiteralKeys` OFF — tsconfig's `noPropertyAccessFromIndexSignature` *forces* the
+  `process.env["X"]` bracket style this rule punishes; TS wins.
+- `noNonNullAssertion` OFF — accepted idiom under `noUncheckedIndexedAccess`.
+- `noExplicitAny` OFF **in test files only** (mock plumbing); production code stays strict.
+- a11y rules ON repo-wide except desktop (deferred via its nested config — a dedicated pass is
+  pending; don't add new a11y violations there anyway). Desktop CSS keeps `!important`
+  (WebView text-selection lockdown/re-enable requires it).
 
 ### Database Operations (Cloud)
 
@@ -170,12 +186,12 @@ bun run --filter @pika/cloud dev
 
 ### Cloud: Modular WebSocket Server
 
-**Architecture (v0.4.0 refactor):**
+**Architecture (modular since the v0.4.0 refactor of a ~3000-line monolith):**
 - WebSocket handlers organized in `src/handlers/` (dj.ts, dancer.ts, poll.ts, `subscriber.ts` → `SUBSCRIBE_STAGE`, etc.)
-- 7 REST route modules in `src/routes/` (auth, sessions, stats, dj, client, push, **stages**)
+- REST route modules in `src/routes/` (sessions, stats, dj, dj-live, client, push, playlist, spotify, admin, seed, stages, telemetry; Better Auth owns `/api/auth/*`)
 - Stage/Event model: `events → stages → sessions`; dancers follow DJ rotation on a stage; scoped push via `stage_subscriptions` (see `docs/architecture/stage-event-model.md`)
-- 14 lib modules in `src/lib/` for state management
-- Entry point `index.ts` is ~570 lines (down from 3000)
+- State-management + persistence lib modules in `src/lib/`
+- Entry point `index.ts` is wiring + lifecycle only (middleware, WS message switch, route mounts, graceful shutdown)
 
 **Key Patterns:**
 - `WSContext` object passed to all handlers
@@ -239,8 +255,8 @@ chore: bump version to 0.4.0
 - Use `parseMessage<T>()` in Cloud handlers for type-safe parsing
 
 ### Testing Philosophy
-- **~1,142 passing tests** across all packages (476 desktop, ~435 cloud, 188 web, 43 shared) + 50 gated
-  DB-integration + 8 Python sidecar (see `docs/TEST_AUDIT_2026_06_30.md`)
+- Every package carries a colocated suite (run `bun run test` for current counts; last full
+  audit: `docs/TEST_AUDIT_2026_06_30.md`)
 - Test files colocated with source: `*.test.ts` / `__tests__/` (logic) and `*.rtl.tsx` (React components)
 - Use Vitest (desktop) / `bun test` (cloud, web, shared) for TS/JS, pytest for Python
 
@@ -303,7 +319,7 @@ python-src/         # Python sidecar (main.py, audio_processing.py)
 ```
 handlers/           # WebSocket message handlers
 routes/             # REST API endpoints
-lib/                # State management + utilities (14 modules)
+lib/                # State management + utilities
   persistence/      # Database operations
   services/         # External services (push notifications)
 db/                 # Drizzle schema

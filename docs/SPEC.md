@@ -78,7 +78,7 @@ Pika! adheres to a "Premium First" design philosophy:
 
 ## 7. Development Workflow
 
-### 6.1. Package Management
+### 7.1. Package Management
 Pika! uses **Bun Workspaces**. Run commands from the root:
 ```bash
 bun install                          # Install all dependencies
@@ -87,12 +87,12 @@ bun --filter @pika/cloud test        # Run tests only for the Cloud package
 bun --filter @pika/desktop tauri dev # Run only the Desktop dev server
 ```
 
-### 6.2. Standards
-- **Linting:** Biome (`bun run lint`).
-- **Testing:** Bun Test (Cloud/Web/Shared), Vitest (Desktop + Web/Desktop `*.rtl.tsx` RTL), pytest (sidecar). **~1,040 tests** total (~416 cloud, 417 desktop, 163 web, 38 shared) + 41 gated DB-integration + 8 Python. See `docs/TEST_AUDIT_2026_06_30.md`.
+### 7.2. Standards
+- **Linting:** Biome (`bun run lint` — all four packages; zero diagnostics is the bar).
+- **Testing:** Bun Test (Cloud/Web/Shared), Vitest (Desktop + Web/Desktop `*.rtl.tsx` RTL), pytest (sidecar). Run `bun run test` for current counts; last full audit: `docs/TEST_AUDIT_2026_06_30.md`.
 - **Logging:** Always use the shared `logger`. Avoid `console.log` in production-ready code.
 
-### 6.3. Versioning
+### 7.3. Versioning
 We follow Semantic Versioning. The current stable version is **v0.5.0 (Stage/Event + Hardening)**.
 
 ---
@@ -101,4 +101,4 @@ We follow Semantic Versioning. The current stable version is **v0.5.0 (Stage/Eve
 For deployment, monitoring, and scaling instructions, refer to the `docs/ops-manual.md`. For the future roadmap, see `docs/ROADMAP.md`.
 
 ---
-**Document Status:** v0.5.0 | **Net Score:** 11/10 🚀
+**Document Status:** v0.5.0
