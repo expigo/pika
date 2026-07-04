@@ -23,6 +23,12 @@ export const PRODUCT_EVENTS = [
   "journal_load_more",
   "journal_removed_like",
   "install_nudge_shown",
+  "account_save_card_shown",
+  "account_magic_link_requested",
+  "account_linked",
+  "account_claim_conflict",
+  "account_signed_out",
+  "account_deletion_requested",
 ] as const;
 
 const EventBody = z.object({

@@ -2,12 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { authClient } from "@/lib/authClient";
+import { signOutAndRotate } from "@/lib/identity";
 
 /**
  * Ends the Better Auth session: clears the cookie AND invalidates the server-side session row
  * (so a copied token dies too), then sends the user to a logged-out view. Matters most on shared
- * venue/booth machines where a DJ shouldn't leave an open session behind.
+ * venue/booth machines where a user shouldn't leave an open session behind — which is also why
+ * this rotates the device's anonymous clientId (Slice B): post-logout likes on a shared machine
+ * must not keep feeding the departed account's journal.
  */
 export function LogoutButton({ className }: { className?: string }) {
   const router = useRouter();
@@ -16,7 +18,7 @@ export function LogoutButton({ className }: { className?: string }) {
   const onClick = async () => {
     setBusy(true);
     try {
-      await authClient.signOut();
+      await signOutAndRotate();
     } catch {
       // Even if the network call fails, fall through to the logged-out view.
     } finally {

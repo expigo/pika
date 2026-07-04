@@ -16,6 +16,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // Better Auth tables (user/session/account/verification) — CLI-generated, the source of truth for
@@ -356,7 +357,9 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   p256dh: text("p256dh").notNull(), // Encryption public key
   auth: text("auth").notNull(), // Authentication secret
   clientId: text("client_id"), // Browser identity for targeted notifications
-  userId: text("user_id").references(() => user.id), // Link to DJ if authenticated
+  // Link to a user if authenticated. Never written by any current code path; set-null keeps
+  // GDPR account deletion (Slice B) from ever being blocked by a stray reference.
+  userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   unsubscribedAt: timestamp("unsubscribed_at"), // Opt-out flag
 });
@@ -601,16 +604,54 @@ export const serviceConnections = pgTable("service_connections", {
  * One exported "My Pika Journal" Spotify playlist per dancer (clientId), living on the shared
  * Pika service account and regenerated in place on re-export. The clientId PK enforces the
  * one-playlist-per-dancer product decision and backstops concurrent-export races; `updatedAt`
- * is the export cooldown gate. No FK: clientId is the anonymous browser identity.
+ * is the export cooldown gate. No FK on clientId: it is the anonymous browser identity.
+ *
+ * Slice B: `userId` marks the playlist ADOPTED by an account (one per account — partial unique
+ * index). Adopt-first policy: the account takes over the earliest-claimed device's playlist;
+ * account deletion reverts it to device-scoped (`set null`), never deletes it.
  */
-export const journalPlaylists = pgTable("journal_playlists", {
-  clientId: text("client_id").primaryKey(),
-  spotifyPlaylistId: text("spotify_playlist_id").notNull(),
-  spotifyPlaylistUrl: text("spotify_playlist_url").notNull(),
-  trackCount: integer("track_count").notNull().default(0),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+export const journalPlaylists = pgTable(
+  "journal_playlists",
+  {
+    clientId: text("client_id").primaryKey(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    spotifyPlaylistId: text("spotify_playlist_id").notNull(),
+    spotifyPlaylistUrl: text("spotify_playlist_url").notNull(),
+    trackCount: integer("track_count").notNull().default(0),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqUser: uniqueIndex("uniq_journal_playlists_user")
+      .on(table.userId)
+      .where(sql`user_id IS NOT NULL`),
+  }),
+);
+
+// ============================================================================
+// Client Identities (Slice B — dancer accounts)
+// ============================================================================
+
+/**
+ * Lazy account↔device mapping: the durable anchor behind the anonymous `clientId`. Claim =
+ * idempotent INSERT (possession of the 122-bit clientId is the credential — same trust model as
+ * the public journal read); the PK makes concurrent claims race-safe and enforces
+ * FIRST-CLAIM-WINS (a claimed id is never reassigned; the losing device rotates instead).
+ * Account deletion cascades the mapping — likes revert to anonymous device history.
+ */
+export const clientIdentities = pgTable(
+  "client_identities",
+  {
+    clientId: text("client_id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    claimedAt: timestamp("claimed_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxUserId: index("idx_client_identities_user_id").on(table.userId),
+  }),
+);
 
 // ============================================================================
 // Product Events (feature-usage telemetry)

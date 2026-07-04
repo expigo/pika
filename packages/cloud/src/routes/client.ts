@@ -13,6 +13,7 @@ import { and, count, desc, eq, inArray } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { db, schema } from "../db";
+import { CLIENT_ID_REGEX } from "../lib/services/identity";
 import {
   exportJournalPlaylist,
   JournalEmptyError,
@@ -26,10 +27,6 @@ import {
 import { SpotifyRateLimitError, SpotifyServiceNotConnectedError } from "../lib/services/spotify";
 
 const client = new Hono();
-
-// Validation: client IDs must match client_{uuid} or client_{timestamp}_{random} format
-// We accept both strict UUIDs and the browser-generated generic IDs
-const CLIENT_ID_REGEX = /^client_[a-zA-Z0-9_-]+$/i;
 
 /** NaN-hardened integer query param with clamping. */
 function clampInt(raw: string | undefined, min: number, max: number, fallback: number): number {

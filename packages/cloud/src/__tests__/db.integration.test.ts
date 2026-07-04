@@ -69,6 +69,7 @@ import { adminRoutes as adminRoute } from "../routes/admin";
 import { client as clientRoutes } from "../routes/client";
 import { dj as djRoute } from "../routes/dj";
 import { djLiveRoutes } from "../routes/dj-live";
+import { meRoutes } from "../routes/me";
 import { playlistRoutes } from "../routes/playlist";
 import { push as pushRoute } from "../routes/push";
 import { sessions as sessionsRoute } from "../routes/sessions";
@@ -2224,6 +2225,100 @@ suite("DB integration (real Postgres)", () => {
       // The journal-account guard: any authenticated user passes requireAuth surfaces — covered
       // in Slice B2/B3 blocks once /api/me exists. WS REGISTER_SESSION uses the same
       // hasDjAccess predicate (unit-tested matrix) — a dancer token falls to anonymous mode.
+    });
+  });
+
+  // ==========================================================================
+  // Slice B2 — client identity claims + rotation carry-over
+  // ==========================================================================
+
+  describe("client identity claims (Slice B2, real Postgres)", () => {
+    const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const createdUserIds: string[] = [];
+
+    afterAll(async () => {
+      if (createdUserIds.length > 0) {
+        await db.delete(schema.user).where(inArray(schema.user.id, createdUserIds));
+      }
+    });
+
+    test("claim → claimed; repeat → already_yours; other account → 409; delete cascades", async () => {
+      const a = await signUpDancer();
+      const b = await signUpDancer();
+      createdUserIds.push(a.userId, b.userId);
+      const deviceId = `client_b2_${uniq()}`;
+      const asA = {
+        method: "POST",
+        headers: { Authorization: `Bearer ${a.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: deviceId }),
+      };
+      const asB = { ...asA, headers: { ...asA.headers, Authorization: `Bearer ${b.token}` } };
+
+      const first = await meRoutes.request("/journal/claim", asA);
+      expect(first.status).toBe(200);
+      expect(((await first.json()) as { status: string }).status).toBe("claimed");
+
+      const repeat = await meRoutes.request("/journal/claim", asA);
+      expect(repeat.status).toBe(200);
+      expect(((await repeat.json()) as { status: string }).status).toBe("already_yours");
+
+      // FIRST-CLAIM-WINS: account B never takes over A's device id.
+      const conflict = await meRoutes.request("/journal/claim", asB);
+      expect(conflict.status).toBe(409);
+      expect(((await conflict.json()) as { error: string }).error).toBe(
+        "claimed_by_another_account",
+      );
+
+      // Malformed id → 400 (zod + CLIENT_ID_REGEX).
+      const bad = await meRoutes.request("/journal/claim", {
+        ...asA,
+        body: JSON.stringify({ clientId: "not-a-client-id!" }),
+      });
+      expect(bad.status).toBe(400);
+
+      // GDPR: deleting the account unwinds the mapping (FK cascade) — id becomes claimable.
+      await db.delete(schema.user).where(eq(schema.user.id, a.userId));
+      const rows = await db
+        .select()
+        .from(schema.clientIdentities)
+        .where(eq(schema.clientIdentities.clientId, deviceId));
+      expect(rows.length).toBe(0);
+      const reclaim = await meRoutes.request("/journal/claim", asB);
+      expect(reclaim.status).toBe(200);
+    });
+
+    test("push re-subscribe under a NEW clientId carries the old id's stage follows", async () => {
+      const oldId = `client_rot_old_${uniq()}`;
+      const newId = `client_rot_new_${uniq()}`;
+      const stageId = `stage_rot_${uniq()}`;
+      const endpoint = `https://push.example/${uniq()}`;
+
+      await db.insert(schema.stages).values({ id: stageId, name: "Rotation Stage" });
+      await db.insert(schema.stageSubscriptions).values({ stageId, clientId: oldId });
+      await db
+        .insert(schema.pushSubscriptions)
+        .values({ endpoint, p256dh: "k", auth: "a", clientId: oldId });
+
+      const res = await pushRoute.request("/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint, keys: { p256dh: "k", auth: "a" }, clientId: newId }),
+      });
+      expect(res.status).toBe(200);
+
+      // The endpoint row re-pointed AND the stage follow copied to the new id (join stays alive).
+      const [pushRow] = await db
+        .select({ clientId: schema.pushSubscriptions.clientId })
+        .from(schema.pushSubscriptions)
+        .where(eq(schema.pushSubscriptions.endpoint, endpoint));
+      expect(pushRow?.clientId).toBe(newId);
+      const targets = await getStagePushTargets(stageId);
+      expect(targets.some((t) => t.endpoint === endpoint)).toBe(true);
+
+      await db.delete(schema.stages).where(eq(schema.stages.id, stageId)); // cascades stage subs
+      await db
+        .delete(schema.pushSubscriptions)
+        .where(eq(schema.pushSubscriptions.endpoint, endpoint));
     });
   });
 

@@ -1,10 +1,11 @@
 import { zValidator } from "@hono/zod-validator";
 import { logger } from "@pika/shared";
+import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
-import { pushSubscriptions } from "../db/schema";
+import { pushSubscriptions, stageSubscriptions } from "../db/schema";
 import { requireDjAuth } from "../lib/auth";
 import { getAllActivePushTargets } from "../lib/persistence/push-targets";
 import { sendPushNotification } from "../services/push";
@@ -30,6 +31,19 @@ push.post("/subscribe", zValidator("json", SubscriptionSchema), async (c) => {
   const { endpoint, keys, clientId } = c.req.valid("json");
 
   try {
+    // Slice B rotation repair: stage push targeting joins push_subscriptions ↔
+    // stage_subscriptions ON client_id (lib/persistence/push-targets.ts), so when this KNOWN
+    // endpoint re-registers under a NEW clientId (identity rotation, or cleared storage while
+    // the browser kept push), the old id's stage follows must carry over or stage push silently
+    // stops for this device. Endpoint possession proves it's the same physical device — COPY
+    // (not move) the stage rows; the old rows go inert and stay harmless.
+    const [existing] = await db
+      .select({ clientId: pushSubscriptions.clientId })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .limit(1);
+    const oldClientId = existing?.clientId ?? null;
+
     await db
       .insert(pushSubscriptions)
       .values({
@@ -50,6 +64,22 @@ push.post("/subscribe", zValidator("json", SubscriptionSchema), async (c) => {
           unsubscribedAt: null, // Resurrect logic
         },
       });
+
+    if (clientId && oldClientId && oldClientId !== clientId) {
+      const oldStageSubs = await db
+        .select({ stageId: stageSubscriptions.stageId })
+        .from(stageSubscriptions)
+        .where(eq(stageSubscriptions.clientId, oldClientId));
+      if (oldStageSubs.length > 0) {
+        await db
+          .insert(stageSubscriptions)
+          .values(oldStageSubs.map((s) => ({ stageId: s.stageId, clientId })))
+          .onConflictDoNothing();
+        logger.info("[Push] Carried stage subscriptions across clientId rotation", {
+          stages: oldStageSubs.length,
+        });
+      }
+    }
 
     logger.info("[Push] Registered subscription", { endpoint: `${endpoint.substring(0, 30)}...` });
     return c.json({ success: true });

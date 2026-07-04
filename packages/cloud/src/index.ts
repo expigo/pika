@@ -21,6 +21,7 @@ import { adminRoutes } from "./routes/admin";
 import { client as clientRoutes } from "./routes/client";
 import { dj as djRoutes } from "./routes/dj";
 import { djLiveRoutes } from "./routes/dj-live";
+import { meRoutes } from "./routes/me";
 import { playlistRoutes } from "./routes/playlist";
 import { push as pushRoutes } from "./routes/push";
 import { seedRoutes } from "./routes/seed";
@@ -479,6 +480,8 @@ app.use("/api/dj/*", csrfCheck); // Slice 5 — profile management mutations (GE
 app.route("/api/dj", djRoutes);
 app.use("/api/client/*", csrfCheck); // Journal export POST (GET stays exempt — csrfCheck skips GET/HEAD/OPTIONS)
 app.route("/api/client", clientRoutes);
+app.use("/api/me/*", csrfCheck); // Slice B — account journal (claim/export are state-changing)
+app.route("/api/me", meRoutes);
 app.use("/api/telemetry/*", csrfCheck); // Product beacons (enum-whitelisted POST)
 app.route("/api/telemetry", telemetryRoutes); // NOT /api/events — stageRoutes owns that path
 app.route("/api/push", pushRoutes);

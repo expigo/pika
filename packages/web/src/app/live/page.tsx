@@ -20,6 +20,7 @@ import { LivePlayer } from "@/components/LivePlayer";
 import { ProCard } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 import { getApiBaseUrl } from "@/lib/api";
+import { ensureClientIdClaimed, hasAccountHint } from "@/lib/identity";
 
 interface ActiveSession {
   sessionId: string;
@@ -58,6 +59,13 @@ export default function LivePage() {
   const [topTracks, setTopTracks] = useState<TopTrack[]>([]);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Slice B: bind this device's id to the signed-in account before the night's likes start.
+  // Hint-gated so anonymous dancers (the common case) never pay a guaranteed-401 POST here;
+  // identity-layer only — the like pipeline itself is untouched.
+  useEffect(() => {
+    if (hasAccountHint()) void ensureClientIdClaimed();
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 

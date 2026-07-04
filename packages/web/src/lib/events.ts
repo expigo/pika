@@ -18,7 +18,13 @@ export type ProductEvent =
   | "journal_export_failed"
   | "journal_load_more"
   | "journal_removed_like"
-  | "install_nudge_shown";
+  | "install_nudge_shown"
+  | "account_save_card_shown"
+  | "account_magic_link_requested"
+  | "account_linked"
+  | "account_claim_conflict"
+  | "account_signed_out"
+  | "account_deletion_requested";
 
 export function trackEvent(event: ProductEvent, props?: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
