@@ -22,6 +22,7 @@ function signedInAs(email: string): void {
 
 beforeEach(() => {
   localStorage.clear();
+  vi.clearAllMocks(); // factory vi.fn()s (deleteUser/signOut) keep call history across tests otherwise
   vi.mocked(authClient.useSession).mockReturnValue({ data: null, isPending: false } as ReturnType<
     typeof authClient.useSession
   >);
@@ -376,6 +377,37 @@ describe("MyLikesPage", () => {
     expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/client/"))).toBe(false);
     // Nudge suppressed — the session cookie is the ITP-exempt anchor.
     expect(screen.queryByText(/keep your journal safe/i)).toBeNull();
+  });
+
+  it("signed in with zero likes: empty state keeps sign-out and delete-account reachable", async () => {
+    signedInAs("dancer@x.y");
+    localStorage.setItem("pika_client_id", "client-1");
+    vi.stubGlobal(
+      "fetch",
+      mockFetch({
+        "/telemetry/events": { status: 204, body: null },
+        "/me/journal/claim": { status: "claimed" },
+        "/me/journal": {
+          totalLikes: 0,
+          limit: 100,
+          offset: 0,
+          claimedCount: 1,
+          likes: [],
+          playlist: null,
+        },
+      }),
+    );
+    render(<MyLikesPage />);
+
+    expect(await screen.findByText(/the pages are blank/i)).toBeInTheDocument();
+    expect(screen.getByText("dancer@x.y")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
+
+    // GDPR deletion stays two-tap even from the empty state.
+    await userEvent.click(screen.getByRole("button", { name: /delete account/i }));
+    expect(vi.mocked(authClient.deleteUser)).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /send confirmation email/i }));
+    await waitFor(() => expect(vi.mocked(authClient.deleteUser)).toHaveBeenCalledTimes(1));
   });
 
   it("signed out with likes: shows the save-journal card and fires account_save_card_shown once", async () => {

@@ -475,6 +475,40 @@ export default function MyLikesPage() {
             <Radio className="w-4 h-4" />
             Find a Room
           </Link>
+          {/* Account controls must stay reachable at zero likes (sign-out + GDPR deletion). */}
+          {session && (
+            <div className="mt-10 pt-6 border-t border-white/[0.04] space-y-3">
+              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
+                Signed in as <span className="text-slate-400">{session.user.email}</span>
+              </p>
+              <div className="flex items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  className="text-[9px] font-black text-slate-500 uppercase tracking-widest hover:text-white transition-colors"
+                >
+                  Sign out
+                </button>
+                {confirmingDelete ? (
+                  <button
+                    type="button"
+                    onClick={handleDeleteAccount}
+                    className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
+                  >
+                    Send confirmation email?
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(true)}
+                    className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
+                  >
+                    Delete account
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </ProCard>
       </div>
     );
