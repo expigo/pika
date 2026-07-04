@@ -107,9 +107,9 @@ export default function LoginPage() {
 
             <div className="p-10 space-y-10">
               <div className="space-y-4">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                <p className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
                   Private Access Token
-                </label>
+                </p>
                 <button
                   type="button"
                   onClick={() => setTokenRevealed((v) => !v)}
@@ -195,12 +195,16 @@ export default function LoginPage() {
                 )}
 
                 <div className="space-y-4">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                  <label
+                    htmlFor="login-email"
+                    className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1"
+                  >
                     Email Identity
                   </label>
                   <div className="relative group">
                     <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
                     <input
+                      id="login-email"
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -212,12 +216,16 @@ export default function LoginPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                  <label
+                    htmlFor="login-password"
+                    className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1"
+                  >
                     Access Key
                   </label>
                   <div className="relative group">
                     <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
                     <input
+                      id="login-password"
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}

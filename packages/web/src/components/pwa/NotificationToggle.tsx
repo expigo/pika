@@ -33,6 +33,7 @@ export function NotificationToggle() {
       </div>
 
       <button
+        type="button"
         onClick={async () => {
           const success = await subscribe();
           if (success) {

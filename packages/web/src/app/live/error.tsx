@@ -35,6 +35,7 @@ export default function LiveError({
 
         <div className="flex flex-col gap-4">
           <button
+            type="button"
             onClick={reset}
             className="w-full py-4 px-6 bg-white text-slate-950 font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-xl hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-3"
           >

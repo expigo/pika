@@ -146,21 +146,15 @@ export default function RegisterPage() {
 
             <div className="p-10 space-y-10">
               <div className="space-y-4">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                <p className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
                   Private Access Key
-                </label>
-                <div
-                  className="bg-slate-950 border border-white/10 rounded-2xl p-6 font-mono text-sm text-purple-400 break-all leading-relaxed shadow-inner group/token relative cursor-pointer active:scale-[0.99] transition-transform flex items-center justify-between gap-4"
-                  onClick={copyToken}
-                >
+                </p>
+                <div className="bg-slate-950 border border-white/10 rounded-2xl p-6 font-mono text-sm text-purple-400 break-all leading-relaxed shadow-inner group/token relative flex items-center justify-between gap-4">
                   <span className={!showToken ? "blur-sm select-none" : "select-text"}>
                     {showToken ? success.token : "•".repeat(success.token?.length || 32)}
                   </span>
 
-                  <div
-                    className="flex items-center gap-2 relative z-10"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <div className="flex items-center gap-2 relative z-10">
                     <button
                       type="button"
                       onClick={() => setShowToken(!showToken)}
@@ -169,9 +163,11 @@ export default function RegisterPage() {
                     >
                       {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
-                    <div
-                      className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 p-2 rounded-lg transition-colors"
+                    <button
+                      type="button"
                       onClick={copyToken}
+                      aria-label="Copy token"
+                      className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 hover:text-purple-300 p-2 rounded-lg transition-colors"
                       title="Copy Token"
                     >
                       {tokenCopied ? (
@@ -181,7 +177,7 @@ export default function RegisterPage() {
                           COPY
                         </div>
                       )}
-                    </div>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -264,12 +260,16 @@ export default function RegisterPage() {
                 )}
 
                 <div className="space-y-4">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                  <label
+                    htmlFor="reg-display-name"
+                    className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1"
+                  >
                     Display Name
                   </label>
                   <div className="relative group">
                     <User className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
                     <input
+                      id="reg-display-name"
                       type="text"
                       required
                       placeholder="DJ NAME"
@@ -281,12 +281,16 @@ export default function RegisterPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                  <label
+                    htmlFor="reg-email"
+                    className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1"
+                  >
                     Uplink Email
                   </label>
                   <div className="relative group">
                     <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
                     <input
+                      id="reg-email"
                       type="email"
                       required
                       placeholder="DJ@EXAMPLE.COM"
@@ -299,12 +303,16 @@ export default function RegisterPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div className="space-y-4">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                    <label
+                      htmlFor="reg-password"
+                      className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1"
+                    >
                       Access Key
                     </label>
                     <div className="relative group">
                       <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
                       <input
+                        id="reg-password"
                         type={showPassword ? "text" : "password"}
                         required
                         placeholder="••••••••"
@@ -326,12 +334,16 @@ export default function RegisterPage() {
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1">
+                    <label
+                      htmlFor="reg-confirm-password"
+                      className="block text-[10px] font-black text-slate-500 uppercase tracking-[0.4em] ml-1"
+                    >
                       Confirm Key
                     </label>
                     <div className="relative group">
                       <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-purple-400 transition-colors" />
                       <input
+                        id="reg-confirm-password"
                         type={showConfirmPassword ? "text" : "password"}
                         required
                         placeholder="••••••••"

@@ -185,6 +185,7 @@ export default function RecapPage() {
             </span>
           </div>
           <button
+            type="button"
             onClick={handleShare}
             className="flex items-center gap-2 px-4 py-2 hover:bg-slate-900 text-[10px] font-black text-slate-500 hover:text-white rounded-lg transition-all border border-transparent hover:border-slate-800 uppercase tracking-widest active:scale-95"
           >
@@ -301,6 +302,7 @@ export default function RecapPage() {
 
           {hasMoreTracks && (
             <button
+              type="button"
               onClick={() => setShowAllTracks(!showAllTracks)}
               className="w-full px-8 py-5 border-t border-slate-800/50 text-slate-500 hover:text-white active:bg-slate-900 transition-all font-black text-[10px] uppercase tracking-[0.3em] flex items-center justify-center gap-3 active:scale-[0.99]"
             >

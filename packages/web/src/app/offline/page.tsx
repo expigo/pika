@@ -18,6 +18,7 @@ export default function OfflinePage() {
 
       <div className="flex gap-4">
         <button
+          type="button"
           onClick={() => window.location.reload()}
           className="rounded-full bg-white px-6 py-2 font-medium text-black transition hover:bg-zinc-200"
         >

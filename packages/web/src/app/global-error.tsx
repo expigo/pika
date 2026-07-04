@@ -21,6 +21,7 @@ export default function GlobalError({
           <div className="w-full max-w-md">
             <div className="w-20 h-20 bg-red-500/10 border-2 border-red-500/20 rounded-3xl flex items-center justify-center mx-auto mb-8 animate-pulse">
               <svg
+                aria-hidden="true"
                 className="w-10 h-10 text-red-500"
                 fill="none"
                 viewBox="0 0 24 24"
@@ -46,6 +47,7 @@ export default function GlobalError({
 
             <div className="flex flex-col gap-4">
               <button
+                type="button"
                 onClick={() => reset()}
                 className="w-full py-4 px-6 bg-white text-slate-950 font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:scale-[1.02] active:scale-[0.98]"
               >
@@ -53,6 +55,7 @@ export default function GlobalError({
               </button>
 
               <button
+                type="button"
                 onClick={() => window.location.assign("/")}
                 className="w-full py-4 px-6 bg-slate-900 border border-slate-800 text-slate-400 font-black uppercase text-xs tracking-widest rounded-2xl transition-all hover:bg-slate-800 hover:text-white"
               >

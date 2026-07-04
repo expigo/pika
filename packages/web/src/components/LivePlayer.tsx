@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { usePushNotifications } from "@/hooks/live";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
@@ -139,6 +139,7 @@ const TempoButtons = memo(function TempoButtons({
         const isActive = tempoVote === btn.id;
         return (
           <button
+            type="button"
             key={btn.id}
             onClick={() => {
               triggerHaptic(10);
@@ -220,6 +221,7 @@ const HistoryList = memo(function HistoryList({
               >
                 <div className="flex-1 min-w-0 flex items-center gap-4">
                   <button
+                    type="button"
                     onClick={() => (isLiked ? onUnlike(track) : onLike(track))}
                     className={`flex-shrink-0 w-8 h-8 rounded-full border flex items-center justify-center transition-all ${
                       isLiked
@@ -452,6 +454,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                 </div>
               </div>
               <button
+                type="button"
                 onClick={dismissAnnouncement}
                 className="flex-shrink-0 p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white/40 hover:text-white transition-all active:scale-95"
                 aria-label="Dismiss"
@@ -550,6 +553,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
               {isLive && (
                 <div className="flex items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => setShowSettings(!showSettings)}
                     aria-label="Booth Settings"
                     className={`w-9 h-9 flex items-center justify-center rounded-xl border transition-all shadow-xl relative group ${
@@ -568,6 +572,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                     <Settings className={`w-4 h-4 ${showSettings ? "animate-spin-slow" : ""}`} />
                   </button>
                   <button
+                    type="button"
                     onClick={handleShare}
                     aria-label="Share session"
                     className="w-9 h-9 flex items-center justify-center bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-white transition-all shadow-xl"
@@ -589,6 +594,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                     Booth Settings
                   </h3>
                   <button
+                    type="button"
                     onClick={() => setShowSettings(false)}
                     className="p-1 hover:bg-slate-800 rounded-lg transition-colors"
                   >
@@ -662,6 +668,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                 {/* Main Action: Pulse (Like) */}
                 <div className="relative mb-12">
                   <button
+                    type="button"
                     onClick={handleLike}
                     style={{
                       animationDuration: currentTrack.bpm ? `${60 / currentTrack.bpm}s` : "0.6s",
@@ -712,6 +719,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                 />
                 {/* Reaction: Thanks */}
                 <button
+                  type="button"
                   onClick={() => {
                     sendReaction("thank_you");
                     setThanksText("THANKS RECEIVED! 🦄");
@@ -852,6 +860,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                   <div className="grid grid-cols-1 gap-3">
                     {activePoll.options.map((option, idx) => (
                       <button
+                        type="button"
                         key={idx}
                         onClick={() => {
                           triggerHaptic(20);
@@ -916,17 +925,28 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
         </ProCard>
       </div>
 
-      {/* QR Code Share Modal */}
+      {/* QR Code Share Modal — backdrop click + Escape close; the ✕ button is the focusable path */}
       {showQR && (
+        // biome-ignore lint/a11y/noStaticElementInteractions: backdrop click-to-close convenience; keyboard path is Escape (below) + the focusable ✕ button
         <div
+          role="presentation"
           className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center z-[100] p-6"
           onClick={() => setShowQR(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") setShowQR(false);
+          }}
         >
+          {/* biome-ignore lint/a11y/noStaticElementInteractions: stops backdrop-close when clicking inside the dialog; not an interactive control */}
           <div
+            role="presentation"
             className="bg-slate-900/90 backdrop-blur-xl rounded-[2.5rem] border border-slate-800 p-10 max-w-sm w-full relative shadow-2xl animate-in zoom-in-95 duration-200"
             onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setShowQR(false);
+            }}
           >
             <button
+              type="button"
               onClick={() => setShowQR(false)}
               className="absolute top-6 right-6 p-2 text-slate-500 hover:text-white transition-colors"
             >
@@ -949,6 +969,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
             </div>
 
             <button
+              type="button"
               onClick={async () => {
                 await navigator.clipboard.writeText(shareUrl);
                 setThanksText("LINK COPIED! 🔗");

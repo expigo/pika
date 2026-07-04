@@ -173,6 +173,7 @@ export default function DownloadPage() {
               </a>
             ) : (
               <button
+                type="button"
                 disabled
                 className="w-full bg-slate-800 text-slate-600 px-8 py-5 rounded-2xl font-black text-xs uppercase tracking-widest cursor-not-allowed border border-white/5"
               >

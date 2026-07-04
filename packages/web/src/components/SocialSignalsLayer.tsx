@@ -149,8 +149,10 @@ export function SocialSignalsLayer({ onLikeReceived }: Props) {
   }, [onLikeReceived]);
 
   return (
+    // Decorative overlay: explicitly non-focusable so aria-hidden is safe (noAriaHiddenOnFocusable)
     <canvas
       ref={canvasRef}
+      tabIndex={-1}
       className="fixed inset-0 pointer-events-none z-[9999]"
       aria-hidden="true"
     />

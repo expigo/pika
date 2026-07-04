@@ -177,6 +177,7 @@ export default function LivePage() {
             {error}
           </p>
           <button
+            type="button"
             onClick={() => fetchAllData()}
             className="px-12 py-4 bg-white text-slate-950 font-black rounded-2xl hover:scale-105 transition-all transform active:scale-95 flex items-center gap-3 mx-auto text-[10px] uppercase tracking-widest"
           >
@@ -246,6 +247,7 @@ export default function LivePage() {
                 className="overflow-hidden"
               >
                 <button
+                  type="button"
                   onClick={() => setSelectedSessionId(session.sessionId)}
                   className="w-full p-8 text-left group flex items-center gap-8 hover:bg-slate-900/40 transition-all"
                 >

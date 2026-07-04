@@ -4,8 +4,14 @@ import * as Sentry from "@sentry/nextjs";
 import { Download, Share, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
+/** Chromium's install-prompt event — not yet in lib.dom (WICG manifest-incubations). */
+interface BeforeInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 export function InstallPrompt() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isIOS, setIsIOS] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
 
@@ -16,16 +22,16 @@ export function InstallPrompt() {
     }
 
     // Handle Android/Desktop "beforeinstallprompt"
-    const handleBeforeInstallPrompt = (e: any) => {
+    const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e);
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
       // Determine if we should show it (e.g. check local storage if dismissed recently)
       // For now, show after 10 seconds of usage
       setTimeout(() => setIsVisible(true), 10000);
     };
 
     // Detect iOS
-    const isIosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isIosDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) && !("MSStream" in window);
     if (isIosDevice) {
       setIsIOS(true);
       setTimeout(() => setIsVisible(true), 10000);
@@ -65,6 +71,7 @@ export function InstallPrompt() {
     <div className="fixed bottom-[5.5rem] left-4 right-4 z-[100] animate-in slide-in-from-bottom duration-500 md:bottom-4 md:left-auto md:right-8 md:w-96">
       <div className="flex items-start gap-4 rounded-xl border border-zinc-800 bg-zinc-900/95 p-4 shadow-2xl backdrop-blur-md">
         <button
+          type="button"
           onClick={() => setIsVisible(false)}
           className="absolute right-2 top-2 rounded-full p-1 text-zinc-400 hover:bg-zinc-800 hover:text-white"
         >
@@ -91,6 +98,7 @@ export function InstallPrompt() {
             </div>
           ) : (
             <button
+              type="button"
               onClick={handleInstallClick}
               className="mt-3 rounded-md bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-zinc-200"
             >

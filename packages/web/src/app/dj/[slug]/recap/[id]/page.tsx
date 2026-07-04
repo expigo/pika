@@ -229,6 +229,7 @@ export default function DjRecapPage({ params }: RecapPageProps) {
               </h1>
             </div>
             <button
+              type="button"
               onClick={handleShare}
               className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-xl text-slate-300 text-[10px] font-black uppercase tracking-widest transition-all border border-slate-700/50"
             >
@@ -369,6 +370,7 @@ export default function DjRecapPage({ params }: RecapPageProps) {
           {/* Show More/Less */}
           {hasMoreTracks && (
             <button
+              type="button"
               onClick={() => setShowAllTracks(!showAllTracks)}
               className="w-full px-8 py-5 border-t border-slate-800/50 text-slate-500 hover:text-white hover:bg-slate-900/50 transition-all flex items-center justify-center gap-3 text-[10px] font-black uppercase tracking-[0.2em]"
             >
