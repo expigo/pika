@@ -11,14 +11,14 @@
  * 3. Track matching logic
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useLiveStore } from "./useLiveStore";
 
 // Mocking the behavior of handleLikeReceivedCallback and handleLikeRemovedCallback
 // as defined in useLiveSession.ts
 
 // Simulated state for debounced storage (from useLiveSession.ts)
-let pendingLikesByPlayId = new Map<number, number>();
+const pendingLikesByPlayId = new Map<number, number>();
 const LIKE_STORAGE_DEBOUNCE_MS = 2000;
 let likeStorageTimer: ReturnType<typeof setTimeout> | null = null;
 let flushedCount = 0;

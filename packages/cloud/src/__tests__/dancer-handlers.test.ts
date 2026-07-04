@@ -14,9 +14,7 @@ import { clearAllLikes } from "../lib/likes";
 import { deleteSession, getAllSessions, setSession } from "../lib/sessions";
 import { getSessionTopic } from "../lib/topics";
 
-// biome-ignore lint/suspicious/noExplicitAny: minimal test double
 const mockWs = { send: mock(() => {}) } as any;
-// biome-ignore lint/suspicious/noExplicitAny: minimal test double
 const mockRawWs = { publish: mock(() => {}), getBufferedAmount: mock(() => 0) } as any;
 
 let seq = 0;

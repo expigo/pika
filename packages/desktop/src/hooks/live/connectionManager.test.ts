@@ -1,18 +1,18 @@
-import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { sessionRepository } from "../../db/repositories/sessionRepository";
+import { type NowPlayingTrack, virtualDjWatcher } from "../../services/virtualDjWatcher";
 import {
-  prepareInitialTrackState,
   createDatabaseSession,
   detectInitialTrack,
+  prepareInitialTrackState,
   startVirtualDJWatcher,
 } from "./connectionManager";
-import { sessionRepository } from "../../db/repositories/sessionRepository";
 import {
+  addProcessedTrackKey,
   clearProcessedTrackKeys,
   setLastBroadcastedTrackKey,
   setSkipInitialTrackBroadcast,
-  addProcessedTrackKey,
 } from "./stateHelpers";
-import { virtualDjWatcher, type NowPlayingTrack } from "../../services/virtualDjWatcher";
 
 // Mock dependencies
 vi.mock("../../db/repositories/sessionRepository", () => ({

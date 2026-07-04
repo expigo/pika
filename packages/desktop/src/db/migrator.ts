@@ -17,7 +17,14 @@ export interface Migration {
 
 // Ordered by filename: 0000, 0001, …
 const MIGRATIONS: Migration[] = Object.entries(migrationModules)
-  .map(([path, sql]) => ({ tag: path.split("/").pop()?.replace(/\.sql$/, "") ?? path, sql }))
+  .map(([path, sql]) => ({
+    tag:
+      path
+        .split("/")
+        .pop()
+        ?.replace(/\.sql$/, "") ?? path,
+    sql,
+  }))
   .sort((a, b) => a.tag.localeCompare(b.tag));
 
 /**
@@ -29,7 +36,10 @@ const MIGRATIONS: Migration[] = Object.entries(migrationModules)
 export function idempotent(statement: string): string {
   return statement
     .replace(/^CREATE TABLE /i, "CREATE TABLE IF NOT EXISTS ")
-    .replace(/^CREATE (UNIQUE )?INDEX /i, (_m, unique) => `CREATE ${unique ?? ""}INDEX IF NOT EXISTS `);
+    .replace(
+      /^CREATE (UNIQUE )?INDEX /i,
+      (_m, unique) => `CREATE ${unique ?? ""}INDEX IF NOT EXISTS `,
+    );
 }
 
 /**

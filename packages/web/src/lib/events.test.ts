@@ -21,7 +21,6 @@ const g = globalThis as MutableGlobal;
 const originalFetch = globalThis.fetch;
 const hadWindow = "window" in globalThis;
 const hadLocalStorage = "localStorage" in globalThis;
-// biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 const originalEnv = process.env["NEXT_PUBLIC_CLOUD_API_URL"];
 
 let store: Map<string, string>;
@@ -32,7 +31,6 @@ beforeEach(() => {
   store = new Map();
   setItemCalls = 0;
   calls = [];
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   process.env["NEXT_PUBLIC_CLOUD_API_URL"] = "http://cloud.test";
   g.window = globalThis;
   g.localStorage = {
@@ -57,10 +55,8 @@ afterEach(() => {
   if (!hadWindow) delete g.window;
   if (!hadLocalStorage) delete g.localStorage;
   if (originalEnv === undefined) {
-    // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
     delete process.env["NEXT_PUBLIC_CLOUD_API_URL"];
   } else {
-    // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
     process.env["NEXT_PUBLIC_CLOUD_API_URL"] = originalEnv;
   }
 });

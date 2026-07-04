@@ -32,7 +32,7 @@ jobs:
       - name: Install Dependencies
         run: bun install --frozen-lockfile
 
-      # Lint (Biome — fast; desktop is excluded via .biomeignore)
+      # Lint (Biome — fast; covers all four packages incl. desktop; desktop a11y deferred via its nested biome.json)
       - name: Lint (Biome)
         run: bun run lint
 

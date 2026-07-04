@@ -71,9 +71,8 @@ self.addEventListener("push", (event) => {
       data: payload,
       tag: payload?.tag || "pika-notification", // Deduplicate by tag if provided
       requireInteraction: false,
-      // biome-ignore lint/suspicious/noExplicitAny: platform specific property
       silent: false,
-    } as any;
+    };
 
     event.waitUntil(self.registration.showNotification(title || "Pika! Live", options));
   } catch (e) {

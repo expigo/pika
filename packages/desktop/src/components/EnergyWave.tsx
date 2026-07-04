@@ -148,8 +148,13 @@ export function EnergyWave({ showBpmLine = true }: Props) {
   const isEmpty = activeSet.length === 0;
 
   // Custom dot renderer for BPM line (shows warning colors)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const renderBpmDot = (props: any) => {
+  interface BpmDotProps {
+    cx?: number;
+    cy?: number;
+    index?: number;
+    payload?: { bpm?: number | null; bpmJump?: number | null };
+  }
+  const renderBpmDot = (props: BpmDotProps) => {
     const { cx, cy, payload, index } = props;
     if (cx == null || cy == null || !payload?.bpm) return null;
 
@@ -167,7 +172,7 @@ export function EnergyWave({ showBpmLine = true }: Props) {
         stroke={hoveredIndex === index ? "#fff" : "transparent"}
         strokeWidth={2}
         style={{ cursor: "pointer" }}
-        onMouseEnter={() => setHoveredIndex(index)}
+        onMouseEnter={() => setHoveredIndex(index ?? null)}
         onMouseLeave={() => setHoveredIndex(null)}
       />
     );

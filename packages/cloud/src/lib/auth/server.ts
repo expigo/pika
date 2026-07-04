@@ -15,7 +15,6 @@ import { db } from "../../db";
 import { ac, admin, dj } from "./permissions";
 
 function trustedOrigins(): string[] {
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   const node = process.env["NODE_ENV"];
   // Both staging and prod run NODE_ENV=production (staging is distinguished by domain /
   // SENTRY_ENVIRONMENT, not NODE_ENV), so trust BOTH web origins in any non-dev build —
@@ -34,9 +33,7 @@ function trustedOrigins(): string[] {
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg" }),
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   secret: process.env["BETTER_AUTH_SECRET"],
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   baseURL: process.env["BETTER_AUTH_URL"],
   emailAndPassword: { enabled: true },
   user: {

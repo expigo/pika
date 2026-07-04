@@ -1,8 +1,8 @@
+import { FlaskConical, Loader2, Pause, Play, RefreshCcw, Square } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import * as trackRepo from "../db/repositories/trackRepository";
 import { useAnalyzer } from "../hooks/useAnalyzer";
 import { useLibraryRefresh } from "../hooks/useLibraryRefresh";
-import { FlaskConical, Play, Pause, Square, RefreshCcw, Loader2 } from "lucide-react";
-import { useState, useRef, useEffect } from "react";
-import * as trackRepo from "../db/repositories/trackRepository";
 
 interface Props {
   baseUrl: string | null;

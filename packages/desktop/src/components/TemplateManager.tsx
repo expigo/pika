@@ -4,7 +4,7 @@
  */
 
 import { Check, Copy, LayoutTemplate, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { type SetTemplate, templateRepository } from "../db/repositories/templateRepository";
 
 interface Props {
@@ -26,17 +26,17 @@ export function TemplateManager({ onClose, onApplyTemplate, currentSetTracks }: 
   const [saving, setSaving] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<SetTemplate | null>(null);
 
-  // Load templates on mount
-  useEffect(() => {
-    loadTemplates();
-  }, []);
-
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     setLoading(true);
     const result = await templateRepository.getAllTemplates();
     setTemplates(result);
     setLoading(false);
-  };
+  }, []);
+
+  // Load templates on mount
+  useEffect(() => {
+    loadTemplates();
+  }, [loadTemplates]);
 
   const handleSaveAsTemplate = async () => {
     if (!newTemplateName.trim() || !currentSetTracks?.length) return;

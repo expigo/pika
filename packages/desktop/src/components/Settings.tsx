@@ -8,15 +8,15 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   AlertTriangle,
   FolderOpen,
+  Globe,
+  Info,
+  Key,
   Settings as SettingsIcon,
   X,
-  Info,
-  Globe,
-  Key,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { type AppSettings, useSettings } from "../hooks/useSettings";
+import { useEffect, useState } from "react";
 import { useDjSettings } from "../hooks/useDjSettings";
+import { type AppSettings, useSettings } from "../hooks/useSettings";
 
 interface Props {
   isOpen: boolean;
@@ -390,7 +390,7 @@ export function Settings({ isOpen, onClose }: Props) {
                           min="60"
                           max="100"
                           value={settings["library.bpmThresholds"].slow}
-                          onChange={(e) => handleBpmThreshold("slow", parseInt(e.target.value))}
+                          onChange={(e) => handleBpmThreshold("slow", parseInt(e.target.value, 10))}
                           className="w-full accent-pika-accent"
                         />
                       </div>
@@ -409,7 +409,9 @@ export function Settings({ isOpen, onClose }: Props) {
                           min="100"
                           max="140"
                           value={settings["library.bpmThresholds"].medium}
-                          onChange={(e) => handleBpmThreshold("medium", parseInt(e.target.value))}
+                          onChange={(e) =>
+                            handleBpmThreshold("medium", parseInt(e.target.value, 10))
+                          }
                           className="w-full accent-pika-accent"
                         />
                       </div>

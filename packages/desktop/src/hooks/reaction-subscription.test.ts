@@ -12,7 +12,7 @@
  * - subscribeToReactions: useLiveSession.ts line 205-210
  */
 
-import { describe, test, expect, beforeEach } from "vitest";
+import { beforeEach, describe, expect, test } from "vitest";
 
 // ============================================================================
 // MOCK: Reaction Subscription System
@@ -30,7 +30,9 @@ function subscribeToReactions(callback: ReactionCallback): () => void {
 }
 
 function notifyReactionListeners(reaction: { type: string; sessionId?: string }): void {
-  reactionCallbacks.forEach((callback) => callback(reaction));
+  reactionCallbacks.forEach((callback) => {
+    callback(reaction);
+  });
 }
 
 // ============================================================================

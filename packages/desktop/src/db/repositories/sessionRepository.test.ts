@@ -13,8 +13,8 @@
  * @created 2026-01-23
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { Session, Play } from "./sessionRepository";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { Play, Session } from "./sessionRepository";
 
 // ============================================================================
 // Mock Setup

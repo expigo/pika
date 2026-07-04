@@ -52,7 +52,6 @@ beforeEach(() => {
     offset: 0,
     songs: [song],
   });
-  // biome-ignore lint/suspicious/noExplicitAny: partial detail fixture is enough for this render test
   vi.mocked(admin.getCatalogSong).mockResolvedValue(detail as any);
 });
 

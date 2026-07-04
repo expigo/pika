@@ -1,11 +1,11 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import { useCallback, useRef, useState } from "react";
+import { settingsRepository } from "../db/repositories/settingsRepository";
 import {
   type AnalysisResult,
   type Track,
   trackRepository,
 } from "../db/repositories/trackRepository";
-import { settingsRepository } from "../db/repositories/settingsRepository";
 
 export interface UseAnalyzerState {
   isAnalyzing: boolean;

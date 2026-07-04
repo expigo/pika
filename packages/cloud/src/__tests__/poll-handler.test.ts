@@ -12,9 +12,7 @@ import type { WSContext } from "../handlers/ws-context";
 import { activePolls, clearAllPolls, sessionActivePoll } from "../lib/polls";
 import { deleteSession, getAllSessions, setSession } from "../lib/sessions";
 
-// biome-ignore lint/suspicious/noExplicitAny: minimal test double
 const mockWs = { send: mock(() => {}) } as any;
-// biome-ignore lint/suspicious/noExplicitAny: minimal test double
 const mockRawWs = { publish: mock(() => {}), getBufferedAmount: mock(() => 0) } as any;
 
 function setupSession(sessionId: string) {

@@ -1,5 +1,5 @@
+import { logger, PIKA_VERSION } from "@pika/shared";
 import * as Sentry from "@sentry/react";
-import { PIKA_VERSION, logger } from "@pika/shared";
 
 export function initSentry() {
   const dsn = import.meta.env.VITE_SENTRY_DSN;

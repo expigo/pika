@@ -7,80 +7,70 @@
  * @package @pika/desktop
  */
 
-// Types
-export * from "./types";
-
-// Core modules
-export {
-  subscribeToReactions,
-  notifyReactionListeners,
-  getReactionListenerCount,
-  clearReactionListeners,
-} from "./reactionSubscriptions";
-
-export {
-  flushLikeBatch,
-  addToPendingLikes,
-  getPendingLikeCount,
-  getPendingLikeTrackTitle,
-  resetLikeBatching,
-  configureLikeBatching,
-} from "./likeBatching";
-
-export {
-  generateMessageId,
-  handleAck,
-  handleNack,
-  handleTimeout,
-  retrySend,
-  clearPendingMessages,
-  trackMessage,
-  getPendingMessageCount,
-  isMessagePending,
-  setSocketInstance,
-  configureReliability,
-} from "./reliability";
-
-export {
-  flushQueue,
-  isQueueFlushing,
-  getQueueSize,
-  setQueueSocketInstance,
-  configureQueueFlush,
-} from "./offlineQueue";
-
-export {
-  sendMessage,
-  setMessageSenderSocket,
-  isSocketConnected,
-} from "./messageSender";
-
-export {
-  generateSessionId,
-  getTrackKey,
-  broadcastTrack,
-  resetLastBroadcastedTrack,
-  getLastBroadcastedTrackKey,
-  forceReBroadcast,
-} from "./trackBroadcast";
-
-// State helpers (transition layer for store access)
-export * from "./stateHelpers";
-
-// Constants (centralized magic numbers)
-export * from "./constants";
-
-// Type guards (runtime type safety)
-export * from "./typeGuards";
-
-// Message router (O(1) dispatch)
-export { messageRouter, type MessageRouterContext } from "./messageRouter";
-
 // Connection manager (goLive helpers)
 export {
   createDatabaseSession,
   detectInitialTrack,
-  startVirtualDJWatcher,
-  prepareInitialTrackState,
   getTrackInfoForBroadcast,
+  prepareInitialTrackState,
+  startVirtualDJWatcher,
 } from "./connectionManager";
+// Constants (centralized magic numbers)
+export * from "./constants";
+
+export {
+  addToPendingLikes,
+  configureLikeBatching,
+  flushLikeBatch,
+  getPendingLikeCount,
+  getPendingLikeTrackTitle,
+  resetLikeBatching,
+} from "./likeBatching";
+// Message router (O(1) dispatch)
+export { type MessageRouterContext, messageRouter } from "./messageRouter";
+export {
+  isSocketConnected,
+  sendMessage,
+  setMessageSenderSocket,
+} from "./messageSender";
+export {
+  configureQueueFlush,
+  flushQueue,
+  getQueueSize,
+  isQueueFlushing,
+  setQueueSocketInstance,
+} from "./offlineQueue";
+// Core modules
+export {
+  clearReactionListeners,
+  getReactionListenerCount,
+  notifyReactionListeners,
+  subscribeToReactions,
+} from "./reactionSubscriptions";
+export {
+  clearPendingMessages,
+  configureReliability,
+  generateMessageId,
+  getPendingMessageCount,
+  handleAck,
+  handleNack,
+  handleTimeout,
+  isMessagePending,
+  retrySend,
+  setSocketInstance,
+  trackMessage,
+} from "./reliability";
+// State helpers (transition layer for store access)
+export * from "./stateHelpers";
+export {
+  broadcastTrack,
+  forceReBroadcast,
+  generateSessionId,
+  getLastBroadcastedTrackKey,
+  getTrackKey,
+  resetLastBroadcastedTrack,
+} from "./trackBroadcast";
+// Type guards (runtime type safety)
+export * from "./typeGuards";
+// Types
+export * from "./types";

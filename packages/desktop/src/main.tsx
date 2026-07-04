@@ -1,9 +1,9 @@
+import { logger } from "@pika/shared";
+import * as Sentry from "@sentry/react";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import * as Sentry from "@sentry/react";
 import { initSentry } from "./lib/sentry";
-import { logger } from "@pika/shared";
 
 // Register Sentry as the reporter for the shared logger
 logger.setReporter((message, error, context) => {

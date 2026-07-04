@@ -8,8 +8,8 @@
  * @package @pika/desktop
  */
 
-import { useLiveStore } from "../useLiveStore";
 import type { TrackInfo } from "@pika/shared";
+import { useLiveStore } from "../useLiveStore";
 
 // ============================================================================
 // Session State Helpers

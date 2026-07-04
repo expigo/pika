@@ -39,7 +39,7 @@ export function LibraryImporter({ onImportComplete }: Props) {
       });
 
       setParsedTracks(result);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Import error:", err);
       setError(String(err));
     } finally {
@@ -56,7 +56,7 @@ export function LibraryImporter({ onImportComplete }: Props) {
       setParsedTracks([]);
       onImportComplete?.();
       alert(`Successfully saved ${parsedTracks.length} tracks to database!`);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Save error:", err);
       setError(String(err));
     } finally {

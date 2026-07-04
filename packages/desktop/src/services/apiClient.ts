@@ -5,8 +5,8 @@
  */
 
 import { fetch } from "@tauri-apps/plugin-http";
-import { getAuthToken } from "./settingsService";
 import { logger } from "../utils/logger";
+import { getAuthToken } from "./settingsService";
 
 const DEFAULT_TIMEOUT = 10000;
 

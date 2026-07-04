@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { trackRepository, type Track } from "../db/repositories/trackRepository";
+import { type Track, trackRepository } from "../db/repositories/trackRepository";
 import { useLibraryRefresh } from "./useLibraryRefresh";
 
 /**
@@ -38,6 +38,7 @@ export function useLibraryData() {
     }
   }, [inTauri]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refreshTrigger exists solely to force a refetch
   useEffect(() => {
     fetchData();
   }, [fetchData, refreshTrigger]);

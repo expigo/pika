@@ -8,7 +8,7 @@
  */
 
 import { LIMITS, logger } from "@pika/shared";
-import { PushService } from "../services/push";
+import { sendPushNotification } from "../services/push";
 import type { PublishFn } from "./live-session";
 import { getAnnouncementPushTargets } from "./persistence/push-targets";
 import { ClientRateLimiter } from "./rate-limit";
@@ -38,7 +38,7 @@ async function broadcastAnnouncementPush(djSession: LiveSession, message: string
       body: message,
       data: { url: "/live" },
     });
-    await Promise.allSettled(targets.map((sub) => PushService.send(sub, payload)));
+    await Promise.allSettled(targets.map((sub) => sendPushNotification(sub, payload)));
   } catch (e) {
     logger.error("[Push] Failed to broadcast announcement push", e);
   }

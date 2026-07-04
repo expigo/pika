@@ -8,11 +8,9 @@ import postgres from "postgres";
 import * as schema from "./schema";
 
 // Database URL from environment (default for local development).
-// biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 const DATABASE_URL = process.env["DATABASE_URL"];
 
 // Fail fast in production rather than silently connecting to a local dev DB.
-// biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 if (!DATABASE_URL && process.env["NODE_ENV"] === "production") {
   throw new Error("DATABASE_URL must be set in production");
 }

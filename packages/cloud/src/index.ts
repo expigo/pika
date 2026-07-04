@@ -147,7 +147,7 @@ setInterval(() => {
       try {
         ws.close(1000, "Idle timeout - no heartbeat received");
         idleClosedCount++;
-      } catch (e) {
+      } catch {
         // Connection might already be closed
         activeConnections.delete(ws);
         connectionLastActivity.delete(ws);
@@ -238,7 +238,7 @@ const csrfCheck = async (c: Context, next: Next) => {
   const method = c.req.method;
   if (method !== "GET" && method !== "HEAD" && method !== "OPTIONS") {
     const clientHeader = c.req.header("X-Pika-Client");
-    if (!clientHeader || !VALID_CLIENTS.includes(clientHeader as any)) {
+    if (!clientHeader || !(VALID_CLIENTS as readonly string[]).includes(clientHeader)) {
       logger.warn(`🚫 CSRF/Client check failed: ${clientHeader || "no header"}`);
       return c.json({ error: "Invalid client" }, 403);
     }
@@ -451,14 +451,14 @@ app.get(
       },
 
       onClose(_event, ws) {
-        const rawWs = (ws as any).raw as ServerWebSocket;
+        const rawWs = ws.raw as ServerWebSocket;
         activeConnections.delete(rawWs);
         // 🛡️ P0 Fix: Clean up activity tracking
         connectionLastActivity.delete(rawWs);
         handlers.handleClose({ raw: rawWs }, state);
       },
       onError(_event, _ws) {
-        const error = (_event as any).error || _event;
+        const error = (_event as { error?: unknown }).error ?? _event;
         logger.error("⚠️ WebSocket error", error);
       },
     };

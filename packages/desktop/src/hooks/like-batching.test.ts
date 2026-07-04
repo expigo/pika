@@ -12,7 +12,7 @@
  * PRODUCTION LOCATION: packages/desktop/src/hooks/useLiveSession.ts lines 159-200
  */
 
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // ============================================================================
 // MOCK LIKE BATCHING STATE (mirrors production)

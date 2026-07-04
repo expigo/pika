@@ -31,12 +31,12 @@ describe("syncSessionPlaylist", () => {
 
   it("throws a PlaylistApiError carrying the status on a non-2xx (404 = not a cloud session)", async () => {
     mockApiFetch.mockResolvedValue(errRes(404, "Session not found"));
-    await expect(syncSessionPlaylist("pika_x", { spotifyPlaylistId: "abc" })).rejects.toBeInstanceOf(
-      PlaylistApiError,
-    );
     await expect(
       syncSessionPlaylist("pika_x", { spotifyPlaylistId: "abc" }),
-    ).rejects.toMatchObject({ status: 404 });
+    ).rejects.toBeInstanceOf(PlaylistApiError);
+    await expect(syncSessionPlaylist("pika_x", { spotifyPlaylistId: "abc" })).rejects.toMatchObject(
+      { status: 404 },
+    );
   });
 });
 

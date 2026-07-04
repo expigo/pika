@@ -7,7 +7,7 @@ import { db } from "../db";
 import { pushSubscriptions } from "../db/schema";
 import { requireDjAuth } from "../lib/auth";
 import { getAllActivePushTargets } from "../lib/persistence/push-targets";
-import { PushService } from "../services/push";
+import { sendPushNotification } from "../services/push";
 
 export const push = new Hono();
 
@@ -102,7 +102,7 @@ push.post("/send", zValidator("json", SendSchema), requireDjAuth, async (c) => {
     logger.info(`[Push] Broadcasting to ${targets.length} targets (Filter: ${filter})`);
 
     const results = await Promise.allSettled(
-      targets.map((sub) => PushService.send(sub, finalPayload)),
+      targets.map((sub) => sendPushNotification(sub, finalPayload)),
     );
 
     const successCount = results.filter((r) => r.status === "fulfilled" && r.value === true).length;

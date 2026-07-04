@@ -1,12 +1,12 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { virtualDjWatcher } from "../services/virtualDjWatcher";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { type NowPlayingTrack, virtualDjWatcher } from "../services/virtualDjWatcher";
 
 // ⚠️ NOTE: We are testing the concept of the singleton pattern used in useLiveSession.ts.
 // Since we don't have a React hook testing environment set up (renderHook),
 // we verify the module-level state logic.
 
 describe("useLiveSession Singleton Pattern", () => {
-  let watcherListeners: Function[] = [];
+  let watcherListeners: Array<(track: NowPlayingTrack) => void> = [];
 
   beforeEach(() => {
     watcherListeners = [];

@@ -7,7 +7,7 @@ export function StartupAnimation() {
       try {
         const hasSeenIntro = sessionStorage.getItem("pika_intro_shown");
         if (hasSeenIntro) return false;
-      } catch (e) {
+      } catch {
         return true;
       }
     }

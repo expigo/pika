@@ -29,7 +29,6 @@ function clearSessions() {
   for (const s of getAllSessions()) deleteSession(s.sessionId);
 }
 
-// biome-ignore lint/suspicious/noExplicitAny: minimal WS test double
 function makeCtx(type: string, publishSpy: any, sendSpy: any) {
   return {
     message: {
@@ -46,7 +45,6 @@ function makeCtx(type: string, publishSpy: any, sendSpy: any) {
       djSessionId: null,
     },
     messageId: "msg-001",
-    // biome-ignore lint/suspicious/noExplicitAny: minimal WSContext double
   } as any;
 }
 

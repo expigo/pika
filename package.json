@@ -7,13 +7,14 @@
   ],
   "scripts": {
     "dev": "bun run --filter '*' dev",
-    "test": "bun test",
+    "test": "bun run --filter '*' test",
+    "typecheck": "bun run --filter '*' typecheck",
     "test:e2e": "playwright test",
     "test:load": "k6 run tests/load/load-test.js",
     "test:load:big": "k6 run --env SCENARIO=big tests/load/load-test.js",
-    "format": "biome format --write packages/cloud packages/web packages/shared",
-    "lint": "biome check packages/cloud packages/web packages/shared",
-    "check": "biome check --write packages/cloud packages/web packages/shared",
+    "format": "biome format --write packages/cloud packages/web packages/shared packages/desktop",
+    "lint": "biome check packages/cloud packages/web packages/shared packages/desktop",
+    "check": "biome check --write packages/cloud packages/web packages/shared packages/desktop",
     "bump": "bun scripts/bump-version.ts"
   },
   "overrides": {

@@ -6,12 +6,12 @@
  * useLiveSession without React context requirements.
  */
 
+import { MESSAGE_TYPES } from "@pika/shared";
 import { fetch } from "@tauri-apps/plugin-http";
-import { type AnalysisResult, trackRepository } from "../db/repositories/trackRepository";
 import { settingsRepository } from "../db/repositories/settingsRepository";
+import { type AnalysisResult, trackRepository } from "../db/repositories/trackRepository";
 import { sendMessage } from "../hooks/live";
 import { getSessionId as getStoreSessionId } from "../hooks/live/stateHelpers";
-import { MESSAGE_TYPES } from "@pika/shared";
 
 interface AnalysisJob {
   trackId: number;

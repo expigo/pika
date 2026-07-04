@@ -1357,7 +1357,9 @@ describe("Reaction Subscriptions", () => {
     reactionListeners.add(callback3);
 
     // Dispatch reaction
-    reactionListeners.forEach((cb) => cb("thank_you"));
+    reactionListeners.forEach((cb) => {
+      cb("thank_you");
+    });
 
     expect(callback1).toHaveBeenCalledWith("thank_you");
     expect(callback2).toHaveBeenCalledWith("thank_you");
@@ -2841,7 +2843,9 @@ describe("Edge Cases: Stress Scenarios", () => {
     }
 
     // Dispatch
-    listeners.forEach((cb) => cb());
+    listeners.forEach((cb) => {
+      cb();
+    });
 
     expect(callCount).toBe(100);
   });

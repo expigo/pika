@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { MESSAGE_TYPES } from "@pika/shared";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { settingsRepository } from "../../db/repositories/settingsRepository";
+import { trackRepository } from "../../db/repositories/trackRepository";
+import { sendMessage } from "../../hooks/live";
 import {
   enqueueForAnalysis,
-  setSidecarUrl,
   resetServiceState,
+  setSidecarUrl,
 } from "../progressiveAnalysisService";
-import { trackRepository } from "../../db/repositories/trackRepository";
-import { settingsRepository } from "../../db/repositories/settingsRepository";
-import { sendMessage } from "../../hooks/live";
-import { MESSAGE_TYPES } from "@pika/shared";
 
 // Mock dependencies (hoisted)
 vi.mock("../../db/repositories/trackRepository", () => ({

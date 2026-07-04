@@ -96,7 +96,6 @@ export function mapEnv(env: ServerEnv): PikaEnvironment {
       return "development";
     case "staging":
       return "staging";
-    case "prod":
     default:
       return "production";
   }

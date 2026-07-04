@@ -30,10 +30,8 @@ const STATE_MAX_AGE_S = 600; // 10 minutes to complete consent
 
 function webBaseUrl(): string {
   // Explicit override (used in local dev where the web origin isn't the URLS default).
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   const override = process.env["WEB_BASE_URL"];
   if (override) return override;
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   const node = process.env["NODE_ENV"];
   const env: PikaEnvironment =
     node === "production" ? "production" : node === "staging" ? "staging" : "development";
@@ -45,7 +43,6 @@ spotify.get("/authorize", requireDjAuth, (c) => {
   const state = crypto.randomUUID();
   setCookie(c, OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
-    // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
     secure: process.env["NODE_ENV"] === "production",
     sameSite: "Lax", // sent on the top-level GET redirect back from Spotify
     path: "/",
@@ -98,7 +95,6 @@ spotify.get("/service/authorize", requireAdmin, (c) => {
   const state = crypto.randomUUID();
   setCookie(c, SERVICE_STATE_COOKIE, state, {
     httpOnly: true,
-    // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
     secure: process.env["NODE_ENV"] === "production",
     sameSite: "Lax",
     path: "/",

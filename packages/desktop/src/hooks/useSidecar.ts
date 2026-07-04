@@ -119,7 +119,7 @@ export function useSidecar(): UseSidecarResult {
         }
       });
 
-      command.on("close", (data: any) => {
+      command.on("close", (data: { code: number | null; signal: number | null }) => {
         console.log("[Sidecar closed]:", data);
         setStatus((prev) => (prev !== "error" ? "idle" : prev));
         (globalThis as Record<string, unknown>)[SIDE_PROCESS_KEY] = undefined;

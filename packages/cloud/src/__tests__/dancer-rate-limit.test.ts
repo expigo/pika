@@ -3,9 +3,7 @@ import { LIMITS, MESSAGE_TYPES } from "@pika/shared";
 import { handleSendReaction } from "../handlers/dancer";
 import type { WSContext } from "../handlers/ws-context";
 
-// biome-ignore lint/suspicious/noExplicitAny: minimal test doubles
 const mockWs = { send: mock(() => {}) } as any;
-// biome-ignore lint/suspicious/noExplicitAny: minimal test doubles
 const mockRawWs = { publish: mock(() => {}), getBufferedAmount: mock(() => 0) } as any;
 
 function reactionCtx(clientId: string | null, messageId = "r"): WSContext {

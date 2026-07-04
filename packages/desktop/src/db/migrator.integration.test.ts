@@ -26,9 +26,7 @@ function asSqlite(bdb: Bdb): Parameters<typeof runMigrations>[0] {
       return { rowsAffected: r.changes, lastInsertId: Number(r.lastInsertRowid) };
     },
     select: async (sql: string, params: unknown[] = []) =>
-      params && params.length
-        ? bdb.prepare(sql).all(...(params as never[]))
-        : bdb.prepare(sql).all(),
+      params?.length ? bdb.prepare(sql).all(...(params as never[])) : bdb.prepare(sql).all(),
   } as unknown as Parameters<typeof runMigrations>[0];
 }
 

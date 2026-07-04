@@ -1,8 +1,8 @@
-import { describe, expect, it, vi, beforeEach, type Mock } from "vitest";
-import { useVdjHistory, type VdjHistoryTrack } from "./useVdjHistory";
 import { invoke } from "@tauri-apps/api/core";
-import { findOrCreateTrack } from "../services/trackService";
+import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 import { sessionRepository } from "../db/repositories/sessionRepository";
+import { findOrCreateTrack } from "../services/trackService";
+import { useVdjHistory, type VdjHistoryTrack } from "./useVdjHistory";
 
 // Mock dependencies
 vi.mock("@tauri-apps/api/core", () => ({

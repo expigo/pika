@@ -1,6 +1,6 @@
 import { BarChart2, Clock, Megaphone, Users, X } from "lucide-react";
-import { type ActivePoll } from "./LivePerformanceMode";
-import { type EndedPoll } from "./LiveInteractions";
+import type { EndedPoll } from "./LiveInteractions";
+import type { ActivePoll } from "./LivePerformanceMode";
 
 interface Props {
   show: boolean;

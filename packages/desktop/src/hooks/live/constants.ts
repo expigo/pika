@@ -1,4 +1,4 @@
-import { TIMEOUTS, LIMITS } from "@pika/shared";
+import { LIMITS, TIMEOUTS } from "@pika/shared";
 
 // =============================================================================
 // Timing Constants

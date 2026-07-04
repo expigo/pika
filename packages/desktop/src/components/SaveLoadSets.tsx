@@ -1,8 +1,8 @@
 import { Clock, FileText, FolderOpen, Music, Save, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import type { SavedSet } from "../db/repositories/savedSetRepository";
 import { useSetStore } from "../hooks/useSetBuilder";
-import { toast } from "sonner";
 
 // Format relative time
 function formatRelativeTime(timestamp: number): string {
@@ -85,7 +85,7 @@ export function SaveLoadSets() {
       try {
         await deleteSavedSet(set.id);
         toast.info("Set deleted");
-      } catch (e) {
+      } catch {
         toast.error("Failed to delete set");
       }
     }

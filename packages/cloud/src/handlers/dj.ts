@@ -63,11 +63,9 @@ import type { WSContext } from "./ws-context";
 
 // 🛡️ Rate Limiting State
 // Max 1000 concurrent sessions to prevent memory exhaustion (M5)
-// biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 const MAX_CONCURRENT_SESSIONS = Number(process.env["MAX_SESSIONS"] ?? 1000);
 // Anti-spam: 1 track broadcast per session per this interval (default 5s). Env-overridable so E2E
 // can broadcast rapidly (mirrors WS_RATE_LIMIT); production keeps the TIMEOUTS default.
-// biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
 const MIN_BROADCAST_INTERVAL = Number(
   process.env["MIN_BROADCAST_INTERVAL_MS"] ?? TIMEOUTS.MIN_BROADCAST_INTERVAL,
 );

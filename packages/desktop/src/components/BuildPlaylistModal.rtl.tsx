@@ -48,8 +48,8 @@ vi.mock("../hooks/useSpotifyFeatures", () => ({
 }));
 
 import { sessionRepository } from "../db/repositories/sessionRepository";
-import { syncSessionPlaylist, unsyncSessionPlaylist } from "../services/djApi";
 import { trackRepository } from "../db/repositories/trackRepository";
+import { syncSessionPlaylist, unsyncSessionPlaylist } from "../services/djApi";
 import {
   createSpotifyPlaylist,
   resolveSpotifyTrack,
@@ -111,7 +111,6 @@ beforeEach(() => {
   vi.mocked(trackRepository.getSessionTracksForMatching).mockResolvedValue([
     cachedTrack,
     uncachedTrack,
-    // biome-ignore lint/suspicious/noExplicitAny: test fixture shape
   ] as any);
   vi.mocked(searchSpotify).mockClear();
   vi.mocked(searchSpotify).mockResolvedValue(searchResult);
@@ -243,9 +242,9 @@ describe("BuildPlaylistModal", () => {
   describe("share to profile", () => {
     // Reach the done screen via the remembered-playlist short-circuit (no create flow needed).
     const openDone = () =>
-      vi.mocked(sessionRepository.getSessionPlaylistUrl).mockResolvedValue(
-        "https://open.spotify.com/playlist/abc",
-      );
+      vi
+        .mocked(sessionRepository.getSessionPlaylistUrl)
+        .mockResolvedValue("https://open.spotify.com/playlist/abc");
 
     it("shares the set playlist and flips to the synced state", async () => {
       openDone();
@@ -259,7 +258,10 @@ describe("BuildPlaylistModal", () => {
           expect.objectContaining({ spotifyPlaylistId: "abc" }),
         ),
       );
-      expect(sessionRepository.setSessionPlaylistSynced).toHaveBeenCalledWith(7, expect.any(Number));
+      expect(sessionRepository.setSessionPlaylistSynced).toHaveBeenCalledWith(
+        7,
+        expect.any(Number),
+      );
       expect(await screen.findByText(/on your pika profile/i)).toBeInTheDocument();
     });
 

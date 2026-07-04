@@ -53,7 +53,6 @@ import type { TrackInfo } from "../src/lib/sessions";
 import { deleteSession, getAllSessions, setSession } from "../src/lib/sessions";
 import { DISCOVERY_TOPIC, getSessionTopic } from "../src/lib/topics";
 
-// biome-ignore lint/suspicious/noExplicitAny: test doubles for WS mocks
 type AnyMock = any;
 
 const mockWs: AnyMock = { send: mock(() => {}), close: mock(() => {}) };

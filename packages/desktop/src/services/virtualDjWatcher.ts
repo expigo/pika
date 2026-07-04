@@ -296,7 +296,7 @@ class VirtualDJWatcher {
           track.key = metadata.key ?? undefined;
           track.energy = metadata.energy ?? undefined;
         }
-      } catch (e) {
+      } catch {
         // Ignore lookup errors
       }
     }

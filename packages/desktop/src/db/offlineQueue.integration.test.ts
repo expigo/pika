@@ -29,7 +29,7 @@ vi.mock("@tauri-apps/plugin-sql", () => ({
         return { rowsAffected: r.changes, lastInsertId: Number(r.lastInsertRowid) };
       },
       select: async (sql: string, params: unknown[] = []) =>
-        params && params.length
+        params?.length
           ? state.bdb.prepare(sql).all(...(params as never[]))
           : state.bdb.prepare(sql).all(),
     })),

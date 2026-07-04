@@ -61,11 +61,8 @@ export class SpotifyPlaylistNotFoundError extends Error {
 // ---------------------------------------------------------------------------
 
 function getConfig(): { clientId: string; clientSecret: string; redirectUri: string } {
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   const clientId = process.env["SPOTIFY_CLIENT_ID"];
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   const clientSecret = process.env["SPOTIFY_CLIENT_SECRET"];
-  // biome-ignore lint/complexity/useLiteralKeys: process.env requires brackets in strict TS
   const redirectUri = process.env["SPOTIFY_REDIRECT_URI"];
   if (!clientId || !clientSecret || !redirectUri) {
     throw new Error("Spotify env not configured (SPOTIFY_CLIENT_ID/SECRET/REDIRECT_URI)");

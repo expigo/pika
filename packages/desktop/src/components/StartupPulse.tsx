@@ -32,7 +32,7 @@ export function StartupPulse() {
           className={`startup-bar ${active ? "active" : ""}`}
           style={{
             // CSS Variables are generally allowed even if inline styles are strict
-            // @ts-ignore
+            // @ts-expect-error
             "--max-scale": maxScale,
             "--bar-speed": `${1.2 * speed}s`,
             "--bar-delay": `${delay}s`,

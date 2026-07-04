@@ -233,3 +233,7 @@ test-results/
 
 # Throwaway spikes (not merged)
 scripts/spotify-nowplaying-spike.ts
+
+# Editor droppings
+*.swp
+*.swo

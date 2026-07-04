@@ -33,7 +33,6 @@ import {
 } from "../src/lib/sessions";
 import { DISCOVERY_TOPIC } from "../src/lib/topics";
 
-// biome-ignore lint/suspicious/noExplicitAny: test doubles
 type AnyMock = any;
 
 let published: Array<{ topic: string; data: string }> = [];
@@ -67,7 +66,12 @@ const djState = (sessionId: string): AnyMock => ({
 beforeEach(() => {
   published = [];
   // Capture publishes from the deferred reap (uses server broadcaster).
-  setBroadcaster({ publish: (topic, data) => (published.push({ topic, data }), 1) });
+  setBroadcaster({
+    publish: (topic, data) => {
+      published.push({ topic, data });
+      return 1;
+    },
+  });
   for (const s of getAllSessions()) deleteSession(s.sessionId);
 });
 
