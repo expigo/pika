@@ -2392,6 +2392,98 @@ suite("DB integration (real Postgres)", () => {
       expect(reclaim.status).toBe(200);
     });
 
+    test("device labels + unlink (B.5c): claim stores a UA label, GET lists devices, unlink drops the union", async () => {
+      const d = await signUpDancer();
+      createdUserIds.push(d.userId);
+      const phoneId = `client_b5_phone_${uniq()}`;
+      const laptopId = `client_b5_laptop_${uniq()}`;
+      const auth = { Authorization: `Bearer ${d.token}`, "Content-Type": "application/json" };
+      const iphoneUA =
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1";
+
+      // Claim phone (with UA) + laptop (UA-less → null label).
+      const claim1 = await meRoutes.request("/journal/claim", {
+        method: "POST",
+        headers: { ...auth, "User-Agent": iphoneUA },
+        body: JSON.stringify({ clientId: phoneId }),
+      });
+      expect(claim1.status).toBe(200);
+      await meRoutes.request("/journal/claim", {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ clientId: laptopId }),
+      });
+
+      // A like on the phone id — must vanish from the union after unlink.
+      const [track] = await db
+        .insert(schema.playedTracks)
+        .values({ sessionId, artist: "B5", title: "Unlink Me", bpm: 100 })
+        .returning({ id: schema.playedTracks.id });
+      await db.insert(schema.likes).values({
+        sessionId,
+        clientId: phoneId,
+        playedTrackId: track?.id ?? 0,
+      });
+
+      const journal = await meRoutes.request("/journal", { headers: auth });
+      expect(journal.status).toBe(200);
+      const body = (await journal.json()) as {
+        totalLikes: number;
+        devices: { clientId: string; label: string | null }[];
+      };
+      expect(body.totalLikes).toBe(1);
+      expect(body.devices.length).toBe(2);
+      expect(body.devices.find((x) => x.clientId === phoneId)?.label).toBe("iPhone · Safari");
+      expect(body.devices.find((x) => x.clientId === laptopId)?.label).toBeNull();
+
+      // Unlink the phone: row gone, like leaves the union, device row 404s on repeat.
+      const unlink = await meRoutes.request(`/journal/devices/${phoneId}`, {
+        method: "DELETE",
+        headers: auth,
+      });
+      expect(unlink.status).toBe(200);
+      const after = (await (await meRoutes.request("/journal", { headers: auth })).json()) as {
+        totalLikes: number;
+        devices: unknown[];
+      };
+      expect(after.totalLikes).toBe(0);
+      expect(after.devices.length).toBe(1);
+      const again = await meRoutes.request(`/journal/devices/${phoneId}`, {
+        method: "DELETE",
+        headers: auth,
+      });
+      expect(again.status).toBe(404);
+      // The like row itself is untouched — the device reverted to anonymous history.
+      const [likeRow] = await db
+        .select()
+        .from(schema.likes)
+        .where(eq(schema.likes.clientId, phoneId));
+      expect(likeRow).toBeTruthy();
+    });
+
+    test("unlink is owner-scoped: another account's device id → 404, row survives", async () => {
+      const a = await signUpDancer();
+      const b = await signUpDancer();
+      createdUserIds.push(a.userId, b.userId);
+      const deviceId = `client_b5_own_${uniq()}`;
+      await meRoutes.request("/journal/claim", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${a.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ clientId: deviceId }),
+      });
+
+      const res = await meRoutes.request(`/journal/devices/${deviceId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${b.token}` },
+      });
+      expect(res.status).toBe(404);
+      const rows = await db
+        .select()
+        .from(schema.clientIdentities)
+        .where(eq(schema.clientIdentities.clientId, deviceId));
+      expect(rows.length).toBe(1);
+    });
+
     test("push re-subscribe under a NEW clientId carries the old id's stage follows", async () => {
       const oldId = `client_rot_old_${uniq()}`;
       const newId = `client_rot_new_${uniq()}`;

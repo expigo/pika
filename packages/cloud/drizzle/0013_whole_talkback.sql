@@ -1,0 +1,1 @@
+ALTER TABLE "client_identities" ADD COLUMN "label" text;

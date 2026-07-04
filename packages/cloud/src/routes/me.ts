@@ -19,7 +19,14 @@ import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db, schema } from "../db";
 import { getUser, requireAuth } from "../lib/auth";
-import { CLIENT_ID_REGEX, claimClientId, getClaimedClientIds } from "../lib/services/identity";
+import {
+  CLIENT_ID_REGEX,
+  claimClientId,
+  deriveDeviceLabel,
+  getClaimedClientIds,
+  getClaimedDevices,
+  unlinkDevice,
+} from "../lib/services/identity";
 import {
   adoptOrUpsertAccountPlaylistRow,
   defaultJournalExportDeps,
@@ -79,7 +86,8 @@ const ClaimBody = z.object({
  */
 me.post("/journal/claim", zValidator("json", ClaimBody), async (c) => {
   const { clientId } = c.req.valid("json");
-  const outcome = await claimClientId(getUser(c).id, clientId);
+  const label = deriveDeviceLabel(c.req.header("User-Agent"));
+  const outcome = await claimClientId(getUser(c).id, clientId, label);
   if (outcome === "conflict") {
     return c.json({ error: "claimed_by_another_account" }, 409);
   }
@@ -99,7 +107,8 @@ me.get("/journal", async (c) => {
   const offset = clampInt(c.req.query("offset"), 0, Number.MAX_SAFE_INTEGER, 0);
 
   try {
-    const claimed = await getClaimedClientIds(userId);
+    const devices = await getClaimedDevices(userId);
+    const claimed = devices.map((d) => d.clientId);
     if (claimed.length === 0) {
       return c.json({
         totalLikes: 0,
@@ -108,6 +117,7 @@ me.get("/journal", async (c) => {
         likes: [],
         playlist: await getAccountPlaylistView(userId),
         claimedCount: 0,
+        devices: [],
       });
     }
 
@@ -151,10 +161,35 @@ me.get("/journal", async (c) => {
       likes: enriched,
       playlist,
       claimedCount: claimed.length,
+      // Full ids are the owner's own bearer credentials (requireAuth-scoped); the web needs
+      // them to mark "this device" and to target the unlink route. maskClientId is log-only.
+      devices,
     });
   } catch (error) {
     logger.error("Failed to fetch account journal", error);
     return c.json({ error: "Failed to fetch journal" }, 500);
+  }
+});
+
+/**
+ * DELETE /journal/devices/:clientId
+ * Unlink one device from the account: its likes leave the union and the device reverts to
+ * anonymous per-device history — nothing is destroyed (re-claimable any time). Ownership lives
+ * in the WHERE (not-found == not-yours). The web hides unlink for the CURRENT device — the
+ * signed-in auto-claim would silently re-claim it on the next visit; sign-out is that action.
+ */
+me.delete("/journal/devices/:clientId", async (c) => {
+  const clientId = c.req.param("clientId") ?? "";
+  if (!CLIENT_ID_REGEX.test(clientId) || clientId.length > 80) {
+    return c.json({ error: "Invalid client id" }, 400);
+  }
+  try {
+    const removed = await unlinkDevice(getUser(c).id, clientId);
+    if (!removed) return c.json({ error: "Device not found" }, 404);
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Failed to unlink device", error);
+    return c.json({ error: "Failed to unlink device" }, 500);
   }
 });
 

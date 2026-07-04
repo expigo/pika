@@ -142,6 +142,9 @@ Before (or with) the first Slice-B deploy to an env:
    open link on a phone → account card shows; like on phone → sign in on laptop → union shows both;
    export on laptop adopts the phone's playlist (same URL); sign out → the device id rotates;
    delete account → confirmation email → journal reverts to the anonymous device view.
+   **Installed PWA:** open `/my-likes/save` inside the app → it defaults to the CODE flow →
+   enter the emailed 6-digit code → signed in *inside the PWA* (links can't reach its cookie
+   jar). Account card lists labeled devices; unlinking one drops its likes from the union.
 
 ### 🐳 Docker Management
 

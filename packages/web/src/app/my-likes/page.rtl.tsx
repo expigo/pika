@@ -379,6 +379,56 @@ describe("MyLikesPage", () => {
     expect(screen.queryByText(/keep your journal safe/i)).toBeNull();
   });
 
+  it("device list: labels + This-device chip; other device unlinks via two-tap and refetches", async () => {
+    signedInAs("dancer@x.y");
+    localStorage.setItem("pika_client_id", "client-1");
+    const journal = {
+      totalLikes: 1,
+      limit: 100,
+      offset: 0,
+      claimedCount: 2,
+      likes: [like(1)],
+      playlist: null,
+      devices: [
+        { clientId: "client-1", label: "iPhone · Safari", claimedAt: "2026-07-01T20:00:00Z" },
+        { clientId: "client-2", label: "Mac · Chrome", claimedAt: "2026-07-03T20:00:00Z" },
+      ],
+    };
+    const fetchMock = mockFetch({
+      "/telemetry/events": { status: 204, body: null },
+      "/me/journal/claim": { status: "claimed" },
+      "/me/journal/devices/client-2": { success: true },
+      "/me/journal": journal,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MyLikesPage />);
+
+    expect(await screen.findByText("iPhone · Safari")).toBeInTheDocument();
+    expect(screen.getByText("Mac · Chrome")).toBeInTheDocument();
+    // The current device is marked and offers NO unlink (sign-out is its detach).
+    expect(screen.getByText(/this device/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /unlink iphone/i })).toBeNull();
+
+    // Two-tap unlink on the other device.
+    const deletes = () =>
+      fetchMock.mock.calls.filter(
+        ([url, init]) =>
+          String(url).includes("/me/journal/devices/client-2") &&
+          (init as RequestInit | undefined)?.method === "DELETE",
+      );
+    await userEvent.click(screen.getByRole("button", { name: /unlink mac/i }));
+    expect(deletes().length).toBe(0);
+    await userEvent.click(screen.getByRole("button", { name: /confirm unlinking mac/i }));
+    await waitFor(() => expect(deletes().length).toBe(1));
+    expect(beacons(fetchMock, "account_device_unlinked").length).toBe(1);
+    // The union + device list refetch after unlink (initial load + reload).
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.filter(([url]) => String(url).includes("/me/journal?")).length,
+      ).toBe(2),
+    );
+  });
+
   it("signed in with zero likes: empty state keeps sign-out and delete-account reachable", async () => {
     signedInAs("dancer@x.y");
     localStorage.setItem("pika_client_id", "client-1");

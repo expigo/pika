@@ -45,9 +45,16 @@ interface JournalPlaylist {
   updatedAt: string;
 }
 
+interface ClaimedDevice {
+  clientId: string;
+  label: string | null;
+  claimedAt: string;
+}
+
 interface LikesResponse {
   clientId?: string; // device read only
   claimedCount?: number; // account read only
+  devices?: ClaimedDevice[]; // account read only
   totalLikes: number;
   limit: number;
   offset: number;
@@ -150,6 +157,9 @@ export default function MyLikesPage() {
   const [showNudge, setShowNudge] = useState(false);
   const [confirmingRemoveId, setConfirmingRemoveId] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [devices, setDevices] = useState<ClaimedDevice[]>([]);
+  const [confirmingUnlinkId, setConfirmingUnlinkId] = useState<string | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
   const openedFired = useRef(false);
   const nudgeFired = useRef(false);
   const saveCardFired = useRef(false);
@@ -174,6 +184,7 @@ export default function MyLikesPage() {
   const sessionUserId = session?.user?.id ?? null;
 
   useEffect(() => {
+    void reloadTick; // refetch trigger — device unlink bumps it to re-run this effect
     if (sessionPending) return; // gate the initial fetch — never double-fetch the device view
     let cancelled = false;
 
@@ -199,6 +210,7 @@ export default function MyLikesPage() {
           setEntries(data.likes);
           setTotal(data.totalLikes);
           setClaimedCount(data.claimedCount ?? 0);
+          setDevices(data.devices ?? []);
           setPlaylist(data.playlist ?? null);
           if (!openedFired.current) {
             openedFired.current = true;
@@ -257,7 +269,7 @@ export default function MyLikesPage() {
     return () => {
       cancelled = true;
     };
-  }, [sessionPending, sessionUserId]);
+  }, [sessionPending, sessionUserId, reloadTick]);
 
   // ITP mitigation: a non-installed browser can evict this device's journal identity —
   // surface the install nudge (the interactive InstallPrompt is mounted globally).
@@ -371,6 +383,43 @@ export default function MyLikesPage() {
       else toast("Check your email to confirm deletion");
     } catch {
       toast.error("Couldn't start deletion — try again");
+    }
+  }, []);
+
+  // Per-device unlink (other devices only — this device's detach is "Sign out": the signed-in
+  // auto-claim would silently re-claim it on the next visit). Nothing is destroyed: the device
+  // reverts to anonymous history and can re-claim any time.
+  const unlinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const armUnlink = useCallback((clientId: string) => {
+    if (unlinkTimer.current) clearTimeout(unlinkTimer.current);
+    setConfirmingUnlinkId(clientId);
+    unlinkTimer.current = setTimeout(() => setConfirmingUnlinkId(null), 4000);
+  }, []);
+  useEffect(
+    () => () => {
+      if (unlinkTimer.current) clearTimeout(unlinkTimer.current);
+    },
+    [],
+  );
+
+  const handleUnlinkDevice = useCallback(async (clientId: string) => {
+    if (unlinkTimer.current) clearTimeout(unlinkTimer.current);
+    setConfirmingUnlinkId(null);
+    try {
+      const response = await fetch(`${getApiBaseUrl()}/api/me/journal/devices/${clientId}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-Pika-Client": "pika-web" },
+      });
+      if (!response.ok) {
+        toast.error("Couldn't unlink — try again");
+        return;
+      }
+      trackEvent("account_device_unlinked");
+      toast("Device unlinked — its likes stay on that device");
+      setReloadTick((t) => t + 1); // union + device list changed → silent refetch
+    } catch {
+      toast.error("Couldn't unlink — try again");
     }
   }, []);
 
@@ -555,6 +604,52 @@ export default function MyLikesPage() {
                 Sign out
               </button>
             </div>
+
+            {/* LINKED DEVICES — labels captured at claim time; unlink returns a device to
+                anonymous history (this device's detach is Sign out, not unlink) */}
+            {devices.length > 0 && (
+              <ul className="mt-4 pt-4 border-t border-white/[0.04] space-y-2">
+                {devices.map((device) => {
+                  const isThisDevice = device.clientId === getClientId();
+                  return (
+                    <li
+                      key={device.clientId}
+                      className="flex items-center justify-between gap-4 flex-wrap"
+                    >
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                        <span className="text-slate-300">{device.label ?? "Device"}</span>
+                        {" · linked "}
+                        {formatDate(device.claimedAt)}
+                      </p>
+                      {isThisDevice ? (
+                        <span className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[8px] font-black uppercase tracking-widest">
+                          This device
+                        </span>
+                      ) : confirmingUnlinkId === device.clientId ? (
+                        <button
+                          type="button"
+                          onClick={() => handleUnlinkDevice(device.clientId)}
+                          aria-label={`Confirm unlinking ${device.label ?? "device"}`}
+                          className="px-3 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
+                        >
+                          Unlink?
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => armUnlink(device.clientId)}
+                          aria-label={`Unlink ${device.label ?? "device"}`}
+                          className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
+                        >
+                          Unlink
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
             <div className="mt-4 pt-4 border-t border-white/[0.04] flex items-center justify-between gap-4 flex-wrap">
               <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
                 Deleting unlinks your devices — likes stay anonymous on each

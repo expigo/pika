@@ -20,7 +20,10 @@ SHA-256-token system). Design rationale: `docs/blueprints/auth-foundation.md`.
 ## 2. Technical stack
 - **Server instance:** `packages/cloud/src/lib/auth/server.ts` — `betterAuth({...})` with the
   **Drizzle/Postgres** adapter, `emailAndPassword`, plugins
-  `[bearer(), admin({ ac, roles:{dj,admin,dancer} }), magicLink({ expiresIn: 600 })]`,
+  `[bearer(), admin({ ac, roles:{dj,admin,dancer} }), magicLink({ expiresIn: 600 }), emailOTP]`
+  (OTP sends **sign-in codes only** — the plugin's email-verification/password-reset types are
+  never sent, keeping those routes dead; codes exist because an installed PWA's cookie jar is
+  unreachable by mailed links),
   `trustedOrigins` (web origins; bearer is origin-exempt), a `databaseHook` that derives `slug` from
   the display name on signup (null-safe — magic-link users have no name), a `hooks.after` on
   `/magic-link/verify` that patches magic-link-born users to `role='dancer', status='approved'`
@@ -53,9 +56,11 @@ CLI-generated). Pika specifics on `user`: `status` (`pending`|`approved`|`reject
 `dj_users`/`dj_tokens` tables are gone.
 
 Slice B adds (migration `0012`): **`client_identities`** (`client_id` PK → `user_id` FK **cascade**,
-`claimed_at`) — the lazy device↔account claim map; account deletion cascades it and likes revert to
-anonymous per-device rows. **`journal_playlists.user_id`** (nullable FK **set null** + partial unique) —
-one account playlist, adopt-first from the earliest-claimed device row.
+`claimed_at`, + `label` from `0013` — UA-derived "iPhone · Safari", refreshed on claim touch) — the
+lazy device↔account claim map; account deletion cascades it and likes revert to anonymous per-device
+rows. Per-device **unlink** (`DELETE /api/me/journal/devices/:clientId`, owner-scoped) drops one
+device from the union non-destructively. **`journal_playlists.user_id`** (nullable FK **set null** +
+partial unique) — one account playlist, adopt-first from the earliest-claimed device row.
 
 ## 4. Auth flow
 1. **Sign up** — `POST /api/auth/sign-up/email` → creates a `user` (`status='pending'`, `role='dj'`,
@@ -73,6 +78,10 @@ one account playlist, adopt-first from the earliest-claimed device row.
    redirect to `/my-likes?claimed=1` → the page claims the device's `clientId`
    (`POST /api/me/journal/claim`; 409 → rotate id + re-claim + push re-subscribe). Sign-out rotates the
    device id (kiosk rule). Deletion: `authClient.deleteUser` → confirm email → `client_identities` cascade.
+7. **Dancer email OTP** (B.5 — the installed-PWA path) — `/my-likes/save` defaults to the code flow under
+   standalone display-mode: `POST /api/auth/email-otp/send-verification-otp` → 6-digit code typed in the
+   app → `POST /api/auth/sign-in/email-otp` → same role-patch hook + claim flow as the link. Link and OTP
+   share ONE per-address send budget.
 
 ## 5. Security measures
 | Measure | Status | Detail |

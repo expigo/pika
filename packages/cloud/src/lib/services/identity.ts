@@ -8,7 +8,7 @@
  * non-destructive and trivially reversible.
  */
 
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "../../db";
 import { clientIdentities } from "../../db/schema";
 
@@ -28,18 +28,55 @@ export function maskClientId(id: string): string {
 
 export type ClaimOutcome = "claimed" | "already_yours" | "conflict";
 
+/**
+ * UA → human device name for the account card ("iPhone · Safari"). Deliberately tiny and
+ * dependency-free: it only needs to tell a dancer's own devices apart, not fingerprint.
+ */
+export function deriveDeviceLabel(ua: string | undefined): string | null {
+  if (!ua) return null;
+  const os = /iPhone|iPod/.test(ua)
+    ? "iPhone"
+    : /iPad/.test(ua)
+      ? "iPad"
+      : /Android/.test(ua)
+        ? "Android"
+        : /Windows/.test(ua)
+          ? "Windows"
+          : /Macintosh|Mac OS X/.test(ua)
+            ? "Mac"
+            : /Linux/.test(ua)
+              ? "Linux"
+              : null;
+  // Order matters: Edge and Chrome both say "Chrome"; Chrome and Safari both say "Safari".
+  const browser = /Edg\//.test(ua)
+    ? "Edge"
+    : /OPR\//.test(ua)
+      ? "Opera"
+      : /Chrome\/|CriOS\//.test(ua)
+        ? "Chrome"
+        : /Firefox\/|FxiOS\//.test(ua)
+          ? "Firefox"
+          : /Safari\//.test(ua)
+            ? "Safari"
+            : null;
+  if (!os && !browser) return null;
+  return [os, browser].filter(Boolean).join(" · ");
+}
+
 export interface ClaimDeps {
   /** INSERT ... ON CONFLICT DO NOTHING — true when the row was inserted. */
-  insertClaim: (clientId: string, userId: string) => Promise<boolean>;
+  insertClaim: (clientId: string, userId: string, label: string | null) => Promise<boolean>;
   /** Current owner of a clientId, or null when unclaimed. */
   getOwner: (clientId: string) => Promise<string | null>;
+  /** Refresh the label on an already-owned claim (journal visits keep names current). */
+  setLabel: (clientId: string, userId: string, label: string) => Promise<void>;
 }
 
 export const defaultClaimDeps: ClaimDeps = {
-  insertClaim: async (clientId, userId) => {
+  insertClaim: async (clientId, userId, label) => {
     const inserted = await db
       .insert(clientIdentities)
-      .values({ clientId, userId })
+      .values({ clientId, userId, label })
       .onConflictDoNothing()
       .returning({ clientId: clientIdentities.clientId });
     return inserted.length > 0;
@@ -52,6 +89,12 @@ export const defaultClaimDeps: ClaimDeps = {
       .limit(1);
     return row?.userId ?? null;
   },
+  setLabel: async (clientId, userId, label) => {
+    await db
+      .update(clientIdentities)
+      .set({ label })
+      .where(and(eq(clientIdentities.clientId, clientId), eq(clientIdentities.userId, userId)));
+  },
 };
 
 /**
@@ -61,11 +104,14 @@ export const defaultClaimDeps: ClaimDeps = {
 export async function claimClientId(
   userId: string,
   clientId: string,
+  label: string | null = null,
   deps: ClaimDeps = defaultClaimDeps,
 ): Promise<ClaimOutcome> {
-  if (await deps.insertClaim(clientId, userId)) return "claimed";
+  if (await deps.insertClaim(clientId, userId, label)) return "claimed";
   const owner = await deps.getOwner(clientId);
-  return owner === userId ? "already_yours" : "conflict";
+  if (owner !== userId) return "conflict";
+  if (label) await deps.setLabel(clientId, userId, label);
+  return "already_yours";
 }
 
 /** All clientIds claimed by an account, ordered claimed_at ASC — the adopt-first tiebreak. */
@@ -76,4 +122,32 @@ export async function getClaimedClientIds(userId: string): Promise<string[]> {
     .where(eq(clientIdentities.userId, userId))
     .orderBy(asc(clientIdentities.claimedAt));
   return rows.map((r) => r.clientId);
+}
+
+export interface ClaimedDevice {
+  clientId: string;
+  label: string | null;
+  claimedAt: Date;
+}
+
+/** The account's devices for the card (claimed_at ASC — stable, oldest first). */
+export async function getClaimedDevices(userId: string): Promise<ClaimedDevice[]> {
+  return db
+    .select({
+      clientId: clientIdentities.clientId,
+      label: clientIdentities.label,
+      claimedAt: clientIdentities.claimedAt,
+    })
+    .from(clientIdentities)
+    .where(eq(clientIdentities.userId, userId))
+    .orderBy(asc(clientIdentities.claimedAt));
+}
+
+/** Unlink one device from an account (owner-scoped). True when a row was deleted. */
+export async function unlinkDevice(userId: string, clientId: string): Promise<boolean> {
+  const deleted = await db
+    .delete(clientIdentities)
+    .where(and(eq(clientIdentities.clientId, clientId), eq(clientIdentities.userId, userId)))
+    .returning({ clientId: clientIdentities.clientId });
+  return deleted.length > 0;
 }

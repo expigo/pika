@@ -4,6 +4,11 @@ Completed work, newest first — moved out of [ROADMAP.md](ROADMAP.md) so the ro
 roadmap. Each block was appended at completion time; see git history for the precise diffs.
 
 *   **Recent Completions (July 2026 — Dancer Journal + Accounts, Slices A/B):**
+    *   ✅ **B.5 staging-feedback fixes** — email uniquifier (Gmail trimmed identical resends);
+        **email OTP sign-in** for the installed PWA (separate cookie jar — links can't reach it;
+        standalone defaults to the code flow, shared per-address send budget with the link);
+        **device labels + per-device unlink** (`client_identities.label` UA-derived at claim,
+        account card lists devices, owner-scoped non-destructive unlink).
     *   ✅ **Journal Slice A** — dancer Journal read (paginated, real totals, retro-enriched with
         DJ/session), 1-tap Spotify export (link-only playlists, adopt/cooldown/daily-budget guards),
         post-hoc like removal (A.1), product telemetry (`journal_*` events).

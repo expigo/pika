@@ -647,6 +647,9 @@ export const clientIdentities = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     claimedAt: timestamp("claimed_at").defaultNow().notNull(),
+    // UA-derived at claim time (e.g. "iPhone · Safari") so the account card can name the
+    // linked devices; refreshed on every claim touch, null when the UA is unrecognizable.
+    label: text("label"),
   },
   (table) => ({
     idxUserId: index("idx_client_identities_user_id").on(table.userId),
