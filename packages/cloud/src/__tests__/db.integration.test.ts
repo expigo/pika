@@ -151,11 +151,16 @@ suite("DB integration (real Postgres)", () => {
   const sessionId = `itest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const clientId = "itest-client";
   let originalNodeEnv: string | undefined;
+  let originalResendKey: string | undefined;
 
   beforeAll(async () => {
     // Exercise the real persist* DB paths instead of their NODE_ENV==="test" mocks.
     originalNodeEnv = process.env.NODE_ENV;
     process.env.NODE_ENV = "development";
+    // The suite must stay email-free even when the local .env carries a real RESEND_API_KEY
+    // (bun auto-loads it): force the keyless dev fallback, which logs links instead of sending.
+    originalResendKey = process.env["RESEND_API_KEY"];
+    delete process.env["RESEND_API_KEY"];
     await db.insert(schema.sessions).values({ id: sessionId, djName: "ITest DJ" });
   });
 
@@ -164,6 +169,7 @@ suite("DB integration (real Postgres)", () => {
     await db.delete(schema.sessions).where(eq(schema.sessions.id, sessionId));
     await client.end({ timeout: 5 });
     process.env.NODE_ENV = originalNodeEnv;
+    if (originalResendKey !== undefined) process.env["RESEND_API_KEY"] = originalResendKey;
   });
 
   // ==========================================================================
@@ -2166,6 +2172,24 @@ suite("DB integration (real Postgres)", () => {
       const [u] = await db.select().from(schema.user).where(eq(schema.user.id, d.userId));
       expect(u?.role).toBe("dancer");
       expect(u?.status).toBe("approved");
+    });
+
+    test("throttled magic-link sends stay invisible: rapid repeats all succeed, tokens still mint", async () => {
+      // Per-address cap is 3/h (email-throttle.ts). Sends 4-5 are silently SKIPPED — the
+      // endpoint must still 200 (anti-enumeration) and BA mints the token before the send
+      // callback, so the newest token remains verifiable. A visible 429/500 here would leak
+      // "someone recently requested links for this address".
+      const email = `throttle_${Date.now().toString(36)}@itest.dev`;
+      for (let i = 0; i < 5; i++) {
+        await auth.api.signInMagicLink({ body: { email }, headers: new Headers() });
+      }
+      const rows = await db
+        .select({ id: schema.verification.identifier, value: schema.verification.value })
+        .from(schema.verification);
+      expect(rows.filter((r) => r.value.includes(email)).length).toBe(5);
+      const d = await magicLinkSignIn(email); // 6th request: send skipped, token minted, verify OK
+      createdUserIds.push(d.userId);
+      expect(d.token.length).toBeGreaterThan(0);
     });
 
     test("an existing DJ who magic-links is NOT demoted (credential row blocks the patch)", async () => {

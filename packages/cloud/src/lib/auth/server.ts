@@ -8,7 +8,7 @@
  * the `admin` plugin.
  */
 
-import { logger, slugify, URLS } from "@pika/shared";
+import { LIMITS, logger, slugify, URLS } from "@pika/shared";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
@@ -16,7 +16,7 @@ import { admin as adminPlugin, bearer, magicLink } from "better-auth/plugins";
 import { and, eq, notExists, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { account, user } from "../../db/auth-schema";
-import { sendAccountDeletionEmail, sendMagicLinkEmail } from "../services/mail";
+import { handleDeletionEmailSend, handleMagicLinkSend } from "../services/mail";
 import { ac, admin, dancer, dj } from "./permissions";
 
 function trustedOrigins(): string[] {
@@ -61,12 +61,36 @@ export const auth = betterAuth({
     deleteUser: {
       enabled: true,
       sendDeleteAccountVerification: async ({ user: u, url }) => {
-        await sendAccountDeletionEmail({ to: u.email, url });
+        await handleDeletionEmailSend({ email: u.email, url });
       },
     },
   },
   session: { expiresIn: 60 * 60 * 24 * 30 }, // 30d rolling — the ITP-exempt anchor + desktop paste-token flow
   trustedOrigins: trustedOrigins(),
+  // Per-IP limiter for /api/auth/* (the Hono rate limiters don't cover paths Better Auth owns).
+  // `enabled` restates Better Auth's own default (prod-only) so it can't drift silently; storage
+  // is its in-memory default (single-process server). The email-sending endpoints get tight
+  // rules — they are public and every request spends Resend quota + sender reputation. Per-ADDRESS
+  // caps live in mail.ts/email-throttle.ts (this limiter can only key on IP).
+  rateLimit: {
+    enabled: process.env["NODE_ENV"] === "production",
+    customRules: {
+      "/sign-in/magic-link": {
+        window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC,
+        max: LIMITS.AUTH_EMAIL_IP_MAX,
+      },
+      "/delete-user": { window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC, max: LIMITS.AUTH_EMAIL_IP_MAX },
+    },
+  },
+  advanced: {
+    ipAddress: {
+      // Match the app-wide IP derivation (index.ts): behind the Cloudflare tunnel the client IP
+      // is CF-Connecting-IP. Better Auth's default only reads x-forwarded-for — if that header
+      // were missing, EVERY request would share one rate-limit bucket and the rules above would
+      // throttle all of production as a single client.
+      ipAddressHeaders: ["cf-connecting-ip", "x-forwarded-for"],
+    },
+  },
   databaseHooks: {
     user: {
       // Populate the /dj/[slug] profile path from the display name on signup. Magic-link-born
@@ -124,7 +148,7 @@ export const auth = betterAuth({
       // 10 min — email delivery on phones routinely beats the 5-min default.
       expiresIn: 60 * 10,
       sendMagicLink: async ({ email, url }) => {
-        await sendMagicLinkEmail({ to: email, url });
+        await handleMagicLinkSend({ email, url });
       },
     }),
   ],

@@ -4,10 +4,15 @@
  */
 
 import { describe, expect, test } from "bun:test";
+import type { EmailThrottle, EmailThrottleVerdict } from "./email-throttle";
 import {
+  type AuthMailDeps,
+  handleDeletionEmailSend,
+  handleMagicLinkSend,
   type MailDeps,
   MailNotConfiguredError,
   MailSendError,
+  MailThrottledError,
   sendEmail,
   sendMagicLinkEmail,
 } from "./mail";
@@ -88,5 +93,63 @@ describe("sendMagicLinkEmail", () => {
     const body = JSON.parse(String(calls[0]?.init?.body)) as { text: string; html: string };
     expect(body.text).toContain("https://api.test/verify?token=x");
     expect(body.html).toContain("https://api.test/verify?token=x");
+  });
+});
+
+/** Throttle-aware auth send handlers — verdicts map to send/silent-skip/loud-throw. */
+function makeAuthDeps(verdict: EmailThrottleVerdict): {
+  deps: AuthMailDeps;
+  sends: { kind: string; to: string; url: string }[];
+  acquired: { kind: string; email: string }[];
+} {
+  const sends: { kind: string; to: string; url: string }[] = [];
+  const acquired: { kind: string; email: string }[] = [];
+  const throttle: EmailThrottle = {
+    tryAcquire: (kind, email) => {
+      acquired.push({ kind, email });
+      return verdict;
+    },
+  };
+  const deps: AuthMailDeps = {
+    throttle,
+    sendMagicLink: async ({ to, url }) => {
+      sends.push({ kind: "magic-link", to, url });
+      return { delivered: true };
+    },
+    sendDeletion: async ({ to, url }) => {
+      sends.push({ kind: "account-deletion", to, url });
+      return { delivered: true };
+    },
+  };
+  return { deps, sends, acquired };
+}
+
+const authArgs = { email: "d@e.f", url: "https://api.test/verify?token=x" };
+
+describe("handleMagicLinkSend / handleDeletionEmailSend", () => {
+  test("ok → sends and reports 'sent'", async () => {
+    const { deps, sends, acquired } = makeAuthDeps("ok");
+    expect(await handleMagicLinkSend(authArgs, deps)).toBe("sent");
+    expect(sends).toEqual([{ kind: "magic-link", to: "d@e.f", url: authArgs.url }]);
+    expect(acquired).toEqual([{ kind: "magic-link", email: "d@e.f" }]);
+  });
+
+  test("address_limited → silent skip, nothing sent (anti-enumeration)", async () => {
+    const { deps, sends } = makeAuthDeps("address_limited");
+    expect(await handleMagicLinkSend(authArgs, deps)).toBe("skipped");
+    expect(sends.length).toBe(0);
+  });
+
+  test("daily_capped → throws MailThrottledError, nothing sent (loud ops signal)", async () => {
+    const { deps, sends } = makeAuthDeps("daily_capped");
+    expect(handleMagicLinkSend(authArgs, deps)).rejects.toThrow(MailThrottledError);
+    expect(sends.length).toBe(0);
+  });
+
+  test("deletion handler uses its own throttle kind and the deletion sender", async () => {
+    const { deps, sends, acquired } = makeAuthDeps("ok");
+    expect(await handleDeletionEmailSend(authArgs, deps)).toBe("sent");
+    expect(sends).toEqual([{ kind: "account-deletion", to: "d@e.f", url: authArgs.url }]);
+    expect(acquired).toEqual([{ kind: "account-deletion", email: "d@e.f" }]);
   });
 });

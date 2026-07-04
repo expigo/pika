@@ -74,6 +74,15 @@ export const LIMITS = {
   JOURNAL_EXPORT_COOLDOWN_MS: 60 * 1000, // min gap between exports for one clientId
   JOURNAL_EXPORT_GLOBAL_DAILY_MAX: 500, // process-wide daily Spotify-write budget
   JOURNAL_EXPORT_MAX_URIS: 1000, // playlist size cap (earliest likes win)
+  // Transactional email (magic links, deletion confirmations) — every send spends Resend quota
+  // AND pika.stream sender reputation, and the magic-link endpoint is public. Bounded three ways:
+  // per-address + a process-wide daily fuse (email-throttle.ts; MAIL_DAILY_CAP env overrides the
+  // fuse), and per-IP via Better Auth customRules — whose window unit is SECONDS, hence _SEC.
+  MAIL_PER_ADDRESS_WINDOW: 60 * 60 * 1000, // 1 hour, per address per kind
+  MAIL_PER_ADDRESS_MAX: 3,
+  MAIL_GLOBAL_DAILY_MAX: 200, // default daily fuse across all transactional mail
+  AUTH_EMAIL_IP_WINDOW_SEC: 600, // Better Auth per-IP rule: 10 sends per 10 min —
+  AUTH_EMAIL_IP_MAX: 10, // venue-NAT-friendly burst, hostile to single-IP floods
   // Product telemetry ingest (fire-and-forget beacon; enum-whitelisted events only).
   TELEMETRY_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
   TELEMETRY_RATE_LIMIT_MAX: 60, // per IP

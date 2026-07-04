@@ -9,11 +9,19 @@
  */
 
 import { logger } from "@pika/shared";
+import { type EmailThrottle, mailThrottle } from "./email-throttle";
 
 export class MailNotConfiguredError extends Error {
   constructor() {
     super("Transactional email is not configured (RESEND_API_KEY missing)");
     this.name = "MailNotConfiguredError";
+  }
+}
+
+export class MailThrottledError extends Error {
+  constructor() {
+    super("Daily transactional-email budget exhausted");
+    this.name = "MailThrottledError";
   }
 }
 
@@ -128,4 +136,67 @@ export async function sendAccountDeletionEmail(
     },
     deps,
   );
+}
+
+/** Log-safe address form — target addresses are PII and must not land in logs verbatim. */
+function maskEmail(email: string): string {
+  const [local = "", domain = ""] = email.split("@");
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
+export interface AuthMailDeps {
+  throttle: EmailThrottle;
+  sendMagicLink: typeof sendMagicLinkEmail;
+  sendDeletion: typeof sendAccountDeletionEmail;
+}
+
+export const defaultAuthMailDeps: AuthMailDeps = {
+  throttle: mailThrottle,
+  sendMagicLink: sendMagicLinkEmail,
+  sendDeletion: sendAccountDeletionEmail,
+};
+
+/**
+ * Auth email sends behind the abuse throttle (the magic-link endpoint is PUBLIC — anyone can
+ * make Pika email any address). Verdict handling is deliberately asymmetric:
+ *  - address_limited → skip silently ("skipped"): the endpoint still answers 200, so probing
+ *    reveals nothing, and that inbox already received fresh links moments ago.
+ *  - daily_capped → throw: every auth email is dead until ops intervenes (raise MAIL_DAILY_CAP /
+ *    upgrade Resend) — that must surface as errors, never as quietly missing email.
+ * Note: Better Auth mints the verification token BEFORE this callback, so a skipped send never
+ * strands a request mid-flow — the token simply goes undelivered.
+ */
+async function sendThrottledAuthEmail(
+  kind: "magic-link" | "account-deletion",
+  args: { email: string; url: string },
+  send: (input: { to: string; url: string }) => Promise<{ delivered: boolean }>,
+  throttle: EmailThrottle,
+): Promise<"sent" | "skipped"> {
+  const verdict = throttle.tryAcquire(kind, args.email);
+  if (verdict === "daily_capped") {
+    logger.error(`❌ Daily email fuse tripped — ${kind} sends are failing`, undefined, {
+      to: maskEmail(args.email),
+    });
+    throw new MailThrottledError();
+  }
+  if (verdict === "address_limited") {
+    logger.warn(`🛑 ${kind} send throttled for address`, { to: maskEmail(args.email) });
+    return "skipped";
+  }
+  await send({ to: args.email, url: args.url });
+  return "sent";
+}
+
+export async function handleMagicLinkSend(
+  args: { email: string; url: string },
+  deps: AuthMailDeps = defaultAuthMailDeps,
+): Promise<"sent" | "skipped"> {
+  return sendThrottledAuthEmail("magic-link", args, deps.sendMagicLink, deps.throttle);
+}
+
+export async function handleDeletionEmailSend(
+  args: { email: string; url: string },
+  deps: AuthMailDeps = defaultAuthMailDeps,
+): Promise<"sent" | "skipped"> {
+  return sendThrottledAuthEmail("account-deletion", args, deps.sendDeletion, deps.throttle);
 }
