@@ -9,22 +9,18 @@
  */
 
 import { LIMITS, logger } from "@pika/shared";
-import { and, count, desc, eq, inArray } from "drizzle-orm";
+import { and, count, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { db, schema } from "../db";
 import { CLIENT_ID_REGEX } from "../lib/services/identity";
 import {
+  enrichLikesWithSessions,
   exportJournalPlaylist,
-  JournalEmptyError,
-  JournalExportCooldownError,
-  JournalExportDailyCapError,
-  JournalExportInFlightError,
-  JournalNoMatchesError,
+  journalExportErrorResponse,
   linkFallbackUrl,
   trustedSpotifyLinkOn,
 } from "../lib/services/journal";
-import { SpotifyRateLimitError, SpotifyServiceNotConnectedError } from "../lib/services/spotify";
 
 const client = new Hono();
 
@@ -117,35 +113,12 @@ client.get("/:clientId/likes", async (c) => {
 
     const totalLikes = countRows[0]?.n ?? 0;
 
-    // Get session info for each unique session in a single batch
-    const sessionIds = [...new Set(likeRows.map((l) => l.sessionId).filter(Boolean))];
-    const sessionsMap = new Map<string, { djName: string; startedAt: Date | null }>();
-
-    if (sessionIds.length > 0) {
-      const sessions = await db
-        .select({
-          id: schema.sessions.id,
-          djName: schema.sessions.djName,
-          startedAt: schema.sessions.startedAt,
-        })
-        .from(schema.sessions)
-        .where(inArray(schema.sessions.id, sessionIds as string[]));
-
-      for (const session of sessions) {
-        sessionsMap.set(session.id, session);
-      }
-    }
-
-    // Enrich with session info + retro-enriched Spotify link; strip the raw link columns.
-    const enrichedLikes = likeRows.map(({ linkProviderId, linkProviderUrl, ...like }) => {
-      const sessionInfo = like.sessionId ? sessionsMap.get(like.sessionId) : undefined;
-      return {
-        ...like,
-        spotifyUrl: like.spotifyUrl ?? linkFallbackUrl(linkProviderUrl, linkProviderId),
-        djName: sessionInfo?.djName ?? null,
-        sessionDate: sessionInfo?.startedAt ?? null,
-      };
-    });
+    // Retro-enriched Spotify link (strip the raw link columns), then batch session info.
+    const withLinks = likeRows.map(({ linkProviderId, linkProviderUrl, ...like }) => ({
+      ...like,
+      spotifyUrl: like.spotifyUrl ?? linkFallbackUrl(linkProviderUrl, linkProviderId),
+    }));
+    const enrichedLikes = await enrichLikesWithSessions(withLinks);
 
     const playlistRow = playlistRows[0];
     return c.json({
@@ -185,41 +158,8 @@ client.post("/:clientId/likes/playlist", async (c) => {
     const result = await exportJournalPlaylist(clientId);
     return c.json(result);
   } catch (e) {
-    if (e instanceof JournalExportInFlightError) {
-      return c.json({ error: "Export already in progress" }, 429);
-    }
-    if (e instanceof JournalExportCooldownError) {
-      return c.json(
-        { error: "Please wait before updating again", retryAfterSec: e.retryAfterSec },
-        429,
-        { "Retry-After": String(e.retryAfterSec) },
-      );
-    }
-    if (e instanceof JournalExportDailyCapError) {
-      return c.json({ error: "Playlist exports are temporarily unavailable" }, 503);
-    }
-    if (e instanceof JournalEmptyError) {
-      return c.json({ error: "No liked tracks to export" }, 404);
-    }
-    if (e instanceof JournalNoMatchesError) {
-      return c.json(
-        {
-          error: "None of your liked tracks matched Spotify yet",
-          totalLiked: e.totalLiked,
-          matchedCount: 0,
-        },
-        422,
-      );
-    }
-    if (e instanceof SpotifyServiceNotConnectedError) {
-      // Same mapping as routes/playlist.ts — the shared account isn't connected in this env.
-      return c.json({ error: "Playlist service not connected", needsService: true }, 409);
-    }
-    if (e instanceof SpotifyRateLimitError) {
-      return c.json({ error: "Spotify is busy — try again shortly" }, 503, {
-        "Retry-After": String(Math.max(1, Math.ceil(e.retryAfterMs / 1000))),
-      });
-    }
+    const mapped = journalExportErrorResponse(c, e);
+    if (mapped) return mapped;
     logger.error("❌ Journal playlist export failed", e);
     return c.json({ error: "Failed to create playlist" }, 502);
   }

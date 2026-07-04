@@ -52,9 +52,12 @@ import {
   persistTracksBulk,
 } from "../lib/persistence/tracks";
 import {
+  adoptOrUpsertAccountPlaylistRow,
   defaultJournalExportDeps,
   exportJournalPlaylist,
+  getAccountPlaylistRow,
   JournalExportCooldownError,
+  loadAccountLikedRows,
   resetJournalExportGuardsForTests,
 } from "../lib/services/journal";
 import {
@@ -2319,6 +2322,198 @@ suite("DB integration (real Postgres)", () => {
       await db
         .delete(schema.pushSubscriptions)
         .where(eq(schema.pushSubscriptions.endpoint, endpoint));
+    });
+  });
+
+  // ==========================================================================
+  // Slice B3 — account journal: union read + account unlike + adopt-first export
+  // ==========================================================================
+
+  describe("account journal (Slice B3, real Postgres)", () => {
+    const uniq = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    const b3Session = `b3_${uniq()}`;
+    const deviceA = `client_b3a_${uniq()}`;
+    const deviceB = `client_b3b_${uniq()}`;
+    let dancer: { userId: string; token: string; email: string };
+    let auth1: { headers: Record<string, string> };
+    let trackIds: number[] = [];
+    let likeAOnT1 = 0;
+
+    beforeAll(async () => {
+      dancer = await signUpDancer();
+      auth1 = {
+        headers: { Authorization: `Bearer ${dancer.token}`, "Content-Type": "application/json" },
+      };
+      // Claim device A first (adopt-first tiebreak), then B.
+      for (const clientId of [deviceA, deviceB]) {
+        const res = await meRoutes.request("/journal/claim", {
+          method: "POST",
+          ...auth1,
+          body: JSON.stringify({ clientId }),
+        });
+        expect(res.status).toBe(200);
+      }
+
+      await db.insert(schema.sessions).values({ id: b3Session, djName: "B3 DJ" });
+      const tracks = await db
+        .insert(schema.playedTracks)
+        .values([
+          {
+            sessionId: b3Session,
+            artist: "X",
+            title: "Both Devices",
+            spotifyUrl: "https://open.spotify.com/track/B3ONE",
+          },
+          {
+            sessionId: b3Session,
+            artist: "Y",
+            title: "Only A",
+            spotifyUrl: "https://open.spotify.com/track/B3TWO",
+          },
+        ])
+        .returning({ id: schema.playedTracks.id });
+      trackIds = tracks.map((t) => t.id);
+      const [t1, t2] = trackIds;
+      if (t1 === undefined || t2 === undefined) throw new Error("seed failed");
+      const base = Date.now() - 10_000;
+      const inserted = await db
+        .insert(schema.likes)
+        .values([
+          // Device A likes t1 FIRST (must be the kept row of the de-duped pair)…
+          {
+            sessionId: b3Session,
+            clientId: deviceA,
+            playedTrackId: t1,
+            createdAt: new Date(base),
+          },
+          // …device B likes the SAME play (cross-device duplicate)…
+          {
+            sessionId: b3Session,
+            clientId: deviceB,
+            playedTrackId: t1,
+            createdAt: new Date(base + 1000),
+          },
+          // …and device A likes t2 (newest).
+          {
+            sessionId: b3Session,
+            clientId: deviceA,
+            playedTrackId: t2,
+            createdAt: new Date(base + 2000),
+          },
+        ])
+        .returning({ id: schema.likes.id });
+      likeAOnT1 = inserted[0]?.id ?? 0;
+    });
+
+    afterAll(async () => {
+      await db
+        .delete(schema.journalPlaylists)
+        .where(inArray(schema.journalPlaylists.clientId, [deviceA, deviceB]));
+      await db.delete(schema.sessions).where(eq(schema.sessions.id, b3Session));
+      await db.delete(schema.user).where(eq(schema.user.id, dancer.userId));
+    });
+
+    test("union read de-dupes the cross-device pair, keeps the earliest, paginates truthfully", async () => {
+      const res = await meRoutes.request("/journal?limit=50", auth1);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        totalLikes: number;
+        claimedCount: number;
+        likes: Array<{ id: number; title: string }>;
+      };
+      expect(body.totalLikes).toBe(2); // 3 like rows → 2 distinct (session, play) pairs
+      expect(body.claimedCount).toBe(2);
+      expect(body.likes.length).toBe(2);
+      expect(body.likes[0]?.title).toBe("Only A"); // newest-first page order
+      const both = body.likes.find((l) => l.title === "Both Devices");
+      expect(both?.id).toBe(likeAOnT1); // DISTINCT ON kept the EARLIEST like of the pair
+
+      // Pagination consistency: page size 1 → two pages, no duplicates.
+      const p1 = (await (await meRoutes.request("/journal?limit=1&offset=0", auth1)).json()) as {
+        likes: Array<{ id: number }>;
+        totalLikes: number;
+      };
+      const p2 = (await (await meRoutes.request("/journal?limit=1&offset=1", auth1)).json()) as {
+        likes: Array<{ id: number }>;
+      };
+      expect(p1.totalLikes).toBe(2);
+      expect(p1.likes[0]?.id).not.toBe(p2.likes[0]?.id);
+    });
+
+    test("adopt-first export: account adopts device A's playlist and regenerates it in place", async () => {
+      resetJournalExportGuardsForTests();
+      // Device A exported before the account existed (backdated past the cooldown).
+      await db.insert(schema.journalPlaylists).values({
+        clientId: deviceA,
+        spotifyPlaylistId: "pl_deviceA",
+        spotifyPlaylistUrl: "https://open.spotify.com/playlist/pl_deviceA",
+        trackCount: 1,
+        updatedAt: new Date(Date.now() - 120_000),
+      });
+
+      const replaceCalls: Array<{ playlistId: string; uris: string[] }> = [];
+      const result = await exportJournalPlaylist(`user_${dancer.userId}`, {
+        ...defaultJournalExportDeps,
+        loadLikedRows: () => loadAccountLikedRows(dancer.userId),
+        getPlaylistRow: () => getAccountPlaylistRow(dancer.userId),
+        upsertPlaylistRow: (row) =>
+          adoptOrUpsertAccountPlaylistRow(dancer.userId, {
+            spotifyPlaylistId: row.spotifyPlaylistId,
+            spotifyPlaylistUrl: row.spotifyPlaylistUrl,
+            trackCount: row.trackCount,
+          }),
+        createPlaylist: async () => {
+          throw new Error("create must not run — the device playlist must be ADOPTED");
+        },
+        replacePlaylistItems: async (playlistId, uris) => {
+          replaceCalls.push({ playlistId, uris });
+        },
+      });
+
+      expect(result.updated).toBe(true);
+      expect(result.trackCount).toBe(2); // union: B3ONE + B3TWO (cross-device dupe collapsed)
+      expect(replaceCalls[0]?.playlistId).toBe("pl_deviceA");
+      expect(replaceCalls[0]?.uris).toEqual(["spotify:track:B3ONE", "spotify:track:B3TWO"]);
+
+      const [row] = await db
+        .select({
+          userId: schema.journalPlaylists.userId,
+          trackCount: schema.journalPlaylists.trackCount,
+        })
+        .from(schema.journalPlaylists)
+        .where(eq(schema.journalPlaylists.clientId, deviceA));
+      expect(row?.userId).toBe(dancer.userId); // adopted
+      expect(row?.trackCount).toBe(2);
+
+      // The union read now surfaces the adopted playlist.
+      const read = await meRoutes.request("/journal", auth1);
+      const body = (await read.json()) as { playlist: { url: string } | null };
+      expect(body.playlist?.url).toBe("https://open.spotify.com/playlist/pl_deviceA");
+    });
+
+    test("account unlike removes ALL claimed rows of the (session, play) pair", async () => {
+      const res = await meRoutes.request(`/journal/likes/${likeAOnT1}`, {
+        method: "DELETE",
+        headers: auth1.headers,
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { success: boolean; totalLikes: number };
+      expect(body.totalLikes).toBe(1);
+      const [t1] = trackIds;
+      const remaining = await db
+        .select()
+        .from(schema.likes)
+        .where(
+          and(eq(schema.likes.sessionId, b3Session), eq(schema.likes.playedTrackId, t1 ?? -1)),
+        );
+      expect(remaining.length).toBe(0); // device B's duplicate row went too
+
+      // Idempotent-ish: the id is gone now → 404.
+      const again = await meRoutes.request(`/journal/likes/${likeAOnT1}`, {
+        method: "DELETE",
+        headers: auth1.headers,
+      });
+      expect(again.status).toBe(404);
     });
   });
 

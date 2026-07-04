@@ -14,11 +14,26 @@
  */
 
 import { LIMITS } from "@pika/shared";
-import { and, asc, eq, gte, inArray, isNotNull, ne, or, type SQL } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, ne, or, type SQL } from "drizzle-orm";
+import type { Context } from "hono";
 import { db } from "../../db";
-import { journalPlaylists, likes, playedTracks, trackLinks } from "../../db/schema";
+import {
+  clientIdentities,
+  journalPlaylists,
+  likes,
+  playedTracks,
+  sessions,
+  trackLinks,
+} from "../../db/schema";
 import { parseSpotifyTrackId } from "./finalizeWebSet";
-import { createPlaylist, replacePlaylistItems, SpotifyPlaylistNotFoundError } from "./spotify";
+import { getClaimedClientIds } from "./identity";
+import {
+  createPlaylist,
+  replacePlaylistItems,
+  SpotifyPlaylistNotFoundError,
+  SpotifyRateLimitError,
+  SpotifyServiceNotConnectedError,
+} from "./spotify";
 
 export const JOURNAL_PLAYLIST_NAME = "My Pika Journal";
 export const JOURNAL_PLAYLIST_DESCRIPTION = "Songs I loved on the dance floor · pika.stream";
@@ -324,4 +339,225 @@ export async function exportJournalPlaylist(
   } finally {
     inFlight.delete(clientId);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Shared route helpers (public clientId journal + the /api/me account journal)
+// ---------------------------------------------------------------------------
+
+/** Batch-attach DJ name + session date to like rows (one query per page). */
+export async function enrichLikesWithSessions<T extends { sessionId: string | null }>(
+  rows: T[],
+): Promise<Array<T & { djName: string | null; sessionDate: Date | null }>> {
+  const sessionIds = [...new Set(rows.map((r) => r.sessionId).filter(Boolean))] as string[];
+  const sessionsMap = new Map<string, { djName: string; startedAt: Date | null }>();
+  if (sessionIds.length > 0) {
+    const found = await db
+      .select({ id: sessions.id, djName: sessions.djName, startedAt: sessions.startedAt })
+      .from(sessions)
+      .where(inArray(sessions.id, sessionIds));
+    for (const s of found) sessionsMap.set(s.id, s);
+  }
+  return rows.map((row) => {
+    const info = row.sessionId ? sessionsMap.get(row.sessionId) : undefined;
+    return { ...row, djName: info?.djName ?? null, sessionDate: info?.startedAt ?? null };
+  });
+}
+
+/**
+ * One truth for the export error → HTTP mapping (used by the public clientId route and the
+ * account route). Returns a Response for known domain/Spotify errors, null for the unknown case
+ * (caller logs + 502s with its own context).
+ */
+export function journalExportErrorResponse(c: Context, e: unknown): Response | null {
+  if (e instanceof JournalExportInFlightError) {
+    return c.json({ error: "Export already in progress" }, 429);
+  }
+  if (e instanceof JournalExportCooldownError) {
+    return c.json(
+      { error: "Please wait before updating again", retryAfterSec: e.retryAfterSec },
+      429,
+      { "Retry-After": String(e.retryAfterSec) },
+    );
+  }
+  if (e instanceof JournalExportDailyCapError) {
+    return c.json({ error: "Playlist exports are temporarily unavailable" }, 503);
+  }
+  if (e instanceof JournalEmptyError) {
+    return c.json({ error: "No liked tracks to export" }, 404);
+  }
+  if (e instanceof JournalNoMatchesError) {
+    return c.json(
+      {
+        error: "None of your liked tracks matched Spotify yet",
+        totalLiked: e.totalLiked,
+        matchedCount: 0,
+      },
+      422,
+    );
+  }
+  if (e instanceof SpotifyServiceNotConnectedError) {
+    return c.json({ error: "Playlist service not connected", needsService: true }, 409);
+  }
+  if (e instanceof SpotifyRateLimitError) {
+    return c.json({ error: "Spotify is busy — try again shortly" }, 503, {
+      "Retry-After": String(Math.max(1, Math.ceil(e.retryAfterMs / 1000))),
+    });
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Account journal (Slice B3) — union over claimed clientIds + adopt-first playlist
+// ---------------------------------------------------------------------------
+
+/** Union of liked rows across every clientId the account claimed, first-like order. */
+export async function loadAccountLikedRows(userId: string): Promise<JournalLikeRow[]> {
+  const claimed = await getClaimedClientIds(userId);
+  if (claimed.length === 0) return [];
+  return db
+    .select({ spotifyUrl: playedTracks.spotifyUrl, linkProviderId: trackLinks.providerId })
+    .from(likes)
+    .innerJoin(playedTracks, eq(likes.playedTrackId, playedTracks.id))
+    .leftJoin(trackLinks, trustedSpotifyLinkOn())
+    .where(inArray(likes.clientId, claimed))
+    .orderBy(asc(likes.createdAt))
+    .limit(5000); // memory sanity bound; the URI cap is JOURNAL_EXPORT_MAX_URIS anyway
+}
+
+/**
+ * The adopt candidate: the EARLIEST-claimed device whose playlist row is still unowned. Order is
+ * the adopt-first tiebreak when several devices exported before the account existed.
+ */
+async function findAdoptCandidateRow(
+  userId: string,
+): Promise<(JournalPlaylistRow & { clientId: string }) | null> {
+  const [row] = await db
+    .select({
+      clientId: journalPlaylists.clientId,
+      spotifyPlaylistId: journalPlaylists.spotifyPlaylistId,
+      spotifyPlaylistUrl: journalPlaylists.spotifyPlaylistUrl,
+      updatedAt: journalPlaylists.updatedAt,
+    })
+    .from(journalPlaylists)
+    .innerJoin(clientIdentities, eq(clientIdentities.clientId, journalPlaylists.clientId))
+    .where(and(eq(clientIdentities.userId, userId), isNull(journalPlaylists.userId)))
+    .orderBy(asc(clientIdentities.claimedAt))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * The account's playlist state: its adopted row, else the adopt candidate — so the cooldown
+ * correctly spans a device-side export of the SAME Spotify playlist moments earlier, and the UI
+ * can say "Update playlist" pre-adoption.
+ */
+export async function getAccountPlaylistRow(userId: string): Promise<JournalPlaylistRow | null> {
+  const [own] = await db
+    .select({
+      spotifyPlaylistId: journalPlaylists.spotifyPlaylistId,
+      spotifyPlaylistUrl: journalPlaylists.spotifyPlaylistUrl,
+      updatedAt: journalPlaylists.updatedAt,
+    })
+    .from(journalPlaylists)
+    .where(eq(journalPlaylists.userId, userId))
+    .limit(1);
+  if (own) return own;
+  return findAdoptCandidateRow(userId);
+}
+
+/** Same shape, but for the journal READ response (url + trackCount + updatedAt). */
+export async function getAccountPlaylistView(
+  userId: string,
+): Promise<{ url: string; trackCount: number; updatedAt: Date } | null> {
+  const [own] = await db
+    .select({
+      url: journalPlaylists.spotifyPlaylistUrl,
+      trackCount: journalPlaylists.trackCount,
+      updatedAt: journalPlaylists.updatedAt,
+    })
+    .from(journalPlaylists)
+    .where(eq(journalPlaylists.userId, userId))
+    .limit(1);
+  if (own) return own;
+  const [candidate] = await db
+    .select({
+      url: journalPlaylists.spotifyPlaylistUrl,
+      trackCount: journalPlaylists.trackCount,
+      updatedAt: journalPlaylists.updatedAt,
+    })
+    .from(journalPlaylists)
+    .innerJoin(clientIdentities, eq(clientIdentities.clientId, journalPlaylists.clientId))
+    .where(and(eq(clientIdentities.userId, userId), isNull(journalPlaylists.userId)))
+    .orderBy(asc(clientIdentities.claimedAt))
+    .limit(1);
+  return candidate ?? null;
+}
+
+export interface AccountPlaylistWrite {
+  spotifyPlaylistId: string;
+  spotifyPlaylistUrl: string;
+  trackCount: number;
+}
+
+export interface AdoptDeps {
+  updateOwnRow: (userId: string, row: AccountPlaylistWrite) => Promise<boolean>;
+  adoptRow: (
+    userId: string,
+    candidateClientId: string,
+    row: AccountPlaylistWrite,
+  ) => Promise<boolean>;
+  findAdoptCandidateClientId: (userId: string) => Promise<string | null>;
+  insertAnchoredRow: (
+    userId: string,
+    anchorClientId: string,
+    row: AccountPlaylistWrite,
+  ) => Promise<void>;
+  firstClaimedClientId: (userId: string) => Promise<string | null>;
+}
+
+export const defaultAdoptDeps: AdoptDeps = {
+  updateOwnRow: async (userId, row) => {
+    const updated = await db
+      .update(journalPlaylists)
+      .set({ ...row, updatedAt: new Date() })
+      .where(eq(journalPlaylists.userId, userId))
+      .returning({ clientId: journalPlaylists.clientId });
+    return updated.length > 0;
+  },
+  adoptRow: async (userId, candidateClientId, row) => {
+    const adopted = await db
+      .update(journalPlaylists)
+      .set({ ...row, userId, updatedAt: new Date() })
+      .where(and(eq(journalPlaylists.clientId, candidateClientId), isNull(journalPlaylists.userId)))
+      .returning({ clientId: journalPlaylists.clientId });
+    return adopted.length > 0;
+  },
+  findAdoptCandidateClientId: async (userId) =>
+    (await findAdoptCandidateRow(userId))?.clientId ?? null,
+  insertAnchoredRow: async (userId, anchorClientId, row) => {
+    await db.insert(journalPlaylists).values({ clientId: anchorClientId, userId, ...row });
+  },
+  firstClaimedClientId: async (userId) => (await getClaimedClientIds(userId))[0] ?? null,
+};
+
+/**
+ * Adopt-first write for the account export: (1) refresh the account's own row; (2) else ADOPT
+ * the earliest-claimed device's unowned row (partial unique index backstops races); (3) else
+ * insert anchored to the earliest claimed id — only reachable when no claimed id has a row, so
+ * the clientId PK is free (a non-empty export implies ≥1 claimed id).
+ */
+export async function adoptOrUpsertAccountPlaylistRow(
+  userId: string,
+  row: AccountPlaylistWrite,
+  deps: AdoptDeps = defaultAdoptDeps,
+): Promise<void> {
+  if (await deps.updateOwnRow(userId, row)) return;
+  const candidate = await deps.findAdoptCandidateClientId(userId);
+  if (candidate && (await deps.adoptRow(userId, candidate, row))) return;
+  const anchor = await deps.firstClaimedClientId(userId);
+  if (!anchor) {
+    throw new Error("unreachable: account export requires likes, likes require a claimed id");
+  }
+  await deps.insertAnchoredRow(userId, anchor, row);
 }

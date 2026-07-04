@@ -8,7 +8,14 @@ import { toast } from "sonner";
 import { ProCard } from "@/components/ui/ProCard";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { getApiBaseUrl } from "@/lib/api";
+import { authClient } from "@/lib/authClient";
 import { trackEvent } from "@/lib/events";
+import {
+  clearAccountHint,
+  ensureClientIdClaimed,
+  setAccountHint,
+  signOutAndRotate,
+} from "@/lib/identity";
 
 const PAGE_SIZE = 100;
 
@@ -38,7 +45,8 @@ interface JournalPlaylist {
 }
 
 interface LikesResponse {
-  clientId: string;
+  clientId?: string; // device read only
+  claimedCount?: number; // account read only
   totalLikes: number;
   limit: number;
   offset: number;
@@ -120,6 +128,8 @@ function isIosBrowser(): boolean {
 
 function exportErrorCopy(status: number, retryAfterSec?: number): string {
   switch (status) {
+    case 401:
+      return "Your sign-in expired — sign in again to update";
     case 409:
       return "Playlist export isn't set up yet — try again after the next update";
     case 429:
@@ -136,8 +146,11 @@ function exportErrorCopy(status: number, retryAfterSec?: number): string {
 }
 
 export default function MyLikesPage() {
+  const { data: session, isPending: sessionPending } = authClient.useSession();
+  const isAccountMode = !!session;
   const [entries, setEntries] = useState<LikedTrack[]>([]);
   const [total, setTotal] = useState(0);
+  const [claimedCount, setClaimedCount] = useState(0);
   const [playlist, setPlaylist] = useState<JournalPlaylist | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -149,31 +162,86 @@ export default function MyLikesPage() {
   const nudgeFired = useRef(false);
   const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Magic-link landing / account deletion callbacks (?claimed=1 / ?deleted=1).
   useEffect(() => {
-    const id = getClientId();
-
-    if (!id) {
-      setLoading(false);
-      setError("no_likes");
-      if (!openedFired.current) {
-        openedFired.current = true;
-        trackEvent("journal_opened", { totalLikes: 0 });
-      }
-      return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("claimed")) {
+      setAccountHint();
+      trackEvent("account_linked", { newUser: params.get("new") === "1" });
+      toast("Journal saved to your account ✓");
+      window.history.replaceState(null, "", "/my-likes");
     }
+    if (params.get("deleted")) {
+      clearAccountHint();
+      toast("Account deleted — likes on this device are anonymous again");
+      window.history.replaceState(null, "", "/my-likes");
+    }
+  }, []);
 
-    async function fetchLikes() {
+  const sessionUserId = session?.user?.id ?? null;
+
+  useEffect(() => {
+    if (sessionPending) return; // gate the initial fetch — never double-fetch the device view
+    let cancelled = false;
+
+    async function load() {
+      const baseUrl = getApiBaseUrl();
+
+      // ACCOUNT MODE: bind this device's id to the account, then read the union journal.
+      if (sessionUserId) {
+        const claim = await ensureClientIdClaimed();
+        if (claim === "rotated_and_claimed" && !cancelled) {
+          toast("New device identity minted — your journal is safe on your account");
+        }
+        try {
+          const response = await fetch(`${baseUrl}/api/me/journal?limit=${PAGE_SIZE}&offset=0`, {
+            credentials: "include",
+          });
+          if (cancelled) return;
+          if (!response.ok) {
+            setError("fetch_failed");
+            return;
+          }
+          const data: LikesResponse = await response.json();
+          setEntries(data.likes);
+          setTotal(data.totalLikes);
+          setClaimedCount(data.claimedCount ?? 0);
+          setPlaylist(data.playlist ?? null);
+          if (!openedFired.current) {
+            openedFired.current = true;
+            trackEvent("journal_opened", { totalLikes: data.totalLikes, account: true });
+          }
+        } catch (e) {
+          if (!cancelled) {
+            logger.error("Failed to fetch account journal", e);
+            setError("network_error");
+          }
+        } finally {
+          if (!cancelled) setLoading(false);
+        }
+        return;
+      }
+
+      // DEVICE MODE (signed out) — unchanged read-only clientId flow.
+      const id = getClientId();
+      if (!id) {
+        setLoading(false);
+        setError("no_likes");
+        if (!openedFired.current) {
+          openedFired.current = true;
+          trackEvent("journal_opened", { totalLikes: 0 });
+        }
+        return;
+      }
       try {
-        const baseUrl = getApiBaseUrl();
         const response = await fetch(
           `${baseUrl}/api/client/${id}/likes?limit=${PAGE_SIZE}&offset=0`,
         );
-
+        if (cancelled) return;
         if (!response.ok) {
           setError("fetch_failed");
           return;
         }
-
         const data: LikesResponse = await response.json();
         setEntries(data.likes);
         setTotal(data.totalLikes);
@@ -183,15 +251,20 @@ export default function MyLikesPage() {
           trackEvent("journal_opened", { totalLikes: data.totalLikes });
         }
       } catch (e) {
-        logger.error("Failed to fetch likes", e);
-        setError("network_error");
+        if (!cancelled) {
+          logger.error("Failed to fetch likes", e);
+          setError("network_error");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     }
 
-    fetchLikes();
-  }, []);
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionPending, sessionUserId]);
 
   // ITP mitigation: a non-installed browser can evict this device's journal identity —
   // surface the install nudge (the interactive InstallPrompt is mounted globally).
@@ -206,15 +279,20 @@ export default function MyLikesPage() {
   }, []);
 
   const handleLoadMore = useCallback(async () => {
-    const id = getClientId();
-    if (!id || loadingMore) return;
+    if (loadingMore) return;
+    const baseUrl = getApiBaseUrl();
+    let url: string;
+    if (isAccountMode) {
+      url = `${baseUrl}/api/me/journal?limit=${PAGE_SIZE}&offset=${entries.length}`;
+    } else {
+      const id = getClientId();
+      if (!id) return;
+      url = `${baseUrl}/api/client/${id}/likes?limit=${PAGE_SIZE}&offset=${entries.length}`;
+    }
     setLoadingMore(true);
-    trackEvent("journal_load_more", { offset: entries.length });
+    trackEvent("journal_load_more", { offset: entries.length, account: isAccountMode });
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(
-        `${baseUrl}/api/client/${id}/likes?limit=${PAGE_SIZE}&offset=${entries.length}`,
-      );
+      const response = await fetch(url, { credentials: "include" });
       if (!response.ok) return;
       const data: LikesResponse = await response.json();
       setTotal(data.totalLikes);
@@ -228,16 +306,24 @@ export default function MyLikesPage() {
     } finally {
       setLoadingMore(false);
     }
-  }, [entries.length, loadingMore]);
+  }, [entries.length, loadingMore, isAccountMode]);
 
   const handleExport = useCallback(async () => {
-    const id = getClientId();
-    if (!id || exportState.phase === "creating") return;
+    if (exportState.phase === "creating") return;
+    const baseUrl = getApiBaseUrl();
+    let url: string;
+    if (isAccountMode) {
+      url = `${baseUrl}/api/me/journal/playlist`;
+    } else {
+      const id = getClientId();
+      if (!id) return;
+      url = `${baseUrl}/api/client/${id}/likes/playlist`;
+    }
     setExportState({ phase: "creating" });
     try {
-      const baseUrl = getApiBaseUrl();
-      const response = await fetch(`${baseUrl}/api/client/${id}/likes/playlist`, {
+      const response = await fetch(url, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json", "X-Pika-Client": "pika-web" },
       });
 
@@ -253,6 +339,7 @@ export default function MyLikesPage() {
           trackCount: data.trackCount,
           matchedCount: data.matchedCount,
           totalLiked: data.totalLiked,
+          account: isAccountMode,
         });
         return;
       }
@@ -271,7 +358,13 @@ export default function MyLikesPage() {
       });
       trackEvent("journal_export_failed", { status: 0 });
     }
-  }, [exportState.phase]);
+  }, [exportState.phase, isAccountMode]);
+
+  const handleSignOut = useCallback(async () => {
+    trackEvent("account_signed_out");
+    await signOutAndRotate();
+    window.location.reload(); // full state reset back to the device view
+  }, []);
 
   // Two-tap confirm for removal: a past-night like can't be re-liked, so removal is irreversible.
   const armRemove = useCallback((likeId: number) => {
@@ -289,14 +382,21 @@ export default function MyLikesPage() {
 
   const handleRemove = useCallback(
     async (like: LikedTrack) => {
-      const id = getClientId();
-      if (!id) return;
+      const baseUrl = getApiBaseUrl();
+      let url: string;
+      if (isAccountMode) {
+        url = `${baseUrl}/api/me/journal/likes/${like.id}`;
+      } else {
+        const id = getClientId();
+        if (!id) return;
+        url = `${baseUrl}/api/client/${id}/likes/${like.id}`;
+      }
       if (disarmTimer.current) clearTimeout(disarmTimer.current);
       setConfirmingRemoveId(null);
       try {
-        const baseUrl = getApiBaseUrl();
-        const response = await fetch(`${baseUrl}/api/client/${id}/likes/${like.id}`, {
+        const response = await fetch(url, {
           method: "DELETE",
+          credentials: "include",
           headers: { "X-Pika-Client": "pika-web" },
         });
         if (!response.ok) {
@@ -317,7 +417,7 @@ export default function MyLikesPage() {
         toast.error("Couldn't remove — try again");
       }
     },
-    [playlist],
+    [playlist, isAccountMode],
   );
 
   if (loading) {
@@ -382,6 +482,31 @@ export default function MyLikesPage() {
             </span>
           </div>
         </ProCard>
+
+        {/* ACCOUNT CARD (Slice B) — the durable anchor behind this device's journal */}
+        {session && (
+          <ProCard className="mb-8 p-6" glow glowColor="purple-500">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div className="min-w-0">
+                <p className="text-[9px] font-black text-purple-400 uppercase tracking-[0.3em] mb-1">
+                  Journal account
+                </p>
+                <p className="text-xs font-black text-white truncate">{session.user.email}</p>
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mt-1">
+                  Synced across your devices
+                  {claimedCount > 1 ? ` · ${claimedCount} devices linked` : ""}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="px-4 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/[0.06] transition-all"
+              >
+                Sign out
+              </button>
+            </div>
+          </ProCard>
+        )}
 
         {/* EXPORT CARD */}
         <ProCard className="mb-12 p-6 sm:p-8" glow glowColor="emerald-500">
@@ -533,8 +658,10 @@ export default function MyLikesPage() {
           </div>
         )}
 
-        {/* KEEP-IT-SAFE NUDGE (ITP: non-installed browsers can evict this device's journal id) */}
-        {showNudge && (
+        {/* KEEP-IT-SAFE NUDGE (ITP: non-installed browsers can evict this device's journal id).
+            Suppressed when signed in — the HttpOnly session cookie is the ITP-exempt anchor and
+            this device's likes are claimed. */}
+        {showNudge && !isAccountMode && (
           <ProCard className="mt-12 p-6 text-center" align="center">
             <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em] mb-2">
               📌 Keep your journal safe

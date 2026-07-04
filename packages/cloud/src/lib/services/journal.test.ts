@@ -302,3 +302,76 @@ describe("exportJournalPlaylist", () => {
     expect(log.upserts.length).toBe(0);
   });
 });
+
+// ---------------------------------------------------------------------------
+// adoptOrUpsertAccountPlaylistRow (Slice B3) — branch behavior via DI
+// ---------------------------------------------------------------------------
+
+import { type AdoptDeps, adoptOrUpsertAccountPlaylistRow } from "./journal";
+
+const accountRow = { spotifyPlaylistId: "pl_x", spotifyPlaylistUrl: "https://u", trackCount: 3 };
+
+function makeAdoptDeps(overrides: Partial<AdoptDeps> = {}): { deps: AdoptDeps; calls: string[] } {
+  const calls: string[] = [];
+  const deps: AdoptDeps = {
+    updateOwnRow: async () => {
+      calls.push("own");
+      return false;
+    },
+    adoptRow: async () => {
+      calls.push("adopt");
+      return false;
+    },
+    findAdoptCandidateClientId: async () => null,
+    insertAnchoredRow: async () => {
+      calls.push("insert");
+    },
+    firstClaimedClientId: async () => "client_anchor",
+    ...overrides,
+  };
+  return { deps, calls };
+}
+
+describe("adoptOrUpsertAccountPlaylistRow", () => {
+  test("branch 1: the account's own row is refreshed and nothing else runs", async () => {
+    const { deps, calls } = makeAdoptDeps({
+      updateOwnRow: async () => {
+        calls.push("own");
+        return true;
+      },
+    });
+    await adoptOrUpsertAccountPlaylistRow("u1", accountRow, deps);
+    expect(calls).toEqual(["own"]);
+  });
+
+  test("branch 2: adopts the earliest-claimed device's unowned row", async () => {
+    const { deps, calls } = makeAdoptDeps({
+      findAdoptCandidateClientId: async () => "client_first_device",
+      adoptRow: async (_u, candidate) => {
+        calls.push(`adopt:${candidate}`);
+        return true;
+      },
+    });
+    await adoptOrUpsertAccountPlaylistRow("u1", accountRow, deps);
+    expect(calls).toEqual(["own", "adopt:client_first_device"]);
+  });
+
+  test("branch 3: no candidate → inserts anchored to the earliest claimed id", async () => {
+    const { deps, calls } = makeAdoptDeps();
+    await adoptOrUpsertAccountPlaylistRow("u1", accountRow, deps);
+    expect(calls).toEqual(["own", "insert"]);
+  });
+
+  test("adopt race lost (partial unique) → falls through to insert", async () => {
+    const { deps, calls } = makeAdoptDeps({
+      findAdoptCandidateClientId: async () => "client_c",
+    });
+    await adoptOrUpsertAccountPlaylistRow("u1", accountRow, deps);
+    expect(calls).toEqual(["own", "adopt", "insert"]);
+  });
+
+  test("unreachable guard: no claimed id at insert time throws loudly", async () => {
+    const { deps } = makeAdoptDeps({ firstClaimedClientId: async () => null });
+    expect(adoptOrUpsertAccountPlaylistRow("u1", accountRow, deps)).rejects.toThrow(/unreachable/);
+  });
+});

@@ -1,9 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mockFetch, render, screen, userEvent, waitFor } from "../../test/rtl";
+
+// Deterministic session state (default: signed out → device mode, the pre-Slice-B behavior).
+vi.mock("@/lib/authClient", () => ({
+  authClient: {
+    useSession: vi.fn(() => ({ data: null, isPending: false })),
+    signOut: vi.fn(async () => ({})),
+  },
+}));
+
+import { authClient } from "@/lib/authClient";
 import MyLikesPage from "./page";
+
+function signedInAs(email: string): void {
+  vi.mocked(authClient.useSession).mockReturnValue({
+    data: { user: { id: "u1", email } },
+    isPending: false,
+  } as unknown as ReturnType<typeof authClient.useSession>);
+}
 
 beforeEach(() => {
   localStorage.clear();
+  vi.mocked(authClient.useSession).mockReturnValue({ data: null, isPending: false } as ReturnType<
+    typeof authClient.useSession
+  >);
 });
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -318,6 +338,43 @@ describe("MyLikesPage", () => {
     );
     expect(screen.getByText("Doomed Song")).toBeInTheDocument();
     expect(screen.getByText(/1 moments captured/i)).toBeInTheDocument();
+  });
+
+  it("signed in: claims the device id, reads the account journal, shows the account card", async () => {
+    signedInAs("dancer@x.y");
+    localStorage.setItem("pika_client_id", "client-1");
+    const fetchMock = mockFetch({
+      "/telemetry/events": { status: 204, body: null },
+      "/me/journal/claim": { status: "claimed" },
+      "/me/journal": {
+        totalLikes: 2,
+        limit: 100,
+        offset: 0,
+        claimedCount: 2,
+        likes: [like(1, "s1", { title: "From Phone" }), like(2, "s1", { title: "From Laptop" })],
+        playlist: null,
+      },
+      "/likes?": { status: 500, body: { error: "device read must not run in account mode" } },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MyLikesPage />);
+
+    expect(await screen.findByText("dancer@x.y")).toBeInTheDocument();
+    expect(screen.getByText(/2 devices linked/i)).toBeInTheDocument();
+    expect(screen.getByText("From Phone")).toBeInTheDocument();
+
+    // The device id was claimed for the account before the union read.
+    const claim = fetchMock.mock.calls.find(
+      ([url, init]) =>
+        String(url).includes("/me/journal/claim") &&
+        (init as RequestInit | undefined)?.method === "POST",
+    );
+    expect(claim).toBeTruthy();
+    expect(String((claim?.[1] as RequestInit).body)).toContain("client-1");
+    // The signed-in view never fetched the device read.
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/api/client/"))).toBe(false);
+    // Nudge suppressed — the session cookie is the ITP-exempt anchor.
+    expect(screen.queryByText(/keep your journal safe/i)).toBeNull();
   });
 
   it("hides the nudge when running as an installed app (standalone)", async () => {
