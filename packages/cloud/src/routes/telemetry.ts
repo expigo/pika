@@ -29,6 +29,8 @@ export const PRODUCT_EVENTS = [
   "account_claim_conflict",
   "account_signed_out",
   "account_deletion_requested",
+  "account_otp_requested",
+  "account_device_unlinked",
 ] as const;
 
 const EventBody = z.object({

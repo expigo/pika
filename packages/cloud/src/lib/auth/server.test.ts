@@ -14,14 +14,11 @@ describe("Better Auth rate-limit wiring", () => {
     const rules = auth.options.rateLimit?.customRules as
       | Record<string, { window: number; max: number }>
       | undefined;
-    expect(rules?.["/sign-in/magic-link"]).toEqual({
-      window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC,
-      max: LIMITS.AUTH_EMAIL_IP_MAX,
-    });
-    expect(rules?.["/delete-user"]).toEqual({
-      window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC,
-      max: LIMITS.AUTH_EMAIL_IP_MAX,
-    });
+    const expected = { window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC, max: LIMITS.AUTH_EMAIL_IP_MAX };
+    expect(rules?.["/sign-in/magic-link"]).toEqual(expected);
+    expect(rules?.["/email-otp/send-verification-otp"]).toEqual(expected);
+    expect(rules?.["/sign-in/email-otp"]).toEqual(expected);
+    expect(rules?.["/delete-user"]).toEqual(expected);
   });
 
   test("limiter enablement is pinned to NODE_ENV=production (off in this test env)", () => {

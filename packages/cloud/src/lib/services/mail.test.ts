@@ -9,12 +9,14 @@ import {
   type AuthMailDeps,
   handleDeletionEmailSend,
   handleMagicLinkSend,
+  handleOtpSend,
   type MailDeps,
   MailNotConfiguredError,
   MailSendError,
   MailThrottledError,
   sendEmail,
   sendMagicLinkEmail,
+  sendSignInOtpEmail,
 } from "./mail";
 
 interface FetchCall {
@@ -107,10 +109,10 @@ describe("sendMagicLinkEmail", () => {
 /** Throttle-aware auth send handlers — verdicts map to send/silent-skip/loud-throw. */
 function makeAuthDeps(verdict: EmailThrottleVerdict): {
   deps: AuthMailDeps;
-  sends: { kind: string; to: string; url: string }[];
+  sends: { sender: string; to: string; payload: string }[];
   acquired: { kind: string; email: string }[];
 } {
-  const sends: { kind: string; to: string; url: string }[] = [];
+  const sends: { sender: string; to: string; payload: string }[] = [];
   const acquired: { kind: string; email: string }[] = [];
   const throttle: EmailThrottle = {
     tryAcquire: (kind, email) => {
@@ -121,11 +123,15 @@ function makeAuthDeps(verdict: EmailThrottleVerdict): {
   const deps: AuthMailDeps = {
     throttle,
     sendMagicLink: async ({ to, url }) => {
-      sends.push({ kind: "magic-link", to, url });
+      sends.push({ sender: "magic-link", to, payload: url });
+      return { delivered: true };
+    },
+    sendOtp: async ({ to, otp }) => {
+      sends.push({ sender: "otp", to, payload: otp });
       return { delivered: true };
     },
     sendDeletion: async ({ to, url }) => {
-      sends.push({ kind: "account-deletion", to, url });
+      sends.push({ sender: "deletion", to, payload: url });
       return { delivered: true };
     },
   };
@@ -134,30 +140,57 @@ function makeAuthDeps(verdict: EmailThrottleVerdict): {
 
 const authArgs = { email: "d@e.f", url: "https://api.test/verify?token=x" };
 
-describe("handleMagicLinkSend / handleDeletionEmailSend", () => {
+describe("handleMagicLinkSend / handleOtpSend / handleDeletionEmailSend", () => {
   test("ok → sends and reports 'sent'", async () => {
     const { deps, sends, acquired } = makeAuthDeps("ok");
     expect(await handleMagicLinkSend(authArgs, deps)).toBe("sent");
-    expect(sends).toEqual([{ kind: "magic-link", to: "d@e.f", url: authArgs.url }]);
-    expect(acquired).toEqual([{ kind: "magic-link", email: "d@e.f" }]);
+    expect(sends).toEqual([{ sender: "magic-link", to: "d@e.f", payload: authArgs.url }]);
+    expect(acquired).toEqual([{ kind: "sign-in", email: "d@e.f" }]);
+  });
+
+  test("link and OTP share ONE 'sign-in' throttle kind (no doubled per-inbox budget)", async () => {
+    const { deps, sends, acquired } = makeAuthDeps("ok");
+    expect(await handleOtpSend({ email: "d@e.f", otp: "123456" }, deps)).toBe("sent");
+    expect(sends).toEqual([{ sender: "otp", to: "d@e.f", payload: "123456" }]);
+    expect(acquired).toEqual([{ kind: "sign-in", email: "d@e.f" }]);
   });
 
   test("address_limited → silent skip, nothing sent (anti-enumeration)", async () => {
     const { deps, sends } = makeAuthDeps("address_limited");
     expect(await handleMagicLinkSend(authArgs, deps)).toBe("skipped");
+    expect(await handleOtpSend({ email: "d@e.f", otp: "123456" }, deps)).toBe("skipped");
     expect(sends.length).toBe(0);
   });
 
   test("daily_capped → throws MailThrottledError, nothing sent (loud ops signal)", async () => {
     const { deps, sends } = makeAuthDeps("daily_capped");
     expect(handleMagicLinkSend(authArgs, deps)).rejects.toThrow(MailThrottledError);
+    expect(handleOtpSend({ email: "d@e.f", otp: "123456" }, deps)).rejects.toThrow(
+      MailThrottledError,
+    );
     expect(sends.length).toBe(0);
   });
 
   test("deletion handler uses its own throttle kind and the deletion sender", async () => {
     const { deps, sends, acquired } = makeAuthDeps("ok");
     expect(await handleDeletionEmailSend(authArgs, deps)).toBe("sent");
-    expect(sends).toEqual([{ kind: "account-deletion", to: "d@e.f", url: authArgs.url }]);
+    expect(sends).toEqual([{ sender: "deletion", to: "d@e.f", payload: authArgs.url }]);
     expect(acquired).toEqual([{ kind: "account-deletion", email: "d@e.f" }]);
+  });
+});
+
+describe("sendSignInOtpEmail", () => {
+  test("puts the code in html AND text, with the uniquifier", async () => {
+    const { deps, calls } = makeDeps();
+    await sendSignInOtpEmail({ to: "d@e.f", otp: "481227" }, deps);
+    const body = JSON.parse(String(calls[0]?.init?.body)) as {
+      subject: string;
+      text: string;
+      html: string;
+    };
+    expect(body.subject).toBe("Your Pika! sign-in code");
+    expect(body.html).toContain("481227");
+    expect(body.text).toContain("481227");
+    expect(body.text).toMatch(/Requested at /);
   });
 });

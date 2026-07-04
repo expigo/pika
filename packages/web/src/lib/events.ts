@@ -24,7 +24,9 @@ export type ProductEvent =
   | "account_linked"
   | "account_claim_conflict"
   | "account_signed_out"
-  | "account_deletion_requested";
+  | "account_deletion_requested"
+  | "account_otp_requested"
+  | "account_device_unlinked";
 
 export function trackEvent(event: ProductEvent, props?: Record<string, unknown>): void {
   if (typeof window === "undefined") return;

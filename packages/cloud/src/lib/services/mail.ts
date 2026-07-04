@@ -160,6 +160,32 @@ export async function sendAccountDeletionEmail(
   );
 }
 
+/**
+ * Sign-in code for the installed PWA: iOS gives a home-screen app its own cookie jar, and mail
+ * links always open in the browser — a link can never sign the PWA in. A code typed INSIDE the
+ * app mints the session in the right jar.
+ */
+export async function sendSignInOtpEmail(
+  { to, otp }: { to: string; otp: string },
+  deps: MailDeps = defaultMailDeps,
+): Promise<{ delivered: boolean }> {
+  const stamp = requestedAtStamp();
+  return sendEmail(
+    {
+      to,
+      subject: "Your Pika! sign-in code",
+      html: emailShell(
+        "Your sign-in code",
+        "Enter this code in the Pika! app on the device you want your Journal on. It expires in 5 minutes.",
+        `<p style="margin:0;background:#0f172a;color:#fff;padding:14px 20px;border-radius:12px;display:inline-block;font-size:28px;font-weight:700;letter-spacing:6px;font-family:ui-monospace,monospace">${otp}</p>`,
+        stamp,
+      ),
+      text: `Your Pika! sign-in code: ${otp}\n\nEnter it in the Pika! app on the device you want your Journal on. It expires in 5 minutes. If you didn't request it, ignore this email.\nRequested at ${stamp}`,
+    },
+    deps,
+  );
+}
+
 /** Log-safe address form — target addresses are PII and must not land in logs verbatim. */
 function maskEmail(email: string): string {
   const [local = "", domain = ""] = email.split("@");
@@ -169,43 +195,47 @@ function maskEmail(email: string): string {
 export interface AuthMailDeps {
   throttle: EmailThrottle;
   sendMagicLink: typeof sendMagicLinkEmail;
+  sendOtp: typeof sendSignInOtpEmail;
   sendDeletion: typeof sendAccountDeletionEmail;
 }
 
 export const defaultAuthMailDeps: AuthMailDeps = {
   throttle: mailThrottle,
   sendMagicLink: sendMagicLinkEmail,
+  sendOtp: sendSignInOtpEmail,
   sendDeletion: sendAccountDeletionEmail,
 };
 
 /**
- * Auth email sends behind the abuse throttle (the magic-link endpoint is PUBLIC — anyone can
- * make Pika email any address). Verdict handling is deliberately asymmetric:
+ * Auth email sends behind the abuse throttle (the sign-in endpoints are PUBLIC — anyone can
+ * make Pika email any address). Magic link and OTP share ONE "sign-in" per-address budget —
+ * separate kinds would double an attacker's per-inbox allowance. Verdict handling is
+ * deliberately asymmetric:
  *  - address_limited → skip silently ("skipped"): the endpoint still answers 200, so probing
- *    reveals nothing, and that inbox already received fresh links moments ago.
+ *    reveals nothing, and that inbox already received fresh links/codes moments ago.
  *  - daily_capped → throw: every auth email is dead until ops intervenes (raise MAIL_DAILY_CAP /
  *    upgrade Resend) — that must surface as errors, never as quietly missing email.
- * Note: Better Auth mints the verification token BEFORE this callback, so a skipped send never
- * strands a request mid-flow — the token simply goes undelivered.
+ * Note: Better Auth mints the verification token/code BEFORE this callback, so a skipped send
+ * never strands a request mid-flow — it simply goes undelivered.
  */
 async function sendThrottledAuthEmail(
-  kind: "magic-link" | "account-deletion",
-  args: { email: string; url: string },
-  send: (input: { to: string; url: string }) => Promise<{ delivered: boolean }>,
+  kind: "sign-in" | "account-deletion",
+  email: string,
+  send: () => Promise<{ delivered: boolean }>,
   throttle: EmailThrottle,
 ): Promise<"sent" | "skipped"> {
-  const verdict = throttle.tryAcquire(kind, args.email);
+  const verdict = throttle.tryAcquire(kind, email);
   if (verdict === "daily_capped") {
     logger.error(`❌ Daily email fuse tripped — ${kind} sends are failing`, undefined, {
-      to: maskEmail(args.email),
+      to: maskEmail(email),
     });
     throw new MailThrottledError();
   }
   if (verdict === "address_limited") {
-    logger.warn(`🛑 ${kind} send throttled for address`, { to: maskEmail(args.email) });
+    logger.warn(`🛑 ${kind} send throttled for address`, { to: maskEmail(email) });
     return "skipped";
   }
-  await send({ to: args.email, url: args.url });
+  await send();
   return "sent";
 }
 
@@ -213,12 +243,34 @@ export async function handleMagicLinkSend(
   args: { email: string; url: string },
   deps: AuthMailDeps = defaultAuthMailDeps,
 ): Promise<"sent" | "skipped"> {
-  return sendThrottledAuthEmail("magic-link", args, deps.sendMagicLink, deps.throttle);
+  return sendThrottledAuthEmail(
+    "sign-in",
+    args.email,
+    () => deps.sendMagicLink({ to: args.email, url: args.url }),
+    deps.throttle,
+  );
+}
+
+export async function handleOtpSend(
+  args: { email: string; otp: string },
+  deps: AuthMailDeps = defaultAuthMailDeps,
+): Promise<"sent" | "skipped"> {
+  return sendThrottledAuthEmail(
+    "sign-in",
+    args.email,
+    () => deps.sendOtp({ to: args.email, otp: args.otp }),
+    deps.throttle,
+  );
 }
 
 export async function handleDeletionEmailSend(
   args: { email: string; url: string },
   deps: AuthMailDeps = defaultAuthMailDeps,
 ): Promise<"sent" | "skipped"> {
-  return sendThrottledAuthEmail("account-deletion", args, deps.sendDeletion, deps.throttle);
+  return sendThrottledAuthEmail(
+    "account-deletion",
+    args.email,
+    () => deps.sendDeletion({ to: args.email, url: args.url }),
+    deps.throttle,
+  );
 }

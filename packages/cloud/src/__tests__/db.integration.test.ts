@@ -147,6 +147,38 @@ async function signUpDancer(): Promise<{ userId: string; token: string; email: s
   return magicLinkSignIn(`dancer_${rnd}@itest.dev`);
 }
 
+/**
+ * Sign in via the email-OTP path (Slice B.5 — the PWA-jar mechanism): request the code (keyless
+ * fallback logs it; it also lands in `verification` as `sign-in-otp-<email>` → `<otp>:<attempts>`),
+ * read it from the table, then verify — same dancer-role hook as magic link.
+ */
+async function otpSignIn(email: string): Promise<{ userId: string; token: string }> {
+  await auth.api.sendVerificationOTP({ body: { email, type: "sign-in" }, headers: new Headers() });
+  const [row] = await db
+    .select({ value: schema.verification.value })
+    .from(schema.verification)
+    .where(eq(schema.verification.identifier, `sign-in-otp-${email}`))
+    .orderBy(desc(schema.verification.createdAt))
+    .limit(1);
+  const otp = row?.value.split(":")[0] ?? "";
+  if (!otp) throw new Error(`no sign-in OTP row found for ${email}`);
+  const { headers, response } = await auth.api.signInEmailOTP({
+    body: { email, otp },
+    headers: new Headers(),
+    returnHeaders: true,
+  });
+  const token = headers.get("set-auth-token") ?? "";
+  const userId = (response as { user?: { id: string } }).user?.id ?? "";
+  if (userId) return { userId, token };
+  const [u] = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, email))
+    .limit(1);
+  if (!u) throw new Error(`OTP sign-in did not create a user for ${email}`);
+  return { userId: u.id, token };
+}
+
 suite("DB integration (real Postgres)", () => {
   const sessionId = `itest_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const clientId = "itest-client";
@@ -2172,6 +2204,52 @@ suite("DB integration (real Postgres)", () => {
       const [u] = await db.select().from(schema.user).where(eq(schema.user.id, d.userId));
       expect(u?.role).toBe("dancer");
       expect(u?.status).toBe("approved");
+    });
+
+    test("OTP sign-in (PWA path) mints role=dancer, status=approved via the same hook", async () => {
+      const rnd = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const email = `otp_dancer_${rnd}@itest.dev`;
+      const d = await otpSignIn(email);
+      createdUserIds.push(d.userId);
+      expect(d.token.length).toBeGreaterThan(0);
+      const [u] = await db.select().from(schema.user).where(eq(schema.user.id, d.userId));
+      expect(u?.role).toBe("dancer");
+      expect(u?.status).toBe("approved");
+      expect(u?.slug).toBeNull();
+    });
+
+    test("an existing DJ who signs in via OTP is NOT demoted", async () => {
+      const dj = await signUpDj({ approved: true });
+      createdUserIds.push(dj.userId);
+      const again = await otpSignIn(dj.email);
+      expect(again.userId).toBe(dj.userId);
+      const [u] = await db.select().from(schema.user).where(eq(schema.user.id, dj.userId));
+      expect(u?.role).toBe("dj");
+      expect(u?.status).toBe("approved");
+    });
+
+    test("link + OTP share one per-address budget; throttled sends stay invisible", async () => {
+      // 3 sends/h per address across BOTH mechanisms: 2 links + 1 OTP consume it; the 4th
+      // request (either kind) is silently skipped — endpoint still succeeds, row still mints.
+      const email = `combo_${Date.now().toString(36)}@itest.dev`;
+      await auth.api.signInMagicLink({ body: { email }, headers: new Headers() });
+      await auth.api.signInMagicLink({ body: { email }, headers: new Headers() });
+      await auth.api.sendVerificationOTP({
+        body: { email, type: "sign-in" },
+        headers: new Headers(),
+      });
+      // Budget exhausted — both kinds must still return success (anti-enumeration).
+      await auth.api.signInMagicLink({ body: { email }, headers: new Headers() });
+      await auth.api.sendVerificationOTP({
+        body: { email, type: "sign-in" },
+        headers: new Headers(),
+      });
+      const [otpRow] = await db
+        .select({ value: schema.verification.value })
+        .from(schema.verification)
+        .where(eq(schema.verification.identifier, `sign-in-otp-${email}`))
+        .limit(1);
+      expect(otpRow?.value).toBeTruthy();
     });
 
     test("throttled magic-link sends stay invisible: rapid repeats all succeed, tokens still mint", async () => {

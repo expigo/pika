@@ -12,11 +12,11 @@ import { LIMITS, logger, slugify, URLS } from "@pika/shared";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { createAuthMiddleware } from "better-auth/api";
-import { admin as adminPlugin, bearer, magicLink } from "better-auth/plugins";
+import { admin as adminPlugin, bearer, emailOTP, magicLink } from "better-auth/plugins";
 import { and, eq, notExists, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { account, user } from "../../db/auth-schema";
-import { handleDeletionEmailSend, handleMagicLinkSend } from "../services/mail";
+import { handleDeletionEmailSend, handleMagicLinkSend, handleOtpSend } from "../services/mail";
 import { ac, admin, dancer, dj } from "./permissions";
 
 function trustedOrigins(): string[] {
@@ -79,6 +79,16 @@ export const auth = betterAuth({
         window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC,
         max: LIMITS.AUTH_EMAIL_IP_MAX,
       },
+      // customRules take precedence over the emailOTP plugin's built-in 3/min rule — that
+      // default is too tight for a venue NAT (one social = many dancers behind one IP).
+      "/email-otp/send-verification-otp": {
+        window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC,
+        max: LIMITS.AUTH_EMAIL_IP_MAX,
+      },
+      "/sign-in/email-otp": {
+        window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC,
+        max: LIMITS.AUTH_EMAIL_IP_MAX,
+      },
       "/delete-user": { window: LIMITS.AUTH_EMAIL_IP_WINDOW_SEC, max: LIMITS.AUTH_EMAIL_IP_MAX },
     },
   },
@@ -112,7 +122,9 @@ export const auth = betterAuth({
     // existing DJ who signs in via magic link, and self-heals on the next sign-in if a patch
     // ever fails. NOTE: revisit this predicate if a social provider is ever added.
     after: createAuthMiddleware(async (ctx) => {
-      if (ctx.path !== "/magic-link/verify") return;
+      // Both passwordless verify paths mint dancer sessions: the mailed link and the typed
+      // code (the code exists because an installed PWA's cookie jar is unreachable by links).
+      if (ctx.path !== "/magic-link/verify" && ctx.path !== "/sign-in/email-otp") return;
       const newUser = ctx.context.newSession?.user;
       if (!newUser) return;
       try {
@@ -149,6 +161,18 @@ export const auth = betterAuth({
       expiresIn: 60 * 10,
       sendMagicLink: async ({ email, url }) => {
         await handleMagicLinkSend({ email, url });
+      },
+    }),
+    emailOTP({
+      // Sign-in codes ONLY. The plugin also registers email-verification and password-reset
+      // OTP routes; by never sending those types, their codes are undeliverable and the flows
+      // stay dead (dancers have no password — reset must not become a side door).
+      sendVerificationOTP: async ({ email, otp, type }) => {
+        if (type !== "sign-in") {
+          logger.warn("🛑 Ignoring non-sign-in OTP request", { type });
+          return;
+        }
+        await handleOtpSend({ email, otp });
       },
     }),
   ],

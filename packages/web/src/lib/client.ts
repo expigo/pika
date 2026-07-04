@@ -7,6 +7,16 @@ import { safeRandomUUID } from "./uuid";
 
 export const CLIENT_ID_KEY = "pika_client_id";
 
+/** Installed-PWA check (guarded for happy-dom + older Safari's legacy flag). */
+export function isStandalone(): boolean {
+  if (typeof window === "undefined") return true;
+  const viaMediaQuery =
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(display-mode: standalone)").matches;
+  const viaLegacyFlag = (navigator as unknown as { standalone?: boolean }).standalone === true;
+  return viaMediaQuery || viaLegacyFlag;
+}
+
 /**
  * Get or create a persistent client ID
  * Used for anonymous dancer identity (likes, votes, etc.)

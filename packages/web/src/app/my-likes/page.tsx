@@ -9,6 +9,7 @@ import { ProCard } from "@/components/ui/ProCard";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { getApiBaseUrl } from "@/lib/api";
 import { authClient } from "@/lib/authClient";
+import { isStandalone } from "@/lib/client";
 import { trackEvent } from "@/lib/events";
 import {
   clearAccountHint,
@@ -109,16 +110,6 @@ function slugify(name: string): string {
     .replace(/[^a-z0-9-]/g, "")
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-/** Installed-PWA check (guarded for happy-dom + older Safari's legacy flag). */
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return true;
-  const viaMediaQuery =
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(display-mode: standalone)").matches;
-  const viaLegacyFlag = (navigator as unknown as { standalone?: boolean }).standalone === true;
-  return viaMediaQuery || viaLegacyFlag;
 }
 
 function isIosBrowser(): boolean {
