@@ -27,6 +27,7 @@ import {
   startPollForSession,
 } from "../lib/polls";
 import { parseMessage, sendAck, sendNack } from "../lib/protocol";
+import { maskClientId } from "../lib/services/identity";
 import { getSessionBroadcastTopic } from "../lib/sessions";
 import { checkBackpressure } from "./utility";
 import type { WSContext } from "./ws-context";
@@ -161,7 +162,10 @@ export async function handleVoteOnPoll(ctx: WSContext) {
   if (poll) {
     // 🔐 Security: Check if client already voted
     if (poll.votedClients.has(state.clientId)) {
-      logger.debug(`⚠️ User already voted for poll`, { clientId: state.clientId, pollId });
+      logger.debug(`⚠️ User already voted for poll`, {
+        clientId: maskClientId(state.clientId),
+        pollId,
+      });
       if (messageId) sendAck(ws, messageId);
       return;
     }

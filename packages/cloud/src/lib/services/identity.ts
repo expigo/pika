@@ -18,6 +18,14 @@ import { clientIdentities } from "../../db/schema";
  */
 export const CLIENT_ID_REGEX = /^client_[a-zA-Z0-9_-]+$/i;
 
+/**
+ * Log-safe clientId form. The full id is a bearer credential (read + claim), so logs are the one
+ * realistic leak channel — keep the prefix for correlation, drop the entropy.
+ */
+export function maskClientId(id: string): string {
+  return `${id.slice(0, 15)}…`;
+}
+
 export type ClaimOutcome = "claimed" | "already_yours" | "conflict";
 
 export interface ClaimDeps {

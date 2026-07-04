@@ -13,7 +13,7 @@ import { and, count, desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { db, schema } from "../db";
-import { CLIENT_ID_REGEX } from "../lib/services/identity";
+import { CLIENT_ID_REGEX, maskClientId } from "../lib/services/identity";
 import {
   enrichLikesWithSessions,
   exportJournalPlaylist,
@@ -78,7 +78,11 @@ client.get("/:clientId/likes", async (c) => {
   const offset = clampInt(c.req.query("offset"), 0, Number.MAX_SAFE_INTEGER, 0);
 
   try {
-    logger.debug("🔍 Fetching likes for client", { clientId, limit, offset });
+    logger.debug("🔍 Fetching likes for client", {
+      clientId: maskClientId(clientId),
+      limit,
+      offset,
+    });
     const [countRows, likeRows, playlistRows] = await Promise.all([
       db.select({ n: count() }).from(schema.likes).where(eq(schema.likes.clientId, clientId)),
       db

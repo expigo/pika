@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, test } from "bun:test";
-import { CLIENT_ID_REGEX, type ClaimDeps, claimClientId } from "./identity";
+import { CLIENT_ID_REGEX, type ClaimDeps, claimClientId, maskClientId } from "./identity";
 
 function makeDeps(overrides: Partial<ClaimDeps> = {}): ClaimDeps {
   return {
@@ -13,6 +13,14 @@ function makeDeps(overrides: Partial<ClaimDeps> = {}): ClaimDeps {
     ...overrides,
   };
 }
+
+describe("maskClientId", () => {
+  test("keeps the correlation prefix, drops the credential entropy", () => {
+    const masked = maskClientId("client_1767210922083_w3xhs6skmrh");
+    expect(masked).toBe("client_17672109…");
+    expect(masked).not.toContain("w3xhs6skmrh");
+  });
+});
 
 describe("claimClientId", () => {
   test("fresh id → claimed", async () => {
