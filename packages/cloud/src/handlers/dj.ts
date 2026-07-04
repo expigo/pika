@@ -33,7 +33,7 @@ import {
   announceToSession,
   cancelSessionAnnouncement,
 } from "../lib/announcements";
-import { getUserFromToken } from "../lib/auth";
+import { getUserFromToken, hasDjAccess } from "../lib/auth";
 import { clearLikesForSession } from "../lib/likes";
 import { clearListeners } from "../lib/listeners";
 import { applyNowPlaying, createLiveSession } from "../lib/live-session";
@@ -143,17 +143,18 @@ export async function handleRegisterSession(ctx: WSContext) {
 
   if (djToken) {
     const djUser = await getUserFromToken(djToken);
-    if (djUser && djUser.status === "approved") {
+    if (djUser && hasDjAccess(djUser) === "ok") {
       djUserId = djUser.id;
       djName = djUser.name; // Use registered name
       logger.info("🔐 Authenticated DJ", { djName, djUserId });
     } else if (djUser) {
-      // Valid session but not yet approved — withhold verified identity (parity
-      // with the REST requireDjAuth 403 gate). Falls through to anonymous mode,
-      // which any tokenless client may already use; no verified-profile linkage.
-      logger.warn("⚠️ DJ account not approved, using anonymous mode", {
+      // Valid session but not approved OR not a DJ-capable role (a Slice-B dancer token must
+      // never register a verified DJ identity) — parity with the REST requireDjAuth gate.
+      // Falls through to anonymous mode, which any tokenless client may already use.
+      logger.warn("⚠️ DJ account not approved or not DJ-capable, using anonymous mode", {
         djUserId: djUser.id,
         status: djUser.status,
+        role: djUser.role,
       });
     } else {
       logger.warn("⚠️ Invalid token provided, using anonymous mode");

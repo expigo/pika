@@ -39,6 +39,8 @@ services:
       - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
       - SPOTIFY_REDIRECT_URI=${SPOTIFY_REDIRECT_URI:-https://api.pika.stream/api/spotify/callback}
       - TOKEN_ENCRYPTION_KEY=${TOKEN_ENCRYPTION_KEY}
+      - RESEND_API_KEY=${RESEND_API_KEY}
+      - MAIL_FROM=${MAIL_FROM:-Pika! <journal@pika.stream>}
       - WEB_BASE_URL=${WEB_BASE_URL:-https://pika.stream}
       # Better Auth (DJ + admin auth authority). SECRET is a real secret → VPS .env
       # (openssl rand -base64 32). URL must be the API origin so the session cookie is

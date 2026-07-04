@@ -15,7 +15,7 @@
  */
 
 import { logger } from "@pika/shared";
-import { desc, eq, isNull, max, sql } from "drizzle-orm";
+import { desc, eq, isNull, max, ne, or, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
@@ -74,6 +74,8 @@ admin.get("/djs", async (c) => {
     .from(user)
     .leftJoin(session, eq(session.userId, user.id))
     .leftJoin(spotifyConnections, eq(spotifyConnections.djUserId, user.id))
+    // Slice B: dancer accounts are not DJs — keep them out of the approval queue.
+    .where(or(isNull(user.role), ne(user.role, "dancer")))
     .groupBy(user.id, spotifyConnections.status)
     .orderBy(sql`(${user.status} = 'pending') desc`, desc(user.createdAt));
   return c.json({ djs: rows });

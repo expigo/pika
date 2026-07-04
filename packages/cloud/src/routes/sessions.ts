@@ -16,7 +16,7 @@ import { LIMITS, logger } from "@pika/shared";
 import { and, count, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { db, schema } from "../db";
-import { getUserFromToken } from "../lib/auth";
+import { getUserFromToken, hasDjAccess } from "../lib/auth";
 import { withCache } from "../lib/cache";
 import { getListenerCount } from "../lib/listeners";
 import { getAllSessions, getSessionAudienceKey } from "../lib/sessions";
@@ -227,11 +227,14 @@ async function buildRecap(
     });
   }
 
-  // Conditional access: only the session OWNER gets poll data (privacy).
+  // Conditional access: only the session OWNER gets poll data (privacy). Role check is defense
+  // in depth — post-tightening a dancer can never own a session, but the check is free.
   let isAuthenticated = false;
   if (token) {
     const user = await getUserFromToken(token);
-    if (user && dbSession.djUserId === user.id) isAuthenticated = true;
+    if (user && dbSession.djUserId === user.id && hasDjAccess(user) === "ok") {
+      isAuthenticated = true;
+    }
   }
 
   let pollsWithResults: unknown[] = [];
@@ -419,6 +422,10 @@ sessions.post("/:sessionId/sync-fingerprints", async (c) => {
   const user = await getUserFromToken(token);
   if (!user) {
     return c.json({ error: "Invalid or expired token" }, 401);
+  }
+  // A valid session alone is not enough — a Slice-B dancer token must not write analysis data.
+  if (hasDjAccess(user) !== "ok") {
+    return c.json({ error: "Forbidden" }, 403);
   }
 
   const body = await c.req.json<{

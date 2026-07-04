@@ -44,11 +44,38 @@ export async function getUserFromToken(token: string): Promise<AuthUser | null> 
   return session?.user ?? null;
 }
 
-/** Require an authenticated, **approved** user (DJ or admin). */
+/**
+ * DJ-surface access: approved AND role dj/admin. Pure — unit-testable without a session.
+ * A dancer account (Slice B) is auto-approved but must never pass a DJ surface, so the status
+ * check alone is NOT sufficient anywhere DJ powers are granted.
+ */
+export function hasDjAccess(u: {
+  role?: string | null | undefined;
+  status?: string | null | undefined;
+}): "ok" | "unapproved" | "forbidden" {
+  if (u.status !== "approved") return "unapproved";
+  return u.role === "dj" || u.role === "admin" ? "ok" : "forbidden";
+}
+
+/** Require an authenticated, **approved** user with a DJ-capable role (dj or admin). */
 export const requireDjAuth: MiddlewareHandler = async (c, next) => {
   const user = await resolveUser(c);
   if (!user) return c.json({ error: "Authentication required" }, 401);
-  if (user.status !== "approved") return c.json({ error: "Account not approved" }, 403);
+  const access = hasDjAccess(user);
+  if (access === "unapproved") return c.json({ error: "Account not approved" }, 403);
+  if (access === "forbidden") return c.json({ error: "Forbidden" }, 403);
+  c.set("user", user);
+  await next();
+  return;
+};
+
+/**
+ * Require ANY authenticated user — role/status-agnostic (401 only). The /api/me journal surface:
+ * dancers are auto-approved, and DJs (even pending ones) may have journals too.
+ */
+export const requireAuth: MiddlewareHandler = async (c, next) => {
+  const user = await resolveUser(c);
+  if (!user) return c.json({ error: "Authentication required" }, 401);
   c.set("user", user);
   await next();
   return;

@@ -5,7 +5,15 @@
  */
 
 // Auth guards (Better Auth)
-export { getUser, getUserFromToken, requireAdmin, requireDjAuth, requireRole } from "./auth";
+export {
+  getUser,
+  getUserFromToken,
+  hasDjAccess,
+  requireAdmin,
+  requireAuth,
+  requireDjAuth,
+  requireRole,
+} from "./auth";
 // Cache utilities
 export {
   cachedListenerCounts,

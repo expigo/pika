@@ -22,7 +22,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { getTrackKey } from "@pika/shared";
 import type { ServerWebSocket } from "bun";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { client, db, schema } from "../db";
 import { handleSubscribeStage } from "../handlers/subscriber";
 import type { WSContext } from "../handlers/ws-context";
@@ -68,6 +68,7 @@ import { getStageTopic } from "../lib/topics";
 import { adminRoutes as adminRoute } from "../routes/admin";
 import { client as clientRoutes } from "../routes/client";
 import { dj as djRoute } from "../routes/dj";
+import { djLiveRoutes } from "../routes/dj-live";
 import { playlistRoutes } from "../routes/playlist";
 import { push as pushRoute } from "../routes/push";
 import { sessions as sessionsRoute } from "../routes/sessions";
@@ -101,6 +102,45 @@ async function signUpDj(
     await db.update(schema.user).set(patch).where(eq(schema.user.id, userId));
   }
   return { userId, token, email };
+}
+
+/**
+ * Sign a magic-link token for `email` through the REAL flow (Slice B): request the link (the
+ * keyless mail fallback logs it; the token also lands in the `verification` table), read the
+ * newest token for that email from `verification`, then verify — which mints the user (on first
+ * sign-in), fires the dancer-role hook, and returns a bearer token via the `bearer` plugin.
+ */
+async function magicLinkSignIn(
+  email: string,
+): Promise<{ userId: string; token: string; email: string }> {
+  await auth.api.signInMagicLink({ body: { email }, headers: new Headers() });
+  const rows = await db
+    .select({ identifier: schema.verification.identifier, value: schema.verification.value })
+    .from(schema.verification)
+    .orderBy(desc(schema.verification.createdAt))
+    .limit(10);
+  const row = rows.find((r) => r.value.includes(email));
+  if (!row) throw new Error(`no magic-link verification row found for ${email}`);
+  const { headers, response } = await auth.api.magicLinkVerify({
+    query: { token: row.identifier },
+    headers: new Headers(),
+    returnHeaders: true,
+  });
+  const token = headers.get("set-auth-token") ?? "";
+  const userId = (response as { user?: { id: string } }).user?.id ?? "";
+  if (userId) return { userId, token, email };
+  const [u] = await db
+    .select({ id: schema.user.id })
+    .from(schema.user)
+    .where(eq(schema.user.email, email))
+    .limit(1);
+  if (!u) throw new Error(`magic-link verify did not create a user for ${email}`);
+  return { userId: u.id, token, email };
+}
+
+async function signUpDancer(): Promise<{ userId: string; token: string; email: string }> {
+  const rnd = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  return magicLinkSignIn(`dancer_${rnd}@itest.dev`);
 }
 
 suite("DB integration (real Postgres)", () => {
@@ -2088,6 +2128,102 @@ suite("DB integration (real Postgres)", () => {
       expect(body.totalLikes).toBe(1);
       expect(body.likes.some((l) => l.title === "Keep Me")).toBe(false);
       expect(body.likes.some((l) => l.title === "Drop Me")).toBe(true);
+    });
+  });
+
+  // ==========================================================================
+  // Slice B1 — dancer accounts: magic-link signup + tightened DJ guards
+  // ==========================================================================
+
+  describe("dancer accounts (Slice B1): magic-link signup + guard tightening", () => {
+    const createdUserIds: string[] = [];
+
+    afterAll(async () => {
+      if (createdUserIds.length > 0) {
+        await db.delete(schema.user).where(inArray(schema.user.id, createdUserIds));
+      }
+    });
+
+    test("magic-link signup mints role=dancer, status=approved, null slug", async () => {
+      const d = await signUpDancer();
+      createdUserIds.push(d.userId);
+      expect(d.token.length).toBeGreaterThan(0);
+      const [u] = await db.select().from(schema.user).where(eq(schema.user.id, d.userId));
+      expect(u?.role).toBe("dancer");
+      expect(u?.status).toBe("approved");
+      expect(u?.slug).toBeNull(); // name-less signup — hardened slug hook must not mint "/dj/"
+    });
+
+    test("second magic-link sign-in reuses the user and stays dancer/approved", async () => {
+      const d = await signUpDancer();
+      createdUserIds.push(d.userId);
+      const again = await magicLinkSignIn(d.email);
+      expect(again.userId).toBe(d.userId);
+      const [u] = await db.select().from(schema.user).where(eq(schema.user.id, d.userId));
+      expect(u?.role).toBe("dancer");
+      expect(u?.status).toBe("approved");
+    });
+
+    test("an existing DJ who magic-links is NOT demoted (credential row blocks the patch)", async () => {
+      const dj = await signUpDj({ approved: true });
+      createdUserIds.push(dj.userId);
+      const again = await magicLinkSignIn(dj.email);
+      expect(again.userId).toBe(dj.userId);
+      const [u] = await db.select().from(schema.user).where(eq(schema.user.id, dj.userId));
+      expect(u?.role).toBe("dj");
+      expect(u?.status).toBe("approved");
+    });
+
+    test("tightened guards: dancer token → 403 on DJ surfaces; approved DJ unaffected", async () => {
+      const dancer = await signUpDancer();
+      createdUserIds.push(dancer.userId);
+      const dj = await signUpDj({ approved: true });
+      createdUserIds.push(dj.userId);
+
+      const asDancer = { headers: { Authorization: `Bearer ${dancer.token}` } };
+      const asDj = { headers: { Authorization: `Bearer ${dj.token}` } };
+
+      // /api/live/* (dj-live router mounts requireDjAuth on "*")
+      expect((await djLiveRoutes.request("/status", asDancer)).status).toBe(403);
+      expect((await djLiveRoutes.request("/status", asDj)).status).toBe(200);
+
+      // /api/playlist/* — the shared-Spotify surface a dancer must never write to.
+      expect(
+        (
+          await playlistRoutes.request("/search", {
+            method: "POST",
+            headers: { ...asDancer.headers, "Content-Type": "application/json" },
+            body: JSON.stringify({ artist: "A", title: "T" }),
+          })
+        ).status,
+      ).toBe(403);
+
+      // /api/push/send (valid SendSchema body so zValidator passes and the GUARD decides —
+      // /send validates before auth, so a bogus body would 400 without exercising the role check)
+      expect(
+        (
+          await pushRoute.request("/send", {
+            method: "POST",
+            headers: { ...asDancer.headers, "Content-Type": "application/json" },
+            body: JSON.stringify({ payload: "hi", filter: "debug" }),
+          })
+        ).status,
+      ).toBe(403);
+
+      // sync-fingerprints: valid token but not DJ-capable → 403 (was token-valid-only).
+      expect(
+        (
+          await sessionsRoute.request(`/${sessionId}/sync-fingerprints`, {
+            method: "POST",
+            headers: { ...asDancer.headers, "Content-Type": "application/json" },
+            body: JSON.stringify({ tracks: [] }),
+          })
+        ).status,
+      ).toBe(403);
+
+      // The journal-account guard: any authenticated user passes requireAuth surfaces — covered
+      // in Slice B2/B3 blocks once /api/me exists. WS REGISTER_SESSION uses the same
+      // hasDjAccess predicate (unit-tested matrix) — a dancer token falls to anonymous mode.
     });
   });
 
