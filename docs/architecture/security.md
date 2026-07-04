@@ -2,7 +2,7 @@
 
 This document outlines the security architecture of Pika!, including implemented controls, known vulnerabilities, and remediation plans.
 
-**Last Audit:** February 1, 2026
+**Last Audit:** February 1, 2026 (threat model updated July 2026 — Slice B dancer accounts)
 **Security Score:** 10/10
 **Status:** ✅ PRODUCTION READY (All Security Issues Resolved)
 
@@ -19,7 +19,10 @@ This document outlines the security architecture of Pika!, including implemented
 | DJ Credentials | Brute force, credential stuffing | **Better Auth** (scrypt) + rate limiting ✅ |
 | Sessions / bearer | Token theft, replay attacks | Better Auth sessions (httpOnly cookie / desktop bearer), HTTPS only ✅ |
 | Session Data | Session hijacking | Token validation, ownership tracking ✅ |
-| User Privacy | Data exposure | No PII stored for dancers, localStorage-based identity |
+| User Privacy | Data exposure | Anonymous by default (localStorage `clientId`, no PII). Opt-in dancer accounts (Slice B) store ONLY the email, solely for sign-in mail; self-service email-confirmed deletion unwinds it ✅ |
+| Dancer journal | Cross-dancer reads, journal theft | 122-bit unguessable `clientId` bearer model; account reads are session-derived (never a client-supplied id); `client_identities` PK = first-claim-wins (a claimed id is never reassigned); ids masked in logs ✅ |
+| Sign-in email (public endpoints) | Email bombing, quota burn, sender-reputation damage, enumeration | Three-layer throttle: per-address (3/h shared by link+OTP, silent skip), per-IP Better Auth customRules (CF-Connecting-IP keyed), process-wide daily fuse (`MAIL_DAILY_CAP`, loud). Throttling is invisible at the endpoint (always 200) ✅ |
+| Role escalation | Dancer reaching DJ/admin surfaces; magic-link demoting a DJ | `hasDjAccess` (approved AND role ∈ {dj, admin}) on REST + WS; role patch gated on credential-absence (DJs always have a credential row) ✅ |
 | Telemetry | Data leak via monitoring | Mandatory Sentry PII scrubbing (cookies/headers/IP) ✅ |
 | Infrastructure | DDoS, origin exposure | Cloudflare Tunnel, hidden origin IP |
 

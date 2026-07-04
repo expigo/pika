@@ -104,8 +104,10 @@ bun run test:load:big
   skipped under plain `bun test`) — exercises the real `persist*` functions incl. the C3
   buffer-and-flush, the auth guards, the Songs-Catalog read path (Pika-consensus join, identity
   feed, `?missing=1`), the dual-CSV accretive merge, DJ profile management, the set-playlist
-  sync, and the dancer Journal (read/pagination/retro-enrichment, export lifecycle, like
-  removal, telemetry ingest)
+  sync, the dancer Journal (read/pagination/retro-enrichment, export lifecycle, like
+  removal, telemetry ingest), and dancer accounts (magic-link + email-OTP signup incl. the
+  role hook and DJ non-demotion, client-identity claims/rotation/unlink, union read,
+  adopt-first export, send-throttle invisibility)
 - Shared: Bun
 - Web: **dual-runner** — `bun test` (pure modules) + `vitest run` (`*.rtl.tsx`); see
   [RTL harness](#rtl-component-tests-web--desktop) below
@@ -188,7 +190,7 @@ bun run --filter @pika/cloud dev
 
 **Architecture (modular since the v0.4.0 refactor of a ~3000-line monolith):**
 - WebSocket handlers organized in `src/handlers/` (dj.ts, dancer.ts, poll.ts, `subscriber.ts` → `SUBSCRIBE_STAGE`, etc.)
-- REST route modules in `src/routes/` (sessions, stats, dj, dj-live, client, push, playlist, spotify, admin, seed, stages, telemetry; Better Auth owns `/api/auth/*`)
+- REST route modules in `src/routes/` (sessions, stats, dj, dj-live, client, me, push, playlist, spotify, admin, seed, stages, telemetry; Better Auth owns `/api/auth/*`)
 - Stage/Event model: `events → stages → sessions`; dancers follow DJ rotation on a stage; scoped push via `stage_subscriptions` (see `docs/architecture/stage-event-model.md`)
 - State-management + persistence lib modules in `src/lib/`
 - Entry point `index.ts` is wiring + lifecycle only (middleware, WS message switch, route mounts, graceful shutdown)

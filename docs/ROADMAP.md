@@ -2,7 +2,7 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** v0.5.x — Journal Slice B (dancer magic-link accounts + durable identity) done on local `staging`; next up: staging smoke (needs Resend domain verified) → prod, then pilot instrumentation
+**Current Focus:** v0.5.x — Journal Slice B live on staging (Resend verified, magic-link sign-in confirmed); B.5 staging-feedback fixes (email OTP for the installed PWA, device list/unlink, email uniquifier) done locally awaiting push; next: finish staging smoke → prod, then pilot instrumentation
 **Status:** living index — completed work lives in [CHANGELOG.md](CHANGELOG.md)
 
 > **📊 Audit Recap:** See [AUDIT_RECAP.md](archive/AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.

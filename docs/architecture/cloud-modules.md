@@ -108,22 +108,25 @@ export const handleSendLike = safeHandler(_handleSendLike);
 
 REST endpoints are organized by resource type.
 
-> **Updated June 2026:** `auth.ts` is gone — **Better Auth** owns `/api/auth/*` (mounted in `index.ts`
-> as `auth.handler`; see [auth-system.md](auth-system.md)). Added since: `seed.ts` (admin catalog seed),
-> `playlist.ts` (B3 Spotify tools incl. `POST /api/playlist/features`), `spotify.ts` (DJ + service OAuth),
-> `dj-live.ts` (web-DJ control), and the **catalog** endpoints on `admin.ts`
-> (`/api/admin/catalog{,/songs,/songs/:id}` — see [music-data-model.md](music-data-model.md)).
+> **Note:** there is no `auth.ts` — **Better Auth** owns `/api/auth/*` (mounted in `index.ts` as
+> `betterAuth.handler`; see [auth-system.md](auth-system.md)).
 
 ### File Structure
 
 ```
 packages/cloud/src/routes/
-├── auth.ts       # DJ authentication (~300 lines)
-├── sessions.ts   # Session queries
+├── sessions.ts   # Session queries (list/active/history/recap/fingerprints)
 ├── stats.ts      # Global statistics
-├── dj.ts         # DJ profile routes
-├── client.ts     # Client/dancer routes
+├── dj.ts         # DJ profile routes (public /:slug + authed profile management)
+├── dj-live.ts    # Web-DJ broadcast control (Track D)
+├── client.ts     # Anonymous dancer journal (device read, unlike, playlist export)
+├── me.ts         # Account journal (Slice B): claim, union read, unlike, export, device unlink
+├── telemetry.ts  # Product-event beacon ingest (enum-whitelisted)
 ├── push.ts       # Web Push subscriptions
+├── playlist.ts   # Spotify playlist tools (B3, incl. POST /api/playlist/features)
+├── spotify.ts    # Spotify OAuth (DJ + shared service account, BFF)
+├── admin.ts      # Admin panel: DJ approval + catalog endpoints
+├── seed.ts       # Admin catalog seed tool
 └── stages.ts     # Event/Stage provisioning (owner-scoped) + stage lookup
 ```
 
@@ -131,28 +134,36 @@ packages/cloud/src/routes/
 
 | File | Endpoints | Purpose |
 |------|-----------|---------|
-| `auth.ts` | `/api/auth/*` | Register, login, validate, profile |
-| `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap, fingerprint (Secured with ownership checks) |
+| *(Better Auth)* | `/api/auth/*` | Sign-up/in/out, sessions, admin ops, magic link, email OTP |
+| `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap, fingerprint (ownership-checked) |
 | `stats.ts` | `/api/stats/*` | Top tracks, global stats |
-| `dj.ts` | `/api/dj/*` | DJ profile by slug |
-| `client.ts` | `/api/client/*` | Liked tracks for dancers (rate-limited) |
+| `dj.ts` | `/api/dj/*` | DJ profile by slug + profile management |
+| `dj-live.ts` | `/api/live/*` | Web-DJ broadcast control channel |
+| `client.ts` | `/api/client/*` | Anonymous journal: likes read, unlike, Spotify export (rate-limited) |
+| `me.ts` | `/api/me/*` | Account journal (requireAuth): claim device id, union read, unlike, export, device unlink |
+| `telemetry.ts` | `/api/telemetry/*` | Product beacons (enum-whitelisted POST) |
 | `push.ts` | `/api/push/*` | Web Push subscription management |
-| `stages.ts` | `/api/events`, `/api/stages/*` | Create events/stages (owner-scoped), stage lookup w/ `eventName`, list owner's events |
+| `playlist.ts` | `/api/playlist/*` | DJ Spotify playlist tools |
+| `spotify.ts` | `/api/spotify/*` | Spotify OAuth flows |
+| `admin.ts` | `/api/admin/*` | DJ approval queue + catalog (`/api/admin/catalog{,/songs,/songs/:id}`) |
+| `seed.ts` | `/api/admin/seed/*` | Catalog seed (admin-gated) |
+| `stages.ts` | `/api/events`, `/api/stages/*` | Create events/stages (owner-scoped), stage lookup w/ `eventName` |
 
 ### Mounting in index.ts
 
 ```typescript
-import { auth as authRoutes } from "./routes/auth";
-import { sessions as sessionsRoutes } from "./routes/sessions";
-// ...
-
-app.route("/api/auth", authRoutes);
+app.on(["POST", "GET"], "/api/auth/*", (c) => betterAuth.handler(c.req.raw));
 app.route("/api/sessions", sessionsRoutes);
-app.route("/api/stats", statsRoutes);
 app.route("/api/dj", djRoutes);
 app.route("/api/client", clientRoutes);
+app.route("/api/me", meRoutes); // Slice B — behind csrfCheck for state-changing verbs
+app.route("/api/telemetry", telemetryRoutes);
 app.route("/api/push", pushRoutes);
-app.route("/api", stagesRoutes); // /api/events, /api/stages/*
+app.route("/api/live", djLiveRoutes);
+app.route("/api/playlist", playlistRoutes);
+app.route("/api/admin", adminRoutes);
+app.route("/api", stageRoutes); // /api/events, /api/stages/*
+// (see index.ts for the full list — stats, spotify, seed, legacy /sessions)
 ```
 
 ---

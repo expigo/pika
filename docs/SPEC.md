@@ -65,12 +65,16 @@ Pika! adheres to a "Premium First" design philosophy:
 ---
 
 ## 6. Security Mandates
-- **Authentication:** **Better Auth** is the cloud auth authority — credential (email+password) + sessions
-  + **bearer** (desktop) / **cookie** (web), Drizzle/Postgres, with an `admin` plugin (roles `dj`/`admin`)
-  and a `pending→approved` approval gate. (Replaced the former bcrypt/SHA-256-token custom auth.) See
+- **Authentication:** **Better Auth** is the cloud auth authority — credential (email+password, DJs) +
+  **magic-link / email-OTP** (optional dancer accounts, Slice B) + sessions + **bearer** (desktop) /
+  **cookie** (web), Drizzle/Postgres, with an `admin` plugin (roles `dj`/`admin`/`dancer`), a
+  `pending→approved` approval gate for DJs, and `hasDjAccess` role-gating on every DJ surface.
+  (Replaced the former bcrypt/SHA-256-token custom auth.) See
   [architecture/auth-system.md](architecture/auth-system.md) + [blueprints/auth-foundation.md](blueprints/auth-foundation.md).
-- **Rate Limiting:** Better Auth built-in (prod) + `hono-rate-limiter` on admin/playlist routers; Engagement actions throttled.
-- **CSRF:** Better Auth origin checks on `/api/auth/*`; `X-Pika-Client` header required on non-GET for `/api/{live,playlist,admin}` (`index.ts`), plus CORS allow-list.
+- **Rate Limiting:** Better Auth built-in (prod, tight customRules on the email-sending paths) +
+  `hono-rate-limiter` on admin/playlist/client/me routers; transactional email additionally throttled
+  per-address + by a process-wide daily fuse (`email-throttle.ts`); Engagement actions throttled.
+- **CSRF:** Better Auth origin checks on `/api/auth/*`; `X-Pika-Client` header required on non-GET for `/api/{live,playlist,admin,me,client,telemetry,dj}` (`index.ts`), plus CORS allow-list.
 - **Audit Logs:** Metadata sanitization in Sentry (PII scrubbing) and structured logging via `@pika/shared/logger`.
 - **Environment:** Critical secrets (`DATABASE_URL`, `SENTRY_AUTH_TOKEN`, `VAPID_KEYS`) must be configured in `.env` per package.
 
