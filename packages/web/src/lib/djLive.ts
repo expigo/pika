@@ -236,3 +236,75 @@ export function addPlaylist(url: string): Promise<{ success: boolean; spotifyPla
 export function removePlaylist(id: number): Promise<{ success: boolean }> {
   return req(`/api/dj/me/playlists/${id}`, { method: "DELETE", headers: JSON_CSRF });
 }
+
+// ── Booth management (Slice C) ───────────────────────────────────────────────
+
+export interface MyGig {
+  id: number;
+  date: string; // YYYY-MM-DD
+  title: string;
+  city: string | null;
+  url: string | null;
+}
+
+export interface MyBooth {
+  bio: string | null;
+  showFollowerCount: boolean;
+  followerCount: number; // the owner ALWAYS sees their count
+  gigs: MyGig[]; // all gigs, incl. past (public payload shows upcoming only)
+}
+
+/** My Booth content for the editor. */
+export function getMyBooth(): Promise<MyBooth> {
+  return req("/api/dj/me/booth");
+}
+
+/** Update my bio and/or the public follower-count toggle. */
+export function updateBooth(patch: {
+  bio?: string;
+  showFollowerCount?: boolean;
+}): Promise<{ success: boolean }> {
+  return req("/api/dj/me/booth", {
+    method: "PATCH",
+    headers: JSON_CSRF,
+    body: JSON.stringify(patch),
+  });
+}
+
+/** Add an upcoming gig to my Booth. */
+export function addGig(gig: {
+  date: string;
+  title: string;
+  city?: string;
+  url?: string;
+}): Promise<{ success: boolean; id: number }> {
+  return req("/api/dj/me/gigs", { method: "POST", headers: JSON_CSRF, body: JSON.stringify(gig) });
+}
+
+/** Remove one of my gigs. */
+export function removeGig(id: number): Promise<{ success: boolean }> {
+  return req(`/api/dj/me/gigs/${id}`, { method: "DELETE", headers: JSON_CSRF });
+}
+
+// ── Email preferences (Slice C — shared /api/me surface, works for DJs too) ─────
+
+export interface EmailPreferences {
+  recapEmails: boolean;
+  djDigest: boolean;
+  djDigestAvailable: boolean;
+}
+
+export function getEmailPreferences(): Promise<EmailPreferences> {
+  return req("/api/me/preferences");
+}
+
+export function updateEmailPreferences(patch: {
+  recapEmails?: boolean;
+  djDigest?: boolean;
+}): Promise<{ recapEmails: boolean; djDigest: boolean }> {
+  return req("/api/me/preferences", {
+    method: "PUT",
+    headers: JSON_CSRF,
+    body: JSON.stringify(patch),
+  });
+}

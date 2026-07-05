@@ -16,6 +16,17 @@ vi.mock("@/lib/djLive", () => ({
   setSessionPublished: vi.fn(),
   addPlaylist: vi.fn(),
   removePlaylist: vi.fn(),
+  // Slice C — the BoothManager section reads these.
+  getMyBooth: vi
+    .fn()
+    .mockResolvedValue({ bio: null, showFollowerCount: false, followerCount: 0, gigs: [] }),
+  getEmailPreferences: vi
+    .fn()
+    .mockResolvedValue({ recapEmails: false, djDigest: false, djDigestAvailable: true }),
+  updateBooth: vi.fn(),
+  updateEmailPreferences: vi.fn(),
+  addGig: vi.fn(),
+  removeGig: vi.fn(),
 }));
 // The mirror reuses LivePlayer (WS-driven) — stub it out for the dashboard test.
 vi.mock("@/components/LivePlayer", () => ({

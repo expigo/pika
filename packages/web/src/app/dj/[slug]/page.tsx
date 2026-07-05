@@ -1,12 +1,15 @@
 "use client";
 
 import { logger } from "@pika/shared";
-import { ArrowRight, Clock, History, ListMusic, Music2, User } from "lucide-react";
+import { ArrowRight, CalendarDays, Clock, History, ListMusic, Music2, User } from "lucide-react";
 import Link from "next/link";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
+import { FollowButton } from "@/components/FollowButton";
 import { SpotifyPlaylistEmbed } from "@/components/SpotifyPlaylistEmbed";
 import { ProCard } from "@/components/ui/ProCard";
 import { getApiBaseUrl } from "@/lib/api";
+import { getMe } from "@/lib/djLive";
+import { trackEvent } from "@/lib/events";
 
 interface DjSession {
   id: string;
@@ -24,9 +27,21 @@ interface DjPlaylist {
   spotifyPlaylistId: string | null;
 }
 
+/** A DJ-authored upcoming gig (Slice C) — structured one-liner, not an organizer model. */
+interface DjGig {
+  id: number;
+  date: string; // YYYY-MM-DD
+  title: string;
+  city: string | null;
+  url: string | null;
+}
+
 interface DjProfile {
   slug: string;
   djName: string;
+  bio?: string | null; // Booth bio (Slice C)
+  gigs?: DjGig[]; // upcoming gigs (Slice C)
+  followerCount?: number; // present ONLY when the DJ opted into public display
   sessions: DjSession[];
   totalSessions: number;
   totalTracks: number;
@@ -54,6 +69,14 @@ function formatSessionTime(dateString: string): string {
   });
 }
 
+function formatGigDate(dateString: string): string {
+  // Date-only string — pin to local midnight so the shown day never shifts across timezones.
+  const date = new Date(`${dateString}T00:00:00`);
+  return date
+    .toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+    .toUpperCase();
+}
+
 // Calculate duration
 function formatDuration(start: string, end: string | null): string {
   if (!end) return "Live now";
@@ -78,6 +101,28 @@ export default function DjProfilePage({ params }: DjPageProps) {
   const [profile, setProfile] = useState<DjProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isOwner, setIsOwner] = useState(false);
+  const viewedFired = useRef(false);
+
+  // Owner detection: the Booth is public; editing lives on /dj/live (ProfileManager).
+  useEffect(() => {
+    let cancelled = false;
+    getMe()
+      .then((me) => {
+        if (!cancelled && me !== null && me.slug === slug) setIsOwner(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  useEffect(() => {
+    if (viewedFired.current) return;
+    viewedFired.current = true;
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    trackEvent("booth_viewed", { slug, ...(ref ? { ref } : {}) });
+  }, [slug]);
 
   useEffect(() => {
     async function fetchProfile() {
@@ -155,6 +200,27 @@ export default function DjProfilePage({ params }: DjPageProps) {
           <h1 className="text-5xl font-black text-white mb-6 tracking-tighter italic uppercase leading-none">
             {profile.djName}.
           </h1>
+          {profile.bio && (
+            <p className="text-slate-400 text-sm font-medium leading-relaxed max-w-md mx-auto mb-6 whitespace-pre-line">
+              {profile.bio}
+            </p>
+          )}
+          <div className="flex items-center justify-center gap-3 mb-6 flex-wrap">
+            <FollowButton slug={profile.slug} djName={profile.djName} source="booth" />
+            {typeof profile.followerCount === "number" && (
+              <span className="px-3 py-1.5 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                {profile.followerCount} follower{profile.followerCount === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+          {isOwner && (
+            <Link
+              href="/dj/live"
+              className="inline-block mb-6 text-[10px] font-black text-purple-400/80 uppercase tracking-widest hover:text-purple-300 transition-colors"
+            >
+              Manage your booth →
+            </Link>
+          )}
           <div className="inline-flex items-center gap-3 px-6 py-2 bg-purple-500/5 border border-purple-500/10 rounded-full mb-12 shadow-[0_0_20px_rgba(168,85,247,0.05)]">
             <div className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
             <span className="text-[9px] font-black text-purple-400/80 uppercase tracking-[0.4em]">
@@ -181,6 +247,48 @@ export default function DjProfilePage({ params }: DjPageProps) {
             </div>
           </div>
         </ProCard>
+
+        {/* UPCOMING GIGS (Slice C) — DJ-authored one-liners; the night-planning hook */}
+        {profile.gigs && profile.gigs.length > 0 && (
+          <ProCard className="mb-8">
+            <div className="px-8 sm:px-12 py-6 border-b border-white/[0.03] flex items-center gap-4 bg-white/[0.02]">
+              <CalendarDays className="w-4 h-4 text-purple-500" />
+              <h3 className="font-black text-white italic uppercase tracking-widest text-xs">
+                Upcoming Gigs.
+              </h3>
+            </div>
+            <div className="divide-y divide-white/[0.03]">
+              {profile.gigs.map((gig) => (
+                <div
+                  key={gig.id}
+                  className="px-8 sm:px-12 py-6 flex items-center justify-between gap-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-white font-black uppercase italic tracking-tight truncate">
+                      {gig.title}
+                    </p>
+                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-[0.3em] mt-1">
+                      {formatGigDate(gig.date)}
+                      {gig.city ? ` · ${gig.city}` : ""}
+                    </p>
+                  </div>
+                  {gig.url && (
+                    <a
+                      href={gig.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => trackEvent("gig_link_clicked", { slug })}
+                      aria-label={`${gig.title} details`}
+                      className="p-3 rounded-xl border border-white/5 bg-white/5 text-slate-500 hover:text-white hover:border-purple-500/30 hover:bg-purple-500/10 transition-all shrink-0"
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </ProCard>
+        )}
 
         {/* SPOTIFY PLAYLISTS */}
         {profile.playlists && profile.playlists.length > 0 && (

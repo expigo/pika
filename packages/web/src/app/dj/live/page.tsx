@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { BoothManager } from "@/components/BoothManager";
 import { DjLiveControls } from "@/components/DjLiveControls";
 import { LivePlayer } from "@/components/LivePlayer";
 import { LogoutButton } from "@/components/LogoutButton";
@@ -240,6 +241,8 @@ export default function DjLivePage() {
       {/* Profile management is available across the whole ready phase (whether or not the DJ is
           connected/live) — it's how an approved DJ curates their public /dj/[slug] page. */}
       {user && <ProfileManager user={user} />}
+      {/* Booth editor (Slice C): bio, follower-count toggle, gigs, digest opt-in. */}
+      {user && <BoothManager />}
     </main>
   );
 }
