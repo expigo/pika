@@ -146,6 +146,29 @@ Before (or with) the first Slice-B deploy to an env:
    enter the emailed 6-digit code → signed in *inside the PWA* (links can't reach its cookie
    jar). Account card lists labeled devices; unlinking one drops its likes from the union.
 
+#### 🌅 First deploy with the Relationship Loop (Slice C — one-time per env)
+
+Slice C adds **marketing** email (Night Recap + DJ digest) on top of Slice B's transactional sender:
+
+1. **`WEB_BASE_URL` is REQUIRED on staging.** Staging runs `NODE_ENV=production`, so without the
+   override every recap/unsubscribe link would point at prod (`https://pika.stream`). Prod can omit it.
+2. **`MARKETING_MAIL_DAILY_CAP`** (default 500): the marketing budget is a SEPARATE throttle
+   instance — recap volume can never trip the sign-in fuse. Before a pilot event, size Resend for
+   `dancers-with-accounts + DJs` extra sends per night (free tier ≈100/day total → paid tier).
+3. **Migration `0014`** (follows, gigs, email_preferences, session_thanks, `recap_processed_at`,
+   push clientId index) applies itself on boot.
+4. **Sweep behavior:** every 15 min; sends only 09:00–13:00 **server-local** (a documented
+   single-region simplification), ≥8h after a set ends, never for sessions older than 72h (no
+   backfill blast on first deploy), at-most-once per session (claim-then-send). Crash-orphaned
+   "zombie" sessions are closed by the sweep after 6h idle.
+5. **Smoke (staging):** dancer signs in with the recap checkbox ticked (+ tap Follow on a live
+   set) → run a short set with likes from 2 devices (1 account, 1 anonymous) → end the set →
+   interstitial shows the real like count + thanks + save CTA → `POST /api/admin/recap/sweep`
+   (admin; bypasses the send window) → recap email arrives with the personal tracks + unsub
+   headers (check the Resend dashboard) and staging URLs → DJ digest arrives only after the DJ
+   opted in on /dj/live → `curl -X POST` the `List-Unsubscribe` URL → 204 → re-sweep sends
+   nothing → Night Card renders + shares from a real iPhone (art via `/api/img`, QR → Booth).
+
 ### 🐳 Docker Management
 
 **Re-pull & Recreate Everything (The "Fix It" Button):**

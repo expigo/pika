@@ -116,7 +116,27 @@ partial unique) — one account playlist, adopt-first from the earliest-claimed 
 `/api/stages` or `/api/push/send`. Those are `requireDjAuth`-gated and Better Auth origin-validates cookie
 sessions, so it's a defense-in-depth gap, not an open hole. Adding it needs per-caller verification first —
 notably `POST /api/push/subscribe` is the **public** dancer endpoint (no auth) and must keep working.
+`/api/email` (Slice C) is **deliberately** CSRF-exempt: the one-click POST comes from the recipient's
+mail provider (RFC 8058) and the HMAC token itself is the authorization.
+
+## 8. Marketing-email consent (Slice C)
+Distinct from the transactional flows above — recap/digest emails are **marketing** under EU rules:
+- **Consent** lives in `email_preferences` (one row per account; `recap_opt_in_at` /
+  `digest_opt_in_at` **timestamps are the consent proof**, null = off). Deliberately NOT Better Auth
+  additionalFields: those don't apply on magic-link signups, so consent is always an explicit authed
+  write (`PUT /api/me/preferences`) — never a signup side effect, never pre-ticked. The digest key is
+  `hasDjAccess`-gated (403 for dancers).
+- **Throttle isolation:** marketing sends run on their OWN `createEmailThrottle` instance
+  (`MARKETING_MAIL_DAILY_CAP`, default 500; per-address 2/24h). Budgets are per-instance, so recap
+  volume can never trip the transactional fuse — its alert keeps meaning "sign-ins are failing".
+- **Unsubscribe tokens:** `base64url(userId|type)` + HMAC-SHA256 (`BETTER_AUTH_SECRET`, context
+  prefix `pika-unsub-v1`), no expiry — the token's only power is turning one email type off. Every
+  marketing send carries `List-Unsubscribe` + `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+  (message headers) and a Resend `Idempotency-Key` (HTTP request header — API-level dedup).
+- **GDPR:** `email_preferences` and `dj_follows` FK-cascade on user deletion, so the Slice B
+  deletion flow needs no changes.
 
 ---
-*Last updated: July 4, 2026 — Slice B: dancer magic-link accounts, `client_identities` claims,
-GDPR deletion, email-abuse hardening. See `docs/blueprints/auth-foundation.md` for the original rationale.*
+*Last updated: July 5, 2026 — Slice C: dancer→DJ follows, marketing-email consent + one-click
+unsubscribe, recap sweep. Previously: Slice B (magic-link accounts, `client_identities` claims,
+GDPR deletion, email-abuse hardening). See `docs/blueprints/auth-foundation.md` for the rationale.*

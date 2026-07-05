@@ -59,7 +59,7 @@ are shown side-by-side, **never merged**. See [architecture/music-data-model.md]
 ## 5. Rich Aesthetics & UI System
 Pika! adheres to a "Premium First" design philosophy:
 - **Dynamic Theming:** Supports `High Contrast`, `Midnight`, and `Stealth` modes via `data-theme` on the `documentElement`.
-- **Micro-Animations:** Uses `canvas-confetti` for engagement bursts and `requestAnimationFrame` for smooth transitions.
+- **Micro-Animations:** A hand-rolled 2D-canvas particle layer (`SocialSignalsLayer`) for engagement bursts and `requestAnimationFrame` for smooth transitions (no animation deps).
 - **Battery-Awareness:** Animations and network activity are proactively suspended when tabs are backgrounded to preserve device battery during long festival sets.
 
 ---
@@ -72,9 +72,11 @@ Pika! adheres to a "Premium First" design philosophy:
   (Replaced the former bcrypt/SHA-256-token custom auth.) See
   [architecture/auth-system.md](architecture/auth-system.md) + [blueprints/auth-foundation.md](blueprints/auth-foundation.md).
 - **Rate Limiting:** Better Auth built-in (prod, tight customRules on the email-sending paths) +
-  `hono-rate-limiter` on admin/playlist/client/me routers; transactional email additionally throttled
-  per-address + by a process-wide daily fuse (`email-throttle.ts`); Engagement actions throttled.
-- **CSRF:** Better Auth origin checks on `/api/auth/*`; `X-Pika-Client` header required on non-GET for `/api/{live,playlist,admin,me,client,telemetry,dj}` (`index.ts`), plus CORS allow-list.
+  `hono-rate-limiter` on admin/playlist/client/me/email/img routers; transactional email additionally
+  throttled per-address + by a process-wide daily fuse (`email-throttle.ts`); **marketing** email
+  (Night Recap / DJ digest — Slice C) runs on its OWN throttle instance + `MARKETING_MAIL_DAILY_CAP`
+  so it can never starve sign-in sends; Engagement actions throttled.
+- **CSRF:** Better Auth origin checks on `/api/auth/*`; `X-Pika-Client` header required on non-GET for `/api/{live,playlist,admin,me,client,telemetry,dj}` (`index.ts`), plus CORS allow-list. Deliberately exempt: `/api/email` (RFC 8058 one-click unsubscribe — the POST caller is the recipient's mail provider; the HMAC token is the authorization) and the GET-only `/api/img` pinhole art proxy.
 - **Audit Logs:** Metadata sanitization in Sentry (PII scrubbing) and structured logging via `@pika/shared/logger`.
 - **Environment:** Critical secrets (`DATABASE_URL`, `SENTRY_AUTH_TOKEN`, `VAPID_KEYS`) must be configured in `.env` per package.
 

@@ -89,6 +89,17 @@ When a DJ sends an announcement ("Pizza at midnight!"), the flow is:
 **Database Schema:**
 See `packages/cloud/src/db/schema.ts` (`push_subscriptions` table) for field definitions.
 
+### 3.3 Recap push + Web Share files (Slice C)
+
+*   **Recap push is a bonus channel, never load-bearing:** iOS delivers Web Push only to the
+    installed (home-screen) app, so the Night Recap's primary channel is **email** (consented
+    accounts). The morning sweep additionally pushes to the emailed recipients' claimed devices
+    (`getClientIdsPushTargets`, backed by the `push_subscriptions.client_id` index).
+*   **Night Card sharing** uses the Web Share API **with files** (`navigator.canShare({files})`
+    gate — iOS 15+ offers Instagram Stories when installed) and falls back to a plain PNG
+    download. Album art draws through the same-origin `/api/img` proxy because i.scdn.co's CORS
+    is unreliable and an un-CORS'd `drawImage` taints the canvas (`toBlob` throws).
+
 ---
 
 ## 4. Offline & Sync Reliability

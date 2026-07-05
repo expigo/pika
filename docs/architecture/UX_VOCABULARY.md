@@ -26,7 +26,10 @@ The "Slate & Neon" aesthetic is designed for low-light venue environments (DJ bo
 | **Momentum** | Algorithmic | A score (0-1) based on listener count + like density. | "Peak Momentum" |
 | **Lobby** | Navigation | The central discovery hub for active DJ sets. | "/live" URL |
 | **Journal** | Personal | A dancer's personal history of synced tracks. | "/my-likes" URL |
-| **Showcase** | Professional | A DJ's public-facing professional profile and archive. | "/dj/[slug]" URL |
+| **Booth** | Professional | The DJ's public page: bio, upcoming gigs, playlists, Follow. (Supersedes "Showcase".) | "/dj/[slug]" URL, "Visit the booth", "Manage your booth" |
+| **Follow** | Relationship | The durable dancer→DJ edge (account-keyed; Slice C). | "Follow" / "Following" button |
+| **Night Recap** | Retention | The morning-after email: your loved songs + the floor's top 3. | "Night recap emails" toggle |
+| **Night Card** | Growth | A shareable 1080×1920 story image of the night (QR → Booth). | "Night Card" button on the recap |
 | **Vibe Temp** | Community | The average BPM across all active sessions in the lobby. | "Avg Vibe: 102 BPM" |
 | **Sticky Window** | Architecture | The 5-minute period where a disconnected client still counts as "Live". | Developer only |
 

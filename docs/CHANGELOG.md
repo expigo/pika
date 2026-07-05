@@ -3,6 +3,32 @@
 Completed work, newest first — moved out of [ROADMAP.md](ROADMAP.md) so the roadmap stays a
 roadmap. Each block was appended at completion time; see git history for the precise diffs.
 
+*   **Recent Completions (July 2026 — The Relationship Loop, Slice C):**
+    *   ✅ **Follow the DJ** — account-keyed `dj_follows` edge (composite PK absorbs repeats; GDPR
+        cascade both directions); `PUT/DELETE/GET /api/me/follows` (+ next-gig join); FollowButton on
+        lobby/live/recap/Booth; anonymous taps route through `/my-likes/save` with the intent riding
+        the **callbackURL query string** (survives cross-device magic links; the signed-in early
+        redirect forwards it too); "Your DJs" section on the account card.
+    *   ✅ **The Booth** — the DJ page grows a bio + structured gig list (`dj_gigs`; public payload is
+        upcoming-only — deliberately NOT an organizer model) + a toggle-gated public follower count
+        (owner always sees their own); `BoothManager` editor on /dj/live; `djSlug` cached on
+        `LiveSession` so live payloads (active-sessions, SESSION_STARTED, NOW_PLAYING, recap) carry
+        the Booth path.
+    *   ✅ **Night Recap** — morning-after sweep (15-min tick; 09:00–13:00 server-local send window;
+        zombie-close every tick; **claim-then-send** exactly-once via `sessions.recap_processed_at`;
+        72h floor = no first-deploy backfill); dancer recap email (personal likes + floor top 3) and
+        DJ set digest (likes/dancers/thanks/new-followers) — BOTH strictly opt-in
+        (`email_preferences` timestamps are the consent proof); **marketing throttle isolated** from
+        the transactional sign-in fuse (`MARKETING_MAIL_DAILY_CAP`); RFC 8058 **one-click
+        unsubscribe** (HMAC tokens, form+JSON-tolerant POST, GET 302s to the web confirm page);
+        session-end interstitial (rendered from a pre-reset snapshot) + `session_thanks` one-tap
+        applause; recap push bonus for installed PWAs; deterministic smoke via
+        `POST /api/admin/recap/sweep`. Resend `Idempotency-Key` rides the HTTP request header.
+    *   ✅ **Night Card** — client-canvas 1080×1920 story share image (album art via the pinhole
+        `/api/img` proxy — i.scdn.co CORS is unreliable and would taint the canvas; QR → Booth);
+        Web Share with files + download fallback.
+    *   ✅ **Telemetry** — 10 new `product_events` (follow funnel, booth views, gig clicks, thanks,
+        interstitial, cards, email prefs).
 *   **Recent Completions (July 2026 — Dancer Journal + Accounts, Slices A/B):**
     *   ✅ **B.5 staging-feedback fixes** — email uniquifier (Gmail trimmed identical resends);
         **email OTP sign-in** for the installed PWA (separate cookie jar — links can't reach it;

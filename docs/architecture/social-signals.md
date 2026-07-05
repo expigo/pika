@@ -116,6 +116,20 @@ DJ session stability is tracked via the `session_events` table:
 
 This enables operational insights without storing PII.
 
+## 7. The Relationship Loop (Slice C)
+
+Two durable signals extend the live-only ones above:
+
+*   **Follow** (`dj_follows`) — the dancer→DJ edge, **account-keyed** (never clientId: a follow
+    must survive device eviction — it's also the account-conversion moment). Composite PK makes
+    it idempotent; both FKs cascade on account deletion. Follower lists are never public — the DJ
+    sees an aggregate count, publicly shown only behind their own toggle. Anonymous taps route
+    through `/my-likes/save` with the intent riding the callbackURL query string.
+*   **Thanks** (`session_thanks`) — one-tap post-set applause, at most one per device per session
+    (same possession-trust model as likes; `unique(session_id, client_id)`). Deliberately carries
+    no free text (no moderation surface). Surfaces as a count in the DJ's morning digest. The
+    pre-existing ephemeral `thank_you` WS reaction is unchanged — this is its durable counterpart.
+
 ---
 
-*Last Updated: January 29, 2026 (v0.5.0)*
+*Last Updated: July 5, 2026 (Slice C — follows + durable thanks)*

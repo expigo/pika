@@ -121,11 +121,14 @@ packages/cloud/src/routes/
 ├── dj-live.ts    # Web-DJ broadcast control (Track D)
 ├── client.ts     # Anonymous dancer journal (device read, unlike, playlist export)
 ├── me.ts         # Account journal (Slice B): claim, union read, unlike, export, device unlink
+│                 # + Slice C: follows (PUT/DELETE/GET) and email-consent preferences
 ├── telemetry.ts  # Product-event beacon ingest (enum-whitelisted)
 ├── push.ts       # Web Push subscriptions
+├── email.ts      # RFC 8058 one-click unsubscribe (Slice C — deliberately CSRF-exempt)
+├── img.ts        # Pinhole album-art proxy for the Night Card canvas (Slice C, GET-only)
 ├── playlist.ts   # Spotify playlist tools (B3, incl. POST /api/playlist/features)
 ├── spotify.ts    # Spotify OAuth (DJ + shared service account, BFF)
-├── admin.ts      # Admin panel: DJ approval + catalog endpoints
+├── admin.ts      # Admin panel: DJ approval + catalog endpoints + POST /recap/sweep (Slice C)
 ├── seed.ts       # Admin catalog seed tool
 └── stages.ts     # Event/Stage provisioning (owner-scoped) + stage lookup
 ```
@@ -140,9 +143,11 @@ packages/cloud/src/routes/
 | `dj.ts` | `/api/dj/*` | DJ profile by slug + profile management |
 | `dj-live.ts` | `/api/live/*` | Web-DJ broadcast control channel |
 | `client.ts` | `/api/client/*` | Anonymous journal: likes read, unlike, Spotify export (rate-limited) |
-| `me.ts` | `/api/me/*` | Account journal (requireAuth): claim device id, union read, unlike, export, device unlink |
+| `me.ts` | `/api/me/*` | Account journal (requireAuth): claim device id, union read, unlike, export, device unlink; Slice C: `follows/:slug` (PUT/DELETE), `follows` (GET, + next gig), `preferences` (GET/PUT consent) |
 | `telemetry.ts` | `/api/telemetry/*` | Product beacons (enum-whitelisted POST) |
 | `push.ts` | `/api/push/*` | Web Push subscription management |
+| `email.ts` | `/api/email/unsubscribe` | One-click unsubscribe (HMAC token; POST clears consent, GET 302s to the web confirm page) |
+| `img.ts` | `/api/img?src=` | Pinhole i.scdn.co art proxy (allowlist, no redirects, 2 MB cap, immutable cache) |
 | `playlist.ts` | `/api/playlist/*` | DJ Spotify playlist tools |
 | `spotify.ts` | `/api/spotify/*` | Spotify OAuth flows |
 | `admin.ts` | `/api/admin/*` | DJ approval queue + catalog (`/api/admin/catalog{,/songs,/songs/:id}`) |
