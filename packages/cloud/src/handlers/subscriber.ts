@@ -141,6 +141,7 @@ export function handleSubscribe(ctx: WSContext) {
   const leanSessions = getAllSessions().map((s) => ({
     sessionId: s.sessionId,
     djName: s.djName,
+    ...(s.djSlug && { djSlug: s.djSlug }), // Booth path (Slice C) → Follow affordance
     currentTrack: s.currentTrack,
   }));
   if (rawWs.getBufferedAmount() < 1024 * 64) {

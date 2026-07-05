@@ -570,4 +570,53 @@ describe("MyLikesPage", () => {
     expect(await screen.findByText("Track 1")).toBeInTheDocument();
     expect(screen.queryByText(/keep your journal safe/i)).toBeNull();
   });
+
+  it("landing intent params (Slice C): executes consent + follow PUTs, then cleans the URL", async () => {
+    signedInAs("dancer@x.y");
+    localStorage.setItem("pika_client_id", "client-1");
+    window.history.replaceState(
+      null,
+      "",
+      "/my-likes?claimed=1&follow=dj-nova&source=interstitial&consent=1",
+    );
+    const fetchMock = mockFetch({
+      "/telemetry/events": { status: 204, body: null },
+      "/api/me/journal/claim": { status: 200, body: { status: "claimed" } },
+      "/api/me/journal": {
+        totalLikes: 0,
+        limit: 100,
+        offset: 0,
+        likes: [],
+        playlist: null,
+        claimedCount: 1,
+        devices: [],
+      },
+      "/api/me/preferences": { recapEmails: true, djDigest: false, djDigestAvailable: false },
+      "/api/me/follows/dj-nova": { following: true },
+      "/api/me/follows": { follows: [] },
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    render(<MyLikesPage />);
+
+    await waitFor(() => {
+      const prefPut = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).includes("/api/me/preferences") &&
+          (init as RequestInit | undefined)?.method === "PUT",
+      );
+      expect(prefPut).toBeDefined();
+      expect(String((prefPut?.[1] as RequestInit).body)).toContain('"recapEmails":true');
+
+      const followPut = fetchMock.mock.calls.find(
+        ([url, init]) =>
+          String(url).includes("/api/me/follows/dj-nova") &&
+          (init as RequestInit | undefined)?.method === "PUT",
+      );
+      expect(followPut).toBeDefined();
+      expect(String((followPut?.[1] as RequestInit).body)).toContain('"source":"signin"');
+    });
+    // The one-shot params must not survive (a reload would re-fire the writes).
+    expect(window.location.search).toBe("");
+    expect(beacons(fetchMock, "follow_completed").length).toBe(1);
+  });
 });

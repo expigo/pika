@@ -51,6 +51,14 @@ interface ClaimedDevice {
   claimedAt: string;
 }
 
+/** A followed DJ (Slice C) — slug is the Booth path; nextGig powers the night-planning chip. */
+interface FollowedDj {
+  slug: string | null;
+  djName: string;
+  followedAt: string;
+  nextGig: string | null;
+}
+
 interface LikesResponse {
   clientId?: string; // device read only
   claimedCount?: number; // account read only
@@ -160,28 +168,135 @@ export default function MyLikesPage() {
   const [devices, setDevices] = useState<ClaimedDevice[]>([]);
   const [confirmingUnlinkId, setConfirmingUnlinkId] = useState<string | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
+  // Slice C — account-card extras: marketing-email consent + the followed-DJ list.
+  const [prefs, setPrefs] = useState<{ recapEmails: boolean } | null>(null);
+  const [follows, setFollows] = useState<FollowedDj[]>([]);
   const openedFired = useRef(false);
   const nudgeFired = useRef(false);
   const saveCardFired = useRef(false);
   const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Magic-link landing / account deletion callbacks (?claimed=1 / ?deleted=1).
+  // Magic-link landing / account deletion callbacks (?claimed=1 / ?deleted=1) + Slice C intent
+  // params (?follow= / ?consent=1) that survived the sign-in round trip via the callbackURL.
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("claimed")) {
+    const claimed = params.get("claimed");
+    const deleted = params.get("deleted");
+    const follow = params.get("follow");
+    const source = params.get("source");
+    const consent = params.get("consent");
+    if (claimed) {
       setAccountHint();
       trackEvent("account_linked", { newUser: params.get("new") === "1" });
       toast("Journal saved to your account ✓");
-      window.history.replaceState(null, "", "/my-likes");
     }
-    if (params.get("deleted")) {
+    if (deleted) {
       clearAccountHint();
       toast("Account deleted — likes on this device are anonymous again");
+    }
+    // Intent params may arrive WITHOUT claimed=1 (already-signed-in redirect from /save).
+    // Both writes are idempotent and best-effort — the account card offers manual paths.
+    if (consent === "1") {
+      fetch(`${getApiBaseUrl()}/api/me/preferences`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Pika-Client": "pika-web" },
+        body: JSON.stringify({ recapEmails: true }),
+      })
+        .then((r) => {
+          if (r.ok) {
+            trackEvent("email_prefs_updated", { recapEmails: true, via: "signin" });
+            setReloadTick((t) => t + 1); // refresh the card's toggle state
+          }
+        })
+        .catch(() => {});
+    }
+    if (follow) {
+      fetch(`${getApiBaseUrl()}/api/me/follows/${encodeURIComponent(follow)}`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Pika-Client": "pika-web" },
+        body: JSON.stringify({ source: "signin" }),
+      })
+        .then((r) => {
+          if (r.ok) {
+            trackEvent("follow_completed", { via: "signin", ...(source ? { source } : {}) });
+            toast("Following ✓ — your DJs live on this page");
+            setReloadTick((t) => t + 1);
+          }
+        })
+        .catch(() => {});
+    }
+    if (claimed || deleted || follow || consent) {
       window.history.replaceState(null, "", "/my-likes");
     }
   }, []);
 
   const sessionUserId = session?.user?.id ?? null;
+
+  // Slice C: the account card's consent toggle + "Your DJs" list (account mode only).
+  useEffect(() => {
+    void reloadTick; // the landing-effect intent writes bump this to refresh
+    if (!sessionUserId) {
+      setPrefs(null);
+      setFollows([]);
+      return;
+    }
+    let cancelled = false;
+    const base = getApiBaseUrl();
+    fetch(`${base}/api/me/preferences`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d) setPrefs({ recapEmails: !!d.recapEmails });
+      })
+      .catch(() => {});
+    fetch(`${base}/api/me/follows`, { credentials: "include" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && d?.follows) setFollows(d.follows as FollowedDj[]);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionUserId, reloadTick]);
+
+  const handleToggleRecapEmails = async () => {
+    if (!prefs) return;
+    const next = !prefs.recapEmails;
+    setPrefs({ recapEmails: next }); // optimistic
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/me/preferences`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "X-Pika-Client": "pika-web" },
+        body: JSON.stringify({ recapEmails: next }),
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      trackEvent("email_prefs_updated", { recapEmails: next });
+    } catch {
+      setPrefs({ recapEmails: !next });
+      toast("Couldn't update email preferences — try again");
+    }
+  };
+
+  const handleUnfollow = async (slug: string | null) => {
+    if (!slug) return;
+    const prev = follows;
+    setFollows(prev.filter((f) => f.slug !== slug)); // optimistic
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/me/follows/${encodeURIComponent(slug)}`, {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "X-Pika-Client": "pika-web" },
+      });
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      trackEvent("unfollowed", { source: "journal" });
+    } catch {
+      setFollows(prev);
+      toast("Couldn't unfollow — try again");
+    }
+  };
 
   useEffect(() => {
     void reloadTick; // refetch trigger — device unlink bumps it to re-run this effect
@@ -648,6 +763,72 @@ export default function MyLikesPage() {
                   );
                 })}
               </ul>
+            )}
+
+            {/* YOUR DJs (Slice C) — followed DJs; each row links to the Booth */}
+            {follows.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-white/[0.04]">
+                <p className="text-[9px] font-black text-purple-400 uppercase tracking-[0.3em] mb-2">
+                  Your DJs
+                </p>
+                <ul className="space-y-2">
+                  {follows.map((f) => (
+                    <li
+                      key={f.slug ?? f.djName}
+                      className="flex items-center justify-between gap-4 flex-wrap"
+                    >
+                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest min-w-0">
+                        {f.slug ? (
+                          <Link
+                            href={`/dj/${f.slug}`}
+                            className="text-slate-300 hover:text-white transition-colors"
+                          >
+                            {f.djName}
+                          </Link>
+                        ) : (
+                          <span className="text-slate-300">{f.djName}</span>
+                        )}
+                        {f.nextGig && (
+                          <span className="ml-2 px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[8px] font-black normal-case">
+                            Next gig {formatDate(f.nextGig)}
+                          </span>
+                        )}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => handleUnfollow(f.slug)}
+                        aria-label={`Unfollow ${f.djName}`}
+                        className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
+                      >
+                        Unfollow
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* EMAIL PREFERENCES (Slice C) — explicit marketing consent, toggleable anytime */}
+            {prefs && (
+              <div className="mt-4 pt-4 border-t border-white/[0.04] flex items-center justify-between gap-4 flex-wrap">
+                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                  Night recap emails — your loved songs, the morning after
+                </p>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={prefs.recapEmails}
+                  aria-label="Night recap emails"
+                  onClick={handleToggleRecapEmails}
+                  className={`px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-colors ${
+                    prefs.recapEmails
+                      ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
+                      : "bg-white/[0.03] border-white/10 text-slate-500 hover:text-slate-300"
+                  }`}
+                >
+                  {prefs.recapEmails ? "On" : "Off"}
+                </button>
+              </div>
             )}
 
             <div className="mt-4 pt-4 border-t border-white/[0.04] flex items-center justify-between gap-4 flex-wrap">

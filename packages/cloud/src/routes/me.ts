@@ -9,16 +9,21 @@
  *   GET    /api/me/journal                → union journal across claimed ids (de-duped)
  *   DELETE /api/me/journal/likes/:likeId  → account-scoped unlike (all claimed rows of the play)
  *   POST   /api/me/journal/playlist       → export/regenerate the account playlist (adopt-first)
+ *   PUT    /api/me/follows/:slug          → follow a DJ (account-keyed edge; Slice C)
+ *   DELETE /api/me/follows/:slug          → unfollow
+ *   GET    /api/me/follows                → "Your DJs" list (+ each DJ's next gig)
+ *   GET    /api/me/preferences            → marketing-email consents (recap / DJ digest)
+ *   PUT    /api/me/preferences            → explicit consent writes (timestamps = GDPR proof)
  */
 
 import { zValidator } from "@hono/zod-validator";
 import { LIMITS, logger } from "@pika/shared";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db, schema } from "../db";
-import { getUser, requireAuth } from "../lib/auth";
+import { getUser, hasDjAccess, requireAuth } from "../lib/auth";
 import {
   CLIENT_ID_REGEX,
   claimClientId,
@@ -278,6 +283,198 @@ me.post("/journal/playlist", async (c) => {
     if (mapped) return mapped;
     logger.error("❌ Account journal playlist export failed", e);
     return c.json({ error: "Failed to create playlist" }, 502);
+  }
+});
+
+// ============================================================================
+// Follows + email preferences (Slice C — The Relationship Loop)
+// ============================================================================
+
+// One shared per-IP bucket across follow/unfollow/list + preference writes — all cheap
+// single-row ops. A single limiter instance is reused so the paths share the same budget.
+const relationshipLimiter = rateLimiter({
+  windowMs: LIMITS.FOLLOWS_RATE_LIMIT_WINDOW,
+  limit: LIMITS.FOLLOWS_RATE_LIMIT_MAX,
+  standardHeaders: "draft-6",
+  keyGenerator: (c) =>
+    c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown",
+  handler: (c) => c.json({ error: "Too many requests, please try again later" }, 429),
+});
+me.use("/follows", relationshipLimiter);
+me.use("/follows/*", relationshipLimiter);
+me.use("/preferences", relationshipLimiter);
+
+const FollowBody = z.object({
+  // Funnel provenance for the pilot — recorded verbatim, never trusted for anything else.
+  source: z.enum(["live", "recap", "booth", "journal", "interstitial", "signin"]).optional(),
+});
+
+/** Resolve a public DJ slug to its account row. The slug IS the public identifier. */
+async function findUserBySlug(slug: string): Promise<{ id: string; name: string } | null> {
+  const [row] = await db
+    .select({ id: schema.user.id, name: schema.user.name })
+    .from(schema.user)
+    .where(eq(schema.user.slug, slug))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * PUT /follows/:slug — follow a DJ. Idempotent (the composite PK absorbs repeats); the edge
+ * hangs off the ACCOUNT so it survives device rotation/eviction — this is precisely why Follow
+ * is the account-upsell moment. Self-follows are rejected (they'd only pollute the count).
+ */
+me.put("/follows/:slug", zValidator("json", FollowBody), async (c) => {
+  const slug = c.req.param("slug") ?? "";
+  if (slug.length === 0 || slug.length > 120) return c.json({ error: "Invalid slug" }, 400);
+  try {
+    const dj = await findUserBySlug(slug);
+    if (!dj) return c.json({ error: "DJ not found" }, 404);
+    const userId = getUser(c).id;
+    if (dj.id === userId) return c.json({ error: "You can't follow yourself" }, 400);
+    await db
+      .insert(schema.djFollows)
+      .values({ userId, djUserId: dj.id, source: c.req.valid("json").source ?? null })
+      .onConflictDoNothing();
+    return c.json({ following: true });
+  } catch (error) {
+    logger.error("Failed to follow DJ", error);
+    return c.json({ error: "Failed to follow" }, 500);
+  }
+});
+
+/** DELETE /follows/:slug — unfollow. Idempotent: an absent edge is already the desired state. */
+me.delete("/follows/:slug", async (c) => {
+  const slug = c.req.param("slug") ?? "";
+  if (slug.length === 0 || slug.length > 120) return c.json({ error: "Invalid slug" }, 400);
+  try {
+    const dj = await findUserBySlug(slug);
+    if (!dj) return c.json({ error: "DJ not found" }, 404);
+    await db
+      .delete(schema.djFollows)
+      .where(and(eq(schema.djFollows.userId, getUser(c).id), eq(schema.djFollows.djUserId, dj.id)));
+    return c.json({ following: false });
+  } catch (error) {
+    logger.error("Failed to unfollow DJ", error);
+    return c.json({ error: "Failed to unfollow" }, 500);
+  }
+});
+
+/**
+ * GET /follows — "Your DJs": followed DJs newest-first, each with their next upcoming gig
+ * (the Booth's night-planning hook). Only slugged DJs can be followed, so slug is non-null.
+ */
+me.get("/follows", async (c) => {
+  try {
+    const rows = await db
+      .select({
+        slug: schema.user.slug,
+        djName: schema.user.name,
+        djUserId: schema.djFollows.djUserId,
+        followedAt: schema.djFollows.createdAt,
+      })
+      .from(schema.djFollows)
+      .innerJoin(schema.user, eq(schema.djFollows.djUserId, schema.user.id))
+      .where(eq(schema.djFollows.userId, getUser(c).id))
+      .orderBy(desc(schema.djFollows.createdAt));
+
+    const djIds = rows.map((r) => r.djUserId);
+    const nextGigs = new Map<string, string>();
+    if (djIds.length > 0) {
+      const gigRows = await db
+        .select({
+          djUserId: schema.djGigs.djUserId,
+          nextGig: sql<string>`min(${schema.djGigs.gigDate})`,
+        })
+        .from(schema.djGigs)
+        .where(
+          and(
+            inArray(schema.djGigs.djUserId, djIds),
+            gte(schema.djGigs.gigDate, sql`current_date`),
+          ),
+        )
+        .groupBy(schema.djGigs.djUserId);
+      for (const g of gigRows) nextGigs.set(g.djUserId, g.nextGig);
+    }
+
+    return c.json({
+      follows: rows.map(({ djUserId, ...r }) => ({
+        ...r,
+        nextGig: nextGigs.get(djUserId) ?? null,
+      })),
+    });
+  } catch (error) {
+    logger.error("Failed to list follows", error);
+    return c.json({ error: "Failed to list follows" }, 500);
+  }
+});
+
+const PreferencesBody = z
+  .object({
+    recapEmails: z.boolean().optional(),
+    djDigest: z.boolean().optional(),
+  })
+  .refine((b) => b.recapEmails !== undefined || b.djDigest !== undefined, {
+    message: "No preference provided",
+  });
+
+/** GET /preferences — the account's marketing-email consents. */
+me.get("/preferences", async (c) => {
+  const user = getUser(c);
+  try {
+    const [row] = await db
+      .select()
+      .from(schema.emailPreferences)
+      .where(eq(schema.emailPreferences.userId, user.id))
+      .limit(1);
+    return c.json({
+      recapEmails: !!row?.recapOptInAt,
+      djDigest: !!row?.digestOptInAt,
+      djDigestAvailable: hasDjAccess(user) === "ok",
+    });
+  } catch (error) {
+    logger.error("Failed to read email preferences", error);
+    return c.json({ error: "Failed to read preferences" }, 500);
+  }
+});
+
+/**
+ * PUT /preferences — explicit consent writes ONLY (never a signup side effect: magic-link
+ * signups bypass additionalFields, and pre-ticked consent isn't consent). Turning a consent on
+ * stamps now() — the timestamp is the GDPR proof; off nulls it. djDigest is DJ-surface-gated.
+ */
+me.put("/preferences", zValidator("json", PreferencesBody), async (c) => {
+  const user = getUser(c);
+  const body = c.req.valid("json");
+  if (body.djDigest !== undefined && hasDjAccess(user) !== "ok") {
+    return c.json({ error: "DJ digest is only available to approved DJ accounts" }, 403);
+  }
+  try {
+    const [existing] = await db
+      .select()
+      .from(schema.emailPreferences)
+      .where(eq(schema.emailPreferences.userId, user.id))
+      .limit(1);
+    const now = new Date();
+    const recapOptInAt =
+      body.recapEmails === undefined
+        ? (existing?.recapOptInAt ?? null)
+        : body.recapEmails
+          ? now
+          : null;
+    const digestOptInAt =
+      body.djDigest === undefined ? (existing?.digestOptInAt ?? null) : body.djDigest ? now : null;
+    await db
+      .insert(schema.emailPreferences)
+      .values({ userId: user.id, recapOptInAt, digestOptInAt, updatedAt: now })
+      .onConflictDoUpdate({
+        target: schema.emailPreferences.userId,
+        set: { recapOptInAt, digestOptInAt, updatedAt: now },
+      });
+    return c.json({ recapEmails: !!recapOptInAt, djDigest: !!digestOptInAt });
+  } catch (error) {
+    logger.error("Failed to update email preferences", error);
+    return c.json({ error: "Failed to update preferences" }, 500);
   }
 });
 

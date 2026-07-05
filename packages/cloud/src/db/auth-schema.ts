@@ -18,6 +18,10 @@ export const user = pgTable("user", {
   banExpires: timestamp("ban_expires"),
   status: text("status").default("pending"),
   slug: text("slug"),
+  // Slice C (Booth): DJ-authored public profile content. bio is plain text (zod-capped at the
+  // route); showFollowerCount gates only the PUBLIC display — the owner always sees their count.
+  bio: text("bio"),
+  showFollowerCount: boolean("show_follower_count").default(false).notNull(),
 });
 
 export const session = pgTable(

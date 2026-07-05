@@ -93,7 +93,7 @@ live.post("/start", async (c) => {
   }
 
   try {
-    const { sessionId } = await startPoller(dj.id, dj.name);
+    const { sessionId } = await startPoller(dj.id, dj.name, dj.slug ?? null);
     return c.json({ success: true, sessionId });
   } catch (e) {
     logger.error("Failed to start live poller", e);

@@ -55,6 +55,8 @@ sessions.get("/active", (c) => {
     const activeSummary = sessionsList.map((session) => ({
       sessionId: session.sessionId,
       djName: session.djName,
+      // Booth path (Slice C) — lets the lobby render a Follow affordance; null = anonymous DJ.
+      djSlug: session.djSlug ?? null,
       startedAt: session.startedAt,
       // Stage context (when this session runs under a stage) so the landing page
       // can route a visitor to /stage/{id} — following rotation — and label it.
@@ -163,11 +165,14 @@ async function buildRecap(
         id: schema.sessions.id,
         djUserId: schema.sessions.djUserId,
         djName: schema.sessions.djName,
+        // Booth path (Slice C) — recap Follow button + recap-email booth links.
+        djSlug: schema.user.slug,
         startedAt: schema.sessions.startedAt,
         endedAt: schema.sessions.endedAt,
         spotifyPlaylistId: schema.sessions.spotifyPlaylistId,
       })
       .from(schema.sessions)
+      .leftJoin(schema.user, eq(schema.sessions.djUserId, schema.user.id))
       .where(eq(schema.sessions.id, sessionId))
       .limit(1),
     db
@@ -327,6 +332,7 @@ async function buildRecap(
   const response: Record<string, unknown> = {
     sessionId,
     djName: dbSession.djName || "DJ",
+    djSlug: dbSession.djSlug ?? null,
     startedAt: dbSession.startedAt?.toISOString(),
     endedAt: endTime?.toISOString(),
     trackCount: tracks.length,

@@ -148,6 +148,25 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
   // Explicitly track if the session was ended by the DJ
   const [sessionEnded, setSessionEnded] = useState(false);
 
+  // Slice C: the DJ's Booth slug (cloud-enriched on live payloads; null = anonymous DJ →
+  // no Follow affordance) + the end-of-set snapshot. SESSION_ENDED wipes djName/likes BEFORE
+  // flagging ended, so the interstitial renders from a snapshot captured via refs — the
+  // message-handler closure would otherwise read stale state.
+  const [djSlug, setDjSlug] = useState<string | null>(null);
+  const [lastSessionSummary, setLastSessionSummary] = useState<{
+    djName: string | null;
+    djSlug: string | null;
+    likedCount: number;
+  } | null>(null);
+  const summaryRef = useRef<{ djName: string | null; djSlug: string | null; likedCount: number }>({
+    djName: null,
+    djSlug: null,
+    likedCount: 0,
+  });
+  useEffect(() => {
+    summaryRef.current = { djName, djSlug, likedCount: likedTracks.size };
+  }, [djName, djSlug, likedTracks]);
+
   // Track D: the server-side Spotify poller signals a "between songs" pause / resume so the
   // dancer view doesn't keep showing the last track while the DJ's music is paused.
   const [isPaused, setIsPaused] = useState(false);
@@ -218,6 +237,13 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
         return;
       }
 
+      // Slice C: NOW_PLAYING carries the DJ's Booth slug (cloud-enriched). Capture it in ANY
+      // mode before the track feature-handler consumes the message.
+      if ((message as { type: string }).type === MESSAGE_TYPES.NOW_PLAYING) {
+        const slug = (message as { djSlug?: string }).djSlug;
+        if (slug) setDjSlug(slug);
+      }
+
       // Stage mode: NOW_PLAYING is how we learn which DJ is currently live on the
       // stage (no SESSION_STARTED arrives when we join mid-set). Capture the
       // DJ/session here, then fall through so the feature handler renders the track.
@@ -242,7 +268,12 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
           if (targetStageId) break; // stage subscribers don't auto-join from the lobby list
           const sessions = (
             message as {
-              sessions: Array<{ sessionId: string; djName: string; currentTrack?: TrackInfo }>;
+              sessions: Array<{
+                sessionId: string;
+                djName: string;
+                djSlug?: string;
+                currentTrack?: TrackInfo;
+              }>;
             }
           ).sessions;
           if (sessions?.length > 0) {
@@ -251,6 +282,7 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
               if (targetSession) {
                 setSessionId(targetSession.sessionId);
                 setDjName(targetSession.djName);
+                setDjSlug(targetSession.djSlug ?? null);
                 if (targetSession.currentTrack) {
                   setCurrentTrack(targetSession.currentTrack);
                 }
@@ -262,6 +294,7 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
               const session = sessions[0];
               setSessionId(session.sessionId);
               setDjName(session.djName);
+              setDjSlug(session.djSlug ?? null);
               if (session.currentTrack) {
                 setCurrentTrack(session.currentTrack);
               }
@@ -285,7 +318,12 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
         }
 
         case MESSAGE_TYPES.SESSION_STARTED: {
-          const msg = message as { sessionId: string; djName: string; stageId?: string };
+          const msg = message as {
+            sessionId: string;
+            djName: string;
+            djSlug?: string;
+            stageId?: string;
+          };
 
           // Stage mode: a new DJ took over OUR stage — follow seamlessly (we stay
           // subscribed to the stage topic; no re-subscribe). Ignore other stages.
@@ -305,10 +343,12 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
           logger.info("[Live] Session started", { sessionId: msg.sessionId });
           setSessionId(msg.sessionId);
           setDjName(msg.djName);
+          setDjSlug(msg.djSlug ?? null);
           setCurrentTrack(null);
           clearHistory();
           resetPoll();
           setSessionEnded(false);
+          setLastSessionSummary(null);
 
           if (!targetSessionId && msg.sessionId) {
             discoveredSessionRef.current = msg.sessionId;
@@ -342,8 +382,13 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
           if (targetSessionId && msg.sessionId !== targetSessionId) return;
           if (sessionId && msg.sessionId !== sessionId) return;
 
+          // Snapshot BEFORE the resets — the interstitial renders from this (the resets below
+          // null djName and empty the liked set, so live state reads zero at render time).
+          setLastSessionSummary({ ...summaryRef.current });
+
           setSessionId(targetSessionId ?? null);
           setDjName(null);
+          setDjSlug(null);
           setCurrentTrack(null);
           clearHistory();
           resetLikes();
@@ -405,6 +450,8 @@ export function useLiveListener(targetSessionId?: string, targetStageId?: string
     dismissAnnouncement,
     onLikeReceived,
     sessionEnded,
+    djSlug, // Slice C: the DJ's Booth path (null = anonymous DJ → hide Follow)
+    lastSessionSummary, // Slice C: end-of-set snapshot for the interstitial
     isPaused, // Track D: DJ's Spotify playback is paused ("between songs")
     lastHeartbeat,
     pendingCount, // Number of likes queued for offline sync

@@ -54,6 +54,10 @@ export const auth = betterAuth({
       status: { type: "string", required: false, defaultValue: "pending", input: false },
       // URL-friendly DJ profile path (/dj/[slug]); populated from `name` on create (databaseHook).
       slug: { type: "string", required: false, input: false },
+      // Booth content (Slice C). input:false — written only via the owner-scoped /api/dj/me/booth
+      // route; exposed on the session so guards/routes read them without an extra query.
+      bio: { type: "string", required: false, input: false },
+      showFollowerCount: { type: "boolean", required: false, defaultValue: false, input: false },
     },
     // GDPR: dancer-initiated deletion, confirmed via email (dancers have no password, and 30-day
     // rolling sessions are never "fresh"). Unwinds client_identities via FK cascade; likes stay

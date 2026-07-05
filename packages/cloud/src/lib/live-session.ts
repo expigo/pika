@@ -33,6 +33,10 @@ export interface CreateLiveSessionInput {
   sessionId: string;
   djName: string;
   djUserId: string | null;
+  // The DJ's /dj/[slug] path, cached in memory at creation (same pattern as stage/event names)
+  // so the polled /api/sessions/active and WS payloads can carry it without a DB hit. Null for
+  // anonymous/legacy sessions — the web hides Follow when absent.
+  djSlug?: string | null;
   stageId?: string;
   stageName?: string;
   eventName?: string;
@@ -51,6 +55,7 @@ export async function createLiveSession(
     djName: input.djName,
     startedAt: new Date().toISOString(),
     lastActivityAt: new Date().toISOString(),
+    ...(input.djSlug && { djSlug: input.djSlug }),
     ...(input.stageId && { stageId: input.stageId }),
     ...(input.stageName && { stageName: input.stageName }),
     ...(input.eventName && { eventName: input.eventName }),
@@ -114,7 +119,16 @@ export function applyNowPlaying(sessionId: string, track: TrackInfo, publish: Pu
   updateSessionTrack(sessionId, track);
   logger.info("🎵 Now playing", { artist: track.artist, title: track.title, sessionId });
 
-  publish(topic, JSON.stringify({ type: "NOW_PLAYING", sessionId, djName: session.djName, track }));
+  publish(
+    topic,
+    JSON.stringify({
+      type: "NOW_PLAYING",
+      sessionId,
+      djName: session.djName,
+      ...(session.djSlug && { djSlug: session.djSlug }),
+      track,
+    }),
+  );
 
   // Persist track (fire-and-forget, handled by the per-session queue).
   persistTrack(sessionId, track).catch((err) => {

@@ -139,12 +139,14 @@ export async function handleRegisterSession(ctx: WSContext) {
   // 🔐 Token validation for DJ authentication
   const djToken = msg.token;
   let djUserId: string | null = null;
+  let djSlug: string | null = null;
   let djName = requestedDjName;
 
   if (djToken) {
     const djUser = await getUserFromToken(djToken);
     if (djUser && hasDjAccess(djUser) === "ok") {
       djUserId = djUser.id;
+      djSlug = djUser.slug ?? null; // Booth path — rides live payloads so dancers can Follow
       djName = djUser.name; // Use registered name
       logger.info("🔐 Authenticated DJ", { djName, djUserId });
     } else if (djUser) {
@@ -201,6 +203,7 @@ export async function handleRegisterSession(ctx: WSContext) {
     sessionId,
     djName,
     djUserId,
+    ...(djSlug && { djSlug }),
     ...(stageId && { stageId }),
     ...(stageName && { stageName }),
     ...(eventName && { eventName }),
@@ -240,6 +243,7 @@ export async function handleRegisterSession(ctx: WSContext) {
         type: "SESSION_STARTED",
         sessionId,
         djName: session.djName,
+        ...(session.djSlug && { djSlug: session.djSlug }), // Booth path → Follow button
         startTime: session.startedAt,
         ...(stageId && { stageId }), // lets stage-mode dancers follow rotation on their stage
       }),

@@ -31,6 +31,9 @@ export interface Announcement {
 export interface LiveSession {
   sessionId: string;
   djName: string;
+  /** The DJ's /dj/[slug] path, cached at creation (Slice C) so live payloads can carry it
+   * without a DB hit. Absent for anonymous/legacy sessions — the web hides Follow then. */
+  djSlug?: string;
   startedAt: string;
   lastActivityAt: string;
   currentTrack?: TrackInfo;

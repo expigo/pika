@@ -85,6 +85,47 @@ describe("SaveJournalPage", () => {
     });
   });
 
+  it("carries follow intent + ticked consent through EVERY callback URL (Slice C)", async () => {
+    // The magic link may open on another device — the query string is the only channel that
+    // survives; dropping a param here silently loses the follow/consent.
+    window.history.replaceState(null, "", "/my-likes/save?follow=dj-nova&source=interstitial");
+    render(<SaveJournalPage />);
+    expect(await screen.findByText(/we'll follow the dj for you/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: /night recaps/i }));
+    await userEvent.type(screen.getByLabelText(/email address/i), "dancer@x.y");
+    await userEvent.click(screen.getByRole("button", { name: /send my sign-in link/i }));
+
+    const call = vi.mocked(authClient.signIn.magicLink).mock.calls[0]?.[0];
+    for (const url of [call?.callbackURL, call?.newUserCallbackURL, call?.errorCallbackURL]) {
+      expect(url).toContain("follow=dj-nova");
+      expect(url).toContain("source=interstitial");
+      expect(url).toContain("consent=1");
+    }
+    expect(call?.callbackURL).toContain("claimed=1");
+  });
+
+  it("the signed-in early redirect FORWARDS intent params instead of dropping them", async () => {
+    const { useRouter } = await import("next/navigation");
+    const replace = vi.fn();
+    vi.mocked(useRouter).mockReturnValue({
+      push: vi.fn(),
+      replace,
+      back: vi.fn(),
+      prefetch: vi.fn(),
+    } as unknown as ReturnType<typeof useRouter>);
+    vi.mocked(authClient.useSession).mockReturnValue({
+      data: { user: { id: "u1" } },
+      isPending: false,
+    } as unknown as ReturnType<typeof authClient.useSession>);
+    window.history.replaceState(null, "", "/my-likes/save?follow=dj-nova&source=live");
+
+    render(<SaveJournalPage />);
+    await vi.waitFor(() => {
+      expect(replace).toHaveBeenCalledWith("/my-likes?follow=dj-nova&source=live");
+    });
+  });
+
   it("browser mode offers the code toggle; wrong code shows an inline error", async () => {
     vi.mocked(authClient.signIn.emailOtp).mockResolvedValueOnce({
       data: null,

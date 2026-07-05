@@ -15,4 +15,20 @@ describe("/api/me guards", () => {
     });
     expect(res.status).toBe(401);
   });
+
+  test("Slice C surfaces (follows / preferences) → 401 without a session", async () => {
+    for (const [path, method, body] of [
+      ["/follows/dj-nova", "PUT", JSON.stringify({ source: "live" })],
+      ["/follows/dj-nova", "DELETE", undefined],
+      ["/follows", "GET", undefined],
+      ["/preferences", "GET", undefined],
+      ["/preferences", "PUT", JSON.stringify({ recapEmails: true })],
+    ] as const) {
+      const res = await meRoutes.request(path, {
+        method,
+        ...(body ? { headers: { "Content-Type": "application/json" }, body } : {}),
+      });
+      expect(res.status).toBe(401);
+    }
+  });
 });

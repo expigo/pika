@@ -31,6 +31,17 @@ export const PRODUCT_EVENTS = [
   "account_deletion_requested",
   "account_otp_requested",
   "account_device_unlinked",
+  // Slice C — The Relationship Loop
+  "follow_tapped",
+  "follow_completed",
+  "unfollowed",
+  "booth_viewed",
+  "gig_link_clicked",
+  "thanks_sent",
+  "interstitial_shown",
+  "card_generated",
+  "card_shared",
+  "email_prefs_updated",
 ] as const;
 
 const EventBody = z.object({

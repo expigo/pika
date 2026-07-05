@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { FollowButton } from "@/components/FollowButton";
 import { LivePlayer } from "@/components/LivePlayer";
 import { ProCard } from "@/components/ui/ProCard";
 import { VibeBadge } from "@/components/ui/VibeBadge";
@@ -25,6 +26,7 @@ import { ensureClientIdClaimed, hasAccountHint } from "@/lib/identity";
 interface ActiveSession {
   sessionId: string;
   djName: string;
+  djSlug?: string | null; // Booth path (Slice C); null = anonymous DJ → no Follow
   startedAt?: string;
   currentTrack?: {
     title: string;
@@ -333,6 +335,13 @@ export default function LivePage() {
                     </div>
                   </div>
                 </button>
+                {/* Follow lives OUTSIDE the join <button> — a button inside a button is
+                    invalid DOM, and a follow tap must not also join the session. */}
+                {session.djSlug && (
+                  <div className="px-8 pb-6 flex justify-end border-t border-white/[0.03] pt-4">
+                    <FollowButton slug={session.djSlug} djName={session.djName} source="live" />
+                  </div>
+                )}
               </ProCard>
             ))}
           </div>

@@ -24,15 +24,49 @@ export default function SaveJournalPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+  // Slice C: follow intent arrives as query params and must survive the sign-in round trip via
+  // the callbackURL query string — a magic link may be opened on a DIFFERENT device, so
+  // sessionStorage can never carry it. Consent is an unticked checkbox (pre-ticked ≠ consent).
+  const [intent, setIntent] = useState<{ follow: string | null; source: string | null }>({
+    follow: null,
+    source: null,
+  });
+  const [recapConsent, setRecapConsent] = useState(false);
 
   // Effect-set (not useState init) — isStandalone() differs between SSR and client render.
   useEffect(() => {
     if (isStandalone()) setMode("code");
   }, []);
 
-  // Already signed in → the journal page is the account surface.
   useEffect(() => {
-    if (!isPending && session) router.replace("/my-likes");
+    const params = new URLSearchParams(window.location.search);
+    const follow = params.get("follow");
+    const source = params.get("source");
+    if (follow || source) setIntent({ follow, source });
+  }, []);
+
+  /** The landing-page query string: base params + whatever intent must survive sign-in. */
+  const landingQuery = (base: Record<string, string>): string => {
+    const q = new URLSearchParams(base);
+    if (intent.follow) q.set("follow", intent.follow);
+    if (intent.source) q.set("source", intent.source);
+    if (recapConsent) q.set("consent", "1");
+    return q.toString();
+  };
+
+  // Already signed in → the journal page is the account surface. Forward any intent params —
+  // dropping them here would silently lose a follow tapped by a signed-in-elsewhere dancer.
+  useEffect(() => {
+    if (!isPending && session) {
+      const params = new URLSearchParams(window.location.search);
+      const forward = new URLSearchParams();
+      for (const k of ["follow", "source", "consent"]) {
+        const v = params.get(k);
+        if (v) forward.set(k, v);
+      }
+      const qs = forward.toString();
+      router.replace(qs.length > 0 ? `/my-likes?${qs}` : "/my-likes");
+    }
   }, [isPending, session, router]);
 
   // Expired/reused link lands back here with ?error=link.
@@ -72,9 +106,9 @@ export default function SaveJournalPage() {
       const origin = window.location.origin;
       const { error: err } = await authClient.signIn.magicLink({
         email,
-        callbackURL: `${origin}/my-likes?claimed=1`,
-        newUserCallbackURL: `${origin}/my-likes?claimed=1&new=1`,
-        errorCallbackURL: `${origin}/my-likes/save?error=link`,
+        callbackURL: `${origin}/my-likes?${landingQuery({ claimed: "1" })}`,
+        newUserCallbackURL: `${origin}/my-likes?${landingQuery({ claimed: "1", new: "1" })}`,
+        errorCallbackURL: `${origin}/my-likes/save?${landingQuery({ error: "link" })}`,
       });
       if (err) {
         setError(err.message ?? "Couldn't send the link — try again in a minute.");
@@ -104,7 +138,7 @@ export default function SaveJournalPage() {
         setError(err.message ?? "That code didn't work — check it or send a new one.");
         return;
       }
-      router.replace("/my-likes?claimed=1");
+      router.replace(`/my-likes?${landingQuery({ claimed: "1" })}`);
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -219,6 +253,11 @@ export default function SaveJournalPage() {
               <p className="text-slate-500 text-[10px] font-bold uppercase tracking-[0.3em] leading-relaxed">
                 One email, no password — your likes survive any device
               </p>
+              {intent.follow && (
+                <p className="text-[10px] font-black text-purple-400/80 uppercase tracking-[0.2em]">
+                  We'll follow the DJ for you right after you sign in
+                </p>
+              )}
             </div>
 
             {error && (
@@ -241,6 +280,18 @@ export default function SaveJournalPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
+
+            <label className="flex items-start gap-3 text-left cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={recapConsent}
+                onChange={(e) => setRecapConsent(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-white/10 bg-slate-950 accent-purple-500"
+              />
+              <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest leading-relaxed">
+                Email me my night recaps — one per night out, unsubscribe anytime
+              </span>
+            </label>
 
             <button
               type="submit"

@@ -7,10 +7,12 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  date,
   index,
   integer,
   json,
   pgTable,
+  primaryKey,
   real,
   serial,
   text,
@@ -117,6 +119,9 @@ export const sessions = pgTable(
     // opts to share it — synced here so it embeds on the recap + a badge on the profile session row.
     spotifyPlaylistId: text("spotify_playlist_id"),
     spotifyPlaylistUrl: text("spotify_playlist_url"),
+    // Slice C: recap-sweep claim marker — set exactly once (UPDATE … WHERE recap_processed_at IS
+    // NULL RETURNING) before any email goes out, so a session is recapped at most once.
+    recapProcessedAt: timestamp("recap_processed_at"),
   },
   (table) => ({
     idxDjUserId: index("idx_sessions_dj_user_id").on(table.djUserId),
@@ -352,17 +357,24 @@ export const sessionEvents = pgTable(
  * Web Push subscriptions for engaging users.
  * GDPR Compliance: unsubscribedAt tracks opt-outs without deleting history.
  */
-export const pushSubscriptions = pgTable("push_subscriptions", {
-  endpoint: text("endpoint").primaryKey(), // Unique URL per subscription
-  p256dh: text("p256dh").notNull(), // Encryption public key
-  auth: text("auth").notNull(), // Authentication secret
-  clientId: text("client_id"), // Browser identity for targeted notifications
-  // Link to a user if authenticated. Never written by any current code path; set-null keeps
-  // GDPR account deletion (Slice B) from ever being blocked by a stray reference.
-  userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-  unsubscribedAt: timestamp("unsubscribed_at"), // Opt-out flag
-});
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(), // Unique URL per subscription
+    p256dh: text("p256dh").notNull(), // Encryption public key
+    auth: text("auth").notNull(), // Authentication secret
+    clientId: text("client_id"), // Browser identity for targeted notifications
+    // Link to a user if authenticated. Never written by any current code path; set-null keeps
+    // GDPR account deletion (Slice B) from ever being blocked by a stray reference.
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    unsubscribedAt: timestamp("unsubscribed_at"), // Opt-out flag
+  },
+  (table) => ({
+    // Slice C: the recap push fan-out resolves subscriptions by claimed clientIds.
+    idxClientId: index("idx_push_subscriptions_client_id").on(table.clientId),
+  }),
+);
 
 // ============================================================================
 // Spotify Connections (Track D — Web DJ Spotify-source broadcaster)
@@ -678,5 +690,92 @@ export const productEvents = pgTable(
   },
   (table) => ({
     idxEventCreated: index("idx_product_events_event_created").on(table.event, table.createdAt),
+  }),
+);
+
+// ============================================================================
+// Slice C — The Relationship Loop (follows, gigs, email consent, thanks)
+// ============================================================================
+
+/**
+ * Dancer→DJ follow edges. Account-keyed — a follow must survive device eviction, so it hangs
+ * off the Better Auth user, never a clientId. Follower lists are never public: the DJ sees an
+ * aggregate count only. Both FKs cascade — deleting either account erases the edge (GDPR).
+ */
+export const djFollows = pgTable(
+  "dj_follows",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    djUserId: text("dj_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    // Where the follow was initiated (live|recap|booth|journal|interstitial|signin) — funnel data.
+    source: text("source"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.userId, table.djUserId] }),
+    idxDjUserId: index("idx_dj_follows_dj_user_id").on(table.djUserId),
+  }),
+);
+
+/**
+ * DJ-authored upcoming gigs on the Booth ("I'll be at Budafest, Jan 15") — structured
+ * one-liners, deliberately NOT an organizer/venue model. Past gigs drop out of the public
+ * payload but stay visible to the owner.
+ */
+export const djGigs = pgTable(
+  "dj_gigs",
+  {
+    id: serial("id").primaryKey(),
+    djUserId: text("dj_user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    gigDate: date("gig_date").notNull(),
+    title: text("title").notNull(),
+    city: text("city"),
+    url: text("url"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    idxDjDate: index("idx_dj_gigs_dj_date").on(table.djUserId, table.gigDate),
+  }),
+);
+
+/**
+ * Marketing-email consent, one row per account; timestamps are the consent proof (GDPR):
+ * set = opted in at that moment, null = off. Lives outside Better Auth additionalFields on
+ * purpose — those don't apply on magic-link signups, so consent is always an explicit authed
+ * write (PUT /api/me/preferences), never a signup side effect.
+ */
+export const emailPreferences = pgTable("email_preferences", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  recapOptInAt: timestamp("recap_opt_in_at"), // dancer Night Recap emails
+  digestOptInAt: timestamp("digest_opt_in_at"), // DJ set-digest emails (hasDjAccess only)
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+/**
+ * One-tap post-set "thank the DJ" — session-level applause, at most one per device per session
+ * (possession of the clientId is the trust model, exactly like likes). Surfaces as a count in
+ * the DJ digest. Deliberately carries no free text — no moderation surface.
+ */
+export const sessionThanks = pgTable(
+  "session_thanks",
+  {
+    id: serial("id").primaryKey(),
+    sessionId: text("session_id")
+      .notNull()
+      .references(() => sessions.id, { onDelete: "cascade" }),
+    clientId: text("client_id"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    uniqueThanks: unique("unique_session_thanks").on(table.sessionId, table.clientId),
+    idxSessionId: index("idx_session_thanks_session_id").on(table.sessionId),
   }),
 );

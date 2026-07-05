@@ -24,8 +24,10 @@ import { usePushNotifications } from "@/hooks/live";
 import { type HistoryTrack, useLiveListener } from "@/hooks/useLiveListener";
 import { getApiBaseUrl } from "@/lib/api";
 import { ConnectionStatusIndicator } from "./ConnectionStatus";
+import { FollowButton } from "./FollowButton";
 import { NotificationToggle } from "./pwa/NotificationToggle";
 import { OfflineStatus } from "./pwa/OfflineStatus";
+import { SessionEndedInterstitial } from "./SessionEndedInterstitial";
 import { SocialSignalsLayer } from "./SocialSignalsLayer";
 import { StaleDataBanner } from "./StaleDataBanner";
 import { ProCard } from "./ui/ProCard";
@@ -288,6 +290,8 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
     dismissAnnouncement,
     onLikeReceived,
     sessionEnded,
+    djSlug,
+    lastSessionSummary,
     isPaused,
     lastHeartbeat,
     pendingCount,
@@ -552,6 +556,7 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
               )}
               {isLive && (
                 <div className="flex items-center gap-2">
+                  {djSlug && djName && <FollowButton slug={djSlug} djName={djName} source="live" />}
                   <button
                     type="button"
                     onClick={() => setShowSettings(!showSettings)}
@@ -734,27 +739,10 @@ export function LivePlayer({ targetSessionId, targetStageId }: LivePlayerProps) 
                 </button>
               </div>
             ) : sessionEnded ? (
-              <div className="text-center animate-in fade-in duration-500">
-                <div className="w-20 h-20 bg-slate-900 border-2 border-slate-800 rounded-full flex items-center justify-center mx-auto mb-8 shadow-2xl">
-                  <Heart className="w-10 h-10 text-slate-700" />
-                </div>
-                <h2 className="text-2xl font-black text-white italic uppercase tracking-tighter mb-2">
-                  Session Ended
-                </h2>
-                <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.3em] mb-8">
-                  Thanks for dancing!
-                </p>
-                {isTargetedSession && (
-                  <div>
-                    <Link
-                      href={`/recap/${targetSessionId}`}
-                      className="px-8 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-purple-500/20 hover:scale-105 active:scale-95"
-                    >
-                      View Full Recap
-                    </Link>
-                  </div>
-                )}
-              </div>
+              <SessionEndedInterstitial
+                summary={lastSessionSummary}
+                sessionId={isTargetedSession ? targetSessionId : undefined}
+              />
             ) : (
               <div className="text-center">
                 <div className="w-24 h-24 bg-slate-900/50 border border-slate-800 rounded-full flex items-center justify-center mx-auto mb-10 relative overflow-hidden group">

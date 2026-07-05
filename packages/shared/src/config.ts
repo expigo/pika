@@ -63,6 +63,9 @@ export const LIMITS = {
   // scraping/abuse. The clientId itself is a 122-bit unguessable bearer id over anonymous data.
   CLIENT_LIKES_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
   CLIENT_LIKES_RATE_LIMIT_MAX: 30,
+  // Follow/unfollow + email-preference writes (Slice C) — authed, cheap single-row ops.
+  FOLLOWS_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
+  FOLLOWS_RATE_LIMIT_MAX: 30,
   // Per-session cap on push-broadcast announcements (each fans out to every subscriber's device).
   ANNOUNCEMENT_PUSH_RATE_LIMIT_WINDOW: 5 * 60 * 1000, // 5 min
   ANNOUNCEMENT_PUSH_RATE_LIMIT_MAX: 2,
@@ -81,11 +84,20 @@ export const LIMITS = {
   MAIL_PER_ADDRESS_WINDOW: 60 * 60 * 1000, // 1 hour, per address per kind
   MAIL_PER_ADDRESS_MAX: 3,
   MAIL_GLOBAL_DAILY_MAX: 200, // default daily fuse across all transactional mail
+  // Marketing email (Night Recap, DJ digest — Slice C): a separate class + budget so recap
+  // volume can never starve sign-in sends. Per-address window is a day — one recap per night
+  // out is the product's own contract (two allows a double-session night).
+  MARKETING_MAIL_PER_ADDRESS_WINDOW: 24 * 60 * 60 * 1000, // 24 h
+  MARKETING_MAIL_PER_ADDRESS_MAX: 2,
+  MARKETING_MAIL_GLOBAL_DAILY_MAX: 500, // default; MARKETING_MAIL_DAILY_CAP env overrides
   AUTH_EMAIL_IP_WINDOW_SEC: 600, // Better Auth per-IP rule: 10 sends per 10 min —
   AUTH_EMAIL_IP_MAX: 10, // venue-NAT-friendly burst, hostile to single-IP floods
   // Product telemetry ingest (fire-and-forget beacon; enum-whitelisted events only).
   TELEMETRY_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
   TELEMETRY_RATE_LIMIT_MAX: 60, // per IP
+  // Night Card image proxy (Slice C) — one upstream fetch per call, pinhole-allowlisted.
+  IMG_PROXY_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
+  IMG_PROXY_RATE_LIMIT_MAX: 30, // per IP
   MAX_TELEMETRY_PROPS_BYTES: 1024,
   // Per-IP cap on WebSocket *connection* attempts. NOTE: this is keyed on the
   // client IP (CF-Connecting-IP / X-Forwarded-For), so an entire venue behind one

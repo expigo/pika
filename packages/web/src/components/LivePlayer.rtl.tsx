@@ -17,6 +17,10 @@ vi.mock("@/hooks/live", () => ({
 // Canvas overlay — irrelevant to assertions and unfriendly to happy-dom.
 vi.mock("./SocialSignalsLayer", () => ({ SocialSignalsLayer: () => null }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+// The interstitial + FollowButton read the auth session; default to signed-out.
+vi.mock("@/lib/authClient", () => ({
+  authClient: { useSession: vi.fn(() => ({ data: null, isPending: false })) },
+}));
 
 const asMock = vi.mocked(useLiveListener);
 
@@ -55,12 +59,29 @@ describe("LivePlayer — render states", () => {
     expect(screen.queryByText("Get Lucky")).not.toBeInTheDocument();
   });
 
-  it("shows the session-ended state with a recap link for a targeted session", () => {
-    setup({ status: "connected", currentTrack: null, djName: null, sessionEnded: true });
+  it("shows the end-of-set interstitial from the SNAPSHOT for a targeted session", () => {
+    // SESSION_ENDED wipes djName/likes before flagging ended — the interstitial must render
+    // from lastSessionSummary, never live state (which is already null/empty here).
+    setup({
+      status: "connected",
+      currentTrack: null,
+      djName: null,
+      sessionEnded: true,
+      lastSessionSummary: { djName: "DJ Nova", djSlug: "dj-nova", likedCount: 3 },
+    });
     render(<LivePlayer targetSessionId="sess-42" />);
-    expect(screen.getByText(/session ended/i)).toBeInTheDocument();
-    const recap = screen.getByRole("link", { name: /view full recap/i });
-    expect(recap).toHaveAttribute("href", "/recap/sess-42");
+    expect(screen.getByText(/set's over/i)).toBeInTheDocument();
+    expect(screen.getByText(/you loved 3 songs tonight/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /thank dj nova/i })).toBeInTheDocument();
+    // Signed out → the save CTA carries the follow intent in the query string.
+    expect(screen.getByRole("link", { name: /save your night/i })).toHaveAttribute(
+      "href",
+      "/my-likes/save?source=interstitial&follow=dj-nova",
+    );
+    expect(screen.getByRole("link", { name: /view full recap/i })).toHaveAttribute(
+      "href",
+      "/recap/sess-42",
+    );
   });
 });
 

@@ -440,6 +440,7 @@ export const SessionStartedSchema = z.object({
   version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
   djName: z.string().min(1).max(100).trim(),
+  djSlug: z.string().min(1).max(120).trim().optional(), // Booth path (Slice C); absent = anonymous DJ
   stageId: z.string().min(1).max(64).trim().optional(), // present when the session runs under a stage
 });
 
@@ -448,6 +449,7 @@ export const NowPlayingSchema = z.object({
   version: z.string().max(20).optional(),
   sessionId: z.string().min(8).max(64).trim(),
   djName: z.string().min(1).max(100).trim(),
+  djSlug: z.string().min(1).max(120).trim().optional(), // Booth path (Slice C)
   track: TrackInfoSchema,
 });
 
@@ -475,6 +477,7 @@ export const SessionsListSchema = z.object({
     z.object({
       sessionId: z.string(),
       djName: z.string(),
+      djSlug: z.string().optional(), // Booth path (Slice C); absent = anonymous DJ
       startedAt: z.string().datetime().optional(), // ISO timestamp
       currentTrack: TrackInfoSchema.optional(),
       activeAnnouncement: z

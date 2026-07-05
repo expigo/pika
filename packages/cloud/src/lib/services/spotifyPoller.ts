@@ -152,12 +152,18 @@ function publishSessionState(sessionId: string, type: "SESSION_PAUSED" | "SESSIO
 export async function startPoller(
   djUserId: string,
   djName: string,
+  djSlug: string | null = null,
 ): Promise<{ sessionId: string }> {
   const existing = pollers.get(djUserId);
   if (existing) return { sessionId: existing.sessionId };
 
   const sessionId = `session_${Date.now()}`;
-  const { session } = await createLiveSession({ sessionId, djName, djUserId });
+  const { session } = await createLiveSession({
+    sessionId,
+    djName,
+    djUserId,
+    ...(djSlug && { djSlug }),
+  });
 
   await db.insert(livePollers).values({
     djUserId,
@@ -170,7 +176,13 @@ export async function startPoller(
   // Announce on the discovery topic so lobby/dancers see the session appear.
   getBroadcaster()?.publish(
     DISCOVERY_TOPIC,
-    JSON.stringify({ type: "SESSION_STARTED", sessionId, djName, startTime: session.startedAt }),
+    JSON.stringify({
+      type: "SESSION_STARTED",
+      sessionId,
+      djName,
+      ...(session.djSlug && { djSlug: session.djSlug }),
+      startTime: session.startedAt,
+    }),
   );
 
   const rt: PollerRuntime = {
