@@ -17,11 +17,15 @@ import {
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { FollowButton } from "@/components/FollowButton";
+import { NightCardButton } from "@/components/NightCardButton";
 import { SpotifyPlaylistEmbed } from "@/components/SpotifyPlaylistEmbed";
 import { ProCard, ProHeader } from "@/components/ui/ProCard";
 import { TrackRow } from "@/components/ui/TrackRow";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 import { getApiBaseUrl } from "@/lib/api";
+import { getOrCreateClientId } from "@/lib/client";
+import { trackEvent } from "@/lib/events";
 
 interface RecapTrack {
   position: number;
@@ -38,6 +42,7 @@ interface RecapTrack {
 interface SessionRecap {
   sessionId: string;
   djName: string;
+  djSlug?: string | null; // Booth path (Slice C); null = anonymous DJ → no Follow
   startedAt: string;
   endedAt: string;
   trackCount: number;
@@ -88,6 +93,23 @@ export default function RecapPage() {
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [showAllTracks, setShowAllTracks] = useState(false);
+  const [thanked, setThanked] = useState(false);
+
+  // One-tap applause (Slice C) — same possession-trust write as likes; DB unique absorbs repeats.
+  const handleThanks = async () => {
+    if (thanked || !sessionId) return;
+    setThanked(true);
+    try {
+      const clientId = getOrCreateClientId();
+      const res = await fetch(
+        `${getApiBaseUrl()}/api/client/${encodeURIComponent(clientId)}/sessions/${encodeURIComponent(sessionId)}/thanks`,
+        { method: "POST", headers: { "X-Pika-Client": "pika-web" } },
+      );
+      if (res.ok) trackEvent("thanks_sent", { at: "recap" });
+    } catch {
+      // best-effort — stays disabled either way
+    }
+  };
 
   useEffect(() => {
     async function fetchRecap() {
@@ -184,18 +206,44 @@ export default function RecapPage() {
               Pika! <span className="text-white">Recap</span>
             </span>
           </div>
-          <button
-            type="button"
-            onClick={handleShare}
-            className="flex items-center gap-2 px-4 py-2 hover:bg-slate-900 text-[10px] font-black text-slate-500 hover:text-white rounded-lg transition-all border border-transparent hover:border-slate-800 uppercase tracking-widest active:scale-95"
-          >
-            {copied ? (
-              <Check className="w-3.5 h-3.5 text-emerald-400" />
-            ) : (
-              <Share2 className="w-3.5 h-3.5" />
-            )}
-            {copied ? "Link Copied" : "Share Recap"}
-          </button>
+          <div className="flex items-center gap-1">
+            <NightCardButton
+              data={{
+                djName: recap.djName,
+                dateLabel: formatDate(recap.startedAt),
+                headline: `${recap.totalLikes} ❤ from the floor`,
+                topTrack:
+                  peakTrack && peakTrack.likes > 0
+                    ? {
+                        title: peakTrack.title,
+                        artist: peakTrack.artist,
+                        albumArtUrl: peakTrack.albumArtUrl,
+                      }
+                    : null,
+                qrLabel: recap.djSlug ? "Scan for the booth" : "Scan to join Pika!",
+              }}
+              qrUrl={
+                recap.djSlug
+                  ? `${window.location.origin}/dj/${recap.djSlug}?ref=card`
+                  : window.location.origin
+              }
+              shareText={`My night with ${recap.djName} — via Pika!`}
+              pageUrl={window.location.href}
+              source="recap"
+            />
+            <button
+              type="button"
+              onClick={handleShare}
+              className="flex items-center gap-2 px-4 py-2 hover:bg-slate-900 text-[10px] font-black text-slate-500 hover:text-white rounded-lg transition-all border border-transparent hover:border-slate-800 uppercase tracking-widest active:scale-95"
+            >
+              {copied ? (
+                <Check className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <Share2 className="w-3.5 h-3.5" />
+              )}
+              {copied ? "Link Copied" : "Share Recap"}
+            </button>
+          </div>
         </div>
 
         {/* HERO CARD */}
@@ -206,9 +254,24 @@ export default function RecapPage() {
           <h2 className="text-4xl font-black text-white mb-2 tracking-tighter italic uppercase leading-none">
             {recap.djName}
           </h2>
-          <div className="flex items-center justify-center gap-3 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-12">
+          <div className="flex items-center justify-center gap-3 text-slate-500 text-[10px] font-black uppercase tracking-[0.2em] mb-6">
             <Calendar className="w-4 h-4 text-purple-500/50" />
             {formatDate(recap.startedAt)}
+          </div>
+
+          {/* The relationship row (Slice C): follow the DJ + one-tap applause */}
+          <div className="flex items-center justify-center gap-3 mb-12 flex-wrap">
+            {recap.djSlug && (
+              <FollowButton slug={recap.djSlug} djName={recap.djName} source="recap" />
+            )}
+            <button
+              type="button"
+              onClick={() => void handleThanks()}
+              disabled={thanked}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-purple-500/20 bg-purple-500/5 text-purple-400 text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-60"
+            >
+              {thanked ? "Thanks sent 🦄" : "Thank the DJ 🦄"}
+            </button>
           </div>
 
           <div className="grid grid-cols-3 divide-x divide-slate-800/50 border-t border-slate-800/50 pt-10">
