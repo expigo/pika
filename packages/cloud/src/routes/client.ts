@@ -61,6 +61,48 @@ client.use(
   }),
 );
 
+// 🛡️ One-tap post-set applause (Slice C) — cheap single INSERT, unique(sessionId, clientId)
+// makes repeats no-ops. Same possession-trust model as likes.
+client.use(
+  "/:clientId/sessions/:sessionId/thanks",
+  rateLimiter({
+    windowMs: LIMITS.CLIENT_LIKES_RATE_LIMIT_WINDOW,
+    limit: LIMITS.CLIENT_LIKES_RATE_LIMIT_MAX,
+    standardHeaders: "draft-6",
+    keyGenerator: (c) =>
+      c.req.header("CF-Connecting-IP") || c.req.header("X-Forwarded-For") || "unknown",
+    handler: (c) => c.json({ error: "Too many requests, please try again later" }, 429),
+  }),
+);
+
+/**
+ * POST /:clientId/sessions/:sessionId/thanks
+ * Thank the DJ for a set — session-level, at most once per device (the DB unique absorbs
+ * repeats). Counted into the DJ's morning digest. Deliberately no free text.
+ */
+client.post("/:clientId/sessions/:sessionId/thanks", async (c) => {
+  const clientId = c.req.param("clientId");
+  const sessionId = c.req.param("sessionId") ?? "";
+  if (!clientId || !CLIENT_ID_REGEX.test(clientId)) {
+    return c.json({ error: "Invalid client ID format" }, 400);
+  }
+  if (sessionId.length === 0 || sessionId.length > 120) {
+    return c.json({ error: "Invalid session id" }, 400);
+  }
+  try {
+    await db.insert(schema.sessionThanks).values({ sessionId, clientId }).onConflictDoNothing();
+    return c.json({ success: true });
+  } catch (error) {
+    // FK violation = unknown session; indistinguishable from not-found on purpose.
+    logger.warn("Failed to record thanks", {
+      sessionId,
+      clientId: maskClientId(clientId),
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return c.json({ error: "Session not found" }, 404);
+  }
+});
+
 /**
  * GET /:clientId/likes?limit=&offset=
  * The dancer's Journal: real total, a page of likes (grouped client-side by session), the

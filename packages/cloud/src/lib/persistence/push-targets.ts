@@ -16,7 +16,7 @@
  * @package @pika/cloud
  */
 
-import { and, desc, eq, getTableColumns, isNull } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
 import { db } from "../../db";
 import { pushSubscriptions, stageSubscriptions, stages } from "../../db/schema";
 import type { PikaPushSubscription } from "../../services/push";
@@ -83,4 +83,23 @@ export function getAnnouncementPushTargets(session: {
   stageId?: string | null;
 }): Promise<PikaPushSubscription[]> {
   return session.stageId ? getStagePushTargets(session.stageId) : getAllActivePushTargets();
+}
+
+/**
+ * Active subscriptions for an explicit set of clientIds (Slice C: the recap push targets an
+ * account's claimed devices). `endpoint` is the PK, so rows are already device-unique.
+ * Backed by idx_push_subscriptions_client_id.
+ */
+export function getClientIdsPushTargets(
+  clientIds: string[],
+  limit = MAX_PUSH_TARGETS,
+): Promise<PikaPushSubscription[]> {
+  if (clientIds.length === 0) return Promise.resolve([]);
+  return db
+    .select()
+    .from(pushSubscriptions)
+    .where(
+      and(isNull(pushSubscriptions.unsubscribedAt), inArray(pushSubscriptions.clientId, clientIds)),
+    )
+    .limit(limit);
 }

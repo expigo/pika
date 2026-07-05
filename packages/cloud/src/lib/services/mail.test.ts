@@ -14,9 +14,12 @@ import {
   MailNotConfiguredError,
   MailSendError,
   MailThrottledError,
+  sendDjDigestEmail,
   sendEmail,
   sendMagicLinkEmail,
+  sendNightRecapEmail,
   sendSignInOtpEmail,
+  sendThrottledMarketingEmail,
 } from "./mail";
 
 interface FetchCall {
@@ -192,5 +195,153 @@ describe("sendSignInOtpEmail", () => {
     expect(body.html).toContain("481227");
     expect(body.text).toContain("481227");
     expect(body.text).toMatch(/Requested at /);
+  });
+});
+
+// ============================================================================
+// Marketing email (Slice C)
+// ============================================================================
+
+describe("sendEmail header placement (Slice C)", () => {
+  test("message headers go in the BODY; Idempotency-Key goes in the HTTP request headers", async () => {
+    // The two placements are different beasts: body `headers` become MESSAGE headers
+    // (List-Unsubscribe), the HTTP header drives Resend's API-level dedup. Routing the
+    // idempotency key into the body would silently disable the double-send defense.
+    const { deps, calls } = makeDeps();
+    await sendEmail(
+      {
+        ...input,
+        headers: { "List-Unsubscribe": "<https://api.test/u?token=t>" },
+        idempotencyKey: "recap:s1:u1",
+      },
+      deps,
+    );
+    const httpHeaders = calls[0]?.init?.headers as Record<string, string>;
+    expect(httpHeaders["Idempotency-Key"]).toBe("recap:s1:u1");
+    const body = JSON.parse(String(calls[0]?.init?.body)) as Record<string, unknown>;
+    expect(body["headers"]).toEqual({ "List-Unsubscribe": "<https://api.test/u?token=t>" });
+    expect(body["Idempotency-Key"]).toBeUndefined();
+  });
+
+  test("neither field is emitted when absent (transactional sends unchanged)", async () => {
+    const { deps, calls } = makeDeps();
+    await sendEmail(input, deps);
+    const httpHeaders = calls[0]?.init?.headers as Record<string, string>;
+    expect(httpHeaders["Idempotency-Key"]).toBeUndefined();
+    const body = JSON.parse(String(calls[0]?.init?.body)) as Record<string, unknown>;
+    expect(body["headers"]).toBeUndefined();
+  });
+});
+
+const recapInput = {
+  to: "dancer@x.y",
+  djName: "DJ <Nova> & Co",
+  eventLabel: "Westie Wednesday",
+  dateLabel: "Friday, Jul 4",
+  personalTracks: [{ artist: "Daft Punk", title: "Get <Lucky>" }],
+  personalTotal: 7,
+  floorTop: [{ artist: "A", title: "B", likes: 12 }],
+  journalUrl: "https://web.test/my-likes?ref=recap",
+  boothUrl: "https://web.test/dj/dj-nova?ref=recap",
+  recapUrl: "https://web.test/recap/s1?ref=recap",
+  unsubPageUrl: "https://web.test/unsubscribe?token=T",
+  unsubApiUrl: "https://api.test/api/email/unsubscribe?token=T",
+  idempotencyKey: "recap:s1:u1",
+};
+
+describe("sendNightRecapEmail / sendDjDigestEmail", () => {
+  test("recap: renders html+text, escapes user strings, carries RFC 8058 headers + key", async () => {
+    const { deps, calls } = makeDeps();
+    await sendNightRecapEmail(recapInput, deps);
+    const httpHeaders = calls[0]?.init?.headers as Record<string, string>;
+    expect(httpHeaders["Idempotency-Key"]).toBe("recap:s1:u1");
+    const body = JSON.parse(String(calls[0]?.init?.body)) as {
+      subject: string;
+      html: string;
+      text: string;
+      headers: Record<string, string>;
+    };
+    expect(body.subject).toBe("Your night with DJ <Nova> & Co ⚡");
+    expect(body.headers["List-Unsubscribe"]).toBe(
+      "<https://api.test/api/email/unsubscribe?token=T>",
+    );
+    expect(body.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
+    // User strings are escaped in HTML (never raw <, &) and readable in text.
+    expect(body.html).toContain("DJ &lt;Nova&gt; &amp; Co");
+    expect(body.html).toContain("Get &lt;Lucky&gt;");
+    expect(body.html).not.toContain("Get <Lucky>");
+    expect(body.text).toContain("Get <Lucky> — Daft Punk");
+    expect(body.text).toContain("…and 6 more in your journal.");
+    expect(body.text).toContain("Unsubscribe: https://web.test/unsubscribe?token=T");
+    expect(body.html).toContain(recapInput.journalUrl);
+    expect(body.html).toContain(recapInput.boothUrl);
+  });
+
+  test("digest: stats + top tracks + consent footer, its own idempotency key", async () => {
+    const { deps, calls } = makeDeps();
+    await sendDjDigestEmail(
+      {
+        to: "dj@x.y",
+        djName: "DJ Nova",
+        eventLabel: null,
+        dateLabel: "Friday, Jul 4",
+        trackCount: 42,
+        totalLikes: 130,
+        uniqueDancers: 27,
+        thanksCount: 9,
+        newFollowers: 4,
+        topTracks: [{ artist: "A", title: "B", likes: 12 }],
+        recapUrl: "https://web.test/dj/dj-nova/recap/s1",
+        unsubPageUrl: "https://web.test/unsubscribe?token=D",
+        unsubApiUrl: "https://api.test/api/email/unsubscribe?token=D",
+        idempotencyKey: "digest:s1",
+      },
+      deps,
+    );
+    const httpHeaders = calls[0]?.init?.headers as Record<string, string>;
+    expect(httpHeaders["Idempotency-Key"]).toBe("digest:s1");
+    const body = JSON.parse(String(calls[0]?.init?.body)) as { html: string; text: string };
+    expect(body.text).toContain("Likes: 130");
+    expect(body.text).toContain("Thank-yous: 9");
+    expect(body.text).toContain("New followers: 4");
+    expect(body.html).toContain("set digests in your Booth");
+  });
+});
+
+describe("sendThrottledMarketingEmail", () => {
+  const throttleWith = (verdict: EmailThrottleVerdict): EmailThrottle => ({
+    tryAcquire: () => verdict,
+  });
+
+  test("ok → sends", async () => {
+    let sent = 0;
+    const out = await sendThrottledMarketingEmail(
+      "recap",
+      "a@b.c",
+      async () => {
+        sent += 1;
+        return { delivered: true };
+      },
+      throttleWith("ok"),
+    );
+    expect(out).toBe("sent");
+    expect(sent).toBe(1);
+  });
+
+  test("address_limited → skips silently; daily_capped → 'capped' WITHOUT throwing", async () => {
+    // Marketing is best-effort by contract — unlike the transactional path, a capped batch
+    // must stop, not explode the sweep.
+    let sent = 0;
+    const send = async () => {
+      sent += 1;
+      return { delivered: true };
+    };
+    expect(
+      await sendThrottledMarketingEmail("recap", "a@b.c", send, throttleWith("address_limited")),
+    ).toBe("skipped");
+    expect(
+      await sendThrottledMarketingEmail("digest", "a@b.c", send, throttleWith("daily_capped")),
+    ).toBe("capped");
+    expect(sent).toBe(0);
   });
 });

@@ -76,3 +76,19 @@ export const mailThrottle: EmailThrottle = createEmailThrottle({
   perAddressWindowMs: LIMITS.MAIL_PER_ADDRESS_WINDOW,
   dailyCap: dailyCap(),
 });
+
+function marketingDailyCap(): number {
+  const raw = Number.parseInt(process.env["MARKETING_MAIL_DAILY_CAP"] ?? "", 10);
+  return Number.isNaN(raw) || raw <= 0 ? LIMITS.MARKETING_MAIL_GLOBAL_DAILY_MAX : raw;
+}
+
+/**
+ * Marketing sends (Night Recap, DJ digest — Slice C) — a fully SEPARATE instance. Budgets are
+ * per-instance, so recap volume can never consume the transactional budget above: the
+ * transactional fuse alert means "sign-ins are failing" and must keep meaning exactly that.
+ */
+export const marketingMailThrottle: EmailThrottle = createEmailThrottle({
+  perAddressMax: LIMITS.MARKETING_MAIL_PER_ADDRESS_MAX,
+  perAddressWindowMs: LIMITS.MARKETING_MAIL_PER_ADDRESS_WINDOW,
+  dailyCap: marketingDailyCap(),
+});

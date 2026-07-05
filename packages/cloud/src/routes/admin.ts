@@ -34,6 +34,7 @@ import { getUser, requireAdmin } from "../lib/auth";
 import { auth } from "../lib/auth/server";
 import { getActiveConnectionCount } from "../lib/connection-registry";
 import { getListenerCount } from "../lib/listeners";
+import { sweepRecaps } from "../lib/services/recap";
 import { getAllSessions } from "../lib/sessions";
 
 const admin = new Hono();
@@ -421,6 +422,16 @@ admin.get("/catalog/songs/:id", async (c) => {
       source: String(r["source"] ?? "csv"),
     })),
   });
+});
+
+/**
+ * POST /api/admin/recap/sweep — run one Night-Recap sweep tick on demand, bypassing the
+ * send-window gate (zombie-close + claims + sends). Makes the staging smoke deterministic.
+ */
+admin.post("/recap/sweep", async (c) => {
+  const result = await sweepRecaps(undefined, { ignoreWindow: true });
+  recordAdminAction(getUser(c).id, "recap.sweep", undefined, result);
+  return c.json({ success: true, ...result });
 });
 
 logger.debug("🛠️ Admin routes mounted");

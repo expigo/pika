@@ -1,0 +1,390 @@
+/**
+ * Night Recap sweep (Slice C) — the morning-after loop closer.
+ *
+ * A 15-minute interval tick (index.ts) that, inside a 09:00–13:00 server-local send window,
+ * finds ended sessions with likes and mails each consented account holder their personal recap
+ * (+ the DJ their digest, if opted in). Everything follows the finalizeWebSet doctrine:
+ * best-effort, logged, never throws into the caller.
+ *
+ * Delivery discipline:
+ *  - CLAIM-THEN-SEND: `recap_processed_at` is stamped exactly once (UPDATE … WHERE … IS NULL
+ *    RETURNING) BEFORE any email goes out → at-most-once per session; a crash mid-batch loses
+ *    that session's remaining sends rather than ever double-mailing.
+ *  - Per-send Resend `Idempotency-Key` (recap:{session}:{user}) absorbs transient API retries.
+ *  - Marketing throttle (separate from the transactional sign-in budget): address_limited skips
+ *    a recipient (logged — the claim means they're lost, by design); daily_capped stops the tick.
+ *
+ * Zombie sessions: a crashed process leaves `ended_at IS NULL` rows behind
+ * (`cleanupStaleSessions` is memory-only). The sweep closes them — every tick, OUTSIDE the send
+ * window — once they've been inactive ≥6h and are absent from the in-memory session map, so a
+ * Friday-night crash still recaps Saturday morning. The 72h candidate floor means a first
+ * deploy never mass-mails the back catalog.
+ */
+
+import { logger } from "@pika/shared";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
+import { db } from "../../db";
+import {
+  clientIdentities,
+  djFollows,
+  emailPreferences,
+  events,
+  likes,
+  playedTracks,
+  sessions,
+  sessionThanks,
+  stages,
+  user,
+} from "../../db/schema";
+import { sendPushNotification } from "../../services/push";
+import { getClientIdsPushTargets } from "../persistence/push-targets";
+import { hasSession } from "../sessions";
+import { apiBaseUrl, webBaseUrl } from "../urls";
+import { signUnsubToken } from "./email-prefs";
+import { getClaimedClientIds } from "./identity";
+import { sendDjDigestEmail, sendNightRecapEmail, sendThrottledMarketingEmail } from "./mail";
+
+export const RECAP_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
+
+const MIN_AGE_MS = 8 * 60 * 60 * 1000; // recap no sooner than 8h after the set ended
+const MAX_AGE_MS = 72 * 60 * 60 * 1000; // …and never for sessions older than 3 days
+const ZOMBIE_IDLE_MS = 6 * 60 * 60 * 1000; // close a crash-orphaned open session after 6h idle
+const SEND_WINDOW_START_HOUR = 9; // server-local; documented tz simplification (ops-manual)
+const SEND_WINDOW_END_HOUR = 13;
+const MAX_SESSIONS_PER_TICK = 10;
+const MIN_TRACKS_FOR_RECAP = 3; // parallels finalizeWebSet's trivial-noise floor
+const PERSONAL_TRACKS_IN_EMAIL = 5;
+const FLOOR_TOP_N = 3;
+const MAX_ZOMBIES_PER_TICK = 50;
+
+export interface RecapSweepDeps {
+  now: () => Date;
+  /** In-memory liveness check — a "zombie" row that's actually live must never be closed. */
+  hasLiveSession: (sessionId: string) => boolean;
+  sendRecap: typeof sendNightRecapEmail;
+  sendDigest: typeof sendDjDigestEmail;
+  sendMarketing: typeof sendThrottledMarketingEmail;
+  sendPush: typeof sendPushNotification;
+}
+
+export const defaultRecapSweepDeps: RecapSweepDeps = {
+  now: () => new Date(),
+  hasLiveSession: hasSession,
+  sendRecap: sendNightRecapEmail,
+  sendDigest: sendDjDigestEmail,
+  sendMarketing: sendThrottledMarketingEmail,
+  sendPush: sendPushNotification,
+};
+
+/** Morning/noon send window, server-local (09:00–12:59). */
+export function isInSendWindow(now: Date): boolean {
+  const h = now.getHours();
+  return h >= SEND_WINDOW_START_HOUR && h < SEND_WINDOW_END_HOUR;
+}
+
+/**
+ * Close crash-orphaned sessions: `ended_at IS NULL`, absent from the in-memory map, and idle
+ * (last play, else start) ≥6h. `ended_at` is backdated to the last real activity so the recap's
+ * age gates behave as if the session had ended properly.
+ */
+export async function closeZombieSessions(
+  deps: RecapSweepDeps = defaultRecapSweepDeps,
+): Promise<number> {
+  const cutoff = deps.now().getTime() - ZOMBIE_IDLE_MS;
+  const openRows = await db
+    .select({ id: sessions.id, startedAt: sessions.startedAt })
+    .from(sessions)
+    .where(and(isNull(sessions.endedAt), lte(sessions.startedAt, new Date(cutoff))))
+    .limit(MAX_ZOMBIES_PER_TICK);
+
+  let closed = 0;
+  for (const row of openRows) {
+    if (deps.hasLiveSession(row.id)) continue; // a genuinely live long set
+    const [lastPlay] = await db
+      .select({ playedAt: playedTracks.playedAt })
+      .from(playedTracks)
+      .where(eq(playedTracks.sessionId, row.id))
+      .orderBy(desc(playedTracks.playedAt))
+      .limit(1);
+    const lastActivity = lastPlay?.playedAt ?? row.startedAt;
+    if (lastActivity.getTime() > cutoff) continue; // recent plays — leave it alone
+    await db
+      .update(sessions)
+      .set({ endedAt: lastActivity })
+      .where(and(eq(sessions.id, row.id), isNull(sessions.endedAt)));
+    closed += 1;
+    logger.info("🧟 Closed zombie session", { sessionId: row.id });
+  }
+  return closed;
+}
+
+interface CandidateSession {
+  id: string;
+  djUserId: string | null;
+  djName: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  stageId: string | null;
+}
+
+/**
+ * One sweep tick. Zombie-close runs EVERY tick; sends only inside the window (unless
+ * `ignoreWindow` — the admin smoke trigger). Never throws.
+ */
+export async function sweepRecaps(
+  deps: RecapSweepDeps = defaultRecapSweepDeps,
+  opts: { ignoreWindow?: boolean } = {},
+): Promise<{ closedZombies: number; sessionsRecapped: number; emailsSent: number }> {
+  let closedZombies = 0;
+  let sessionsRecapped = 0;
+  let emailsSent = 0;
+  try {
+    closedZombies = await closeZombieSessions(deps);
+
+    if (!opts.ignoreWindow && !isInSendWindow(deps.now())) {
+      return { closedZombies, sessionsRecapped, emailsSent };
+    }
+
+    const now = deps.now().getTime();
+    const candidates = (await db
+      .select({
+        id: sessions.id,
+        djUserId: sessions.djUserId,
+        djName: sessions.djName,
+        startedAt: sessions.startedAt,
+        endedAt: sessions.endedAt,
+        stageId: sessions.stageId,
+      })
+      .from(sessions)
+      .where(
+        and(
+          isNull(sessions.recapProcessedAt),
+          isNotNull(sessions.endedAt),
+          gte(sessions.endedAt, new Date(now - MAX_AGE_MS)),
+          lte(sessions.endedAt, new Date(now - MIN_AGE_MS)),
+          // trackCount is NOT a sessions column — correlated count over played_tracks.
+          sql`(select count(*) from played_tracks where played_tracks.session_id = ${sessions.id}) >= ${MIN_TRACKS_FOR_RECAP}`,
+        ),
+      )
+      .orderBy(asc(sessions.endedAt))
+      .limit(MAX_SESSIONS_PER_TICK)) as CandidateSession[];
+
+    for (const s of candidates) {
+      // CLAIM exactly once — a concurrent tick (or restart replay) loses this UPDATE and skips.
+      const claimed = await db
+        .update(sessions)
+        .set({ recapProcessedAt: deps.now() })
+        .where(and(eq(sessions.id, s.id), isNull(sessions.recapProcessedAt)))
+        .returning({ id: sessions.id });
+      if (claimed.length === 0) continue;
+
+      const result = await processSessionRecap(s, deps);
+      sessionsRecapped += 1;
+      emailsSent += result.emailsSent;
+      if (result.capped) {
+        logger.warn("Recap sweep stopping early — marketing daily cap reached");
+        break;
+      }
+    }
+  } catch (error) {
+    logger.error("❌ Recap sweep tick failed", error);
+  }
+  if (sessionsRecapped > 0 || closedZombies > 0) {
+    logger.info("🌅 Recap sweep tick", { closedZombies, sessionsRecapped, emailsSent });
+  }
+  return { closedZombies, sessionsRecapped, emailsSent };
+}
+
+/** Build + send everything for one claimed session. Best-effort per recipient. */
+async function processSessionRecap(
+  s: CandidateSession,
+  deps: RecapSweepDeps,
+): Promise<{ emailsSent: number; capped: boolean }> {
+  let emailsSent = 0;
+
+  // ── Shared context ────────────────────────────────────────────────────────
+  let dj: { email: string; slug: string | null; digestOptInAt: Date | null } | null = null;
+  if (s.djUserId) {
+    const [row] = await db
+      .select({
+        email: user.email,
+        slug: user.slug,
+        digestOptInAt: emailPreferences.digestOptInAt,
+      })
+      .from(user)
+      .leftJoin(emailPreferences, eq(emailPreferences.userId, user.id))
+      .where(eq(user.id, s.djUserId))
+      .limit(1);
+    dj = row ?? null;
+  }
+
+  let eventLabel: string | null = null;
+  if (s.stageId) {
+    const [row] = await db
+      .select({ stageName: stages.name, eventName: events.name })
+      .from(stages)
+      .leftJoin(events, eq(events.id, stages.eventId))
+      .where(eq(stages.id, s.stageId))
+      .limit(1);
+    eventLabel = row?.eventName ?? row?.stageName ?? null;
+  }
+
+  const dateLabel = s.startedAt.toLocaleDateString("en-GB", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+
+  const likeAgg = await db
+    .select({ playedTrackId: likes.playedTrackId, n: count() })
+    .from(likes)
+    .where(eq(likes.sessionId, s.id))
+    .groupBy(likes.playedTrackId);
+  const totalLikes = likeAgg.reduce((sum, r) => sum + r.n, 0);
+  if (totalLikes === 0) return { emailsSent, capped: false }; // nothing to recap
+
+  const topIds = [...likeAgg]
+    .sort((a, b) => b.n - a.n)
+    .slice(0, FLOOR_TOP_N)
+    .map((r) => r.playedTrackId);
+  const topRows = topIds.length
+    ? await db
+        .select({ id: playedTracks.id, artist: playedTracks.artist, title: playedTracks.title })
+        .from(playedTracks)
+        .where(inArray(playedTracks.id, topIds))
+    : [];
+  const likesById = new Map(likeAgg.map((r) => [r.playedTrackId, r.n]));
+  const floorTop = topIds.flatMap((id) => {
+    const row = topRows.find((t) => t.id === id);
+    return row ? [{ artist: row.artist, title: row.title, likes: likesById.get(id) ?? 0 }] : [];
+  });
+
+  const web = webBaseUrl();
+  const api = apiBaseUrl();
+  const recapUrl = `${web}/recap/${s.id}?ref=recap`;
+  const boothUrl = dj?.slug ? `${web}/dj/${dj.slug}?ref=recap` : null;
+
+  // ── Dancer recaps ─────────────────────────────────────────────────────────
+  const recipients = await db
+    .selectDistinct({ userId: clientIdentities.userId, email: user.email })
+    .from(likes)
+    .innerJoin(clientIdentities, eq(clientIdentities.clientId, likes.clientId))
+    .innerJoin(
+      emailPreferences,
+      and(
+        eq(emailPreferences.userId, clientIdentities.userId),
+        isNotNull(emailPreferences.recapOptInAt),
+      ),
+    )
+    .innerJoin(user, eq(user.id, clientIdentities.userId))
+    .where(eq(likes.sessionId, s.id));
+
+  const pushUserIds: string[] = [];
+  for (const r of recipients) {
+    try {
+      const personal = await db
+        .selectDistinctOn([likes.playedTrackId], {
+          artist: playedTracks.artist,
+          title: playedTracks.title,
+          likedAt: likes.createdAt,
+        })
+        .from(likes)
+        .innerJoin(clientIdentities, eq(clientIdentities.clientId, likes.clientId))
+        .innerJoin(playedTracks, eq(likes.playedTrackId, playedTracks.id))
+        .where(and(eq(likes.sessionId, s.id), eq(clientIdentities.userId, r.userId)))
+        .orderBy(likes.playedTrackId, asc(likes.createdAt));
+      if (personal.length === 0) continue;
+
+      const token = signUnsubToken(r.userId, "recap");
+      const ordered = [...personal].sort((a, b) => a.likedAt.getTime() - b.likedAt.getTime());
+      const outcome = await deps.sendMarketing("recap", r.email, () =>
+        deps.sendRecap({
+          to: r.email,
+          djName: s.djName,
+          eventLabel,
+          dateLabel,
+          personalTracks: ordered
+            .slice(0, PERSONAL_TRACKS_IN_EMAIL)
+            .map(({ artist, title }) => ({ artist, title })),
+          personalTotal: personal.length,
+          floorTop,
+          journalUrl: `${web}/my-likes?ref=recap`,
+          boothUrl,
+          recapUrl,
+          unsubPageUrl: `${web}/unsubscribe?token=${encodeURIComponent(token)}`,
+          unsubApiUrl: `${api}/api/email/unsubscribe?token=${encodeURIComponent(token)}`,
+          idempotencyKey: `recap:${s.id}:${r.userId}`,
+        }),
+      );
+      if (outcome === "capped") return { emailsSent, capped: true };
+      if (outcome === "sent") {
+        emailsSent += 1;
+        pushUserIds.push(r.userId);
+      }
+    } catch (error) {
+      logger.error("Recap email failed for a recipient — continuing", error);
+    }
+  }
+
+  // ── DJ digest (explicit opt-in) ───────────────────────────────────────────
+  if (s.djUserId && dj?.digestOptInAt && dj.email) {
+    try {
+      const [[trackTally], [dancerTally], [thanksTally], [followerTally]] = await Promise.all([
+        db.select({ n: count() }).from(playedTracks).where(eq(playedTracks.sessionId, s.id)),
+        db
+          .select({ n: sql<string>`count(distinct ${likes.clientId})` })
+          .from(likes)
+          .where(eq(likes.sessionId, s.id)),
+        db.select({ n: count() }).from(sessionThanks).where(eq(sessionThanks.sessionId, s.id)),
+        db
+          .select({ n: count() })
+          .from(djFollows)
+          .where(and(eq(djFollows.djUserId, s.djUserId), gte(djFollows.createdAt, s.startedAt))),
+      ]);
+      const token = signUnsubToken(s.djUserId, "digest");
+      const outcome = await deps.sendMarketing("digest", dj.email, () =>
+        deps.sendDigest({
+          to: dj.email,
+          djName: s.djName,
+          eventLabel,
+          dateLabel,
+          trackCount: trackTally?.n ?? 0,
+          totalLikes,
+          uniqueDancers: Number(dancerTally?.n ?? 0),
+          thanksCount: thanksTally?.n ?? 0,
+          newFollowers: followerTally?.n ?? 0,
+          topTracks: floorTop,
+          recapUrl: dj.slug ? `${web}/dj/${dj.slug}/recap/${s.id}` : recapUrl,
+          unsubPageUrl: `${web}/unsubscribe?token=${encodeURIComponent(token)}`,
+          unsubApiUrl: `${api}/api/email/unsubscribe?token=${encodeURIComponent(token)}`,
+          idempotencyKey: `digest:${s.id}`,
+        }),
+      );
+      if (outcome === "capped") return { emailsSent, capped: true };
+      if (outcome === "sent") emailsSent += 1;
+    } catch (error) {
+      logger.error("DJ digest email failed — continuing", error);
+    }
+  }
+
+  // ── Push bonus (installed PWAs of emailed recipients) ─────────────────────
+  try {
+    if (pushUserIds.length > 0) {
+      const allClientIds: string[] = [];
+      for (const uid of pushUserIds) allClientIds.push(...(await getClaimedClientIds(uid)));
+      const targets = await getClientIdsPushTargets(allClientIds);
+      if (targets.length > 0) {
+        const payload = JSON.stringify({
+          title: `Your night with ${s.djName} ⚡`,
+          body: "Your Night Recap is ready — open your journal.",
+          url: "/my-likes?ref=recap-push",
+        });
+        await Promise.allSettled(targets.map((t) => deps.sendPush(t, payload)));
+      }
+    }
+  } catch (error) {
+    logger.error("Recap push fan-out failed — continuing", error);
+  }
+
+  return { emailsSent, capped: false };
+}

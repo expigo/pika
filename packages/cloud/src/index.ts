@@ -17,10 +17,13 @@ import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 import { client, db } from "./db";
 import { auth as betterAuth } from "./lib/auth/server";
+import { RECAP_SWEEP_INTERVAL_MS, sweepRecaps } from "./lib/services/recap";
 import { adminRoutes } from "./routes/admin";
 import { client as clientRoutes } from "./routes/client";
 import { dj as djRoutes } from "./routes/dj";
 import { djLiveRoutes } from "./routes/dj-live";
+import { emailRoutes } from "./routes/email";
+import { imgRoutes } from "./routes/img";
 import { meRoutes } from "./routes/me";
 import { playlistRoutes } from "./routes/playlist";
 import { push as pushRoutes } from "./routes/push";
@@ -198,6 +201,12 @@ setInterval(() => {
     });
   }
 }, TIMEOUTS.CLEANUP_INTERVAL).unref();
+
+// 🌅 Slice C: Night Recap sweep — zombie-close every tick; sends only inside the 09:00–13:00
+// server-local window (recap.ts). Best-effort and self-contained; unref'd like the cleanups.
+setInterval(() => {
+  void sweepRecaps();
+}, RECAP_SWEEP_INTERVAL_MS).unref();
 
 // Create WebSocket upgrader for Hono + Bun
 const { upgradeWebSocket, websocket } = createBunWebSocket<ServerWebSocket>();
@@ -485,6 +494,10 @@ app.route("/api/me", meRoutes);
 app.use("/api/telemetry/*", csrfCheck); // Product beacons (enum-whitelisted POST)
 app.route("/api/telemetry", telemetryRoutes); // NOT /api/events — stageRoutes owns that path
 app.route("/api/push", pushRoutes);
+// Slice C — deliberately NO csrfCheck on either: /api/email's one-click POST comes from mail
+// providers' servers (RFC 8058), and /api/img is a GET-only image proxy for canvas rendering.
+app.route("/api/email", emailRoutes);
+app.route("/api/img", imgRoutes);
 app.route("/api/spotify", spotifyRoutes); // Track D — Spotify OAuth (BFF)
 app.use("/api/live/*", csrfCheck); // Track D — control channel (state-changing → CSRF header)
 app.route("/api/live", djLiveRoutes);

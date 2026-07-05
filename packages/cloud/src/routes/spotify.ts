@@ -9,7 +9,7 @@
  * so they're exempt from the X-Pika-Client CSRF check; the OAuth `state` cookie defends the flow.
  */
 
-import { logger, type PikaEnvironment, URLS } from "@pika/shared";
+import { logger } from "@pika/shared";
 import { Hono } from "hono";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { getUser, requireAdmin, requireDjAuth } from "../lib/auth";
@@ -21,6 +21,7 @@ import {
   getConnectionStatus,
   getServiceStatus,
 } from "../lib/services/spotify";
+import { webBaseUrl } from "../lib/urls";
 
 const spotify = new Hono();
 
@@ -28,15 +29,7 @@ const OAUTH_STATE_COOKIE = "spotify_oauth_state";
 const SERVICE_STATE_COOKIE = "spotify_service_oauth_state";
 const STATE_MAX_AGE_S = 600; // 10 minutes to complete consent
 
-function webBaseUrl(): string {
-  // Explicit override (used in local dev where the web origin isn't the URLS default).
-  const override = process.env["WEB_BASE_URL"];
-  if (override) return override;
-  const node = process.env["NODE_ENV"];
-  const env: PikaEnvironment =
-    node === "production" ? "production" : node === "staging" ? "staging" : "development";
-  return URLS.getWebUrl(env);
-}
+// webBaseUrl moved to lib/urls.ts (Slice C: recap emails build links too — one source of truth).
 
 /** Redirect the DJ to Spotify's consent screen. */
 spotify.get("/authorize", requireDjAuth, (c) => {
