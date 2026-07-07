@@ -249,7 +249,8 @@ const PublishBody = z.object({ published: z.boolean() });
 dj.patch("/me/sessions/:id", requireDjAuth, async (c) => {
   const me = getUser(c);
   const parsed = PublishBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) return c.json({ error: "Invalid body" }, 400);
+  if (!parsed.success)
+    return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, 400);
   const updated = await db
     .update(schema.sessions)
     .set({ published: parsed.data.published })
@@ -281,7 +282,8 @@ const AddPlaylistBody = z.object({ url: z.string().trim().min(1).max(400) });
 dj.post("/me/playlists", requireDjAuth, async (c) => {
   const me = getUser(c);
   const parsed = AddPlaylistBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) return c.json({ error: "Invalid body" }, 400);
+  if (!parsed.success)
+    return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, 400);
   const id = parseSpotifyPlaylistId(parsed.data.url);
   if (!id) return c.json({ error: "That doesn't look like a Spotify playlist link" }, 400);
 
@@ -328,7 +330,8 @@ const SyncSessionPlaylistBody = z.object({
 dj.post("/me/sessions/:id/playlist", requireDjAuth, async (c) => {
   const me = getUser(c);
   const parsed = SyncSessionPlaylistBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) return c.json({ error: "Invalid body" }, 400);
+  if (!parsed.success)
+    return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, 400);
   const id = parseSpotifyPlaylistId(parsed.data.spotifyPlaylistId);
   if (!id) return c.json({ error: "That doesn't look like a Spotify playlist" }, 400);
   const url = parsed.data.spotifyPlaylistUrl?.trim() || `https://open.spotify.com/playlist/${id}`;
@@ -402,7 +405,8 @@ const BoothBody = z
 dj.patch("/me/booth", requireDjAuth, async (c) => {
   const me = getUser(c);
   const parsed = BoothBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) return c.json({ error: "Invalid body" }, 400);
+  if (!parsed.success)
+    return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, 400);
   const set: { bio?: string | null; showFollowerCount?: boolean } = {};
   if (parsed.data.bio !== undefined) set.bio = parsed.data.bio.length > 0 ? parsed.data.bio : null;
   if (parsed.data.showFollowerCount !== undefined)
@@ -419,19 +423,32 @@ const GigBody = z.object({
     .refine((d) => !Number.isNaN(Date.parse(d)), "Invalid date"),
   title: z.string().trim().min(1).max(120),
   city: z.string().trim().max(80).optional(),
-  url: z
-    .string()
-    .trim()
-    .max(300)
-    .regex(/^https?:\/\//, "Link must be http(s)")
-    .optional(),
+  // Bare domains ("budafest.com") get an https:// prefix so DJs don't have to type it; anything
+  // already carrying a scheme is left as-is, so a non-web scheme (javascript:, data:) still fails
+  // the http(s) regex rather than being silently rewritten into a valid-looking link.
+  url: z.preprocess(
+    (v) => {
+      if (typeof v !== "string") return v;
+      const t = v.trim();
+      if (t === "") return undefined;
+      if (/^https?:\/\//i.test(t)) return t;
+      if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return t; // has some other scheme → keep, regex rejects it
+      return `https://${t}`;
+    },
+    z
+      .string()
+      .max(300)
+      .regex(/^https?:\/\//i, "Enter a valid web address")
+      .optional(),
+  ),
 });
 
 /** Add an upcoming gig to my Booth ("I'll be at Budafest, Jan 15"). */
 dj.post("/me/gigs", requireDjAuth, async (c) => {
   const me = getUser(c);
   const parsed = GigBody.safeParse(await c.req.json().catch(() => ({})));
-  if (!parsed.success) return c.json({ error: "Invalid body" }, 400);
+  if (!parsed.success)
+    return c.json({ error: parsed.error.issues[0]?.message ?? "Invalid body" }, 400);
 
   const [tally] = await db
     .select({ n: count() })

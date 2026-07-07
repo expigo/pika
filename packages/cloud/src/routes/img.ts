@@ -14,6 +14,42 @@ import { rateLimiter } from "hono-rate-limiter";
 const ALLOWED_SRC = /^https:\/\/i\.scdn\.co\/image\/[A-Za-z0-9]+$/;
 const MAX_BYTES = 2 * 1024 * 1024;
 
+/**
+ * Read a stream into a buffer, aborting the moment it exceeds `max` — so an absent or dishonest
+ * Content-Length can never buffer an unbounded body. Returns null when the cap is exceeded.
+ */
+async function readCapped(
+  body: ReadableStream<Uint8Array> | null,
+  max: number,
+): Promise<Uint8Array<ArrayBuffer> | null> {
+  const out = new Uint8Array(new ArrayBuffer(0));
+  if (!body) return out;
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > max) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const assembled = new Uint8Array(new ArrayBuffer(total));
+  let offset = 0;
+  for (const chunk of chunks) {
+    assembled.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return assembled;
+}
+
 const img = new Hono();
 
 img.use(
@@ -37,8 +73,14 @@ img.get("/", async (c) => {
     if (!upstream.ok) return c.json({ error: "Upstream fetch failed" }, 502);
     const type = upstream.headers.get("Content-Type") ?? "";
     if (!type.startsWith("image/")) return c.json({ error: "Not an image" }, 502);
-    const buf = await upstream.arrayBuffer();
-    if (buf.byteLength > MAX_BYTES) return c.json({ error: "Image too large" }, 502);
+    // Reject early on a declared oversize, then stream with a running cap so a missing/lying
+    // Content-Length can't buffer an unbounded body into memory before the size check.
+    const declared = Number.parseInt(upstream.headers.get("Content-Length") ?? "", 10);
+    if (!Number.isNaN(declared) && declared > MAX_BYTES) {
+      return c.json({ error: "Image too large" }, 502);
+    }
+    const buf = await readCapped(upstream.body, MAX_BYTES);
+    if (!buf) return c.json({ error: "Image too large" }, 502);
     return c.body(buf, 200, {
       "Content-Type": type,
       "Cache-Control": "public, max-age=604800, immutable",

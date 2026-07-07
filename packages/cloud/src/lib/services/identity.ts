@@ -8,7 +8,7 @@
  * non-destructive and trivially reversible.
  */
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "../../db";
 import { clientIdentities } from "../../db/schema";
 
@@ -121,6 +121,16 @@ export async function getClaimedClientIds(userId: string): Promise<string[]> {
     .from(clientIdentities)
     .where(eq(clientIdentities.userId, userId))
     .orderBy(asc(clientIdentities.claimedAt));
+  return rows.map((r) => r.clientId);
+}
+
+/** All clientIds claimed by any of the given accounts — one query (recap push fan-out). */
+export async function getClaimedClientIdsForUsers(userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return [];
+  const rows = await db
+    .select({ clientId: clientIdentities.clientId })
+    .from(clientIdentities)
+    .where(inArray(clientIdentities.userId, userIds));
   return rows.map((r) => r.clientId);
 }
 

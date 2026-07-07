@@ -3037,6 +3037,41 @@ suite("DB integration (real Postgres)", () => {
         });
         expect(own.status).toBe(200);
       });
+
+      test("gig URL: bare domain gets https://; other schemes rejected; bad date is descriptive", async () => {
+        // Bare domain accepted and stored https-prefixed (owner ergonomics).
+        const bare = await djRoute.request("/me/gigs", {
+          method: "POST",
+          headers: asDj,
+          body: JSON.stringify({ date: "2099-06-01", title: "Bare", url: "westie.club" }),
+        });
+        expect(bare.status).toBe(200);
+        const bareId = ((await bare.json()) as { id: number }).id;
+        const [bareRow] = await db
+          .select({ url: schema.djGigs.url })
+          .from(schema.djGigs)
+          .where(eq(schema.djGigs.id, bareId))
+          .limit(1);
+        expect(bareRow?.url).toBe("https://westie.club");
+
+        // A non-web scheme is NOT silently rewritten into a valid-looking link — it fails.
+        const js = await djRoute.request("/me/gigs", {
+          method: "POST",
+          headers: asDj,
+          body: JSON.stringify({ date: "2099-06-02", title: "XSS", url: "javascript:alert(1)" }),
+        });
+        expect(js.status).toBe(400);
+        expect(((await js.json()) as { error: string }).error).toMatch(/web address/i);
+
+        // A malformed date surfaces the schema message, not the generic "Invalid body".
+        const badDate = await djRoute.request("/me/gigs", {
+          method: "POST",
+          headers: asDj,
+          body: JSON.stringify({ date: "March 1st", title: "Whenever" }),
+        });
+        expect(badDate.status).toBe(400);
+        expect(((await badDate.json()) as { error: string }).error).not.toBe("Invalid body");
+      });
     });
 
     describe("session thanks", () => {
@@ -3231,6 +3266,104 @@ suite("DB integration (real Postgres)", () => {
       test("outside the send window: sends are skipped but zombie-close still ran", async () => {
         const out = await sweepRecaps(makeDeps([], new Date(2050, 0, 10, 15, 0, 0)));
         expect(out.sessionsRecapped).toBe(0);
+      });
+
+      test("F1: a session capped before any send is un-claimed and recapped next window", async () => {
+        const dj = await signUpDj({ approved: true, name: `Cap DJ ${uniq()}` });
+        const dancer = await signUpDancer();
+        const device = `client_cap_${uniq()}`;
+        await db
+          .insert(schema.clientIdentities)
+          .values({ clientId: device, userId: dancer.userId });
+        await db
+          .insert(schema.emailPreferences)
+          .values({ userId: dancer.userId, recapOptInAt: new Date() });
+        const sid = `sc_cap_${uniq()}`;
+        await db.insert(schema.sessions).values({
+          id: sid,
+          djName: "Cap DJ",
+          djUserId: dj.userId,
+          startedAt,
+          endedAt,
+        });
+        const tracks = await db
+          .insert(schema.playedTracks)
+          .values([
+            { sessionId: sid, artist: "A", title: "One", playedAt: startedAt },
+            { sessionId: sid, artist: "B", title: "Two", playedAt: startedAt },
+            { sessionId: sid, artist: "C", title: "Three", playedAt: startedAt },
+          ])
+          .returning({ id: schema.playedTracks.id });
+        const [ct1] = tracks.map((t) => t.id);
+        if (ct1 === undefined) throw new Error("seed");
+        await db
+          .insert(schema.likes)
+          .values({ sessionId: sid, clientId: device, playedTrackId: ct1 });
+
+        // Mailer caps immediately → zero sends for the session.
+        const cappingDeps: RecapSweepDeps = {
+          ...makeDeps([]),
+          sendMarketing: async () => "capped",
+        };
+        await sweepRecaps(cappingDeps);
+        const [after] = await db
+          .select({ r: schema.sessions.recapProcessedAt })
+          .from(schema.sessions)
+          .where(eq(schema.sessions.id, sid))
+          .limit(1);
+        expect(after?.r).toBeNull(); // un-claimed, not permanently stranded
+
+        // Next window with a working mailer → the recap actually goes out.
+        const sent: Sent[] = [];
+        await sweepRecaps(makeDeps(sent));
+        expect(sent.filter((s) => s.kind === "recap" && s.to === dancer.email).length).toBe(1);
+      });
+
+      test("F5: batched assembly gives each recipient their OWN like set (not the union)", async () => {
+        const dj = await signUpDj({ approved: true, name: `Batch DJ ${uniq()}` });
+        const a = await signUpDancer();
+        const b = await signUpDancer();
+        const da = `client_ba_${uniq()}`;
+        const dbId = `client_bb_${uniq()}`;
+        await db.insert(schema.clientIdentities).values([
+          { clientId: da, userId: a.userId },
+          { clientId: dbId, userId: b.userId },
+        ]);
+        await db.insert(schema.emailPreferences).values([
+          { userId: a.userId, recapOptInAt: new Date() },
+          { userId: b.userId, recapOptInAt: new Date() },
+        ]);
+        const sid = `sc_batch_${uniq()}`;
+        await db.insert(schema.sessions).values({
+          id: sid,
+          djName: "Batch DJ",
+          djUserId: dj.userId,
+          startedAt,
+          endedAt,
+        });
+        const tracks = await db
+          .insert(schema.playedTracks)
+          .values([
+            { sessionId: sid, artist: "A", title: "One", playedAt: startedAt },
+            { sessionId: sid, artist: "B", title: "Two", playedAt: startedAt },
+            { sessionId: sid, artist: "C", title: "Three", playedAt: startedAt },
+          ])
+          .returning({ id: schema.playedTracks.id });
+        const [bt1, bt2, bt3] = tracks.map((t) => t.id);
+        if (bt1 === undefined || bt2 === undefined || bt3 === undefined) throw new Error("seed");
+        // A loves t1,t2; B loves t1,t3 — overlap on t1. Each should see exactly their own two.
+        await db.insert(schema.likes).values([
+          { sessionId: sid, clientId: da, playedTrackId: bt1 },
+          { sessionId: sid, clientId: da, playedTrackId: bt2 },
+          { sessionId: sid, clientId: dbId, playedTrackId: bt1 },
+          { sessionId: sid, clientId: dbId, playedTrackId: bt3 },
+        ]);
+
+        const sent: Sent[] = [];
+        await sweepRecaps(makeDeps(sent));
+        const recaps = sent.filter((s) => s.kind === "recap");
+        expect(recaps.find((r) => r.to === a.email)?.personalTotal).toBe(2);
+        expect(recaps.find((r) => r.to === b.email)?.personalTotal).toBe(2);
       });
     });
   });

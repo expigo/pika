@@ -196,6 +196,14 @@ export default function MyLikesPage() {
     }
     // Intent params may arrive WITHOUT claimed=1 (already-signed-in redirect from /save).
     // Both writes are idempotent and best-effort — the account card offers manual paths.
+    //
+    // On `?consent=1` driving a consent write from a URL param: this is deliberate and load-
+    // bearing — the magic link may be opened on a DIFFERENT device, so the checkbox choice can't
+    // ride in sessionStorage; it survives the round trip as a query param instead. It's safe to
+    // leave as-is: the write is self-scoped (requireAuth — only ever affects the caller's own
+    // account), fully reversible (one-click unsubscribe + the card toggle), and the param is
+    // stripped from the URL below so it can't re-fire on refresh/bookmark. Do NOT "harden" this
+    // into a confirm step without a replacement for the cross-device consent path.
     if (consent === "1") {
       fetch(`${getApiBaseUrl()}/api/me/preferences`, {
         method: "PUT",

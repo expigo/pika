@@ -63,4 +63,11 @@ describe("/api/img", () => {
     const res = await imgRoutes.request("/?src=https%3A%2F%2Fi.scdn.co%2Fimage%2Fab12CD");
     expect(res.status).toBe(502);
   });
+
+  test("an oversized image body → 502 (streamed cap, never fully buffered)", async () => {
+    const tooBig = new Uint8Array(2 * 1024 * 1024 + 16); // just past the 2 MB cap
+    stubFetch(new Response(tooBig, { status: 200, headers: { "Content-Type": "image/png" } }));
+    const res = await imgRoutes.request("/?src=https%3A%2F%2Fi.scdn.co%2Fimage%2Fab12CD");
+    expect(res.status).toBe(502);
+  });
 });

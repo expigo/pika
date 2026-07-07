@@ -13,6 +13,9 @@
  *  - Per-send Resend `Idempotency-Key` (recap:{session}:{user}) absorbs transient API retries.
  *  - Marketing throttle (separate from the transactional sign-in budget): address_limited skips
  *    a recipient (logged — the claim means they're lost, by design); daily_capped stops the tick.
+ *    A session capped before sending ANYTHING is un-claimed (retried next window); the only
+ *    residual is a session that straddles the cap mid-send — its tail is lost, at most one such
+ *    session per cap-exhausted day.
  *
  * Zombie sessions: a crashed process leaves `ended_at IS NULL` rows behind
  * (`cleanupStaleSessions` is memory-only). The sweep closes them — every tick, OUTSIDE the send
@@ -41,7 +44,7 @@ import { getClientIdsPushTargets } from "../persistence/push-targets";
 import { hasSession } from "../sessions";
 import { apiBaseUrl, webBaseUrl } from "../urls";
 import { signUnsubToken } from "./email-prefs";
-import { getClaimedClientIds } from "./identity";
+import { getClaimedClientIdsForUsers } from "./identity";
 import { sendDjDigestEmail, sendNightRecapEmail, sendThrottledMarketingEmail } from "./mail";
 
 export const RECAP_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
@@ -49,8 +52,16 @@ export const RECAP_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 const MIN_AGE_MS = 8 * 60 * 60 * 1000; // recap no sooner than 8h after the set ended
 const MAX_AGE_MS = 72 * 60 * 60 * 1000; // …and never for sessions older than 3 days
 const ZOMBIE_IDLE_MS = 6 * 60 * 60 * 1000; // close a crash-orphaned open session after 6h idle
-const SEND_WINDOW_START_HOUR = 9; // server-local; documented tz simplification (ops-manual)
-const SEND_WINDOW_END_HOUR = 13;
+
+/** Hour of day (server-local) bounding the send window; env-overridable, clamped 0–23. */
+function windowHour(envVar: string, fallback: number): number {
+  const raw = Number.parseInt(process.env[envVar] ?? "", 10);
+  return Number.isNaN(raw) || raw < 0 || raw > 23 ? fallback : raw;
+}
+// Server-LOCAL send window (no per-dancer timezone — the pilot is single-region). Point the
+// container's TZ (or these hours) at the pilot region. See ops-manual.
+const SEND_WINDOW_START_HOUR = windowHour("RECAP_SEND_WINDOW_START_HOUR", 9);
+const SEND_WINDOW_END_HOUR = windowHour("RECAP_SEND_WINDOW_END_HOUR", 13);
 const MAX_SESSIONS_PER_TICK = 10;
 const MIN_TRACKS_FOR_RECAP = 3; // parallels finalizeWebSet's trivial-noise floor
 const PERSONAL_TRACKS_IN_EMAIL = 5;
@@ -179,12 +190,26 @@ export async function sweepRecaps(
       if (claimed.length === 0) continue;
 
       const result = await processSessionRecap(s, deps);
-      sessionsRecapped += 1;
       emailsSent += result.emailsSent;
       if (result.capped) {
-        logger.warn("Recap sweep stopping early — marketing daily cap reached");
+        // Cap tripped before this session sent ANYTHING (the common case once a day's budget is
+        // spent — every subsequent tick's first candidate lands here). Un-claim it so it retries
+        // next window instead of being permanently marked processed with zero recaps sent.
+        if (result.emailsSent === 0) {
+          await db.update(sessions).set({ recapProcessedAt: null }).where(eq(sessions.id, s.id));
+        } else {
+          // Straddled the boundary (sent ≥1, then capped) — its tail is lost, at most one session
+          // per cap-exhausted day. Kept claimed to avoid re-mailing the head. Acceptable residual.
+          sessionsRecapped += 1;
+        }
+        logger.warn("Recap sweep stopping early — marketing daily cap reached", {
+          sessionId: s.id,
+          emailsSent: result.emailsSent,
+          unclaimed: result.emailsSent === 0,
+        });
         break;
       }
+      sessionsRecapped += 1;
     }
   } catch (error) {
     logger.error("❌ Recap sweep tick failed", error);
@@ -279,11 +304,14 @@ async function processSessionRecap(
     .innerJoin(user, eq(user.id, clientIdentities.userId))
     .where(eq(likes.sessionId, s.id));
 
-  const pushUserIds: string[] = [];
-  for (const r of recipients) {
-    try {
-      const personal = await db
-        .selectDistinctOn([likes.playedTrackId], {
+  // Each recipient's personal likes for the set, fetched in ONE query and bucketed by user
+  // (was one query per recipient). DISTINCT ON (user, play) keeps the earliest like of a track
+  // liked from two of their devices — same semantics as the old per-recipient query.
+  const recipientIds = recipients.map((r) => r.userId);
+  const personalRows = recipientIds.length
+    ? await db
+        .selectDistinctOn([clientIdentities.userId, likes.playedTrackId], {
+          userId: clientIdentities.userId,
           artist: playedTracks.artist,
           title: playedTracks.title,
           likedAt: likes.createdAt,
@@ -291,8 +319,20 @@ async function processSessionRecap(
         .from(likes)
         .innerJoin(clientIdentities, eq(clientIdentities.clientId, likes.clientId))
         .innerJoin(playedTracks, eq(likes.playedTrackId, playedTracks.id))
-        .where(and(eq(likes.sessionId, s.id), eq(clientIdentities.userId, r.userId)))
-        .orderBy(likes.playedTrackId, asc(likes.createdAt));
+        .where(and(eq(likes.sessionId, s.id), inArray(clientIdentities.userId, recipientIds)))
+        .orderBy(clientIdentities.userId, likes.playedTrackId, asc(likes.createdAt))
+    : [];
+  const personalByUser = new Map<string, { artist: string; title: string; likedAt: Date }[]>();
+  for (const row of personalRows) {
+    const list = personalByUser.get(row.userId) ?? [];
+    list.push({ artist: row.artist, title: row.title, likedAt: row.likedAt });
+    personalByUser.set(row.userId, list);
+  }
+
+  const pushUserIds: string[] = [];
+  for (const r of recipients) {
+    try {
+      const personal = personalByUser.get(r.userId) ?? [];
       if (personal.length === 0) continue;
 
       const token = signUnsubToken(r.userId, "recap");
@@ -370,8 +410,7 @@ async function processSessionRecap(
   // ── Push bonus (installed PWAs of emailed recipients) ─────────────────────
   try {
     if (pushUserIds.length > 0) {
-      const allClientIds: string[] = [];
-      for (const uid of pushUserIds) allClientIds.push(...(await getClaimedClientIds(uid)));
+      const allClientIds = await getClaimedClientIdsForUsers(pushUserIds);
       const targets = await getClientIdsPushTargets(allClientIds);
       if (targets.length > 0) {
         const payload = JSON.stringify({
