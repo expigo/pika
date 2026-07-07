@@ -15,7 +15,11 @@
  *    a recipient (logged — the claim means they're lost, by design); daily_capped stops the tick.
  *    A session capped before sending ANYTHING is un-claimed (retried next window); the only
  *    residual is a session that straddles the cap mid-send — its tail is lost, at most one such
- *    session per cap-exhausted day.
+ *    session per cap-exhausted day. Once the cap trips, the send phase LATCHES OFF for the rest
+ *    of the UTC day (one warn — not one claim/unclaim churn per 15-min tick); the latch clears
+ *    on the day roll, exactly like the throttle's own budget. An un-claimed session whose 72h
+ *    eligibility would expire before the next day's window is logged as an ERROR (recap lost) —
+ *    cap exhaustion on consecutive days is beyond pilot scale by design.
  *
  * Zombie sessions: a crashed process leaves `ended_at IS NULL` rows behind
  * (`cleanupStaleSessions` is memory-only). The sweep closes them — every tick, OUTSIDE the send
@@ -53,15 +57,37 @@ const MIN_AGE_MS = 8 * 60 * 60 * 1000; // recap no sooner than 8h after the set 
 const MAX_AGE_MS = 72 * 60 * 60 * 1000; // …and never for sessions older than 3 days
 const ZOMBIE_IDLE_MS = 6 * 60 * 60 * 1000; // close a crash-orphaned open session after 6h idle
 
-/** Hour of day (server-local) bounding the send window; env-overridable, clamped 0–23. */
-function windowHour(envVar: string, fallback: number): number {
-  const raw = Number.parseInt(process.env[envVar] ?? "", 10);
-  return Number.isNaN(raw) || raw < 0 || raw > 23 ? fallback : raw;
+/**
+ * Resolve the server-local send window from env: each hour clamped to 0–23, then the PAIR is
+ * cross-validated — an inverted/empty window (start >= end) would silently never send, so it
+ * falls back to the 9–13 defaults LOUDLY instead. Cross-midnight windows are deliberately
+ * unsupported (single-region pilot; point the container's TZ or these hours at the pilot
+ * region — see ops-manual). Exported pure for tests; read once at module load like the mail caps.
+ */
+export function resolveSendWindow(
+  rawStart: string | undefined,
+  rawEnd: string | undefined,
+): { start: number; end: number } {
+  const hour = (raw: string | undefined, fallback: number): number => {
+    const n = Number.parseInt(raw ?? "", 10);
+    return Number.isNaN(n) || n < 0 || n > 23 ? fallback : n;
+  };
+  const start = hour(rawStart, 9);
+  const end = hour(rawEnd, 13);
+  if (start >= end) {
+    logger.warn("Invalid RECAP_SEND_WINDOW hours (start >= end) — using defaults 9–13", {
+      start,
+      end,
+    });
+    return { start: 9, end: 13 };
+  }
+  return { start, end };
 }
-// Server-LOCAL send window (no per-dancer timezone — the pilot is single-region). Point the
-// container's TZ (or these hours) at the pilot region. See ops-manual.
-const SEND_WINDOW_START_HOUR = windowHour("RECAP_SEND_WINDOW_START_HOUR", 9);
-const SEND_WINDOW_END_HOUR = windowHour("RECAP_SEND_WINDOW_END_HOUR", 13);
+
+const SEND_WINDOW = resolveSendWindow(
+  process.env["RECAP_SEND_WINDOW_START_HOUR"],
+  process.env["RECAP_SEND_WINDOW_END_HOUR"],
+);
 const MAX_SESSIONS_PER_TICK = 10;
 const MIN_TRACKS_FOR_RECAP = 3; // parallels finalizeWebSet's trivial-noise floor
 const PERSONAL_TRACKS_IN_EMAIL = 5;
@@ -87,11 +113,31 @@ export const defaultRecapSweepDeps: RecapSweepDeps = {
   sendPush: sendPushNotification,
 };
 
-/** Morning/noon send window, server-local (09:00–12:59). */
+/** Morning/noon send window, server-local (default 09:00–12:59). */
 export function isInSendWindow(now: Date): boolean {
   const h = now.getHours();
-  return h >= SEND_WINDOW_START_HOUR && h < SEND_WINDOW_END_HOUR;
+  return h >= SEND_WINDOW.start && h < SEND_WINDOW.end;
 }
+
+// Day (UTC) on which the marketing budget was seen exhausted. Later ticks that day skip the
+// send phase entirely instead of churning claim→unclaim + a warn every 15 minutes; the latch
+// clears on the UTC day roll — the same reset the throttle's own budget uses. In-memory,
+// single-process (documented architecture); a restart clears it, which is also when an operator
+// would raise MARKETING_MAIL_DAILY_CAP.
+let capExhaustedOnUtcDay: string | null = null;
+
+function utcDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Test hook — clears the cap latch (mirrors resetJournalExportGuardsForTests). */
+export function resetRecapSweepStateForTests(): void {
+  capExhaustedOnUtcDay = null;
+}
+
+/** ≈ time until the next day's window: an un-claimed session needs at least this much 72h-floor
+ * runway left, or the retry will never see it (heuristic — one day, not window-start-exact). */
+const RETRY_RUNWAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * Close crash-orphaned sessions: `ended_at IS NULL`, absent from the in-memory map, and idle
@@ -145,15 +191,27 @@ interface CandidateSession {
 export async function sweepRecaps(
   deps: RecapSweepDeps = defaultRecapSweepDeps,
   opts: { ignoreWindow?: boolean } = {},
-): Promise<{ closedZombies: number; sessionsRecapped: number; emailsSent: number }> {
+): Promise<{
+  closedZombies: number;
+  sessionsRecapped: number;
+  emailsSent: number;
+  capExhausted: boolean;
+}> {
   let closedZombies = 0;
   let sessionsRecapped = 0;
   let emailsSent = 0;
+  const latched = () => capExhaustedOnUtcDay === utcDay(deps.now());
   try {
     closedZombies = await closeZombieSessions(deps);
 
     if (!opts.ignoreWindow && !isInSendWindow(deps.now())) {
-      return { closedZombies, sessionsRecapped, emailsSent };
+      return { closedZombies, sessionsRecapped, emailsSent, capExhausted: latched() };
+    }
+
+    // Budget already seen exhausted today — every send would cap again; the warn fired when the
+    // latch was set. Stay quiet (zombie-close above still ran) until the UTC day rolls.
+    if (latched()) {
+      return { closedZombies, sessionsRecapped, emailsSent, capExhausted: true };
     }
 
     const now = deps.now().getTime();
@@ -192,17 +250,31 @@ export async function sweepRecaps(
       const result = await processSessionRecap(s, deps);
       emailsSent += result.emailsSent;
       if (result.capped) {
-        // Cap tripped before this session sent ANYTHING (the common case once a day's budget is
-        // spent — every subsequent tick's first candidate lands here). Un-claim it so it retries
-        // next window instead of being permanently marked processed with zero recaps sent.
+        // Latch the rest of the UTC day: later ticks skip the send phase instead of re-claiming
+        // and re-un-claiming this same session with a warn every 15 minutes.
+        capExhaustedOnUtcDay = utcDay(deps.now());
         if (result.emailsSent === 0) {
+          // Capped before sending ANYTHING — un-claim so it retries in the NEXT day's window
+          // instead of being permanently marked processed with zero recaps sent.
           await db.update(sessions).set({ recapProcessedAt: null }).where(eq(sessions.id, s.id));
+          // If its 72h eligibility runs out before that retry, the recap is LOST — say so
+          // loudly now (fuse philosophy), because tomorrow's candidate query won't see it.
+          if (
+            s.endedAt &&
+            s.endedAt.getTime() + MAX_AGE_MS - deps.now().getTime() < RETRY_RUNWAY_MS
+          ) {
+            logger.error(
+              "❌ Capped recap session will age out before the next send window — recap lost",
+              undefined,
+              { sessionId: s.id, endedAt: s.endedAt.toISOString() },
+            );
+          }
         } else {
           // Straddled the boundary (sent ≥1, then capped) — its tail is lost, at most one session
           // per cap-exhausted day. Kept claimed to avoid re-mailing the head. Acceptable residual.
           sessionsRecapped += 1;
         }
-        logger.warn("Recap sweep stopping early — marketing daily cap reached", {
+        logger.warn("Recap sweep — marketing daily cap reached; latched off until the day rolls", {
           sessionId: s.id,
           emailsSent: result.emailsSent,
           unclaimed: result.emailsSent === 0,
@@ -217,7 +289,7 @@ export async function sweepRecaps(
   if (sessionsRecapped > 0 || closedZombies > 0) {
     logger.info("🌅 Recap sweep tick", { closedZombies, sessionsRecapped, emailsSent });
   }
-  return { closedZombies, sessionsRecapped, emailsSent };
+  return { closedZombies, sessionsRecapped, emailsSent, capExhausted: latched() };
 }
 
 /** Build + send everything for one claimed session. Best-effort per recipient. */

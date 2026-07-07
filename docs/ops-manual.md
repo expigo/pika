@@ -159,10 +159,14 @@ Slice C adds **marketing** email (Night Recap + DJ digest) on top of Slice B's t
    push clientId index) applies itself on boot.
 4. **Sweep behavior:** every 15 min; sends only within the send window (default 09:00–13:00
    **server-local**, overridable via `RECAP_SEND_WINDOW_START_HOUR`/`_END_HOUR` — a documented
-   single-region simplification; point the container TZ or these hours at the pilot region),
-   ≥8h after a set ends, never for sessions older than 72h (no backfill blast on first deploy),
-   at-most-once per session (claim-then-send; a session capped before any send is un-claimed and
-   retried next window). Crash-orphaned "zombie" sessions are closed by the sweep after 6h idle.
+   single-region simplification; point the container TZ or these hours at the pilot region; an
+   inverted `START >= END` pair falls back to 9–13 loudly), ≥8h after a set ends, never for
+   sessions older than 72h (no backfill blast on first deploy), at-most-once per session
+   (claim-then-send; a session capped before any send is un-claimed and retried next window).
+   Once the marketing cap trips, the sweep **latches off for the rest of the UTC day** (one warn,
+   no per-tick churn; restart clears it — which is also when you'd raise the cap), and a capped
+   session that would age past the 72h floor before the next window is logged as an **ERROR**
+   (that recap is lost). Crash-orphaned "zombie" sessions are closed by the sweep after 6h idle.
 5. **Smoke (staging):** dancer signs in with the recap checkbox ticked (+ tap Follow on a live
    set) → run a short set with likes from 2 devices (1 account, 1 anonymous) → end the set →
    interstitial shows the real like count + thanks + save CTA → `POST /api/admin/recap/sweep`

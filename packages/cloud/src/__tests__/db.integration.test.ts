@@ -19,7 +19,7 @@
  * that leaked mock and fail. The unit suite and this integration file are separate CI jobs.
  */
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
 import { getTrackKey } from "@pika/shared";
 import type { ServerWebSocket } from "bun";
 import { and, desc, eq, inArray } from "drizzle-orm";
@@ -61,7 +61,12 @@ import {
   loadAccountLikedRows,
   resetJournalExportGuardsForTests,
 } from "../lib/services/journal";
-import { closeZombieSessions, type RecapSweepDeps, sweepRecaps } from "../lib/services/recap";
+import {
+  closeZombieSessions,
+  type RecapSweepDeps,
+  resetRecapSweepStateForTests,
+  sweepRecaps,
+} from "../lib/services/recap";
 import {
   fetchNowPlaying,
   getConnectionStatus,
@@ -3116,6 +3121,11 @@ suite("DB integration (real Postgres)", () => {
       const endedAt = new Date(2050, 0, 10, 0, 0, 0); // 10h before NOW → past the 8h floor
       const startedAt = new Date(2050, 0, 9, 21, 0, 0);
 
+      // The cap latch is module-level process state — a capped test must never poison the next.
+      beforeEach(() => {
+        resetRecapSweepStateForTests();
+      });
+
       interface Sent {
         kind: "recap" | "digest";
         to: string;
@@ -3305,7 +3315,8 @@ suite("DB integration (real Postgres)", () => {
           ...makeDeps([]),
           sendMarketing: async () => "capped",
         };
-        await sweepRecaps(cappingDeps);
+        const cappedRun = await sweepRecaps(cappingDeps);
+        expect(cappedRun.capExhausted).toBe(true);
         const [after] = await db
           .select({ r: schema.sessions.recapProcessedAt })
           .from(schema.sessions)
@@ -3313,9 +3324,17 @@ suite("DB integration (real Postgres)", () => {
           .limit(1);
         expect(after?.r).toBeNull(); // un-claimed, not permanently stranded
 
-        // Next window with a working mailer → the recap actually goes out.
+        // Same UTC day, even with a WORKING mailer: the latch keeps the tick quiet — no
+        // claim/unclaim churn, no sends, no repeated warn (the budget is empty until tomorrow).
+        const sameDay: Sent[] = [];
+        const latchedRun = await sweepRecaps(makeDeps(sameDay));
+        expect(latchedRun.capExhausted).toBe(true);
+        expect(latchedRun.sessionsRecapped).toBe(0);
+        expect(sameDay.length).toBe(0);
+
+        // NEXT DAY's window (latch cleared by the day roll) → the recap actually goes out.
         const sent: Sent[] = [];
-        await sweepRecaps(makeDeps(sent));
+        await sweepRecaps(makeDeps(sent, new Date(2050, 0, 11, 10, 0, 0)));
         expect(sent.filter((s) => s.kind === "recap" && s.to === dancer.email).length).toBe(1);
       });
 
