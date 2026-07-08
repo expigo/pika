@@ -96,7 +96,7 @@ seed.post("/curate", async (c) => {
       "csv",
       parsed.data.featuresSource ?? "csv",
     );
-    return c.json({ success: true, seeded });
+    return c.json({ success: true, seeded: seeded.trackCount });
   } catch (e) {
     logger.error("seed: curate failed", e);
     return c.json({ error: "Seed failed (unknown DJ, or Spotify error)" }, 502);

@@ -16,6 +16,16 @@ describe("dj /me/* profile-management auth guard", () => {
     ["DELETE", "/api/dj/me/playlists/1"],
     ["POST", "/api/dj/me/sessions/some-id/playlist"],
     ["DELETE", "/api/dj/me/sessions/some-id/playlist"],
+    ["GET", "/api/dj/me/booth"],
+    ["PATCH", "/api/dj/me/booth"],
+    ["POST", "/api/dj/me/gigs"],
+    ["DELETE", "/api/dj/me/gigs/1"],
+    // Slice D
+    ["POST", "/api/dj/me/playlists/import"],
+    ["GET", "/api/dj/me/curated-playlists"],
+    ["PATCH", "/api/dj/me/curated-playlists/1"],
+    ["DELETE", "/api/dj/me/curated-playlists/1"],
+    ["GET", "/api/dj/me/crowd-pleasers"],
   ];
   for (const [method, path] of cases) {
     test(`${method} ${path} → 401 without a session`, async () => {

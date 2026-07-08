@@ -18,6 +18,8 @@ export interface ExportifySeedTrack {
   name: string;
   artists: string;
   durationMs?: number | undefined;
+  /** From Exportify's "Album Image URL" column (Slice D) — native Booth lists get art for free. */
+  albumArtUrl?: string | undefined;
   features?: SpotifyAudioFeatures | undefined;
 }
 
@@ -165,6 +167,11 @@ export function parseExportifyCsv(text: string): ExportifyParseResult {
       if (v !== undefined) features[key] = v as never;
     }
 
+    // Only a real https URL — the cloud validates albumArtUrl with z.string().url(), and one bad
+    // cell must not 400 a whole import.
+    const art = toStr(col(row, "Album Image URL"), 500);
+    const albumArtUrl = art && /^https?:\/\//i.test(art) ? art : undefined;
+
     seen.add(id);
     tracks.push({
       spotifyId: id,
@@ -172,6 +179,7 @@ export function parseExportifyCsv(text: string): ExportifyParseResult {
       name,
       artists,
       durationMs: toNumber(col(row, "Duration (ms)"), "int"),
+      ...(albumArtUrl ? { albumArtUrl } : {}),
       ...(Object.keys(features).length > 0 ? { features } : {}),
     });
   }

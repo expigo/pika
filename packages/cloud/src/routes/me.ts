@@ -24,6 +24,7 @@ import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db, schema } from "../db";
 import { getUser, hasDjAccess, requireAuth } from "../lib/auth";
+import { parseSpotifyTrackId } from "../lib/services/finalizeWebSet";
 import {
   CLIENT_ID_REGEX,
   claimClientId,
@@ -44,6 +45,7 @@ import {
   loadAccountLikedRows,
   trustedSpotifyLinkOn,
 } from "../lib/services/journal";
+import { getDjRepertoire } from "../lib/services/signature";
 
 const me = new Hono();
 
@@ -406,6 +408,80 @@ me.get("/follows", async (c) => {
   } catch (error) {
     logger.error("Failed to list follows", error);
     return c.json({ error: "Failed to list follows" }, 500);
+  }
+});
+
+// ── Compatibility (Slice D) ─────────────────────────────────────────────────
+
+me.use("/compat/*", relationshipLimiter);
+
+/**
+ * GET /compat/:slug — overlap-first dancer↔DJ compatibility: how many of the viewer's liked
+ * tracks live in this DJ's public repertoire (ALL published sets + promoted playlists — the
+ * exact context set the Signature uses, via getDjRepertoire). Identity is SNAPSHOT-FIRST
+ * (a wedge-era like carrying only a broadcast-time spotifyUrl still counts — matches the
+ * journal's own resolution), then the strict-gated link. Per-viewer data — never cached under
+ * a slug-only key (dj.ts doctrine).
+ */
+me.get("/compat/:slug", async (c) => {
+  const slug = c.req.param("slug") ?? "";
+  if (slug.length === 0 || slug.length > 120) return c.json({ error: "Invalid slug" }, 400);
+  const userId = getUser(c).id;
+  try {
+    const dj = await findUserBySlug(slug);
+    if (!dj) return c.json({ error: "DJ not found" }, 404);
+
+    const claimed = await getClaimedClientIds(userId);
+    if (claimed.length === 0) {
+      return c.json({ sharedCount: 0, viewerTrackCount: 0, topShared: [] });
+    }
+
+    const [likedRows, repertoire] = await Promise.all([
+      db
+        .select({
+          artist: schema.playedTracks.artist,
+          title: schema.playedTracks.title,
+          albumArtUrl: schema.playedTracks.albumArtUrl,
+          spotifyUrl: schema.playedTracks.spotifyUrl,
+          linkProviderId: schema.trackLinks.providerId,
+        })
+        .from(schema.likes)
+        .innerJoin(schema.playedTracks, eq(schema.likes.playedTrackId, schema.playedTracks.id))
+        .leftJoin(schema.trackLinks, trustedSpotifyLinkOn())
+        .where(inArray(schema.likes.clientId, claimed))
+        .orderBy(desc(schema.likes.createdAt)) // most recently loved first → topShared ordering
+        .limit(5000),
+      getDjRepertoire(dj.id),
+    ]);
+
+    const seen = new Set<string>();
+    const topShared: {
+      title: string;
+      artist: string;
+      albumArtUrl: string | null;
+      spotifyUrl: string;
+    }[] = [];
+    let sharedCount = 0;
+    for (const row of likedRows) {
+      const id = parseSpotifyTrackId(row.spotifyUrl) ?? row.linkProviderId ?? null;
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      if (repertoire.ids.has(id)) {
+        sharedCount += 1;
+        if (topShared.length < 5) {
+          topShared.push({
+            title: row.title,
+            artist: row.artist,
+            albumArtUrl: row.albumArtUrl ?? null,
+            spotifyUrl: row.spotifyUrl ?? `https://open.spotify.com/track/${id}`,
+          });
+        }
+      }
+    }
+    return c.json({ sharedCount, viewerTrackCount: seen.size, topShared });
+  } catch (error) {
+    logger.error("Failed to compute compatibility", error);
+    return c.json({ error: "Failed to compute compatibility" }, 500);
   }
 });
 

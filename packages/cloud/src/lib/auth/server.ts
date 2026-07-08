@@ -58,6 +58,8 @@ export const auth = betterAuth({
       // route; exposed on the session so guards/routes read them without an extra query.
       bio: { type: "string", required: false, input: false },
       showFollowerCount: { type: "boolean", required: false, defaultValue: false, input: false },
+      // Signature card visibility (Slice D) — default ON; the DDL default backfills existing rows.
+      showSignature: { type: "boolean", required: false, defaultValue: true, input: false },
     },
     // GDPR: dancer-initiated deletion, confirmed via email (dancers have no password, and 30-day
     // rolling sessions are never "fresh"). Unwinds client_identities via FK cascade; likes stay

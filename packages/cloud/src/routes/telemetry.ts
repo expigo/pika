@@ -42,6 +42,11 @@ export const PRODUCT_EVENTS = [
   "card_generated",
   "card_shared",
   "email_prefs_updated",
+  // Slice D — Musical Identity
+  "playlist_imported",
+  "playlist_promoted",
+  "dj_stats_viewed",
+  "compat_viewed",
 ] as const;
 
 const EventBody = z.object({

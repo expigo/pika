@@ -396,7 +396,15 @@ export interface SeedTrack {
  * When a track carries Spotify's own `features` (CSV import), upserts the canonical per-URI
  * `spotify_track_features` row too. When `playlistName` is given, the playlist becomes a first-class
  * entity and per-track membership is recorded (re-import is authoritative — memberships replaced).
- * Returns the number of tracks written.
+ *
+ * `linkMode` is the identity-spine write policy (Slice D). `track_links` is GLOBAL (one row per
+ * matchKey, no DJ scoping) and the public trust gate honors `source='playlist'` outright — so:
+ *  - "authoritative" (admin seed, finalizeWebSet — witnessed or operator-curated data): the
+ *    historical behavior, conflict rows are overwritten.
+ *  - "fill" (DJ-facing import — self-asserted data): conflict rows are updated ONLY while still
+ *    untrusted (`unmatched`, or low-confidence `auto`); `manual`/`playlist`/high-confidence links
+ *    that other dancers' journals, exports and compat already rely on are never clobbered. New
+ *    matchKeys still insert — that's the value of the import.
  */
 export async function seedFromPlaylist(
   djUserId: string,
@@ -404,7 +412,9 @@ export async function seedFromPlaylist(
   tracks: SeedTrack[],
   source: "csv" | "profile" = "csv",
   featuresSource = "csv",
-): Promise<number> {
+  opts: { linkMode?: "authoritative" | "fill" } = {},
+): Promise<{ playlistId: number | null; trackCount: number }> {
+  const linkMode = opts.linkMode ?? "authoritative";
   // Dedupe by spotify id (a multi-row upsert can't touch the same conflict target twice); latest wins.
   const byId = new Map<string, SeedTrack>();
   for (const t of tracks) byId.set(t.spotifyId, t);
@@ -431,7 +441,7 @@ export async function seedFromPlaylist(
           .where(eq(curatedPlaylistTracks.playlistId, playlistId));
       }
     }
-    if (uniq.length === 0) return 0;
+    if (uniq.length === 0) return { playlistId, trackCount: 0 };
 
     // 1. curated_tracks (repertoire edge).
     await tx
@@ -464,7 +474,8 @@ export async function seedFromPlaylist(
         .onConflictDoNothing();
     }
 
-    // 3. track_links (identity spine, authoritative `playlist`). Dedupe by match_key.
+    // 3. track_links (identity spine). Dedupe by match_key; write policy per `linkMode` (see
+    // the function docstring — "fill" must never overwrite links other surfaces already trust).
     const linkByKey = new Map<string, { matchKey: string; songKey: string; spotifyId: string }>();
     for (const t of uniq) {
       const matchKey = getTrackKey(t.artists, t.name);
@@ -499,6 +510,10 @@ export async function seedFromPlaylist(
           source: "playlist",
           updatedAt: new Date(),
         },
+        ...(linkMode === "fill" && {
+          // Only fill rows that are still untrusted; existing row columns are table-qualified.
+          setWhere: sql`${trackLinks.status} = 'unmatched' or (${trackLinks.source} = 'auto' and (${trackLinks.confidence} is null or ${trackLinks.confidence} < 0.8))`,
+        }),
       });
 
     // 4. canonical Spotify features (CSV import) for the tracks that carry them.
@@ -512,7 +527,7 @@ export async function seedFromPlaylist(
       });
     }
 
-    return uniq.length;
+    return { playlistId, trackCount: uniq.length };
   });
 }
 

@@ -15,13 +15,14 @@
  */
 
 import { logger } from "@pika/shared";
-import { desc, eq, isNull, max, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, max, ne, or, sql } from "drizzle-orm";
 import { type Context, Hono } from "hono";
 import { rateLimiter } from "hono-rate-limiter";
 import { z } from "zod";
 import { db } from "../db";
 import {
   adminAudit,
+  djPlaylists,
   events,
   livePollers,
   session,
@@ -32,9 +33,11 @@ import {
 import { recordAdminAction } from "../lib/admin-audit";
 import { getUser, requireAdmin } from "../lib/auth";
 import { auth } from "../lib/auth/server";
+import { invalidateCache } from "../lib/cache";
 import { getActiveConnectionCount } from "../lib/connection-registry";
 import { getListenerCount } from "../lib/listeners";
 import { sweepRecaps } from "../lib/services/recap";
+import { fetchSpotifyOembedTitle } from "../lib/services/spotifyOembed";
 import { getAllSessions } from "../lib/sessions";
 
 const admin = new Hono();
@@ -431,6 +434,50 @@ admin.get("/catalog/songs/:id", async (c) => {
 admin.post("/recap/sweep", async (c) => {
   const result = await sweepRecaps(undefined, { ignoreWindow: true });
   recordAdminAction(getUser(c).id, "recap.sweep", undefined, result);
+  return c.json({ success: true, ...result });
+});
+
+const BackfillTitlesBody = z.object({ limit: z.number().int().min(1).max(200).optional() });
+
+/**
+ * POST /api/admin/playlists/backfill-titles — fill oEmbed titles onto pre-D.1 embed rows
+ * (title IS NULL). Sequential + bounded per call; idempotent — re-run until scanned = 0.
+ */
+admin.post("/playlists/backfill-titles", async (c) => {
+  const parsed = BackfillTitlesBody.safeParse(await c.req.json().catch(() => ({})));
+  const limit = parsed.success ? (parsed.data.limit ?? 100) : 100;
+
+  const rows = await db
+    .select({
+      id: djPlaylists.id,
+      spotifyPlaylistId: djPlaylists.spotifyPlaylistId,
+      djUserId: djPlaylists.djUserId,
+    })
+    .from(djPlaylists)
+    .where(and(isNull(djPlaylists.title), isNotNull(djPlaylists.spotifyPlaylistId)))
+    .limit(limit);
+
+  let updated = 0;
+  const affectedDjIds = new Set<string>();
+  for (const row of rows) {
+    if (!row.spotifyPlaylistId) continue;
+    const title = await fetchSpotifyOembedTitle(row.spotifyPlaylistId);
+    if (!title) continue;
+    await db.update(djPlaylists).set({ title }).where(eq(djPlaylists.id, row.id));
+    updated++;
+    affectedDjIds.add(row.djUserId);
+  }
+
+  if (affectedDjIds.size > 0) {
+    const slugRows = await db
+      .select({ slug: user.slug })
+      .from(user)
+      .where(inArray(user.id, [...affectedDjIds]));
+    for (const r of slugRows) if (r.slug) invalidateCache(`dj-profile:${r.slug}`);
+  }
+
+  const result = { scanned: rows.length, updated, failed: rows.length - updated };
+  recordAdminAction(getUser(c).id, "playlists.backfillTitles", undefined, result);
   return c.json({ success: true, ...result });
 });
 

@@ -547,7 +547,17 @@ export const curatedPlaylists = pgTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
+    // PROVENANCE (Slice D doctrine): 'csv' = imported/self-asserted, 'profile' = live-derived.
+    // This drives the Booth badge ("DJ's pick" vs "⚡ Played live on Pika") — never rename.
     source: text("source").notNull().default("csv"), // 'csv' | 'profile'
+    // Slice D — Booth promotion: the DJ's one dial for imports (mirrors sessions.published).
+    // showOnBooth gates BOTH the public Booth render AND the Signature's imported contexts.
+    showOnBooth: boolean("show_on_booth").notNull().default(false),
+    // DJ-written narrative metadata (display-only, never weighted): "Budafest 2026 — party set".
+    label: text("label"),
+    kind: text("kind"), // 'set' | 'crate' — display hint, no trust semantics
+    // Link-only metadata (CSV is the source of truth; the URL is never fetched).
+    spotifyUrl: text("spotify_url"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
@@ -559,6 +569,8 @@ export const curatedPlaylists = pgTable(
 
 // Slice 5: DJ-pasted public Spotify playlists embedded on their /dj/[slug] profile (cap-free — a plain
 // iframe, no OAuth/matching). Distinct from `curated_playlists` (B3 catalog-seed infra).
+// D.1 carve-out: `title` is display metadata fetched ONCE at add-time from the fixed-host Spotify
+// oEmbed endpoint (best-effort, null on any failure). Playlist CONTENT is still never fetched.
 export const djPlaylists = pgTable(
   "dj_playlists",
   {
@@ -568,6 +580,7 @@ export const djPlaylists = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     url: text("url").notNull(),
     spotifyPlaylistId: text("spotify_playlist_id"),
+    title: text("title"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({

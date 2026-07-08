@@ -18,6 +18,7 @@ describe("admin routes auth guard", () => {
     ["POST", "/api/admin/djs"],
     ["POST", "/api/admin/djs/1/approve"],
     ["POST", "/api/admin/djs/1/reject"],
+    ["POST", "/api/admin/playlists/backfill-titles"],
   ] as const) {
     test(`${method} ${path} → 401 without a session`, async () => {
       const res = await app.request(path, { method });

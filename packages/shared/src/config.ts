@@ -39,6 +39,10 @@ export const TIMEOUTS = {
   BROADCAST_DEBOUNCE: 2000,
   CLEANUP_INTERVAL: 60 * 1000, // 1 minute
   OFFLINE_RETRY_BASE: 500,
+
+  // Outbound HTTP (D.1) — the Spotify oEmbed title fetch rides the embed-add request, so it
+  // must give up fast; failure just means a null title.
+  OEMBED_FETCH: 4000,
 } as const;
 
 // ============================================================================
@@ -98,6 +102,21 @@ export const LIMITS = {
   // Night Card image proxy (Slice C) — one upstream fetch per call, pinhole-allowlisted.
   IMG_PROXY_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
   IMG_PROXY_RATE_LIMIT_MAX: 30, // per IP
+
+  // Slice D — Musical Identity. The Signature floors are LOAD-BEARING (locked decision): below
+  // them the card renders nothing rather than a thin, gameable statistic.
+  SIGNATURE_MIN_TRACKS: 20, // distinct featured tracks required for a card
+  SIGNATURE_MIN_CONTEXTS: 2, // sets/playlists — range needs more than one context
+  COMPAT_MIN_OVERLAP: 3, // shared tracks before the compat card says anything
+  PLAYLIST_IMPORT_MAX_TRACKS: 1000, // per import request
+  PLAYLIST_IMPORT_RATE_LIMIT_WINDOW: 60 * 60 * 1000, // 1 h, per DJ
+  PLAYLIST_IMPORT_RATE_LIMIT_MAX: 10,
+  MAX_CURATED_PLAYLISTS_PER_DJ: 48, // new names only — re-imports of existing names are exempt
+  BOOTH_PLAYLIST_PREVIEW_TRACKS: 5, // native-list preview rows per promoted playlist
+  CROWD_PLEASERS_TOP_N: 12,
+  // D.1: adding an embed now performs one bounded upstream oEmbed fetch — cap it per DJ.
+  PLAYLIST_EMBED_ADD_RATE_LIMIT_WINDOW: 60 * 1000, // 1 min
+  PLAYLIST_EMBED_ADD_RATE_LIMIT_MAX: 10,
   MAX_TELEMETRY_PROPS_BYTES: 1024,
   // Per-IP cap on WebSocket *connection* attempts. NOTE: this is keyed on the
   // client IP (CF-Connecting-IP / X-Forwarded-For), so an entire venue behind one

@@ -22,6 +22,9 @@ export const user = pgTable("user", {
   // route); showFollowerCount gates only the PUBLIC display — the owner always sees their count.
   bio: text("bio"),
   showFollowerCount: boolean("show_follower_count").default(false).notNull(),
+  // Slice D: the Signature card's visibility escape hatch. Default ON (the card is computed
+  // exclusively from already-public data: published sessions + promoted playlists).
+  showSignature: boolean("show_signature").default(true).notNull(),
 });
 
 export const session = pgTable(
