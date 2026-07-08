@@ -6,6 +6,7 @@
  * broadcasts; the browser only drives start/stop/share and reads status.
  */
 
+import type { ExportifySeedTrack } from "@pika/shared";
 import { getApiBaseUrl } from "./api";
 
 const JSON_CSRF: HeadersInit = {
@@ -197,6 +198,8 @@ export interface MyPlaylist {
   id: number;
   url: string;
   spotifyPlaylistId: string | null;
+  /** oEmbed display title (D.1) — optional for deploy skew; null when the fetch failed. */
+  title?: string | null;
 }
 
 /** My sessions (incl. hidden) with their publish state — for the profile-management list. */
@@ -247,11 +250,72 @@ export interface MyGig {
   url: string | null;
 }
 
+// ── Signature + curated playlists + crowd-pleasers (Slice D) ────────────────
+
+export interface DjSignatureBand {
+  p25: number;
+  median: number;
+  p75: number;
+}
+
+/** Mirror of the cloud's DjSignature (lib/services/signature.ts). The D.1 additions
+ * (per-source track counts, acousticness) are OPTIONAL here: the public payload is slug-cached
+ * ≤60s, so a stale pre-D.1 object must render, not crash. */
+export interface DjSignatureData {
+  contexts: { live: number; imported: number; liveTracks?: number; importedTracks?: number };
+  distinctTracks: number;
+  featuredTracks: number;
+  coverage: number;
+  tempo: { min: number; p25: number; median: number; p75: number; max: number };
+  energy: DjSignatureBand;
+  danceability: DjSignatureBand;
+  valence: DjSignatureBand;
+  acousticness?: DjSignatureBand;
+  eras: { decade: string; share: number }[];
+}
+
+/** Owner-only floors progress (why the Signature isn't showing yet + how far along). */
+export interface SignatureProgressData {
+  featuredTracks: number;
+  distinctTracks: number;
+  contexts: { live: number; imported: number };
+}
+
+export interface MyCuratedPlaylist {
+  id: number;
+  name: string;
+  source: string; // 'csv' (DJ's pick) | 'profile' (⚡ played live)
+  showOnBooth: boolean;
+  label: string | null;
+  kind: string | null; // 'set' | 'crate'
+  spotifyUrl: string | null;
+  trackCount: number;
+  featureCount: number; // "how sharp will my Signature be" hint
+}
+
+export interface CrowdPleasersData {
+  totals: { sessions: number; likes: number; dancers: number };
+  tracks: {
+    artist: string;
+    title: string;
+    albumArtUrl: string | null;
+    spotifyUrl: string | null;
+    plays: number;
+    likes: number;
+    likesPerPlay: number;
+  }[];
+}
+
 export interface MyBooth {
   bio: string | null;
   showFollowerCount: boolean;
+  showSignature: boolean;
   followerCount: number; // the owner ALWAYS sees their count
   gigs: MyGig[]; // all gigs, incl. past (public payload shows upcoming only)
+  /** Computed regardless of the public toggle — the DJ sees the card before dancers do. */
+  signaturePreview: DjSignatureData | null;
+  /** Optional for deploy skew — pre-D.1 cloud responses don't carry it. */
+  signatureProgress?: SignatureProgressData;
 }
 
 /** My Booth content for the editor. */
@@ -259,16 +323,63 @@ export function getMyBooth(): Promise<MyBooth> {
   return req("/api/dj/me/booth");
 }
 
-/** Update my bio and/or the public follower-count toggle. */
+/** Update my bio and/or the public toggles (follower count, Signature). */
 export function updateBooth(patch: {
   bio?: string;
   showFollowerCount?: boolean;
+  showSignature?: boolean;
 }): Promise<{ success: boolean }> {
   return req("/api/dj/me/booth", {
     method: "PATCH",
     headers: JSON_CSRF,
     body: JSON.stringify(patch),
   });
+}
+
+// ── Playlist import + curated-playlist management (Slice D) ─────────────────
+
+/** Import a parsed CSV as one of my playlists (client parses; server validates rows). */
+export function importPlaylist(body: {
+  name: string;
+  featuresSource?: "exportify" | "chosic";
+  tracks: ExportifySeedTrack[];
+}): Promise<{ playlistId: number | null; trackCount: number; featureCount: number }> {
+  return req("/api/dj/me/playlists/import", {
+    method: "POST",
+    headers: JSON_CSRF,
+    body: JSON.stringify(body),
+  });
+}
+
+export function getMyCuratedPlaylists(): Promise<{ playlists: MyCuratedPlaylist[] }> {
+  return req("/api/dj/me/curated-playlists");
+}
+
+/** Promote/demote (showOnBooth — the one dial for imports) + narrative metadata. */
+export function updateCuratedPlaylist(
+  id: number,
+  patch: {
+    showOnBooth?: boolean;
+    label?: string;
+    kind?: "set" | "crate" | null;
+    spotifyUrl?: string;
+  },
+): Promise<{ success: boolean }> {
+  return req(`/api/dj/me/curated-playlists/${id}`, {
+    method: "PATCH",
+    headers: JSON_CSRF,
+    body: JSON.stringify(patch),
+  });
+}
+
+/** Remove one of my curated playlists (the shared track corpus is untouched). */
+export function deleteCuratedPlaylist(id: number): Promise<{ success: boolean }> {
+  return req(`/api/dj/me/curated-playlists/${id}`, { method: "DELETE", headers: JSON_CSRF });
+}
+
+/** My floor-love leaderboard (DJ-private, across ALL my sessions). */
+export function getMyCrowdPleasers(): Promise<CrowdPleasersData> {
+  return req("/api/dj/me/crowd-pleasers");
 }
 
 /** Add an upcoming gig to my Booth. */

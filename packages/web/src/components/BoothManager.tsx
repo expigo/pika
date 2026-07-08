@@ -1,5 +1,6 @@
 "use client";
 
+import { LIMITS } from "@pika/shared";
 import { CalendarPlus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -12,11 +13,33 @@ import {
   updateEmailPreferences,
 } from "@/lib/djLive";
 import { trackEvent } from "@/lib/events";
+import { SignatureCard } from "./SignatureCard";
 
 const BIO_MAX = 500;
 
+/** One floors-progress row: "label: x of need" + a mini bar. Empty-state doctrine: why + how far. */
+function ProgressRow({ label, have, need }: { label: string; have: number; need: number }) {
+  const pct = Math.min(100, Math.round((have / need) * 100));
+  return (
+    <div className="mb-2">
+      <div className="mb-1 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest">
+        <span className="text-slate-400">{label}</span>
+        <span className={have >= need ? "text-emerald-400" : "text-slate-500"}>
+          {have} of {need}
+        </span>
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-800/60">
+        <div
+          className={`h-full rounded-full ${have >= need ? "bg-emerald-500/60" : "bg-purple-500/50"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 /**
- * Slice C — the DJ's Booth editor (rendered on /dj/live beside ProfileManager): bio, the
+ * Slice C — the DJ's Booth editor (rendered on /dj/booth beside ProfileManager): bio, the
  * public follower-count toggle, upcoming gigs (structured one-liners — deliberately not an
  * organizer model), and the set-digest email opt-in (explicit marketing consent).
  */
@@ -74,6 +97,17 @@ export function BoothManager() {
     }
   }, [booth]);
 
+  const toggleSignature = useCallback(async () => {
+    if (!booth) return;
+    const next = !booth.showSignature;
+    setBooth({ ...booth, showSignature: next }); // optimistic
+    try {
+      await updateBooth({ showSignature: next });
+    } catch {
+      setBooth(booth);
+    }
+  }, [booth]);
+
   const toggleDigest = useCallback(async () => {
     if (digest === null) return;
     const next = !digest;
@@ -124,7 +158,7 @@ export function BoothManager() {
   const today = new Date().toISOString().slice(0, 10);
 
   return (
-    <section className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+    <section className="w-full rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
       <h2 className="mb-4 text-xs font-black uppercase tracking-widest text-slate-300">My booth</h2>
 
       {/* Bio */}
@@ -184,6 +218,28 @@ export function BoothManager() {
           </button>
         </div>
       )}
+      {booth && (
+        <div className="mb-3 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Show my Signature on the Booth
+            <span className="ml-2 normal-case text-slate-500">(computed from public data)</span>
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={booth.showSignature}
+            aria-label="Show my Signature on the Booth"
+            onClick={toggleSignature}
+            className={`rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-widest ${
+              booth.showSignature
+                ? "bg-emerald-600/15 text-emerald-400 hover:bg-emerald-600/25"
+                : "bg-slate-800 text-slate-500 hover:bg-slate-700"
+            }`}
+          >
+            {booth.showSignature ? "Public" : "Hidden"}
+          </button>
+        </div>
+      )}
       {digest !== null && (
         <div className="mb-6 flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
@@ -203,6 +259,38 @@ export function BoothManager() {
           >
             {digest ? "On" : "Off"}
           </button>
+        </div>
+      )}
+
+      {/* The private Signature preview — the DJ sees the card (and its honest denominator)
+          before dancers do, whether or not the public toggle is on. */}
+      {booth?.signaturePreview && (
+        <div className="mb-6">
+          <SignatureCard signature={booth.signaturePreview} preview />
+        </div>
+      )}
+
+      {/* Below the floors there is no card — say WHY and what to do next (the koichi fix:
+          without this, five imports produce a silent, inexplicable nothing). */}
+      {booth && !booth.signaturePreview && booth.signatureProgress && (
+        <div className="mb-6 rounded-lg border border-slate-800 bg-slate-950/40 p-3">
+          <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-300">
+            Signature progress.
+          </p>
+          <ProgressRow
+            label="Featured tracks"
+            have={booth.signatureProgress.featuredTracks}
+            need={LIMITS.SIGNATURE_MIN_TRACKS}
+          />
+          <ProgressRow
+            label="Contexts"
+            have={booth.signatureProgress.contexts.live + booth.signatureProgress.contexts.imported}
+            need={LIMITS.SIGNATURE_MIN_CONTEXTS}
+          />
+          <p className="mt-2 text-[9px] text-slate-500">
+            Each published live set and each promoted playlist counts as a context. Import a CSV in
+            My playlists, then “Show on Booth” — or publish a live set.
+          </p>
         </div>
       )}
 

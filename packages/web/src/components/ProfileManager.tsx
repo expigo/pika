@@ -15,7 +15,7 @@ import {
 } from "@/lib/djLive";
 
 /**
- * Slice 5 — the DJ's public-profile management panel (rendered on /dj/live for an approved DJ). Lets
+ * Slice 5 — the DJ's public-profile management panel (rendered on /dj/booth for an approved DJ). Lets
  * them hide/show each session on their public /dj/[slug] page and add/remove embedded Spotify playlists.
  */
 export function ProfileManager({ user }: { user: DjUser }) {
@@ -95,7 +95,7 @@ export function ProfileManager({ user }: { user: DjUser }) {
   );
 
   return (
-    <section className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+    <section className="w-full rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xs font-black uppercase tracking-widest text-slate-300">My profile</h2>
         {user.slug && (
@@ -146,7 +146,7 @@ export function ProfileManager({ user }: { user: DjUser }) {
                 rel="noreferrer"
                 className="truncate text-xs text-slate-300 hover:text-emerald-400"
               >
-                {p.url}
+                {p.title ?? p.url}
               </a>
               <button
                 type="button"

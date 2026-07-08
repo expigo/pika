@@ -2,24 +2,20 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { BoothManager } from "@/components/BoothManager";
 import { DjLiveControls } from "@/components/DjLiveControls";
+import { DjWorkspaceNav } from "@/components/DjWorkspaceNav";
 import { LivePlayer } from "@/components/LivePlayer";
 import { LogoutButton } from "@/components/LogoutButton";
-import { ProfileManager } from "@/components/ProfileManager";
 import {
   DjApiError,
-  type DjUser,
   getLiveStatus,
-  getMe,
   type LiveStatus,
   setShare,
   spotifyAuthorizeUrl,
   startLive,
   stopLive,
 } from "@/lib/djLive";
-
-type Phase = "loading" | "anon" | "pending" | "ready";
+import { useDjMe } from "@/lib/useDjMe";
 
 const shell =
   "min-h-screen bg-slate-950 text-slate-200 flex flex-col items-center px-6 py-10 gap-6";
@@ -33,8 +29,6 @@ function Centered({ children }: { children: React.ReactNode }) {
 }
 
 export default function DjLivePage() {
-  const [phase, setPhase] = useState<Phase>("loading");
-  const [user, setUser] = useState<DjUser | null>(null);
   const [status, setStatus] = useState<LiveStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,21 +41,9 @@ export default function DjLivePage() {
     }
   }, []);
 
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      const me = await getMe().catch(() => null);
-      if (!active) return;
-      if (!me) return setPhase("anon");
-      setUser(me);
-      if (me.status === "pending") return setPhase("pending");
-      await refreshStatus();
-      if (active) setPhase("ready");
-    })();
-    return () => {
-      active = false;
-    };
-  }, [refreshStatus]);
+  // Shared workspace gate (D.1); the first status poll runs before "ready" so the page never
+  // flashes "Connect Spotify" at a DJ who is already live.
+  const { phase, user } = useDjMe(refreshStatus);
 
   // Live-poll the status while broadcasting so the DJ sees poll tallies, tempo, and the active
   // announcement update in near-real-time. Visibility-aware (pauses when backgrounded) per the
@@ -152,6 +134,10 @@ export default function DjLivePage() {
         </div>
       </header>
 
+      <div className="w-full max-w-lg">
+        <DjWorkspaceNav slug={user?.slug} />
+      </div>
+
       {error && (
         <div
           role="alert"
@@ -197,52 +183,59 @@ export default function DjLivePage() {
           </button>
         </section>
       ) : (
-        <>
-          <section className="w-full max-w-lg rounded-2xl bg-slate-900 p-5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span
-                aria-hidden
-                className={`inline-block h-3 w-3 rounded-full ${paused ? "bg-amber-400" : "animate-pulse bg-red-500"}`}
-              />
-              <span className="font-semibold tracking-wide">{paused ? "PAUSED" : "LIVE"}</span>
-              {!paused && status?.betweenSongs && (
-                <span className="text-xs text-slate-500">· between songs</span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => run(() => setShare(!paused))}
-                className="rounded-full border border-slate-600 px-4 py-2 text-sm disabled:opacity-50"
-              >
-                {paused ? "Resume sharing" : "Pause sharing"}
-              </button>
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => run(stopLive)}
-                className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold disabled:opacity-50"
-              >
-                Stop
-              </button>
-            </div>
-          </section>
+        // D.1 desktop: controls beside the dancer mirror at lg (laptop-in-the-booth); the grid
+        // stacks in today's order on mobile.
+        <div className="grid w-full max-w-lg gap-6 lg:max-w-4xl lg:grid-cols-2 lg:items-start">
+          <div className="flex min-w-0 flex-col gap-6">
+            <section className="w-full rounded-2xl bg-slate-900 p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span
+                  aria-hidden
+                  className={`inline-block h-3 w-3 rounded-full ${paused ? "bg-amber-400" : "animate-pulse bg-red-500"}`}
+                />
+                <span className="font-semibold tracking-wide">{paused ? "PAUSED" : "LIVE"}</span>
+                {!paused && status?.betweenSongs && (
+                  <span className="text-xs text-slate-500">· between songs</span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => run(() => setShare(!paused))}
+                  className="rounded-full border border-slate-600 px-4 py-2 text-sm disabled:opacity-50"
+                >
+                  {paused ? "Resume sharing" : "Pause sharing"}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => run(stopLive)}
+                  className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                >
+                  Stop
+                </button>
+              </div>
+            </section>
 
-          {status && <DjLiveControls status={status} busy={busy} run={run} />}
+            {status && <DjLiveControls status={status} busy={busy} run={run} />}
+          </div>
 
-          <section className="w-full max-w-lg">
+          <section className="w-full min-w-0">
             <p className="mb-2 text-xs uppercase tracking-wide text-slate-500">What dancers see</p>
             {status?.sessionId && <LivePlayer targetSessionId={status.sessionId} />}
           </section>
-        </>
+        </div>
       )}
 
-      {/* Profile management is available across the whole ready phase (whether or not the DJ is
-          connected/live) — it's how an approved DJ curates their public /dj/[slug] page. */}
-      {user && <ProfileManager user={user} />}
-      {/* Booth editor (Slice C): bio, follower-count toggle, gigs, digest opt-in. */}
-      {user && <BoothManager />}
+      {/* Management moved to /dj/booth (D.1 split) — Broadcast stays a focused live surface,
+          and the natural post-set next tap is the booth. */}
+      <Link
+        href="/dj/booth"
+        className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900/40 px-5 py-4 text-sm text-slate-300 hover:border-purple-500/30 hover:text-white transition-colors"
+      >
+        Manage your Booth — profile, playlists, gigs →
+      </Link>
     </main>
   );
 }

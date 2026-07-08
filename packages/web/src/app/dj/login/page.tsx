@@ -158,10 +158,10 @@ export default function LoginPage() {
                 </Link>
               </div>
               <Link
-                href="/dj/live"
+                href="/dj/booth"
                 className="mt-4 w-full py-5 bg-purple-600 text-white rounded-2xl font-black uppercase text-[11px] tracking-[0.2em] flex items-center justify-center gap-3 hover:bg-purple-500 transition-all shadow-xl active:scale-[0.98]"
               >
-                Go to Live Dashboard
+                Go to your Booth
                 <ArrowRight className="w-4 h-4" />
               </Link>
             </div>

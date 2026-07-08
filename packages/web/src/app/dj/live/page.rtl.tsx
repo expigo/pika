@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "../../../test/rtl";
 import DjLivePage from "./page";
 
+// D.1: /dj/live is broadcast-only — the management stack (ProfileManager, BoothManager,
+// PlaylistManager, CrowdPleasers) lives on /dj/booth and is covered by dj/booth/page.rtl.tsx.
 vi.mock("@/lib/djLive", () => ({
   DjApiError: class DjApiError extends Error {},
   getMe: vi.fn(),
@@ -10,23 +12,6 @@ vi.mock("@/lib/djLive", () => ({
   stopLive: vi.fn(),
   setShare: vi.fn(),
   spotifyAuthorizeUrl: () => "http://cloud/api/spotify/authorize",
-  // Slice 5 — the ProfileManager section on the ready dashboard reads these.
-  getMySessions: vi.fn().mockResolvedValue({ sessions: [] }),
-  getMyPlaylists: vi.fn().mockResolvedValue({ playlists: [] }),
-  setSessionPublished: vi.fn(),
-  addPlaylist: vi.fn(),
-  removePlaylist: vi.fn(),
-  // Slice C — the BoothManager section reads these.
-  getMyBooth: vi
-    .fn()
-    .mockResolvedValue({ bio: null, showFollowerCount: false, followerCount: 0, gigs: [] }),
-  getEmailPreferences: vi
-    .fn()
-    .mockResolvedValue({ recapEmails: false, djDigest: false, djDigestAvailable: true }),
-  updateBooth: vi.fn(),
-  updateEmailPreferences: vi.fn(),
-  addGig: vi.fn(),
-  removeGig: vi.fn(),
 }));
 // The mirror reuses LivePlayer (WS-driven) — stub it out for the dashboard test.
 vi.mock("@/components/LivePlayer", () => ({
@@ -59,7 +44,7 @@ describe("DjLivePage", () => {
     expect(await screen.findByText(/awaiting approval/i)).toBeInTheDocument();
   });
 
-  it("offers Connect Spotify when not connected", async () => {
+  it("offers Connect Spotify when not connected — with the workspace nav + booth link card", async () => {
     vi.mocked(djLive.getMe).mockResolvedValue(approved);
     vi.mocked(djLive.getLiveStatus).mockResolvedValue({
       live: false,
@@ -67,8 +52,15 @@ describe("DjLivePage", () => {
     });
     render(<DjLivePage />);
     expect(await screen.findByRole("button", { name: /connect spotify/i })).toBeInTheDocument();
-    // Profile management is available across the whole ready phase — even before Spotify is connected.
-    expect(await screen.findByRole("heading", { name: /my profile/i })).toBeInTheDocument();
+    // The pill-nav keeps Booth one tap away, and "View public →" carries the DJ's slug.
+    const nav = screen.getByRole("navigation", { name: /dj workspace/i });
+    expect(nav).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^booth$/i })).toHaveAttribute("href", "/dj/booth");
+    expect(screen.getByRole("link", { name: /view public/i })).toHaveAttribute("href", "/dj/dj-x");
+    expect(screen.getByRole("link", { name: /manage your booth/i })).toHaveAttribute(
+      "href",
+      "/dj/booth",
+    );
   });
 
   it("offers Go Live when connected but not live", async () => {
@@ -76,9 +68,6 @@ describe("DjLivePage", () => {
     vi.mocked(djLive.getLiveStatus).mockResolvedValue({ live: false, spotify: conn() });
     render(<DjLivePage />);
     expect(await screen.findByRole("button", { name: /go live/i })).toBeInTheDocument();
-    // Regression guard: the ProfileManager must render in the connected-not-live dashboard, not
-    // only while broadcasting (it was previously nested in the live-only branch).
-    expect(await screen.findByRole("heading", { name: /my profile/i })).toBeInTheDocument();
   });
 
   it("shows LIVE controls + mirror when live", async () => {

@@ -25,11 +25,14 @@ beforeEach(() => {
   vi.mocked(getMyBooth).mockResolvedValue({
     bio: "Old bio",
     showFollowerCount: false,
+    showSignature: true,
     followerCount: 3,
     gigs: [
       { id: 1, date: "2001-01-01", title: "Ancient", city: null, url: null },
       { id: 2, date: "2099-01-15", title: "Budafest", city: "Budapest", url: null },
     ],
+    signaturePreview: null,
+    signatureProgress: { featuredTracks: 0, distinctTracks: 0, contexts: { live: 0, imported: 0 } },
   });
   vi.mocked(getEmailPreferences).mockResolvedValue({
     recapEmails: false,
@@ -72,5 +75,55 @@ describe("BoothManager", () => {
     await waitFor(() =>
       expect(addGig).toHaveBeenCalledWith({ date: "2099-02-01", title: "Westie Gala" }),
     );
+  });
+
+  it("explains WHY there's no Signature yet — floors progress + next action (below floors)", async () => {
+    vi.mocked(getMyBooth).mockResolvedValue({
+      bio: null,
+      showFollowerCount: false,
+      showSignature: true,
+      followerCount: 0,
+      gigs: [],
+      signaturePreview: null,
+      signatureProgress: {
+        featuredTracks: 12,
+        distinctTracks: 30,
+        contexts: { live: 1, imported: 0 },
+      },
+    });
+    render(<BoothManager />);
+    expect(await screen.findByText(/signature progress\./i)).toBeInTheDocument();
+    expect(screen.getByText("12 of 20")).toBeInTheDocument(); // featured-tracks floor
+    expect(screen.getByText("1 of 2")).toBeInTheDocument(); // contexts floor
+    expect(screen.getByText(/import a csv in my playlists/i)).toBeInTheDocument();
+  });
+
+  it("hides the progress panel once the preview card renders (above floors)", async () => {
+    vi.mocked(getMyBooth).mockResolvedValue({
+      bio: null,
+      showFollowerCount: false,
+      showSignature: true,
+      followerCount: 0,
+      gigs: [],
+      signaturePreview: {
+        contexts: { live: 2, imported: 1, liveTracks: 5, importedTracks: 20 },
+        distinctTracks: 30,
+        featuredTracks: 25,
+        coverage: 0.83,
+        tempo: { min: 80, p25: 90, median: 100, p75: 110, max: 120 },
+        energy: { p25: 0.4, median: 0.5, p75: 0.6 },
+        danceability: { p25: 0.5, median: 0.6, p75: 0.7 },
+        valence: { p25: 0.3, median: 0.4, p75: 0.5 },
+        eras: [],
+      },
+      signatureProgress: {
+        featuredTracks: 25,
+        distinctTracks: 30,
+        contexts: { live: 2, imported: 1 },
+      },
+    });
+    render(<BoothManager />);
+    expect(await screen.findByText(/signature \(preview\)\./i)).toBeInTheDocument();
+    expect(screen.queryByText(/signature progress\./i)).toBeNull();
   });
 });

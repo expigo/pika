@@ -38,6 +38,13 @@ describe("AdminDjsPage", () => {
     expect(screen.getByText("pending")).toBeInTheDocument();
   });
 
+  it("links each DJ name to their public booth", async () => {
+    vi.mocked(admin.getDjs).mockResolvedValue([pendingDj]);
+    render(<AdminDjsPage />);
+    const link = await screen.findByRole("link", { name: /open dj pending's booth/i });
+    expect(link).toHaveAttribute("href", "/dj/dj-pending");
+  });
+
   it("approves a DJ and reloads the list", async () => {
     vi.mocked(admin.getDjs).mockResolvedValue([pendingDj]);
     render(<AdminDjsPage />);

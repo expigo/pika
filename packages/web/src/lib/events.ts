@@ -37,7 +37,12 @@ export type ProductEvent =
   | "interstitial_shown"
   | "card_generated"
   | "card_shared"
-  | "email_prefs_updated";
+  | "email_prefs_updated"
+  // Slice D — Musical Identity
+  | "playlist_imported"
+  | "playlist_promoted"
+  | "dj_stats_viewed"
+  | "compat_viewed";
 
 export function trackEvent(event: ProductEvent, props?: Record<string, unknown>): void {
   if (typeof window === "undefined") return;

@@ -36,6 +36,13 @@ const serwist = new Serwist({
       matcher: /\/admin(\/.*)?$/i,
       handler: new NetworkOnly(),
     },
+    {
+      // NETWORK ONLY for the DJ workspace (D.1): /dj/booth + /dj/live are dynamic, auth-gated and
+      // not precached — same no-fallback failure mode as /admin above. (/dj/live was previously
+      // only covered by the accidental unanchored /\/live.*/i match; this makes it intentional.)
+      matcher: /\/dj\/(booth|live)(\/.*)?$/i,
+      handler: new NetworkOnly(),
+    },
     ...defaultCache,
   ],
 });

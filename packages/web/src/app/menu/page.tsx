@@ -47,7 +47,7 @@ export default function MenuPage() {
       items: [
         {
           label: "DJ Dashboard",
-          href: "/dj/login",
+          href: "/dj/booth", // gates to the login panel when signed out
           icon: LogIn,
           description: "Access the booth",
           color: "purple",

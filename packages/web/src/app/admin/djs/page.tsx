@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { VibeBadge } from "@/components/ui/VibeBadge";
 import { AdminApiError, type AdminDj, approveDj, createDj, getDjs, rejectDj } from "@/lib/admin";
@@ -128,7 +129,19 @@ export default function AdminDjsPage() {
           <div key={dj.id} className="flex items-center justify-between gap-4 px-5 py-4">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-white">{dj.displayName}</span>
+                {dj.slug ? (
+                  <Link
+                    href={`/dj/${dj.slug}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label={`Open ${dj.displayName}'s booth`}
+                    className="font-semibold text-white underline-offset-2 hover:text-purple-300 hover:underline"
+                  >
+                    {dj.displayName}
+                  </Link>
+                ) : (
+                  <span className="font-semibold text-white">{dj.displayName}</span>
+                )}
                 <VibeBadge variant={statusVariant(dj.status)}>{dj.status}</VibeBadge>
                 {dj.role === "admin" && <VibeBadge variant="purple">admin</VibeBadge>}
                 {dj.spotifyStatus && (
