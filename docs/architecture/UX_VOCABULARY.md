@@ -26,10 +26,17 @@ The "Slate & Neon" aesthetic is designed for low-light venue environments (DJ bo
 | **Momentum** | Algorithmic | A score (0-1) based on listener count + like density. | "Peak Momentum" |
 | **Lobby** | Navigation | The central discovery hub for active DJ sets. | "/live" URL |
 | **Journal** | Personal | A dancer's personal history of synced tracks. | "/my-likes" URL |
-| **Booth** | Professional | The DJ's public page: bio, upcoming gigs, playlists, Follow. (Supersedes "Showcase".) | "/dj/[slug]" URL, "Visit the booth", "Manage your booth" |
+| **Booth** | Professional | The DJ's public page: bio, upcoming gigs, playlists, Follow. (Supersedes "Showcase".) | "/dj/[slug]" URL, "Visit the booth"; "Manage your booth" → /dj/booth |
+| **DJ Workspace** | Professional | The authed DJ pair /dj/booth (manage: profile, playlists, Signature, insights) + /dj/live (broadcast), joined by a persistent Booth ⁄ Broadcast pill-nav at all widths (D.1). | Pill-nav on both pages |
+| **Broadcast** | Professional | The nav label for /dj/live — the focused web-broadcast surface (connect Spotify, go live, dancer mirror). | "Broadcast" pill in the DJ workspace nav |
 | **Follow** | Relationship | The durable dancer→DJ edge (account-keyed; Slice C). | "Follow" / "Following" button |
 | **Night Recap** | Retention | The morning-after email: your loved songs + the floor's top 3. | "Night recap emails" toggle |
 | **Night Card** | Growth | A shareable 1080×1920 story image of the night (QR → Booth). | "Night Card" button on the recap |
+| **Signature** | Identity | The Booth's computed "what to expect" card: BPM/energy/mood **ranges** (never single numbers) + era chips over published sets + promoted playlists (Slice D). Always carries its load-bearing denominator line; the DJ can hide it. | "Signature." card on the Booth, toggle in Booth manager |
+| **Crowd-Pleasers** | Analytics | DJ-private leaderboard: which of my tracks drew floor love (Syncs per play). | "Crowd-pleasers." card on /dj/live |
+| **Your Match** | Relationship | Signed-in dancer↔DJ overlap card: "You've loved N songs this DJ plays." Renders only at ≥3 shared tracks. | Compat card on the Booth |
+| **"⚡ Played live on Pika"** | Provenance | Badge for live-derived playlists (`source='profile'`) — the earned prize. | Booth playlist cards, playlist manager |
+| **"DJ's pick"** | Provenance | Badge for imported playlists (`source='csv'`) — neutral-positive; NEVER say "Imported". | Booth playlist cards, playlist manager |
 | **Vibe Temp** | Community | The average BPM across all active sessions in the lobby. | "Avg Vibe: 102 BPM" |
 | **Sticky Window** | Architecture | The 5-minute period where a disconnected client still counts as "Live". | Developer only |
 

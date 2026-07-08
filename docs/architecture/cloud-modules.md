@@ -118,10 +118,12 @@ packages/cloud/src/routes/
 ├── sessions.ts   # Session queries (list/active/history/recap/fingerprints)
 ├── stats.ts      # Global statistics
 ├── dj.ts         # DJ profile routes (public /:slug + authed profile management)
+│                 # + Slice D: playlist import/manage/promote, crowd-pleasers, Signature in payload
 ├── dj-live.ts    # Web-DJ broadcast control (Track D)
 ├── client.ts     # Anonymous dancer journal (device read, unlike, playlist export)
 ├── me.ts         # Account journal (Slice B): claim, union read, unlike, export, device unlink
 │                 # + Slice C: follows (PUT/DELETE/GET) and email-consent preferences
+│                 # + Slice D: compat/:slug (dancer↔DJ overlap — per-viewer, never slug-cached)
 ├── telemetry.ts  # Product-event beacon ingest (enum-whitelisted)
 ├── push.ts       # Web Push subscriptions
 ├── email.ts      # RFC 8058 one-click unsubscribe (Slice C — deliberately CSRF-exempt)
@@ -140,17 +142,17 @@ packages/cloud/src/routes/
 | *(Better Auth)* | `/api/auth/*` | Sign-up/in/out, sessions, admin ops, magic link, email OTP |
 | `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap, fingerprint (ownership-checked) |
 | `stats.ts` | `/api/stats/*` | Top tracks, global stats |
-| `dj.ts` | `/api/dj/*` | DJ profile by slug + profile management |
+| `dj.ts` | `/api/dj/*` | DJ profile by slug (+ Signature + booth playlists) + profile management; Slice D: `me/playlists/import` (rate-limited CSV import, `linkMode:"fill"`), `me/curated-playlists` (GET/PATCH/DELETE), `me/crowd-pleasers`; D.1: `POST me/playlists` fetches the oEmbed title (own limiter), `GET me/booth` adds owner-only `signatureProgress` |
 | `dj-live.ts` | `/api/live/*` | Web-DJ broadcast control channel |
 | `client.ts` | `/api/client/*` | Anonymous journal: likes read, unlike, Spotify export (rate-limited) |
-| `me.ts` | `/api/me/*` | Account journal (requireAuth): claim device id, union read, unlike, export, device unlink; Slice C: `follows/:slug` (PUT/DELETE), `follows` (GET, + next gig), `preferences` (GET/PUT consent) |
+| `me.ts` | `/api/me/*` | Account journal (requireAuth): claim device id, union read, unlike, export, device unlink; Slice C: `follows/:slug` (PUT/DELETE), `follows` (GET, + next gig), `preferences` (GET/PUT consent); Slice D: `compat/:slug` (overlap card, snapshot-first resolution) |
 | `telemetry.ts` | `/api/telemetry/*` | Product beacons (enum-whitelisted POST) |
 | `push.ts` | `/api/push/*` | Web Push subscription management |
 | `email.ts` | `/api/email/unsubscribe` | One-click unsubscribe (HMAC token; POST clears consent, GET 302s to the web confirm page) |
 | `img.ts` | `/api/img?src=` | Pinhole i.scdn.co art proxy (allowlist, no redirects, 2 MB cap, immutable cache) |
 | `playlist.ts` | `/api/playlist/*` | DJ Spotify playlist tools |
 | `spotify.ts` | `/api/spotify/*` | Spotify OAuth flows |
-| `admin.ts` | `/api/admin/*` | DJ approval queue + catalog (`/api/admin/catalog{,/songs,/songs/:id}`) |
+| `admin.ts` | `/api/admin/*` | DJ approval queue + catalog (`/api/admin/catalog{,/songs,/songs/:id}`) + maintenance: `POST recap/sweep`, `POST playlists/backfill-titles` (D.1, idempotent + audited) |
 | `seed.ts` | `/api/admin/seed/*` | Catalog seed (admin-gated) |
 | `stages.ts` | `/api/events`, `/api/stages/*` | Create events/stages (owner-scoped), stage lookup w/ `eventName` |
 
@@ -201,11 +203,22 @@ packages/cloud/src/lib/
     ├── polls.ts          # Poll DB ops
     └── queue.ts          # Serialized persistence queue (v0.5.0)
 └── services/
-    ├── push.ts           # Web Push service (VAPID)
+    ├── mail.ts / email-throttle.ts / email-prefs.ts   # Resend mailer + throttles + consent (B/C)
+    ├── identity.ts       # client_identities claim map (Slice B)
+    ├── journal.ts        # Account journal reads + the strict trust gate (trustedSpotifyLinkOn)
+    ├── recap.ts          # Night Recap sweep — claim-then-send (Slice C)
+    ├── spotify.ts / spotifyCatalog.ts / spotifyMatch.ts  # OAuth/BFF, catalog reads, seed/match
+    │                     #   (seedFromPlaylist linkMode "authoritative"|"fill")
+    ├── signature.ts      # Slice D: DJ Signature engine (published-live ∪ promoted-import ids →
+    │                     #   percentile ranges + eras; floors; booth playlist previews;
+    │                     #   D.1: per-source featured counts + owner-only floors progress)
+    ├── spotifyOembed.ts  # D.1: hardened fixed-host oEmbed title fetch (4s timeout, null on failure)
     ├── spotifyPoller.ts  # Track-D web broadcaster (per-DJ now-playing poll loop)
     └── finalizeWebSet.ts # Session-end hook: auto-build the set's Spotify playlist (shared
                           # account) + feed its plays into the catalog as identity-only rows
 ```
+
+> Web Push (VAPID) lives at `src/services/push.ts` (top-level, not `lib/services/`).
 
 **Web-set finalize (`finalizeWebSet.ts`).** When a Track-D web broadcast ends (`stopPoller` →
 before `reapSession`), a best-effort, fire-and-forget pass reconstructs the set's Spotify tracks from

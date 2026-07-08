@@ -24,17 +24,49 @@ grouping. `track_links` (cloud) maps `match_key → provider_id (spotify_id)` wi
 `auto` match. Both `getTrackKey`/`getFuzzyKey` live in `@pika/shared` (`utils.ts`, diacritic-folding +
 version-suffix stripping hardened from real WCS playlists).
 
+## Provenance doctrine (Slice D — Musical Identity)
+`played_tracks` = **witnessed live plays ONLY**; an import can never mint a play. DJ-imported
+playlists land in `curated_*` — `curated_playlists.source` IS the provenance (`'profile'` =
+live-derived → badge "⚡ Played live on Pika", the earned prize; `'csv'` = imported → "DJ's pick";
+never "Imported" as user-facing copy). **Consumer rule:** the Signature + dancer↔DJ compatibility
+read BOTH sources; Charts/consensus/reactions (any cross-DJ public aggregate) read `played_tracks`
+only. **One dial per surface:** `sessions.published` (live) and `curated_playlists.show_on_booth`
+(imports) each gate Booth display AND Signature input together — hiding removes from both, and the
+visible cost is the Signature's load-bearing denominator line — since D.1 with **per-context
+featured-track counts** ("based on N live sets (X tracks) · M imported playlists (Y tracks) · Z%
+feature coverage"; live-first attribution on overlap, so X+Y always equals featuredTracks — the
+denominator states each context's real weight, not just its presence). Below the floors the owner
+sees a private **floors-progress** panel on `/me/booth` ("12 of 20 tracks · 1 of 2 contexts" +
+next action) — progress numbers are owner-only and never enter the public payload. The optional
+`acousticness` band (present only when the corpus carries values) powers the SignatureCard's
+**radar**, which plots the p25–p75 band as a RING — never a single-value/median polygon
+(range-not-average doctrine, enforced in `SignatureRadar.tsx`). The Signature is computed over **ALL** published
+sessions (≥3 plays each), not the Booth's 20-row display window, on the Spotify feature scale only
+(0–1 floats + BPM — never blended with the Pika 0–100 sidecar axes), with live-side identity behind
+the strict trust gate (`trustedSpotifyLinkOn`: `manual`/`playlist`, or `auto` with confidence ≥0.8).
+DJ imports write the global `track_links` spine in **fill mode** (`seedFromPlaylist` `linkMode:
+"fill"`): they may fill `unmatched`/low-confidence-`auto` rows but never overwrite the
+`manual`/`playlist`/high-confidence links that journals, exports and recaps trust (admin seed +
+`finalizeWebSet` remain `authoritative`).
+
 ## Cloud tables (`packages/cloud/src/db/schema.ts`)
 - `spotify_track_features` — canonical per-URI Spotify features (tempo/key/energy/…) + `isrc`, `camelot`,
   `features_source`; one row per `spotify_id`. Seeded only via CSV import (accretive merge — see below).
 - `curated_tracks` — a DJ's repertoire edge: one row per `(dj_user_id, spotify_id)` (name/artists/art).
 - `curated_playlists` + `curated_playlist_tracks` — **first-class playlists** + membership (a track is in
   many playlists; this powers "appears in" and isn't lossy like the legacy `curated_tracks.playlist_name`).
+  Slice D (migration `0015`) adds `show_on_booth` (the promote dial — also the Signature dial for
+  imports), `label` (narrative, ≤120), `kind` (`set|crate`, display hint), `spotify_url` (link-only).
 - `track_links` — the identity spine (above).
 - `played_tracks.match_key` — `getTrackKey` set at persist time; **joins to `track_links`** to reach the
   Spotify identity (and so the cloud catalog can show Pika features) — auto-reflects new resolutions.
 - `dj_playlists` — DJ-pasted public Spotify playlists embedded on `/dj/[slug]` (Slice 5; `unique(dj_user_id,
   spotify_playlist_id)`). Cap-free marketing embeds (a plain iframe), *not* the OAuth/matching path.
+  D.1 adds `title` (migration `0016`) — display metadata fetched ONCE at add-time from the fixed
+  Spotify **oEmbed** host (URL built from the parsed 22-char id — no SSRF surface; 4s timeout;
+  every failure → null + a generic UI label). The narrow carve-out to "embeds are never fetched":
+  metadata only, playlist CONTENT is still never fetched. Backfill for pre-D.1 rows:
+  `POST /api/admin/playlists/backfill-titles` (idempotent, audited, ≤200 rows/call).
 - `sessions.published` — `boolean DEFAULT true`; the DJ curates which sets appear on their public profile.
 - `sessions.spotify_playlist_id` / `spotify_playlist_url` — the desktop-built set playlist the DJ **shared**
   to their profile (mirrors the desktop `sessions` columns; migration `0010`). Embeds on the set's recap +
@@ -98,7 +130,7 @@ version-suffix stripping hardened from real WCS playlists).
    routes (per-route `requireDjAuth`, scoped by `getUser(c).id`, CSRF-mounted) let them **hide/show** each
    recorded set (`PATCH /me/sessions/:id` → `sessions.published`; the public `GET /:slug` filters
    `published = true`) and **paste public Spotify playlist URLs** to embed (`POST /me/playlists` →
-   `parseSpotifyPlaylistId` → `dj_playlists`). Management lives on `/dj/live` (the `ProfileManager` panel,
+   `parseSpotifyPlaylistId` → `dj_playlists`). Management lives on `/dj/booth` (the `ProfileManager` panel,
    shown across the whole ready phase — connected or not); the public page renders a lazy
    `SpotifyPlaylistEmbed` iframe per playlist (needs web CSP `frame-src https://open.spotify.com`). Migration
    `0009`; cap-free (no OAuth/matching — external embeds + a publish flag).
@@ -111,6 +143,22 @@ version-suffix stripping hardened from real WCS playlists).
    session row (`GET /:slug`). `DELETE` un-shares. The desktop remembers the shared state in
    `sessions.spotify_playlist_synced_at`. Cap-free (shared-account playlist, no per-DJ OAuth); the set must have
    gone live (it needs a `cloud_session_id`). Migration `0010` (cloud) + desktop `0005`.
+11. **Musical identity (Slice D)** — the DJ-facing end of the catalog. **Import:**
+   `POST /api/dj/me/playlists/import` (requireDjAuth, per-user rate limit, 1000-track cap,
+   playlist cap with **existing names exempt** so the dual-CSV re-upload works at cap) takes
+   client-parsed Exportify/Chosic rows (same shared parsers, auto-detected by header) →
+   `seedFromPlaylist(..., "csv", featuresSource, { linkMode: "fill" })`; re-import preserves
+   `show_on_booth`/label/kind/url. Manage/promote: `GET/PATCH/DELETE /api/dj/me/curated-playlists`.
+   **Booth render:** promoted playlists appear natively (5-track previews via `curated_tracks`,
+   provenance badges, optional Spotify link; legacy iframe embeds collapse behind a tap) plus the
+   **Signature** card (`lib/services/signature.ts`: percentile ranges for tempo/energy/danceability/
+   valence + era decades over the distinct ids of published-live ∪ promoted-import contexts; hard
+   floors `SIGNATURE_MIN_TRACKS`/`SIGNATURE_MIN_CONTEXTS`; `user.show_signature` toggle, owner
+   always gets a private preview). **Compatibility:** `GET /api/me/compat/:slug` — the viewer's
+   journal likes (snapshot-first: broadcast `spotify_url` ?? trusted link) intersected with the
+   same repertoire set; per-viewer, so never inside the slug-cached Booth payload.
+   **Crowd-pleasers:** `GET /api/dj/me/crowd-pleasers` — DJ-private likes-per-play leaderboard
+   across ALL own sessions (publish-agnostic; legacy anonymous sessions invisible — documented).
 
 ## Why CSV (not the API)
 Spotify's Nov-2024 lockdown blocks new apps from reading playlists *and* deprecated the `audio-features`
@@ -130,10 +178,28 @@ identity-column mapping + library-pre-match queries, the `toTrackInfo` live-iden
 `useSpotifyMatcher` (gate/backfill/429/401 loop) + `SpotifyMatchStatus` RTL; `clearTrackSpotifyMatch` +
 `SpotifyMatchManager` RTL + the `/api/playlist/confirm` route guard and its real-Postgres
 `track_links` manual-write/override-auto integration tests; `TrackRow` RTL + the real-Postgres
-`persistTrack`-persists-identity and recap/my-likes-return-identity integration tests.
+`persistTrack`-persists-identity and recap/my-likes-return-identity integration tests. **Slice D:**
+`signature.test.ts` (pure math: percentiles, floors → null, era bucketing, distinct-id dedupe);
+integration "musical identity" describe (import + dual-CSV accretion + at-cap existing-name
+exemption + re-import preserves promotion; **linkMode fill never clobbers a `manual` link, fills
+`unmatched`**; signature one-dial — unpublish/un-promote both shrink the denominator — +
+`show_signature` public-hide/owner-preview; direct-insert `source='profile'` badge branch; compat
+snapshot-first + low-confidence exclusion; crowd-pleasers publish-agnostic aggregation;
+delete-playlist leaves the shared corpus); web RTL: SignatureCard (ranges + load-bearing
+denominator), CompatCard (signed-out invisible, overlap floor), CrowdPleasers, PlaylistManager
+(badges, optimistic promote, CSV rejection), Booth-page fixture with both badge branches.
+**D.1:** `splitFeaturedBySource` units (live-first attribution, sum invariant) + integration
+per-source contexts assert on the overlap fixture; `spotifyOembed` units (DI'd fetch — timeout/
+redirect/content-type/oversize/truncation → null) + the backfill route integration test;
+`radarPath` geometry units (band ring, min-thickness clamp, swapped-input normalization);
+RTL: promote-nudge flows, floors-progress panel, merged embed rows (titled + fallback),
+/dj/booth page suite (the management regression guard moved there), stale-payload denominator
+fallback.
 
 ---
 *Added June 30, 2026; dual-CSV accretive import + live dancer identity + background library pre-match +
-match verify/correct (shared-cache promote) + recap/my-likes identity (`TrackRow`) added July 1, 2026.
-Related:
+match verify/correct (shared-cache promote) + recap/my-likes identity (`TrackRow`) added July 1, 2026;
+Slice D (provenance doctrine, DJ import + fill-mode links, Signature, compat, crowd-pleasers) added
+July 7, 2026; D.1 (per-source denominator, floors progress, radar, oEmbed titles, /dj/booth split)
+added July 8, 2026. Related:
 `music-provider-integration.md` (strategy), `schema-versioning.md`.*

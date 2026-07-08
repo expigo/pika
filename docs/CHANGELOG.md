@@ -3,6 +3,62 @@
 Completed work, newest first — moved out of [ROADMAP.md](ROADMAP.md) so the roadmap stays a
 roadmap. Each block was appended at completion time; see git history for the precise diffs.
 
+*   **Recent Completions (July 2026 — Booth polish & DJ workspace, Slice D.1):**
+    *   ✅ **DJ workspace split** — management (ProfileManager, BoothManager, PlaylistManager,
+        Crowd-Pleasers) moved to a new **/dj/booth**; /dj/live is broadcast-only; persistent
+        Booth ⁄ Broadcast pill-nav on both (all widths) + "View public →"; login CTA + /menu
+        repointed; SW gains a `/dj/(booth|live)` NetworkOnly matcher (the /admin no-fallback
+        failure mode).
+    *   ✅ **Import → promote loop closed** — success banner gains a one-tap **"Show on Booth
+        now"** (import ≠ publish had no affordance — five uploads could produce silent public
+        nothing); below-floors DJs get a **"Signature progress."** panel ("12 of 20 tracks ·
+        1 of 2 contexts" + next action) from owner-only `signatureProgress` on `/me/booth`.
+    *   ✅ **Honest denominator v2** — per-context featured-track counts ("2 live sets
+        (12 tracks) · 1 imported playlist (20 tracks)"), live-first attribution on overlap so
+        the parts sum exactly to featuredTracks; the "3 live sets but 10 tracks" confusion is
+        now stated on the card.
+    *   ✅ **Signature radar** — dependency-free SVG plotting the p25–p75 band as a RING (never
+        a single-value/median polygon — range-not-average doctrine); new optional
+        `acousticness` band (omitted when the corpus has no values); 4 axes
+        Energy/Dance/Mood/Acoustic.
+    *   ✅ **Named embeds + one music section** — `dj_playlists.title` via the fixed-host Spotify
+        **oEmbed** (migration `0016`; hardened fetch: parsed-id URL, `redirect:"error"`, 4s
+        timeout, null on any failure; new per-DJ limiter on the paste route); external embeds
+        merged INTO "Crates & Sets." as named collapsed rows ("Show Spotify player" is no longer
+        a nameless button); `POST /api/admin/playlists/backfill-titles` (idempotent, audited)
+        fills pre-D.1 rows.
+    *   ✅ **Desktop layouts** — public Booth goes two-column at `lg:` (gigs as a sticky aside;
+        per-item grid placement keeps mobile/screen-reader order exactly); /dj/booth two-column;
+        /dj/live controls beside the dancer mirror. Admin DJ list now links each name to the
+        public Booth.
+*   **Recent Completions (July 2026 — Musical Identity, Slice D):**
+    *   ✅ **DJ playlist import** — DJ-facing dual-CSV upload (Exportify/Chosic, client-parsed,
+        header auto-detect) → `POST /api/dj/me/playlists/import`; provenance stays binary
+        (`curated_playlists.source`) and imports NEVER touch `played_tracks`; per-user rate limit +
+        track/playlist caps (existing names exempt so at-cap re-uploads still accrete); the global
+        `track_links` spine is written in **fill mode** (`linkMode:"fill"` — never clobbers
+        `manual`/`playlist`/high-confidence links other surfaces trust); manage/promote via
+        `GET/PATCH/DELETE /me/curated-playlists` (`showOnBooth`, label, kind, Spotify URL —
+        re-import preserves them). Exportify parser now carries "Album Image URL" → art on previews.
+    *   ✅ **Signature** — the Booth's computed "what to expect" card
+        (`lib/services/signature.ts`): percentile **ranges** (tempo/energy/danceability/valence) +
+        era chips over distinct ids of ALL published live sessions ∪ promoted imports (strict
+        trust gate on the live side); hard floors (20 featured tracks / 2 contexts → no card) and
+        the load-bearing denominator line; `user.show_signature` hide toggle (default ON) with a
+        private preview in the Booth manager; **one dial per surface** — `published`/`showOnBooth`
+        gate Booth display and Signature input together. Migration `0015`.
+    *   ✅ **Booth native playlists** — promoted playlists render natively (5-track previews with
+        provenance badges "⚡ Played live on Pika" / "DJ's pick", "+N more", optional Spotify
+        link); legacy iframe embeds collapse behind a "Show player" tap (was 24×352px of eager
+        mobile weight).
+    *   ✅ **Crowd-pleasers** — DJ-private floor-love leaderboard + totals on /dj/live
+        (`GET /api/dj/me/crowd-pleasers`: likes-per-play across ALL own sessions,
+        publish-agnostic).
+    *   ✅ **Compatibility** — signed-in dancer↔DJ overlap card on the Booth
+        (`GET /api/me/compat/:slug`: journal likes, snapshot-first resolution, vs the Signature's
+        repertoire set; ≥3-overlap floor; per-viewer — never in the slug-cached payload).
+    *   ✅ **Telemetry** — `playlist_imported`, `playlist_promoted`, `dj_stats_viewed`,
+        `compat_viewed`.
 *   **Recent Completions (July 2026 — The Relationship Loop, Slice C):**
     *   ✅ **Follow the DJ** — account-keyed `dj_follows` edge (composite PK absorbs repeats; GDPR
         cascade both directions); `PUT/DELETE/GET /api/me/follows` (+ next-gig join); FollowButton on

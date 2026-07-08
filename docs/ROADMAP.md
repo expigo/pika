@@ -2,7 +2,7 @@
 
 This is the central index for the Pika! project, tracking active development, future plans, and architectural decisions.
 
-**Current Focus:** v0.6 — Slice C "The Relationship Loop" (Follow · Booth · Night Recap · Night Card) built on local staging; next: staging smoke (real set → interstitial → admin sweep → recap email → unsubscribe → Night Card on a real iPhone), then prod release + pilot. Ops prereqs before pilot: Resend paid tier, `MARKETING_MAIL_DAILY_CAP`, `WEB_BASE_URL` on staging.
+**Current Focus:** v0.6 — Slice C "The Relationship Loop" (Follow · Booth · Night Recap · Night Card) + Slice D "Musical Identity" (Signature · Playlist Import · Crowd-Pleasers · Compatibility) + Slice D.1 "Booth polish & DJ workspace" (/dj/booth split · import→promote nudge · floors progress · radar · named embeds · desktop layouts) built on local staging; next: staging smoke (real set → interstitial → admin sweep → recap email → unsubscribe → Night Card on a real iPhone; CSV import → "Show on Booth now" → Signature/radar/badges/compat on the Booth; paste embed → named row), then prod release + pilot. Ops prereqs before pilot: Resend paid tier, `MARKETING_MAIL_DAILY_CAP`, `WEB_BASE_URL` on staging.
 **Status:** living index — completed work lives in [CHANGELOG.md](CHANGELOG.md)
 
 > **📊 Audit Recap:** See [AUDIT_RECAP.md](archive/AUDIT_RECAP.md) for detailed Batch 1 & 2 verification.

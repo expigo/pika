@@ -107,10 +107,15 @@ bun run test:load:big
   sync, the dancer Journal (read/pagination/retro-enrichment, export lifecycle, like
   removal, telemetry ingest), dancer accounts (magic-link + email-OTP signup incl. the
   role hook and DJ non-demotion, client-identity claims/rotation/unlink, union read,
-  adopt-first export, send-throttle invisibility), and the Relationship Loop (Slice C:
+  adopt-first export, send-throttle invisibility), the Relationship Loop (Slice C:
   follows CRUD/idempotency/cascade, booth + gigs incl. the public payload + count gating,
   consent + one-click unsubscribe round-trip, session thanks uniqueness, and the recap
-  sweep end-to-end with a fake mailer — zombie-close, claim-once, recipient assembly)
+  sweep end-to-end with a fake mailer — zombie-close, claim-once, recipient assembly),
+  and Musical Identity (Slice D: DJ playlist import incl. the `linkMode:"fill"`
+  identity-spine guard + dual-CSV accretion at cap, Signature one-dial/floors/hide-toggle,
+  booth playlists + provenance badges, snapshot-first compat, crowd-pleasers; D.1:
+  per-source denominator counts w/ live-first overlap attribution, owner-only floors
+  progress, oEmbed embed titles + admin backfill)
 - Shared: Bun
 - Web: **dual-runner** — `bun test` (pure modules) + `vitest run` (`*.rtl.tsx`); see
   [RTL harness](#rtl-component-tests-web--desktop) below

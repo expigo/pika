@@ -44,9 +44,10 @@ graph TD
 ### 2.2 Service Worker Strategy (`sw.ts`)
 We use **Serwist** (generic service worker library) with a bifurcated caching strategy:
 
-1.  **NetworkOnly (`/api/*`, `/live/*`):**
+1.  **NetworkOnly (`/api/*`, `/live/*`, `/admin/*`, `/dj/booth`, `/dj/live`):**
     *   **Rule:** Real-time data must NEVER be cached by the Service Worker.
     *   **Reasoning:** Stale poll data causes confusion. We rely on application-level state (React Query / WebSocket) for data freshness.
+    *   **Dynamic authed pages:** `/admin/*` and the DJ workspace (`/dj/booth`, `/dj/live` — D.1) are dynamic and NOT precached, so the default network-first navigation handler has no fallback for them; without an explicit NetworkOnly matcher a transient nav failure surfaces as a workbox "no-response" error. (`/dj/live` was previously covered only by the accidental unanchored `/\/live.*/i` match.)
 
 2.  **CacheFirst (Static Assets):**
     *   **Rule:** JS, CSS, Fonts, Images.

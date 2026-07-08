@@ -27,7 +27,11 @@ unchanged). See [architecture/stage-event-model.md](architecture/stage-event-mod
 Spotify features (`spotify_track_features`) + curated playlists (`curated_tracks`/`curated_playlists`),
 linked by an identity spine (`track_links`, keyed on `getTrackKey`). Plays (`played_tracks.match_key`)
 join in to yield a per-track **Pika consensus**. Two feature sources (Spotify canonical vs Pika sidecar)
-are shown side-by-side, **never merged**. See [architecture/music-data-model.md](architecture/music-data-model.md).
+are shown side-by-side, **never merged**. **Slice D (Musical Identity)** builds on it: DJ-facing CSV
+playlist import with binary provenance (`curated_playlists.source`; imports never touch
+`played_tracks`), a computed Booth **Signature** (range-framed, load-bearing denominator, one
+`published`/`showOnBooth` dial per surface), dancer↔DJ **compatibility**, and DJ-private
+**crowd-pleasers**. See [architecture/music-data-model.md](architecture/music-data-model.md).
 
 ---
 
