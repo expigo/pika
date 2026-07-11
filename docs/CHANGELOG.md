@@ -28,6 +28,17 @@ roadmap. Each block was appended at completion time; see git history for the pre
         `hooks/useBuildPlaylist.ts` (mirrors the `useSpotifyMatcher` shape); row UI →
         `PlaylistRow.tsx`. New 19-case hook suite uses a real-`status` `PlaylistApiError` — the
         auth-gate path the RTL stub never exercised; `BuildPlaylistModal.rtl.tsx` (11) unedited.
+    *   ✅ **Follow-up trio (2026-07-12)** — `DeleteAccountConfirm` now owns the two-tap delete
+        pair (page keeps the `confirming` bit; both render sites dedupe to it);
+        `spotifyMatchScore.ts` holds the pure ranking layer (sole import `getFuzzyKey`, no
+        HTTP/DB → immune to the repo's `mock.module` leak; test file renamed with it);
+        `routes/me.ts` → a thin composer over `me/journal.ts` + `me/relationship.ts`
+        (`requireAuth` stays in the composer, registered before the mounts; one relationship
+        file so follows/prefs/compat keep sharing the single `relationshipLimiter` budget).
+        All moved bodies diff-audited byte-identical; `me.test.ts`, `db.integration.test.ts`
+        and `page.rtl.tsx` untouched and green. Discovery: the integration suite can flake on
+        rapid re-runs (real Spotify oEmbed calls + dev-DB state) — documented in the
+        test-suite memory note; wait a few minutes before suspecting code.
 
 *   **Recent Completions (July 2026 — Booth polish & DJ workspace, Slice D.1):**
     *   ✅ **DJ workspace split** — management (ProfileManager, BoothManager, PlaylistManager,

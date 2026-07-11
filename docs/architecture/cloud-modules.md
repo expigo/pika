@@ -122,9 +122,11 @@ packages/cloud/src/routes/
 │                 #   composed /me/* BEFORE /:slug (Hono registration-order priority); constants.ts holds shared caps
 ├── dj-live.ts    # Web-DJ broadcast control (Track D)
 ├── client.ts     # Anonymous dancer journal (device read, unlike, playlist export)
-├── me.ts         # Account journal (Slice B): claim, union read, unlike, export, device unlink
-│                 # + Slice C: follows (PUT/DELETE/GET) and email-consent preferences
-│                 # + Slice D: compat/:slug (dancer↔DJ overlap — per-viewer, never slug-cached)
+├── me.ts         # /api/me — thin COMPOSER of ./me/ (2026-07 split); requireAuth lives HERE,
+│                 #   registered before the mounts, so auth never depends on submodule order
+├── me/           # journal.ts (Slice B: claim, union read, unlike, export, device unlink) ·
+│                 #   relationship.ts (Slice C follows + preferences, Slice D compat/:slug —
+│                 #   one file so they share the single relationshipLimiter budget)
 ├── telemetry.ts  # Product-event beacon ingest (enum-whitelisted)
 ├── push.ts       # Web Push subscriptions
 ├── email.ts      # RFC 8058 one-click unsubscribe (Slice C — deliberately CSRF-exempt)
@@ -146,7 +148,7 @@ packages/cloud/src/routes/
 | `dj.ts` → `dj/*` | `/api/dj/*` | **Composed from `./dj/` concern modules** (2026-07 split; paths unchanged): `profile.ts` (public `/:slug` + Signature + booth playlists), `sessions.ts` (publish + set-playlist sync), `embeds.ts` (external playlists), `booth.ts` (bio/gigs), `identity.ts` (Slice D: `me/playlists/import` `linkMode:"fill"`, `me/curated-playlists`, `me/crowd-pleasers`; D.1 oEmbed title). Composer registers `/me/*` before `/:slug` |
 | `dj-live.ts` | `/api/live/*` | Web-DJ broadcast control channel |
 | `client.ts` | `/api/client/*` | Anonymous journal: likes read, unlike, Spotify export (rate-limited) |
-| `me.ts` | `/api/me/*` | Account journal (requireAuth): claim device id, union read, unlike, export, device unlink; Slice C: `follows/:slug` (PUT/DELETE), `follows` (GET, + next gig), `preferences` (GET/PUT consent); Slice D: `compat/:slug` (overlap card, snapshot-first resolution) |
+| `me.ts` → `me/*` | `/api/me/*` | **Composed from `./me/` submodules** (2026-07 split; paths unchanged, `requireAuth` in the composer): `journal.ts` — claim device id, union read, unlike, export, device unlink (Slice B); `relationship.ts` — `follows/:slug` (PUT/DELETE), `follows` (GET, + next gig), `preferences` (GET/PUT consent) (Slice C) + `compat/:slug` (overlap card, snapshot-first resolution) (Slice D) |
 | `telemetry.ts` | `/api/telemetry/*` | Product beacons (enum-whitelisted POST) |
 | `push.ts` | `/api/push/*` | Web Push subscription management |
 | `email.ts` | `/api/email/unsubscribe` | One-click unsubscribe (HMAC token; POST clears consent, GET 302s to the web confirm page) |
