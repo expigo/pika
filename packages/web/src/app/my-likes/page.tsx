@@ -1,180 +1,38 @@
 "use client";
 
-import { logger } from "@pika/shared";
-import { ArrowRight, BookHeart, Heart, ListMusic, Radio, User, X } from "lucide-react";
+import { BookHeart, Heart } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ProCard } from "@/components/ui/ProCard";
-import { TrackRow } from "@/components/ui/TrackRow";
 import { getApiBaseUrl } from "@/lib/api";
 import { authClient } from "@/lib/authClient";
 import { isStandalone } from "@/lib/client";
 import { trackEvent } from "@/lib/events";
-import {
-  clearAccountHint,
-  ensureClientIdClaimed,
-  setAccountHint,
-  signOutAndRotate,
-} from "@/lib/identity";
-
-const PAGE_SIZE = 100;
-
-// Get a stable client ID — READ-ONLY: the journal never mints an identity
-// (an id is only created when the dancer actually interacts on /live).
-function getClientId(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("pika_client_id");
-}
-
-interface LikedTrack {
-  id: number;
-  sessionId: string | null;
-  djName: string | null;
-  sessionDate: string | null;
-  artist: string;
-  title: string;
-  albumArtUrl: string | null;
-  spotifyUrl: string | null;
-  likedAt: string;
-}
-
-interface JournalPlaylist {
-  url: string;
-  trackCount: number;
-  updatedAt: string;
-}
-
-interface ClaimedDevice {
-  clientId: string;
-  label: string | null;
-  claimedAt: string;
-}
-
-/** A followed DJ (Slice C) — slug is the Booth path; nextGig powers the night-planning chip. */
-interface FollowedDj {
-  slug: string | null;
-  djName: string;
-  followedAt: string;
-  nextGig: string | null;
-}
-
-interface LikesResponse {
-  clientId?: string; // device read only
-  claimedCount?: number; // account read only
-  devices?: ClaimedDevice[]; // account read only
-  totalLikes: number;
-  limit: number;
-  offset: number;
-  likes: LikedTrack[];
-  playlist: JournalPlaylist | null;
-}
-
-interface ExportResponse {
-  playlistUrl: string;
-  trackCount: number;
-  matchedCount: number;
-  totalLiked: number;
-  updated: boolean;
-}
-
-type ExportState =
-  | { phase: "idle" }
-  | { phase: "creating" }
-  | { phase: "success"; updated: boolean }
-  | { phase: "error"; message: string };
-
-// Format date nicely
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-// Format time
-function formatTime(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-// Group likes by session
-function groupBySession(likes: LikedTrack[]): Map<string | null, LikedTrack[]> {
-  const groups = new Map<string | null, LikedTrack[]>();
-  for (const like of likes) {
-    const key = like.sessionId;
-    const existing = groups.get(key) || [];
-    groups.set(key, [...existing, like]);
-  }
-  return groups;
-}
-
-// Convert DJ name to slug
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/[^a-z0-9-]/g, "")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
-
-function isIosBrowser(): boolean {
-  if (typeof navigator === "undefined") return false;
-  return /iPad|iPhone|iPod/.test(navigator.userAgent);
-}
-
-function exportErrorCopy(status: number, retryAfterSec?: number): string {
-  switch (status) {
-    case 401:
-      return "Your sign-in expired — sign in again to update";
-    case 409:
-      return "Playlist export isn't set up yet — try again after the next update";
-    case 429:
-      return retryAfterSec
-        ? `Hold on — try again in ${retryAfterSec}s`
-        : "Hold on — try again in a minute";
-    case 422:
-      return "None of your likes have a Spotify match yet";
-    case 503:
-      return "Spotify is busy — try again in a minute";
-    default:
-      return "Export failed — try again";
-  }
-}
+import { clearAccountHint, setAccountHint, signOutAndRotate } from "@/lib/identity";
+import { AccountCard } from "./AccountCard";
+import { EmptyState } from "./EmptyState";
+import { ExportCard } from "./ExportCard";
+import { JournalEntries } from "./JournalEntries";
+import { getClientId, isIosBrowser } from "./journal-utils";
+import type { FollowedDj } from "./types";
+import { useJournal } from "./useJournal";
+import { useJournalExport } from "./useJournalExport";
 
 export default function MyLikesPage() {
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const isAccountMode = !!session;
-  const [entries, setEntries] = useState<LikedTrack[]>([]);
-  const [total, setTotal] = useState(0);
-  const [claimedCount, setClaimedCount] = useState(0);
-  const [playlist, setPlaylist] = useState<JournalPlaylist | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [exportState, setExportState] = useState<ExportState>({ phase: "idle" });
   const [showNudge, setShowNudge] = useState(false);
-  const [confirmingRemoveId, setConfirmingRemoveId] = useState<number | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const [devices, setDevices] = useState<ClaimedDevice[]>([]);
-  const [confirmingUnlinkId, setConfirmingUnlinkId] = useState<string | null>(null);
+  // Shared refetch bus: the landing-intent writes and device unlink bump it to silently
+  // re-run the journal fetch (useJournal) and the prefs/follows fetch below.
   const [reloadTick, setReloadTick] = useState(0);
+  const refetch = useCallback(() => setReloadTick((t) => t + 1), []);
   // Slice C — account-card extras: marketing-email consent + the followed-DJ list.
   const [prefs, setPrefs] = useState<{ recapEmails: boolean } | null>(null);
   const [follows, setFollows] = useState<FollowedDj[]>([]);
-  const openedFired = useRef(false);
   const nudgeFired = useRef(false);
   const saveCardFired = useRef(false);
-  const disarmTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Magic-link landing / account deletion callbacks (?claimed=1 / ?deleted=1) + Slice C intent
   // params (?follow= / ?consent=1) that survived the sign-in round trip via the callbackURL.
@@ -306,93 +164,25 @@ export default function MyLikesPage() {
     }
   };
 
-  useEffect(() => {
-    void reloadTick; // refetch trigger — device unlink bumps it to re-run this effect
-    if (sessionPending) return; // gate the initial fetch — never double-fetch the device view
-    let cancelled = false;
+  const {
+    entries,
+    total,
+    claimedCount,
+    devices,
+    playlist,
+    setPlaylist,
+    loading,
+    loadingMore,
+    error,
+    loadMore,
+    removeLike,
+    unlinkDevice,
+  } = useJournal({ sessionPending, sessionUserId, isAccountMode, reloadTick, refetch });
 
-    async function load() {
-      const baseUrl = getApiBaseUrl();
-
-      // ACCOUNT MODE: bind this device's id to the account, then read the union journal.
-      if (sessionUserId) {
-        const claim = await ensureClientIdClaimed();
-        if (claim === "rotated_and_claimed" && !cancelled) {
-          toast("New device identity minted — your journal is safe on your account");
-        }
-        try {
-          const response = await fetch(`${baseUrl}/api/me/journal?limit=${PAGE_SIZE}&offset=0`, {
-            credentials: "include",
-          });
-          if (cancelled) return;
-          if (!response.ok) {
-            setError("fetch_failed");
-            return;
-          }
-          const data: LikesResponse = await response.json();
-          setEntries(data.likes);
-          setTotal(data.totalLikes);
-          setClaimedCount(data.claimedCount ?? 0);
-          setDevices(data.devices ?? []);
-          setPlaylist(data.playlist ?? null);
-          if (!openedFired.current) {
-            openedFired.current = true;
-            trackEvent("journal_opened", { totalLikes: data.totalLikes, account: true });
-          }
-        } catch (e) {
-          if (!cancelled) {
-            logger.error("Failed to fetch account journal", e);
-            setError("network_error");
-          }
-        } finally {
-          if (!cancelled) setLoading(false);
-        }
-        return;
-      }
-
-      // DEVICE MODE (signed out) — unchanged read-only clientId flow.
-      const id = getClientId();
-      if (!id) {
-        setLoading(false);
-        setError("no_likes");
-        if (!openedFired.current) {
-          openedFired.current = true;
-          trackEvent("journal_opened", { totalLikes: 0 });
-        }
-        return;
-      }
-      try {
-        const response = await fetch(
-          `${baseUrl}/api/client/${id}/likes?limit=${PAGE_SIZE}&offset=0`,
-        );
-        if (cancelled) return;
-        if (!response.ok) {
-          setError("fetch_failed");
-          return;
-        }
-        const data: LikesResponse = await response.json();
-        setEntries(data.likes);
-        setTotal(data.totalLikes);
-        setPlaylist(data.playlist ?? null);
-        if (!openedFired.current) {
-          openedFired.current = true;
-          trackEvent("journal_opened", { totalLikes: data.totalLikes });
-        }
-      } catch (e) {
-        if (!cancelled) {
-          logger.error("Failed to fetch likes", e);
-          setError("network_error");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [sessionPending, sessionUserId, reloadTick]);
+  const { exportState, handleExport } = useJournalExport({
+    isAccountMode,
+    onExported: setPlaylist,
+  });
 
   // ITP mitigation: a non-installed browser can evict this device's journal identity —
   // surface the install nudge (the interactive InstallPrompt is mounted globally).
@@ -406,87 +196,13 @@ export default function MyLikesPage() {
     }
   }, []);
 
-  const handleLoadMore = useCallback(async () => {
-    if (loadingMore) return;
-    const baseUrl = getApiBaseUrl();
-    let url: string;
-    if (isAccountMode) {
-      url = `${baseUrl}/api/me/journal?limit=${PAGE_SIZE}&offset=${entries.length}`;
-    } else {
-      const id = getClientId();
-      if (!id) return;
-      url = `${baseUrl}/api/client/${id}/likes?limit=${PAGE_SIZE}&offset=${entries.length}`;
+  // Upsell telemetry: the save card is the primary account funnel entry — fire once per view.
+  useEffect(() => {
+    if (!sessionPending && !isAccountMode && !loading && total > 0 && !saveCardFired.current) {
+      saveCardFired.current = true;
+      trackEvent("account_save_card_shown");
     }
-    setLoadingMore(true);
-    trackEvent("journal_load_more", { offset: entries.length, account: isAccountMode });
-    try {
-      const response = await fetch(url, { credentials: "include" });
-      if (!response.ok) return;
-      const data: LikesResponse = await response.json();
-      setTotal(data.totalLikes);
-      setEntries((prev) => {
-        // New likes shift DESC offsets between pages — dedupe by like id on append.
-        const seen = new Set(prev.map((e) => e.id));
-        return [...prev, ...data.likes.filter((l) => !seen.has(l.id))];
-      });
-    } catch (e) {
-      logger.error("Failed to load more likes", e);
-    } finally {
-      setLoadingMore(false);
-    }
-  }, [entries.length, loadingMore, isAccountMode]);
-
-  const handleExport = useCallback(async () => {
-    if (exportState.phase === "creating") return;
-    const baseUrl = getApiBaseUrl();
-    let url: string;
-    if (isAccountMode) {
-      url = `${baseUrl}/api/me/journal/playlist`;
-    } else {
-      const id = getClientId();
-      if (!id) return;
-      url = `${baseUrl}/api/client/${id}/likes/playlist`;
-    }
-    setExportState({ phase: "creating" });
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "X-Pika-Client": "pika-web" },
-      });
-
-      if (response.ok) {
-        const data: ExportResponse = await response.json();
-        setPlaylist({
-          url: data.playlistUrl,
-          trackCount: data.trackCount,
-          updatedAt: new Date().toISOString(),
-        });
-        setExportState({ phase: "success", updated: data.updated });
-        trackEvent(data.updated ? "journal_export_updated" : "journal_export_created", {
-          trackCount: data.trackCount,
-          matchedCount: data.matchedCount,
-          totalLiked: data.totalLiked,
-          account: isAccountMode,
-        });
-        return;
-      }
-
-      const body = (await response.json().catch(() => ({}))) as { retryAfterSec?: number };
-      setExportState({
-        phase: "error",
-        message: exportErrorCopy(response.status, body.retryAfterSec),
-      });
-      trackEvent("journal_export_failed", { status: response.status });
-    } catch (e) {
-      logger.error("Journal export failed", e);
-      setExportState({
-        phase: "error",
-        message: "Export failed — check your connection and try again",
-      });
-      trackEvent("journal_export_failed", { status: 0 });
-    }
-  }, [exportState.phase, isAccountMode]);
+  }, [sessionPending, isAccountMode, loading, total]);
 
   const handleSignOut = useCallback(async () => {
     trackEvent("account_signed_out");
@@ -509,105 +225,6 @@ export default function MyLikesPage() {
     }
   }, []);
 
-  // Per-device unlink (other devices only — this device's detach is "Sign out": the signed-in
-  // auto-claim would silently re-claim it on the next visit). Nothing is destroyed: the device
-  // reverts to anonymous history and can re-claim any time.
-  const unlinkTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const armUnlink = useCallback((clientId: string) => {
-    if (unlinkTimer.current) clearTimeout(unlinkTimer.current);
-    setConfirmingUnlinkId(clientId);
-    unlinkTimer.current = setTimeout(() => setConfirmingUnlinkId(null), 4000);
-  }, []);
-  useEffect(
-    () => () => {
-      if (unlinkTimer.current) clearTimeout(unlinkTimer.current);
-    },
-    [],
-  );
-
-  const handleUnlinkDevice = useCallback(async (clientId: string) => {
-    if (unlinkTimer.current) clearTimeout(unlinkTimer.current);
-    setConfirmingUnlinkId(null);
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/me/journal/devices/${clientId}`, {
-        method: "DELETE",
-        credentials: "include",
-        headers: { "X-Pika-Client": "pika-web" },
-      });
-      if (!response.ok) {
-        toast.error("Couldn't unlink — try again");
-        return;
-      }
-      trackEvent("account_device_unlinked");
-      toast("Device unlinked — its likes stay on that device");
-      setReloadTick((t) => t + 1); // union + device list changed → silent refetch
-    } catch {
-      toast.error("Couldn't unlink — try again");
-    }
-  }, []);
-
-  // Upsell telemetry: the save card is the primary account funnel entry — fire once per view.
-  useEffect(() => {
-    if (!sessionPending && !isAccountMode && !loading && total > 0 && !saveCardFired.current) {
-      saveCardFired.current = true;
-      trackEvent("account_save_card_shown");
-    }
-  }, [sessionPending, isAccountMode, loading, total]);
-
-  // Two-tap confirm for removal: a past-night like can't be re-liked, so removal is irreversible.
-  const armRemove = useCallback((likeId: number) => {
-    if (disarmTimer.current) clearTimeout(disarmTimer.current);
-    setConfirmingRemoveId(likeId);
-    disarmTimer.current = setTimeout(() => setConfirmingRemoveId(null), 4000);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (disarmTimer.current) clearTimeout(disarmTimer.current);
-    },
-    [],
-  );
-
-  const handleRemove = useCallback(
-    async (like: LikedTrack) => {
-      const baseUrl = getApiBaseUrl();
-      let url: string;
-      if (isAccountMode) {
-        url = `${baseUrl}/api/me/journal/likes/${like.id}`;
-      } else {
-        const id = getClientId();
-        if (!id) return;
-        url = `${baseUrl}/api/client/${id}/likes/${like.id}`;
-      }
-      if (disarmTimer.current) clearTimeout(disarmTimer.current);
-      setConfirmingRemoveId(null);
-      try {
-        const response = await fetch(url, {
-          method: "DELETE",
-          credentials: "include",
-          headers: { "X-Pika-Client": "pika-web" },
-        });
-        if (!response.ok) {
-          toast.error("Couldn't remove — try again");
-          return;
-        }
-        const data = (await response.json()) as { totalLikes: number };
-        setEntries((prev) => prev.filter((e) => e.id !== like.id));
-        setTotal(data.totalLikes);
-        trackEvent("journal_removed_like", { sessionId: like.sessionId ?? undefined });
-        toast(
-          playlist
-            ? "Removed from Journal 💔 — update your playlist to sync"
-            : "Removed from Journal 💔",
-        );
-      } catch (e) {
-        logger.error("Failed to remove like", e);
-        toast.error("Couldn't remove — try again");
-      }
-    },
-    [playlist, isAccountMode],
-  );
-
   if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
@@ -620,64 +237,17 @@ export default function MyLikesPage() {
 
   if (error === "no_likes" || (!loading && total === 0 && entries.length === 0)) {
     return (
-      <div className="h-[100dvh] w-full bg-slate-950 flex flex-col items-center justify-center p-4 overflow-hidden">
-        <ProCard className="max-w-md w-full p-12 text-center" glow align="center">
-          <div className="w-20 h-20 bg-slate-900 border border-slate-800 rounded-full flex items-center justify-center mx-auto mb-8 shadow-xl">
-            <Heart className="w-8 h-8 text-slate-700" />
-          </div>
-          <h1 className="text-2xl font-black text-white mb-4 italic uppercase tracking-tighter">
-            The Pages are Blank
-          </h1>
-          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest leading-relaxed mb-10">
-            You haven't liked any songs yet. Head to the floor and start syncing!
-          </p>
-          <Link
-            href="/live"
-            className="inline-flex items-center gap-3 px-8 py-4 bg-white text-slate-950 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-xl"
-          >
-            <Radio className="w-4 h-4" />
-            Find a Room
-          </Link>
-          {/* Account controls must stay reachable at zero likes (sign-out + GDPR deletion). */}
-          {session && (
-            <div className="mt-10 pt-6 border-t border-white/[0.04] space-y-3">
-              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
-                Signed in as <span className="text-slate-400">{session.user.email}</span>
-              </p>
-              <div className="flex items-center justify-center gap-4">
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className="text-[9px] font-black text-slate-500 uppercase tracking-widest hover:text-white transition-colors"
-                >
-                  Sign out
-                </button>
-                {confirmingDelete ? (
-                  <button
-                    type="button"
-                    onClick={handleDeleteAccount}
-                    className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
-                  >
-                    Send confirmation email?
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingDelete(true)}
-                    className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
-                  >
-                    Delete account
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-        </ProCard>
-      </div>
+      <EmptyState
+        email={session ? session.user.email : null}
+        confirmingDelete={confirmingDelete}
+        onSignOut={handleSignOut}
+        onArmDelete={() => setConfirmingDelete(true)}
+        onDeleteAccount={handleDeleteAccount}
+      />
     );
   }
 
-  const groupedLikes = groupBySession(entries);
+  const currentClientId = getClientId();
   const remaining = Math.max(0, total - entries.length);
 
   return (
@@ -705,163 +275,22 @@ export default function MyLikesPage() {
           </div>
         </ProCard>
 
-        {/* ACCOUNT CARD (Slice B) — the durable anchor behind this device's journal */}
         {session && (
-          <ProCard className="mb-8 p-6" glow glowColor="purple-500">
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="min-w-0">
-                <p className="text-[9px] font-black text-purple-400 uppercase tracking-[0.3em] mb-1">
-                  Journal account
-                </p>
-                <p className="text-xs font-black text-white truncate">{session.user.email}</p>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter mt-1">
-                  Synced across your devices
-                  {claimedCount > 1 ? ` · ${claimedCount} devices linked` : ""}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="px-4 py-2 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 text-[10px] font-black uppercase tracking-widest hover:text-white hover:bg-white/[0.06] transition-all"
-              >
-                Sign out
-              </button>
-            </div>
-
-            {/* LINKED DEVICES — labels captured at claim time; unlink returns a device to
-                anonymous history (this device's detach is Sign out, not unlink) */}
-            {devices.length > 0 && (
-              <ul className="mt-4 pt-4 border-t border-white/[0.04] space-y-2">
-                {devices.map((device) => {
-                  const isThisDevice = device.clientId === getClientId();
-                  return (
-                    <li
-                      key={device.clientId}
-                      className="flex items-center justify-between gap-4 flex-wrap"
-                    >
-                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                        <span className="text-slate-300">{device.label ?? "Device"}</span>
-                        {" · linked "}
-                        {formatDate(device.claimedAt)}
-                      </p>
-                      {isThisDevice ? (
-                        <span className="px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[8px] font-black uppercase tracking-widest">
-                          This device
-                        </span>
-                      ) : confirmingUnlinkId === device.clientId ? (
-                        <button
-                          type="button"
-                          onClick={() => handleUnlinkDevice(device.clientId)}
-                          aria-label={`Confirm unlinking ${device.label ?? "device"}`}
-                          className="px-3 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
-                        >
-                          Unlink?
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => armUnlink(device.clientId)}
-                          aria-label={`Unlink ${device.label ?? "device"}`}
-                          className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
-                        >
-                          Unlink
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-
-            {/* YOUR DJs (Slice C) — followed DJs; each row links to the Booth */}
-            {follows.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-white/[0.04]">
-                <p className="text-[9px] font-black text-purple-400 uppercase tracking-[0.3em] mb-2">
-                  Your DJs
-                </p>
-                <ul className="space-y-2">
-                  {follows.map((f) => (
-                    <li
-                      key={f.slug ?? f.djName}
-                      className="flex items-center justify-between gap-4 flex-wrap"
-                    >
-                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest min-w-0">
-                        {f.slug ? (
-                          <Link
-                            href={`/dj/${f.slug}`}
-                            className="text-slate-300 hover:text-white transition-colors"
-                          >
-                            {f.djName}
-                          </Link>
-                        ) : (
-                          <span className="text-slate-300">{f.djName}</span>
-                        )}
-                        {f.nextGig && (
-                          <span className="ml-2 px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20 text-purple-400 text-[8px] font-black normal-case">
-                            Next gig {formatDate(f.nextGig)}
-                          </span>
-                        )}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => handleUnfollow(f.slug)}
-                        aria-label={`Unfollow ${f.djName}`}
-                        className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
-                      >
-                        Unfollow
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* EMAIL PREFERENCES (Slice C) — explicit marketing consent, toggleable anytime */}
-            {prefs && (
-              <div className="mt-4 pt-4 border-t border-white/[0.04] flex items-center justify-between gap-4 flex-wrap">
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">
-                  Night recap emails — your loved songs, the morning after
-                </p>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={prefs.recapEmails}
-                  aria-label="Night recap emails"
-                  onClick={handleToggleRecapEmails}
-                  className={`px-3 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest transition-colors ${
-                    prefs.recapEmails
-                      ? "bg-purple-500/20 border-purple-500/40 text-purple-300"
-                      : "bg-white/[0.03] border-white/10 text-slate-500 hover:text-slate-300"
-                  }`}
-                >
-                  {prefs.recapEmails ? "On" : "Off"}
-                </button>
-              </div>
-            )}
-
-            <div className="mt-4 pt-4 border-t border-white/[0.04] flex items-center justify-between gap-4 flex-wrap">
-              <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
-                Deleting unlinks your devices — likes stay anonymous on each
-              </p>
-              {confirmingDelete ? (
-                <button
-                  type="button"
-                  onClick={handleDeleteAccount}
-                  className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
-                >
-                  Send confirmation email?
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setConfirmingDelete(true)}
-                  className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
-                >
-                  Delete account
-                </button>
-              )}
-            </div>
-          </ProCard>
+          <AccountCard
+            email={session.user.email}
+            claimedCount={claimedCount}
+            devices={devices}
+            currentClientId={currentClientId}
+            follows={follows}
+            prefs={prefs}
+            confirmingDelete={confirmingDelete}
+            onSignOut={handleSignOut}
+            onArmDelete={() => setConfirmingDelete(true)}
+            onDeleteAccount={handleDeleteAccount}
+            onUnlinkDevice={unlinkDevice}
+            onToggleRecapEmails={handleToggleRecapEmails}
+            onUnfollow={handleUnfollow}
+          />
         )}
 
         {/* SAVE-JOURNAL CARD (signed out) — the account upsell at the moment of value */}
@@ -891,166 +320,20 @@ export default function MyLikesPage() {
           </ProCard>
         )}
 
-        {/* EXPORT CARD */}
-        <ProCard className="mb-12 p-6 sm:p-8" glow glowColor="emerald-500">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4 justify-between">
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-[#1DB954]/10 border border-[#1DB954]/30 flex items-center justify-center shrink-0">
-                <ListMusic className="w-5 h-5 text-[#1DB954]" />
-              </div>
-              <div className="min-w-0">
-                <h2 className="font-black text-white uppercase text-xs tracking-wider leading-none mb-1">
-                  Take It Home
-                </h2>
-                <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
-                  {playlist
-                    ? `${playlist.trackCount} tracks on your Spotify playlist`
-                    : "Turn your journal into a Spotify playlist"}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 shrink-0 flex-wrap">
-              {playlist && (
-                <a
-                  href={playlist.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-5 py-3 bg-[#1DB954]/10 border border-[#1DB954]/40 text-[#1DB954] rounded-xl font-black text-[10px] uppercase tracking-[0.15em] hover:bg-[#1DB954]/20 transition-all"
-                >
-                  Open my playlist
-                </a>
-              )}
-              <button
-                type="button"
-                onClick={handleExport}
-                disabled={exportState.phase === "creating"}
-                className="inline-flex items-center gap-2 px-5 py-3 bg-white text-slate-950 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
-              >
-                {exportState.phase === "creating"
-                  ? "Syncing…"
-                  : playlist
-                    ? "Update playlist"
-                    : "Create my Spotify playlist"}
-              </button>
-            </div>
-          </div>
-          {exportState.phase === "error" && (
-            <p className="mt-4 text-[10px] font-black text-red-400 uppercase tracking-widest">
-              {exportState.message}
-            </p>
-          )}
-          {exportState.phase === "success" && (
-            <p className="mt-4 text-[10px] font-black text-emerald-400 uppercase tracking-widest">
-              {exportState.updated ? "Playlist updated ✓" : "Playlist created ✓"}
-              {!isAccountMode && (
-                <>
-                  {" · "}
-                  <Link
-                    href="/my-likes/save"
-                    className="underline decoration-emerald-400/40 hover:decoration-emerald-400"
-                  >
-                    save your journal so you never lose it
-                  </Link>
-                </>
-              )}
-            </p>
-          )}
-        </ProCard>
+        <ExportCard
+          playlist={playlist}
+          exportState={exportState}
+          isAccountMode={isAccountMode}
+          onExport={handleExport}
+        />
 
-        {/* LOG ENTRIES */}
-        <div className="space-y-8">
-          {Array.from(groupedLikes.entries()).map(([sessionId, sessionLikes]) => {
-            const firstLike = sessionLikes[0];
-            const djName = firstLike?.djName || "Live Set";
-            const djSlug = slugify(djName);
-
-            return (
-              <ProCard key={sessionId || "unknown"} className="overflow-hidden">
-                <div className="px-6 sm:px-8 py-5 border-b border-white/[0.03] flex items-center justify-between bg-white/[0.02]">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
-                      <User className="w-5 h-5 text-purple-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-black text-white uppercase text-xs tracking-wider leading-none mb-1">
-                        {djName}
-                      </h3>
-                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">
-                        {firstLike?.sessionDate
-                          ? formatDate(firstLike.sessionDate)
-                          : "Historical Set"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {sessionId && (
-                    <Link
-                      href={`/dj/${djSlug}/recap/${sessionId}`}
-                      className="p-2 hover:bg-white/5 rounded-lg text-slate-500 hover:text-white transition-all group/link"
-                    >
-                      <ArrowRight className="w-4 h-4 group-hover/link:translate-x-0.5 transition-transform" />
-                    </Link>
-                  )}
-                </div>
-
-                <div className="divide-y divide-white/[0.03]">
-                  {sessionLikes.map((like) => (
-                    <TrackRow
-                      key={like.id}
-                      title={like.title}
-                      artist={like.artist}
-                      albumArtUrl={like.albumArtUrl}
-                      spotifyUrl={like.spotifyUrl}
-                      onSpotifyClick={() =>
-                        trackEvent("journal_spotify_click", {
-                          sessionId: like.sessionId ?? undefined,
-                        })
-                      }
-                    >
-                      <Heart className="w-3.5 h-3.5 text-red-500 fill-red-500/20" />
-                      <span className="text-slate-700 font-black text-[9px] tabular-nums uppercase">
-                        {formatTime(like.likedAt).split(" ")[0]}
-                      </span>
-                      {confirmingRemoveId === like.id ? (
-                        <button
-                          type="button"
-                          onClick={() => handleRemove(like)}
-                          aria-label={`Confirm removing ${like.title} from journal`}
-                          className="px-2 py-1 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
-                        >
-                          Remove?
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => armRemove(like.id)}
-                          aria-label={`Remove ${like.title} from journal`}
-                          className="p-1.5 rounded-lg text-slate-700 hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </TrackRow>
-                  ))}
-                </div>
-              </ProCard>
-            );
-          })}
-        </div>
-
-        {/* LOAD MORE */}
-        {remaining > 0 && (
-          <div className="mt-10 text-center">
-            <button
-              type="button"
-              onClick={handleLoadMore}
-              disabled={loadingMore}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-white/[0.03] border border-white/10 text-slate-300 rounded-xl font-black text-[10px] uppercase tracking-[0.2em] hover:bg-white/[0.06] transition-all disabled:opacity-50"
-            >
-              {loadingMore ? "Loading…" : `Load more (${remaining} older)`}
-            </button>
-          </div>
-        )}
+        <JournalEntries
+          entries={entries}
+          remaining={remaining}
+          loadingMore={loadingMore}
+          onLoadMore={loadMore}
+          onRemove={removeLike}
+        />
 
         {/* KEEP-IT-SAFE NUDGE (ITP: non-installed browsers can evict this device's journal id).
             Suppressed when signed in — the HttpOnly session cookie is the ITP-exempt anchor and
