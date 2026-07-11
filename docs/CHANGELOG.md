@@ -3,7 +3,7 @@
 Completed work, newest first — moved out of [ROADMAP.md](ROADMAP.md) so the roadmap stays a
 roadmap. Each block was appended at completion time; see git history for the precise diffs.
 
-*   **Recent Completions (July 2026 — internal refactor: de-accrete two grown files):**
+*   **Recent Completions (July 2026 — internal refactors: de-accretion wave, behavior-preserving):**
     *   ✅ **`routes/dj.ts` split** — the ~800-line DJ god-router split into a thin composer over
         five `routes/dj/` concern modules (profile · sessions · embeds · booth · identity).
         Behavior-preserving: every `/api/dj/*` path + method unchanged (the auth-guard unit test +
@@ -14,6 +14,20 @@ roadmap. Each block was appended at completion time; see git history for the pre
         (single owner of the reset lifecycle). The hook is an orchestrator again; new unit tests for
         both modules + the dedup guardrail stayed green. Follow-up: an older, diverged
         `findOrCreateTrack` still lives in `services/trackService.ts` (history-import path).
+    *   ✅ **web `/my-likes` decomposition** — the 1,086-line page → a ~370-line composition root
+        + colocated `useJournal` (fetch/pagination/removal/unlink; `setPlaylist` single writer),
+        `useJournalExport` (writes back via `onExported`), AccountCard/JournalEntries/EmptyState/
+        ExportCard, `types.ts`, `journal-utils.ts` (+10-test bun suite). The `reloadTick` refetch
+        bus, landing-intent effect and dep arrays preserved verbatim; two-tap arm state (unlink/
+        remove) relocated WITH its rendering components; `page.rtl.tsx` (22 tests) passed unedited.
+        Deliberate leftover: the delete-account confirm JSX is duplicated in AccountCard/EmptyState
+        (state is page-owned) — a tiny `DeleteAccountConfirm` follow-up candidate.
+    *   ✅ **desktop `BuildPlaylistModal` extraction** — the 822-line modal → 224 rendering-only
+        lines; all async flows (load/seed/art-backfill/serial-search, paste-link, re-match, create
+        with `dj_confirmed` write-backs, share-to-profile, the cross-cutting 401/403 auth gate) →
+        `hooks/useBuildPlaylist.ts` (mirrors the `useSpotifyMatcher` shape); row UI →
+        `PlaylistRow.tsx`. New 19-case hook suite uses a real-`status` `PlaylistApiError` — the
+        auth-gate path the RTL stub never exercised; `BuildPlaylistModal.rtl.tsx` (11) unedited.
 
 *   **Recent Completions (July 2026 — Booth polish & DJ workspace, Slice D.1):**
     *   ✅ **DJ workspace split** — management (ProfileManager, BoothManager, PlaylistManager,

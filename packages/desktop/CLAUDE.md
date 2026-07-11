@@ -523,8 +523,12 @@ Pika account) → remembered on the session (`sessions.spotify_playlist_url/id`)
 bearer-authed) — it embeds on the set's recap + a profile session-row badge (cloud
 `sessions.spotify_playlist_id`). "Remove from profile" un-shares (`DELETE`). Local shared-state:
 `sessions.spotify_playlist_synced_at` (via `setSessionPlaylistSynced`); the button is disabled if the set has
-no `cloud_session_id` (never went live). Tests: `BuildPlaylistModal.rtl.tsx` (share flow), `djApi.test.ts`,
-`sessionRepository.test.ts`, cloud `dj.test.ts` + `db.integration.test.ts` (set-playlist sync).
+no `cloud_session_id` (never went live). Since the 2026-07 extraction the modal is **rendering-only**: all
+state + async flows (incl. the cross-cutting 401/403 auth gate) live in `hooks/useBuildPlaylist.ts`
+(`useSpotifyMatcher` shape), row UI in `components/PlaylistRow.tsx`. Tests: `useBuildPlaylist.test.ts`
+(19 cases, real-`status` `PlaylistApiError` → auth gate), `BuildPlaylistModal.rtl.tsx` (share flow),
+`djApi.test.ts`, `sessionRepository.test.ts`, cloud `dj.test.ts` + `db.integration.test.ts`
+(set-playlist sync).
 
 ### Test Files
 
