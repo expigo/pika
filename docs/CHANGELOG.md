@@ -3,6 +3,18 @@
 Completed work, newest first — moved out of [ROADMAP.md](ROADMAP.md) so the roadmap stays a
 roadmap. Each block was appended at completion time; see git history for the precise diffs.
 
+*   **Recent Completions (July 2026 — internal refactor: de-accrete two grown files):**
+    *   ✅ **`routes/dj.ts` split** — the ~800-line DJ god-router split into a thin composer over
+        five `routes/dj/` concern modules (profile · sessions · embeds · booth · identity).
+        Behavior-preserving: every `/api/dj/*` path + method unchanged (the auth-guard unit test +
+        the 101-test real-Postgres integration suite stayed green); `/me/*` composed before the
+        `/:slug` param route (Hono registration-order priority).
+    *   ✅ **`useLiveSession.ts` de-accretion** — `findOrCreateTrack` → `live/trackPersistence.ts`;
+        `recordPlay` + its absolute-interval dedup state → `live/recordPlay.ts` + `live/playDedup.ts`
+        (single owner of the reset lifecycle). The hook is an orchestrator again; new unit tests for
+        both modules + the dedup guardrail stayed green. Follow-up: an older, diverged
+        `findOrCreateTrack` still lives in `services/trackService.ts` (history-import path).
+
 *   **Recent Completions (July 2026 — Booth polish & DJ workspace, Slice D.1):**
     *   ✅ **DJ workspace split** — management (ProfileManager, BoothManager, PlaylistManager,
         Crowd-Pleasers) moved to a new **/dj/booth**; /dj/live is broadcast-only; persistent

@@ -1,5 +1,4 @@
-import { getTrackKey, MESSAGE_TYPES, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
-import { invoke } from "@tauri-apps/api/core";
+import { MESSAGE_TYPES, parseWebSocketMessage, type TrackInfo } from "@pika/shared";
 import { useCallback, useEffect, useRef } from "react";
 import ReconnectingWebSocket from "reconnecting-websocket";
 import { toast } from "sonner";
@@ -40,7 +39,6 @@ import { isTerminalClose } from "./live/closePolicy";
 import {
   CONNECTION_TIMEOUT_MS,
   FINGERPRINT_SYNC_TIMEOUT_MS,
-  GHOST_FILE_PREFIX,
   LIKE_STORAGE_DEBOUNCE_MS,
   MAX_ANNOUNCEMENT_DURATION_SECONDS,
   MAX_ANNOUNCEMENT_LENGTH,
@@ -53,20 +51,19 @@ import {
   MIN_POLL_OPTIONS,
   MIN_RECONNECTION_DELAY_MS,
   OPTIMISTIC_POLL_ID,
-  TRACK_DEDUP_WINDOW_MS,
 } from "./live/constants";
 import { type MessageRouterContext, messageRouter } from "./live/messageRouter";
+import { clearTrackTimestamps, setTrackLastPlay } from "./live/playDedup";
+import { recordPlay } from "./live/recordPlay";
 import { buildRegisterSessionMessage } from "./live/registerMessage";
 // Import state helpers for store-based state access
 import {
-  addProcessedTrackKey,
   clearProcessedTrackKeys,
   getLastBroadcastedTrackKey,
   getPendingHistorySync,
   getCurrentPlayId as getStoreCurrentPlayId,
   getDbSessionId as getStoreDbSessionId,
   getSessionId as getStoreSessionId,
-  hasProcessedTrackKey,
   isInLiveMode,
   setLastBroadcastedTrackKey,
   setPendingHistorySync,
@@ -111,13 +108,7 @@ let likeStorageTimer: ReturnType<typeof setTimeout> | null = null;
  */
 let watcherUnsubscribe: (() => void) | null = null;
 
-/**
- * 🛡️ Hybrid Dedup: Track last play timestamp for each track in this session.
- * This prevents 'Rolling Window' bypassing where a 3min track gets recorded
- * multiple times if visibility toggles happen across 60s window boundaries.
- */
-const sessionTrackTimestamps = new Map<string, number>();
-const MIN_REPLAY_INTERVAL_MS = 120000; // 2 minutes minimum between same track
+// Absolute-interval dedup state moved to `./live/playDedup` (2026-07 de-accretion).
 
 /**
  * Flush all pending likes to database (batched write per playId)
@@ -349,232 +340,8 @@ function createRouterContext(
   return ctx;
 }
 
-/**
- * Track info from database with fingerprint data
- */
-interface DbTrackInfo {
-  id: number;
-  bpm: number | null;
-  key: string | null;
-  energy: number | null;
-  danceability: number | null;
-  brightness: number | null;
-  acousticness: number | null;
-  groove: number | null;
-  // Remembered Spotify identity (B3) — surfaced to dancers on the live broadcast when confident.
-  spotifyUrl: string | null;
-  spotifyAlbumArtUrl: string | null;
-  spotifyMatchConfidence: number | null;
-  spotifyMatchSource: string | null; // 'auto' | 'dj_confirmed'
-}
-
-/**
- * VDJ track metadata from Rust lookup
- */
-interface VdjTrackMetadata {
-  bpm: number | null;
-  key: string | null;
-  volume: number | null;
-  duration: number | null; // seconds, from VDJ Infos.SongLength
-}
-
-/**
- * Find or create a track in the database by artist/title
- * Returns the track with fingerprint data for broadcasting
- *
- * Uses O(log n) indexed lookup via track_key
- */
-async function findOrCreateTrack(
-  artist: string,
-  title: string,
-  filePath?: string,
-): Promise<DbTrackInfo> {
-  const trackKey = getTrackKey(artist, title);
-
-  // O(log n) indexed lookup - no table scan!
-  const existing = await trackRepository.findByTrackKey(trackKey);
-
-  if (existing) {
-    // Self-healing: If BPM is missing, try to fetch it from VDJ
-    if (!existing.bpm && filePath && !filePath.startsWith(GHOST_FILE_PREFIX)) {
-      try {
-        const vdjMeta = await invoke<VdjTrackMetadata | null>("lookup_vdj_track_metadata", {
-          filePath,
-        });
-        if (vdjMeta?.bpm) {
-          logger.debug("Live", "Healing track metadata", {
-            id: existing.id,
-            bpm: vdjMeta.bpm,
-            key: vdjMeta.key,
-          });
-
-          // Update DB (fire and forget await, but use the value for return)
-          const bpmToSave =
-            typeof vdjMeta.bpm === "string"
-              ? Number.parseFloat(vdjMeta.bpm)
-              : (vdjMeta.bpm as number | null);
-
-          await trackRepository.insertTrack({
-            filePath,
-            artist,
-            title,
-            bpm: bpmToSave,
-            key: vdjMeta.key || existing.key,
-            duration: vdjMeta.duration,
-          });
-
-          return {
-            ...existing,
-            bpm: bpmToSave,
-            key: vdjMeta.key || existing.key,
-          };
-        }
-      } catch (error) {
-        logger.warn("Live", "Failed to heal track metadata", error);
-      }
-    }
-
-    return {
-      id: existing.id,
-      bpm: existing.bpm,
-      key: existing.key,
-      energy: existing.energy,
-      danceability: existing.danceability,
-      brightness: existing.brightness,
-      acousticness: existing.acousticness,
-      groove: existing.groove,
-      spotifyUrl: existing.spotifyUrl,
-      spotifyAlbumArtUrl: existing.spotifyAlbumArtUrl,
-      spotifyMatchConfidence: existing.spotifyMatchConfidence,
-      spotifyMatchSource: existing.spotifyMatchSource,
-    };
-  }
-
-  // New track - try VDJ lookup for BPM/key (lazy extraction)
-  let vdjBpm: number | null = null;
-  let vdjKey: string | null = null;
-  let vdjDuration: number | null = null;
-
-  if (filePath && !filePath.startsWith(GHOST_FILE_PREFIX)) {
-    try {
-      const vdjMeta = await invoke<VdjTrackMetadata | null>("lookup_vdj_track_metadata", {
-        filePath,
-      });
-      if (vdjMeta) {
-        vdjBpm = vdjMeta.bpm;
-        vdjKey = vdjMeta.key;
-        vdjDuration = vdjMeta.duration;
-        logger.debug("Live", "Got VDJ metadata", {
-          bpm: vdjBpm,
-          key: vdjKey,
-          duration: vdjDuration,
-        });
-      }
-    } catch (error) {
-      logger.warn("Live", "VDJ lookup failed", error);
-    }
-  }
-
-  // Insert new track
-  const bpmToSave =
-    typeof vdjBpm === "string" ? Number.parseFloat(vdjBpm) : (vdjBpm as number | null);
-
-  logger.debug("Live", "Creating track", { artist, title, bpm: bpmToSave });
-  const newId = await trackRepository.insertTrack({
-    filePath: filePath || `${GHOST_FILE_PREFIX}${artist}/${title}`,
-    artist,
-    title,
-    bpm: bpmToSave,
-    duration: vdjDuration,
-    key: vdjKey,
-  });
-
-  return {
-    id: newId,
-    bpm: bpmToSave,
-    key: vdjKey,
-    energy: null,
-    danceability: null,
-    brightness: null,
-    acousticness: null,
-    groove: null,
-    // A brand-new track has never been matched to Spotify.
-    spotifyUrl: null,
-    spotifyAlbumArtUrl: null,
-    spotifyMatchConfidence: null,
-    spotifyMatchSource: null,
-  };
-}
-
-/**
- * Record a track play to the database
- * Returns the DbTrackInfo with fingerprint data, or null if deduped/failed
- */
-async function recordPlay(
-  track: NowPlayingTrack,
-): Promise<{ playId: number; trackInfo: DbTrackInfo } | null> {
-  if (!getStoreDbSessionId()) {
-    logger.warn("Live", "No database session active");
-    return null;
-  }
-
-  // Create a unique key for deduplication within the session
-  const dedupWindow = Math.floor(Date.now() / TRACK_DEDUP_WINDOW_MS);
-  const trackKey = `${track.artist}-${track.title}-${dedupWindow}`;
-
-  // 🛡️ Layer 2: Absolute tracking for current session (Hybrid Dedup)
-  // This blocks the same track from being recorded twice within 2 mins,
-  // even if the 60s trackKey window above has rolled over.
-  const absoluteKey = `${track.artist}-${track.title}`.toLowerCase();
-  const lastPlayTime = sessionTrackTimestamps.get(absoluteKey);
-
-  if (lastPlayTime !== undefined) {
-    const timeSinceLastPlay = Date.now() - lastPlayTime;
-    if (timeSinceLastPlay < MIN_REPLAY_INTERVAL_MS) {
-      logger.debug("Live", "Track deduped (absolute interval)", {
-        title: track.title,
-        timeSinceLastPlayMs: timeSinceLastPlay,
-      });
-      return null;
-    }
-  }
-
-  // 🛡️ Fix: Check AND Add immediately before any awaits to prevent race conditions
-  // if multiple handleTrackChange calls happen in the same tick.
-  if (hasProcessedTrackKey(trackKey)) {
-    logger.debug("Live", "Track already recorded recently (window)", { title: track.title });
-    return null;
-  }
-  addProcessedTrackKey(trackKey);
-  sessionTrackTimestamps.set(absoluteKey, Date.now());
-
-  try {
-    const dbSessionId = getStoreDbSessionId();
-    if (!dbSessionId) {
-      logger.warn("Live", "No DB session ID, cannot record play");
-      return null;
-    }
-
-    // Performance: findOrCreateTrack and addPlay are async,
-    // but the trackKey already blocks other concurrent calls.
-    const dbTrack = await findOrCreateTrack(track.artist, track.title, track.filePath);
-    const timestamp = Math.floor(Date.now() / 1000);
-
-    const play = await sessionRepository.addPlay(dbSessionId, dbTrack.id, timestamp);
-    logger.info("Live", "Recorded play", {
-      playId: play.id,
-      artist: track.artist,
-      title: track.title,
-    });
-
-    return { playId: play.id, trackInfo: dbTrack };
-  } catch (error) {
-    logger.error("Live", "Failed to record play", error);
-    // Note: We don't remove the processed key on error to avoid spamming the DB
-    // with failed retries for the same track in the same window.
-    return null;
-  }
-}
+// `recordPlay` (+ its dedup state) moved to `./live/recordPlay` + `./live/playDedup`, and
+// `DbTrackInfo`/`findOrCreateTrack` to `./live/trackPersistence` (2026-07 de-accretion).
 
 // ============================================================================
 // Hook
@@ -899,7 +666,7 @@ export function useLiveSession() {
 
     // Reset state
     // Clear session-specific tracking state
-    sessionTrackTimestamps.clear();
+    clearTrackTimestamps();
     reset();
     // Note: store is reset via reset() below
     // Note: reset() clears all these in the store
@@ -1400,6 +1167,6 @@ export function useLiveSession() {
  */
 const registerImportedTrack = (artist: string, title: string, timestamp: number) => {
   const absoluteKey = `${artist}-${title}`.toLowerCase();
-  sessionTrackTimestamps.set(absoluteKey, timestamp * 1000);
+  setTrackLastPlay(absoluteKey, timestamp * 1000);
   logger.debug("Live", "Registered imported track for dedup", { absoluteKey, timestamp });
 };

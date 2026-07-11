@@ -117,8 +117,9 @@ REST endpoints are organized by resource type.
 packages/cloud/src/routes/
 ├── sessions.ts   # Session queries (list/active/history/recap/fingerprints)
 ├── stats.ts      # Global statistics
-├── dj.ts         # DJ profile routes (public /:slug + authed profile management)
-│                 # + Slice D: playlist import/manage/promote, crowd-pleasers, Signature in payload
+├── dj.ts         # DJ routes — thin COMPOSER of the ./dj/ concern modules (2026-07 behavior-preserving split)
+├── dj/           # profile.ts (public /:slug) · sessions.ts · embeds.ts · booth.ts · identity.ts (Slice D)
+│                 #   composed /me/* BEFORE /:slug (Hono registration-order priority); constants.ts holds shared caps
 ├── dj-live.ts    # Web-DJ broadcast control (Track D)
 ├── client.ts     # Anonymous dancer journal (device read, unlike, playlist export)
 ├── me.ts         # Account journal (Slice B): claim, union read, unlike, export, device unlink
@@ -142,7 +143,7 @@ packages/cloud/src/routes/
 | *(Better Auth)* | `/api/auth/*` | Sign-up/in/out, sessions, admin ops, magic link, email OTP |
 | `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap, fingerprint (ownership-checked) |
 | `stats.ts` | `/api/stats/*` | Top tracks, global stats |
-| `dj.ts` | `/api/dj/*` | DJ profile by slug (+ Signature + booth playlists) + profile management; Slice D: `me/playlists/import` (rate-limited CSV import, `linkMode:"fill"`), `me/curated-playlists` (GET/PATCH/DELETE), `me/crowd-pleasers`; D.1: `POST me/playlists` fetches the oEmbed title (own limiter), `GET me/booth` adds owner-only `signatureProgress` |
+| `dj.ts` → `dj/*` | `/api/dj/*` | **Composed from `./dj/` concern modules** (2026-07 split; paths unchanged): `profile.ts` (public `/:slug` + Signature + booth playlists), `sessions.ts` (publish + set-playlist sync), `embeds.ts` (external playlists), `booth.ts` (bio/gigs), `identity.ts` (Slice D: `me/playlists/import` `linkMode:"fill"`, `me/curated-playlists`, `me/crowd-pleasers`; D.1 oEmbed title). Composer registers `/me/*` before `/:slug` |
 | `dj-live.ts` | `/api/live/*` | Web-DJ broadcast control channel |
 | `client.ts` | `/api/client/*` | Anonymous journal: likes read, unlike, Spotify export (rate-limited) |
 | `me.ts` | `/api/me/*` | Account journal (requireAuth): claim device id, union read, unlike, export, device unlink; Slice C: `follows/:slug` (PUT/DELETE), `follows` (GET, + next gig), `preferences` (GET/PUT consent); Slice D: `compat/:slug` (overlap card, snapshot-first resolution) |

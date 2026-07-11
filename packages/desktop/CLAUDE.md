@@ -376,7 +376,8 @@ IDLE → DETECTING → PROMPTING → CONNECTING → LIVE → SYNCING
 
 ### Modular Hook Extraction (v0.4.0)
 
-Major refactor: Extracted `useLiveSession` logic into **13 focused modules** in `src/hooks/live/`:
+Major refactor: Extracted `useLiveSession` logic into focused modules in `src/hooks/live/` (13 in
+the v0.4.0 extraction + 3 in the 2026-07 de-accretion of `findOrCreateTrack`/`recordPlay`):
 
 | Module | Purpose | Lines |
 |--------|---------|-------|
@@ -392,7 +393,16 @@ Major refactor: Extracted `useLiveSession` logic into **13 focused modules** in 
 | `typeGuards.ts` | TypeScript type guards | ~280 |
 | `types.ts` | Type definitions | ~120 |
 | `constants.ts` | Configuration constants | ~114 |
+| `trackPersistence.ts` | Find-or-create a library track, live path (2026-07) | ~90 |
+| `recordPlay.ts` | Record a play: hybrid dedup → find-or-create → addPlay (2026-07) | ~85 |
+| `playDedup.ts` | Absolute-interval dedup state — sole owner (2026-07) | ~30 |
 | `index.ts` | Public exports | ~55 |
+
+> **2026-07 de-accretion:** `findOrCreateTrack` + `recordPlay` (and the `sessionTrackTimestamps`
+> dedup state) moved out of `useLiveSession.ts` into the three modules above — the hook is an
+> orchestrator again. NOTE `services/trackService.ts` still holds an older, diverged
+> `findOrCreateTrack` used by the history-import path (`useVdjHistory`); consolidating the two is a
+> deferred follow-up (different behavior + weaker test coverage on that path).
 
 **Total:** ~2,060 lines organized into focused, testable modules (down from 1,239 lines in a single file).
 
