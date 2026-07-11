@@ -404,7 +404,9 @@ the v0.4.0 extraction + 3 in the 2026-07 de-accretion of `findOrCreateTrack`/`re
 > `findOrCreateTrack` used by the history-import path (`useVdjHistory`); consolidating the two is a
 > deferred follow-up (different behavior + weaker test coverage on that path).
 
-**Total:** ~2,060 lines organized into focused, testable modules (down from 1,239 lines in a single file).
+**Total:** 16 focused, testable `live/` modules (+ `index.ts`); the hook itself is back to ~1,170
+orchestrator lines (from its 1,405-line pre-de-accretion peak). Line counts drift — trust the table
+above for what lives where, not the numbers.
 
 ### `useSidecar` - Python Process Manager
 

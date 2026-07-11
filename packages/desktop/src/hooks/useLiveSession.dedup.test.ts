@@ -25,7 +25,9 @@ describe("useLiveSession Hybrid Deduplication", () => {
     processedTrackKeys.add(key);
   }
 
-  // Replicating the logic from useLiveSession.ts:recordPlay
+  // Replica of the hybrid-dedup ALGORITHM (fast smoke, not coverage of the shipped code —
+  // that's live/recordPlay.test.ts, which exercises the real recordPlay + playDedup state).
+  // The shipped logic lives in live/recordPlay.ts since the 2026-07 de-accretion.
   function recordPlayLogic(track: { artist: string; title: string }) {
     // Layer 1: Window dedup (rolling 60s window)
     const dedupWindow = Math.floor(Date.now() / TRACK_DEDUP_WINDOW_MS);
