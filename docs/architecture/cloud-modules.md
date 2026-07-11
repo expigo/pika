@@ -210,6 +210,7 @@ packages/cloud/src/lib/
     ├── recap.ts          # Night Recap sweep — claim-then-send (Slice C)
     ├── spotify.ts / spotifyCatalog.ts / spotifyMatch.ts  # OAuth/BFF, catalog reads, seed/match
     │                     #   (seedFromPlaylist linkMode "authoritative"|"fill")
+    ├── spotifyMatchScore.ts  # Pure ranking math (scoreCandidate/confidenceTier) — no HTTP/DB
     ├── signature.ts      # Slice D: DJ Signature engine (published-live ∪ promoted-import ids →
     │                     #   percentile ranges + eras; floors; booth playlist previews;
     │                     #   D.1: per-source featured counts + owner-only floors progress)

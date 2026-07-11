@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { confidenceTier, type MatchCandidate, scoreCandidate } from "./spotifyMatch";
+import { confidenceTier, type MatchCandidate, scoreCandidate } from "./spotifyMatchScore";
 
 function cand(over: Partial<MatchCandidate>): MatchCandidate {
   return {
