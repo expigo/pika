@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ProCard } from "@/components/ui/ProCard";
+import { DeleteAccountConfirm } from "./DeleteAccountConfirm";
 import { formatDate } from "./journal-utils";
 import type { ClaimedDevice, FollowedDj } from "./types";
 
@@ -200,23 +201,11 @@ export function AccountCard({
         <p className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">
           Deleting unlinks your devices — likes stay anonymous on each
         </p>
-        {confirmingDelete ? (
-          <button
-            type="button"
-            onClick={onDeleteAccount}
-            className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
-          >
-            Send confirmation email?
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onArmDelete}
-            className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
-          >
-            Delete account
-          </button>
-        )}
+        <DeleteAccountConfirm
+          confirming={confirmingDelete}
+          onArm={onArmDelete}
+          onConfirm={onDeleteAccount}
+        />
       </div>
     </ProCard>
   );

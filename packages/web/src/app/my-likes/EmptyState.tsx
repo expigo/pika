@@ -3,6 +3,7 @@
 import { Heart, Radio } from "lucide-react";
 import Link from "next/link";
 import { ProCard } from "@/components/ui/ProCard";
+import { DeleteAccountConfirm } from "./DeleteAccountConfirm";
 
 interface EmptyStateProps {
   /** Signed-in account email, or null when signed out (hides the account controls). */
@@ -55,23 +56,11 @@ export function EmptyState({
               >
                 Sign out
               </button>
-              {confirmingDelete ? (
-                <button
-                  type="button"
-                  onClick={onDeleteAccount}
-                  className="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/40 text-red-400 text-[9px] font-black uppercase tracking-widest hover:bg-red-500/30 transition-colors"
-                >
-                  Send confirmation email?
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onArmDelete}
-                  className="text-[9px] font-black text-slate-600 uppercase tracking-widest hover:text-red-400 transition-colors"
-                >
-                  Delete account
-                </button>
-              )}
+              <DeleteAccountConfirm
+                confirming={confirmingDelete}
+                onArm={onArmDelete}
+                onConfirm={onDeleteAccount}
+              />
             </div>
           </div>
         )}
