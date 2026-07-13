@@ -22,8 +22,9 @@ All **C-tier resilience** is complete and tested, plus two structural wins:
 - **W2** — bounded localStorage (liked-sessions capped to 30; stale `pika_tempo_*` swept).
 - **C3** — go-live track buffer (cloud): a play broadcast before its session row persists is
   buffered + flushed, never silently dropped.
-- **Cloud real-DB test coverage** — `db.integration.test.ts` now exercises the real
-  `persist*` functions (was ~10–40%).
+- **Cloud real-DB test coverage** — the gated integration suite (`src/__tests__/integration/`,
+  split 2026-07 from the old `db.integration.test.ts`) exercises the real `persist*`
+  functions (was ~10–40%).
 - **Desktop drizzle migrator adoption** — `schema.ts` is the single source of truth;
   versioned migrations applied at startup; baseline-adopts existing DBs.
 

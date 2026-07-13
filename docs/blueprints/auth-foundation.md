@@ -5,7 +5,8 @@ credential + session + **bearer** (desktop) on the Drizzle/Postgres adapter, the
 (roles `dj`/`admin` + access-control), the `pending→approved` approval gate (`status`), and `slug`
 for `/dj/[slug]`. See `packages/cloud/src/lib/auth/server.ts`, `lib/auth.ts` (guards), `lib/auth/permissions.ts`.
 Route-level guard branches (401 / pending-403 / admin-404 / bearer) are covered by `lib/auth.test.ts`
-(unit) + `__tests__/db.integration.test.ts` (real sessions).
+(unit) + the gated `__tests__/integration/` suite (real sessions; split 2026-07 from
+`db.integration.test.ts`).
 **Remaining §7 — DEFERRED to pilot-prep:** the **organization** plugin (organizer/events), the
 **anonymous** plugin (note: anonymous *participation* already works via `clientId`; the plugin only
 adds the optional account-**upgrade** path — do it just before real dancer data accumulates), and
