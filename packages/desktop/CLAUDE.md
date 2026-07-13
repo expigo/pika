@@ -514,7 +514,7 @@ nulls the match cols but SETS `spotify_matched_at` so the auto-matcher won't re-
 (`confirmSpotifyMatch` → `POST /api/playlist/confirm` → `cacheManualMatch`, which overrides any `auto` row
 for every DJ). No-reload refresh via `getTrackById`→`updateTrackInList`. A per-row Title-cell dot shows
 matched (faint=auto, bright=confirmed). Tests: `SpotifyMatchManager.rtl.tsx`, `trackRepository.test.ts`
-(`clearTrackSpotifyMatch`), cloud `playlist.test.ts` + `db.integration.test.ts` (`/confirm`).
+(`clearTrackSpotifyMatch`), cloud `playlist.test.ts` + `spotify-catalog.integration.test.ts` (`/confirm`).
 
 **Build + share a set playlist (`BuildPlaylistModal`):** for a past set, resolve each played track to a
 Spotify recording, then `createSpotifyPlaylist` (→ `POST /api/playlist/create`, real playlist on the shared
@@ -527,7 +527,7 @@ no `cloud_session_id` (never went live). Since the 2026-07 extraction the modal 
 state + async flows (incl. the cross-cutting 401/403 auth gate) live in `hooks/useBuildPlaylist.ts`
 (`useSpotifyMatcher` shape), row UI in `components/PlaylistRow.tsx`. Tests: `useBuildPlaylist.test.ts`
 (19 cases, real-`status` `PlaylistApiError` → auth gate), `BuildPlaylistModal.rtl.tsx` (share flow),
-`djApi.test.ts`, `sessionRepository.test.ts`, cloud `dj.test.ts` + `db.integration.test.ts`
+`djApi.test.ts`, `sessionRepository.test.ts`, cloud `dj.test.ts` + `dj-playlist-sync.integration.test.ts`
 (set-playlist sync).
 
 ### Test Files

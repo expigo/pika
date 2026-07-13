@@ -3,7 +3,7 @@ import { Hono } from "hono";
 import { adminRoutes } from "./admin";
 
 // requireAdmin rejects unauthenticated requests BEFORE any DB call, so these run without a
-// database. Role-mismatch (404) + admin-pass + approve/reject are covered in db.integration.test.ts.
+// database. Role-mismatch (404) + admin-pass + approve/reject are covered in ../__tests__/integration/admin.integration.test.ts.
 const app = new Hono().route("/api/admin", adminRoutes);
 
 describe("admin routes auth guard", () => {

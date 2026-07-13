@@ -4,7 +4,7 @@
  * The in-memory session endpoints (`GET /`, `GET /active`) are driven against the
  * actual `sessions` route + real `lib/sessions` / `lib/listeners` state — no DB.
  * DB-backed endpoints (history, recap, /stats/global, dj profile) are covered
- * against real Postgres in `db.integration.test.ts` (gated RUN_DB_TESTS); mocking
+ * against real Postgres in `integration/rest-routes.integration.test.ts` (gated RUN_DB_TESTS); mocking
  * drizzle chains here produced false coverage and is intentionally not done.
  *
  * `/health` is defined inline in `index.ts` (importing it boots the server), so it

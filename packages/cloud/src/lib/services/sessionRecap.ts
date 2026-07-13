@@ -8,7 +8,8 @@
  * (playedTracks.spotifyUrl/albumArtUrl), deliberately NOT the journal trust gate. The response
  * shape is a public contract (web recap + analytics SessionRecap types) — byte-identical.
  * Caching stays in the route. Distinct from recap.ts (the Night-Recap EMAIL sweep).
- * Covered by db.integration.test.ts (recap aggregates, snapshot identity, owner playlist-id).
+ * Covered by the gated integration suite: rest-routes.integration.test.ts (recap aggregates,
+ * snapshot identity) + dj-playlist-sync.integration.test.ts (owner playlist-id).
  */
 
 import { LIMITS } from "@pika/shared";

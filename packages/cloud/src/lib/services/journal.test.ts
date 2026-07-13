@@ -2,7 +2,7 @@
  * Journal service unit tests — pure URI resolution + the DI export orchestration.
  * No DB, no network, no mock.module (process-global, leaks between files): all I/O arrives
  * through `JournalExportDeps` fakes. Real-Postgres query coverage lives in the gated
- * integration suite (src/__tests__/db.integration.test.ts).
+ * integration suite (src/__tests__/journal.integration.test.ts).
  */
 
 import { beforeEach, describe, expect, test } from "bun:test";

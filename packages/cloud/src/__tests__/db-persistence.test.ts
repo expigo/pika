@@ -11,7 +11,7 @@
  * needs no Postgres — a logic smoke test, NOT coverage of the shipped functions.
  *
  * Real-module coverage (the actual inserts/dedup/idempotency in lib/persistence/*.ts,
- * incl. the C3 buffer-and-flush) lives in db.integration.test.ts — gated behind
+ * incl. the C3 buffer-and-flush) lives in integration/schema-persistence.integration.test.ts — gated behind
  * RUN_DB_TESTS and run against real Postgres in CI.
  *
  * Production code:

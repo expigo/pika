@@ -4,6 +4,18 @@ Completed work, newest first — moved out of [ROADMAP.md](ROADMAP.md) so the ro
 roadmap. Each block was appended at completion time; see git history for the precise diffs.
 
 *   **Recent Completions (July 2026 — internal refactors: de-accretion wave, behavior-preserving):**
+    *   ✅ **Integration-suite split (2026-07-13)** — the 4,040-line
+        `src/__tests__/db.integration.test.ts` (the repo's largest file) → 11 domain files +
+        `harness.ts` under `src/__tests__/integration/` (gate, env flips, base-session seed —
+        self-healing against stale rows — and the auth sign-up helpers; only the 9 identical
+        `uniq()` copies deduped, all other bodies verbatim/diff-audited). Totals unchanged
+        (101 pass / 461 expects; unit run 565+125 gated skips). The two real-network Spotify
+        oEmbed tests are quarantined in `dj-profile-network.integration.test.ts` (solo-rerun
+        command in its header) so throttle flakes are file-isolated. Pool teardown moved from
+        the old suite `afterAll` to a run-global `afterAll` in a new bunfig `[test].preload`
+        (`test-preload.ts`) — `client.end()` must run at most once per process, after ALL
+        files. `test:integration` now targets the directory; CI unchanged (calls the script
+        by name).
     *   ✅ **Cloud quartet (2026-07-13)** — `routes/admin.ts` → composer + `admin/{panel,djs,
         catalog,ops}.ts` (third composer application; `adminLimiter` + `requireAdmin` in the
         composer; all cross-module prefixes static → mount order free); `mail.ts` → 115-line

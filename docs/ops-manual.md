@@ -450,7 +450,8 @@ docker compose -f docker-compose.prod.yml exec cloud bun -e "
 ### 🧪 Testing migrations & schema (automated)
 
 The schema + constraints are covered by a **real-Postgres integration test** —
-`packages/cloud/src/__tests__/db.integration.test.ts` — which runs in CI (the
+`packages/cloud/src/__tests__/integration/` (domain files + shared `harness.ts`;
+schema tests in `schema-persistence.integration.test.ts`) — which runs in CI (the
 **DB Integration (Postgres)** job) and asserts the baseline enforces `unique_like_idempotency`,
 the `chk_*` ranges, and FK cascades. The desktop SQLite stack has an equivalent
 (`packages/desktop/src/db/offlineQueue.integration.test.ts`).
@@ -459,7 +460,7 @@ Run the cloud one locally against the dev DB:
 ```bash
 cd packages/cloud
 bun run db:migrate
-bun run test:integration   # = RUN_DB_TESTS=1 bun test src/__tests__/db.integration.test.ts
+bun run test:integration   # = RUN_DB_TESTS=1 bun test src/__tests__/integration/
 ```
 For a data-preserving migration (e.g. adding a `NOT NULL` column to a populated table), add a case
 that seeds the old shape, migrates, and asserts the data transformed correctly — far more reliable

@@ -1,0 +1,4 @@
+[test]
+# Run-global lifecycle for `bun test` in this package. The preload owns the integration
+# suite's at-most-once pool teardown (see test-preload.ts); it is a no-op for unit runs.
+preload = ["./test-preload.ts"]

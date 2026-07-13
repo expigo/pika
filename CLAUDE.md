@@ -282,7 +282,7 @@ clean: `"test": "bun test && vitest run"` (bun = pure modules, vitest = componen
 - RTL covers rendering/wiring; logic already unit-tested (hooks/services) is **mocked**, not
   re-tested. Helpers: `src/test/rtl.tsx` (both packages).
 - DB-touching code: real-Postgres coverage lives in `*.integration.test.ts`, gated by `RUN_DB_TESTS` and run in CI's integration job (the unit suites mock the DB). Logic mirrored in unit tests (e.g. `db-persistence.test.ts`) is a fast smoke check, *not* coverage of the shipped functions.
-- **Run the gated integration suite ISOLATED** (`bun run test:integration`), never as `RUN_DB_TESTS=1 bun test`. Bun's `mock.module()` / vitest `vi.mock()` are **process-global and not restored between files**, so a unit file that mocks `../db` (e.g. `test/auth_security.test.ts`) leaks into `db.integration.test.ts` and breaks its real-DB queries. For the same reason, mock modules only when unavoidable and prefer real in-memory state (see `test/likes-broadcast.test.ts`).
+- **Run the gated integration suite ISOLATED** (`bun run test:integration`), never as `RUN_DB_TESTS=1 bun test`. Bun's `mock.module()` / vitest `vi.mock()` are **process-global and not restored between files**, so a unit file that mocks `../db` (e.g. `test/auth_security.test.ts`) leaks into the integration files (`src/__tests__/integration/`) and breaks their real-DB queries. For the same reason, mock modules only when unavoidable and prefer real in-memory state (see `test/likes-broadcast.test.ts`).
 - Aim for 100% coverage of critical paths (connection lifecycle, history import)
 
 ### Security Requirements

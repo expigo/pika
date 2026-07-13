@@ -2,7 +2,7 @@
  * handleStartPoll concurrency guard (#10).
  *
  * The rejection path runs entirely before createPollInDb, so this is a pure unit test
- * (no DB). The happy-path create is covered by db.integration.test.ts "poll lifecycle"
+ * (no DB). The happy-path create is covered by integration/schema-persistence.integration.test.ts "poll lifecycle"
  * and the lib/polls unit tests in poll-handlers.test.ts.
  */
 import { beforeEach, describe, expect, it, mock } from "bun:test";

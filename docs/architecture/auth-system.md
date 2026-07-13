@@ -92,7 +92,7 @@ partial unique) — one account playlist, adopt-first from the earliest-claimed 
   `/api/{live,playlist,admin}` (`csrfCheck`, `index.ts`). |
 | CORS / trusted origins | ✅ | `trustedOrigins` (Better Auth) + the CORS allow-list mirror prod/staging web. |
 | Role gating | ✅ | `requireAdmin` hides existence (404). Covered by `lib/auth.test.ts` + the gated
-  `db.integration.test.ts` (pending→403, dj→404, admin→200, bearer resolution). |
+  `integration suite (`rest-routes` / `admin` / `accounts` files)` (pending→403, dj→404, admin→200, bearer resolution). |
 | Approval gate | ✅ | `status !== 'approved'` → 403 on all DJ routes. |
 | Role gate on DJ surfaces | ✅ | `hasDjAccess` — an approved **dancer** is still 403'd everywhere a DJ
   token is required (REST + WS `REGISTER_SESSION` + sync-fingerprints). |

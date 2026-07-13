@@ -147,7 +147,7 @@ hooks/components stay thin):
 
 - **Cloud** — unit `__tests__/stage-routing.test.ts` (resolvers, rotation guard,
   `handleSubscribeStage`, seamless handover) + `routes/stages.test.ts` (auth/validation);
-  integration `db.integration.test.ts` (gated `RUN_DB_TESTS`): FK set-null + cascade, scoped-push
+  integration `stage-events.integration.test.ts` (gated `RUN_DB_TESTS`): FK set-null + cascade, scoped-push
   isolation, real-DB `handleSubscribeStage` arming push, `GET /api/events`.
 - **Web** — `hooks/live/joinMessage.test.ts` (SUBSCRIBE_STAGE/SUBSCRIBE/GET_SESSIONS choice) +
   `hooks/live/stageRotation.test.ts` (NOW_PLAYING peek + dedup, SESSION_STARTED follow / ignore,

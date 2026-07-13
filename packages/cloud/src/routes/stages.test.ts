@@ -5,7 +5,7 @@
  * (which runs ahead of auth) and the unauthenticated 401 path — `requireDjAuth`
  * rejects a missing/invalid session before the handler. DB-touching paths (create
  * success, conflict, public reads, FK behavior, scoped push) are covered
- * against real Postgres in db.integration.test.ts.
+ * against real Postgres in ../__tests__/integration/stage-events.integration.test.ts.
  */
 import { describe, expect, test } from "bun:test";
 import { stageRoutes } from "./stages";

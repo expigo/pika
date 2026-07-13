@@ -171,7 +171,7 @@ account.
 ## Tests
 Shared `exportifyCsv` + `chosicCsv` (parsers: scale/key/Camelot/ISRC/duration/skip); web catalog + seed
 RTL (Exportify **and** Chosic import, format auto-detect, `featuresSource`); cloud gated integration
-(`db.integration.test.ts` → Songs Catalog features + consensus join + search + appearances, the
+(`spotify-catalog.integration.test.ts` → Songs Catalog features + consensus join + search + appearances, the
 seed/`getSpotifyFeatures` cases, and the **order-independent accretive merge**); desktop
 `spotifyFeaturesService`/`spotifyFeaturesRepository` + feature-panel/analytics RTL, `trackRepository`
 identity-column mapping + library-pre-match queries, the `toTrackInfo` live-identity **gate** cases, and

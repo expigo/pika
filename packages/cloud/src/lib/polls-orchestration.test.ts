@@ -1,7 +1,7 @@
 /**
  * Unit coverage for the shared poll orchestration (startPollForSession / endPollForSession).
  * The happy-path CREATE in startPollForSession hits Postgres, so it's covered in the gated
- * db.integration suite; here we cover the DB-free validation guards + the full end/cancel fan-out
+ * gated integration suite (src/__tests__/integration/); here we cover the DB-free validation guards + the full end/cancel fan-out
  * with real in-memory poll state and a capturing publish spy.
  */
 import { afterEach, describe, expect, test } from "bun:test";

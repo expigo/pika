@@ -4,7 +4,7 @@
  * Exercises the buffer-and-flush control flow in lib/persistence/tracks.ts against the
  * REAL module. Under `bun test` (NODE_ENV=test) the DB insert is mocked, so these assert
  * the buffering/flush/teardown logic (the new code), not the write itself — the insert
- * path is covered by db.integration.test.ts.
+ * path is covered by integration/schema-persistence.integration.test.ts.
  */
 
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
