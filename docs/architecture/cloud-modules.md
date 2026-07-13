@@ -133,7 +133,10 @@ packages/cloud/src/routes/
 ├── img.ts        # Pinhole album-art proxy for the Night Card canvas (Slice C, GET-only)
 ├── playlist.ts   # Spotify playlist tools (B3, incl. POST /api/playlist/features)
 ├── spotify.ts    # Spotify OAuth (DJ + shared service account, BFF)
-├── admin.ts      # Admin panel: DJ approval + catalog endpoints + POST /recap/sweep (Slice C)
+├── admin.ts      # Admin panel — thin COMPOSER of ./admin/ (2026-07 split); adminLimiter +
+│                 #   requireAdmin live HERE, before the mounts (mount order free — all static prefixes)
+├── admin/        # panel.ts (me/overview/audit) · djs.ts (approval + create) ·
+│                 #   catalog.ts (Songs Catalog reads) · ops.ts (recap sweep, title backfill)
 ├── seed.ts       # Admin catalog seed tool
 └── stages.ts     # Event/Stage provisioning (owner-scoped) + stage lookup
 ```
@@ -155,7 +158,7 @@ packages/cloud/src/routes/
 | `img.ts` | `/api/img?src=` | Pinhole i.scdn.co art proxy (allowlist, no redirects, 2 MB cap, immutable cache) |
 | `playlist.ts` | `/api/playlist/*` | DJ Spotify playlist tools |
 | `spotify.ts` | `/api/spotify/*` | Spotify OAuth flows |
-| `admin.ts` | `/api/admin/*` | DJ approval queue + catalog (`/api/admin/catalog{,/songs,/songs/:id}`) + maintenance: `POST recap/sweep`, `POST playlists/backfill-titles` (D.1, idempotent + audited) |
+| `admin.ts` → `admin/*` | `/api/admin/*` | **Composed from `./admin/` concern modules** (2026-07 split; paths unchanged, guards in the composer): `panel.ts` (`/me` identity gate, `/overview`, `/audit`), `djs.ts` (approval queue + create), `catalog.ts` (`/api/admin/catalog{,/songs,/songs/:id}`), `ops.ts` (`POST recap/sweep`, `POST playlists/backfill-titles` — D.1, idempotent + audited) |
 | `seed.ts` | `/api/admin/seed/*` | Catalog seed (admin-gated) |
 | `stages.ts` | `/api/events`, `/api/stages/*` | Create events/stages (owner-scoped), stage lookup w/ `eventName` |
 
