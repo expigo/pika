@@ -4,6 +4,17 @@ Completed work, newest first — moved out of [ROADMAP.md](ROADMAP.md) so the ro
 roadmap. Each block was appended at completion time; see git history for the precise diffs.
 
 *   **Recent Completions (July 2026 — internal refactors: de-accretion wave, behavior-preserving):**
+    *   ✅ **Cloud quartet (2026-07-13)** — `routes/admin.ts` → composer + `admin/{panel,djs,
+        catalog,ops}.ts` (third composer application; `adminLimiter` + `requireAdmin` in the
+        composer; all cross-module prefixes static → mount order free); `mail.ts` → 115-line
+        transport core + `mailTemplates.ts` (templates AND throttled senders together because
+        `defaultAuthMailDeps` references the senders — dependency strictly one-way; 18 tests
+        split 6+12); `spotify.ts` → 361-line OAuth/token core + `spotifyPlaylist.ts`
+        (service-account + playlist ops; 7 shared primitives; a re-export facade keeps every
+        importer unchanged — the static cycle is evaluation-safe: no top-level cross-module
+        reads in either direction); `routes/sessions.ts` recap assembly → `lib/services/
+        sessionRecap.ts` (`buildRecap` → `buildSessionRecap`, body verbatim, token-in so the
+        owner gate is untouched; the 15s public cache branch stays in the route).
     *   ✅ **`routes/dj.ts` split** — the ~800-line DJ god-router split into a thin composer over
         five `routes/dj/` concern modules (profile · sessions · embeds · booth · identity).
         Behavior-preserving: every `/api/dj/*` path + method unchanged (the auth-guard unit test +
