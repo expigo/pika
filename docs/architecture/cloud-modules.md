@@ -115,7 +115,8 @@ REST endpoints are organized by resource type.
 
 ```
 packages/cloud/src/routes/
-├── sessions.ts   # Session queries (list/active/history/recap/fingerprints)
+├── sessions.ts   # Session queries (list/active/history/recap/fingerprints); the recap
+│                 #   payload assembly lives in lib/services/sessionRecap.ts (2026-07 split)
 ├── stats.ts      # Global statistics
 ├── dj.ts         # DJ routes — thin COMPOSER of the ./dj/ concern modules (2026-07 behavior-preserving split)
 ├── dj/           # profile.ts (public /:slug) · sessions.ts · embeds.ts · booth.ts · identity.ts (Slice D)
@@ -146,7 +147,7 @@ packages/cloud/src/routes/
 | File | Endpoints | Purpose |
 |------|-----------|---------|
 | *(Better Auth)* | `/api/auth/*` | Sign-up/in/out, sessions, admin ops, magic link, email OTP |
-| `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap, fingerprint (ownership-checked) |
+| `sessions.ts` | `/sessions`, `/api/sessions/*`, `/api/session/*` | List, active, history, recap (assembly in `lib/services/sessionRecap.ts`; cache branch stays in the route), fingerprint (ownership-checked) |
 | `stats.ts` | `/api/stats/*` | Top tracks, global stats |
 | `dj.ts` → `dj/*` | `/api/dj/*` | **Composed from `./dj/` concern modules** (2026-07 split; paths unchanged): `profile.ts` (public `/:slug` + Signature + booth playlists), `sessions.ts` (publish + set-playlist sync), `embeds.ts` (external playlists), `booth.ts` (bio/gigs), `identity.ts` (Slice D: `me/playlists/import` `linkMode:"fill"`, `me/curated-playlists`, `me/crowd-pleasers`; D.1 oEmbed title). Composer registers `/me/*` before `/:slug` |
 | `dj-live.ts` | `/api/live/*` | Web-DJ broadcast control channel |
@@ -215,6 +216,8 @@ packages/cloud/src/lib/
     ├── identity.ts       # client_identities claim map (Slice B)
     ├── journal.ts        # Account journal reads + the strict trust gate (trustedSpotifyLinkOn)
     ├── recap.ts          # Night Recap sweep — claim-then-send (Slice C)
+    ├── sessionRecap.ts   # Recap READ-path assembly for GET /sessions/:id/recap (split 2026-07
+    │                     #   from routes/sessions.ts; distinct from recap.ts, the email sweep)
     ├── spotify.ts / spotifyCatalog.ts / spotifyMatch.ts  # OAuth/BFF, catalog reads, seed/match
     │                     #   (seedFromPlaylist linkMode "authoritative"|"fill")
     ├── spotifyMatchScore.ts  # Pure ranking math (scoreCandidate/confidenceTier) — no HTTP/DB
