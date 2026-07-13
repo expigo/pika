@@ -209,7 +209,9 @@ packages/cloud/src/lib/
     ├── polls.ts          # Poll DB ops
     └── queue.ts          # Serialized persistence queue (v0.5.0)
 └── services/
-    ├── mail.ts / email-throttle.ts / email-prefs.ts   # Resend mailer + throttles + consent (B/C)
+    ├── mail.ts / email-throttle.ts / email-prefs.ts   # Resend transport core + throttles + consent (B/C)
+    ├── mailTemplates.ts  # Message layer: branded shells + template senders + throttled auth/marketing
+    │                     #   orchestration (split 2026-07 from mail.ts — moved whole to avoid a cycle)
     ├── identity.ts       # client_identities claim map (Slice B)
     ├── journal.ts        # Account journal reads + the strict trust gate (trustedSpotifyLinkOn)
     ├── recap.ts          # Night Recap sweep — claim-then-send (Slice C)

@@ -16,7 +16,11 @@ import { admin as adminPlugin, bearer, emailOTP, magicLink } from "better-auth/p
 import { and, eq, notExists, sql } from "drizzle-orm";
 import { db } from "../../db";
 import { account, user } from "../../db/auth-schema";
-import { handleDeletionEmailSend, handleMagicLinkSend, handleOtpSend } from "../services/mail";
+import {
+  handleDeletionEmailSend,
+  handleMagicLinkSend,
+  handleOtpSend,
+} from "../services/mailTemplates";
 import { ac, admin, dancer, dj } from "./permissions";
 
 function trustedOrigins(): string[] {

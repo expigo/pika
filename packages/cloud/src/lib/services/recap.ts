@@ -49,7 +49,11 @@ import { hasSession } from "../sessions";
 import { apiBaseUrl, webBaseUrl } from "../urls";
 import { signUnsubToken } from "./email-prefs";
 import { getClaimedClientIdsForUsers } from "./identity";
-import { sendDjDigestEmail, sendNightRecapEmail, sendThrottledMarketingEmail } from "./mail";
+import {
+  sendDjDigestEmail,
+  sendNightRecapEmail,
+  sendThrottledMarketingEmail,
+} from "./mailTemplates";
 
 export const RECAP_SWEEP_INTERVAL_MS = 15 * 60 * 1000;
 
