@@ -4,7 +4,7 @@
 services:
   beszel-agent:
     # Pinned for reproducibility (Dependabot proposes bumps). Keep agent + hub on the SAME version.
-    image: henrygd/beszel-agent:0.18.7
+    image: henrygd/beszel-agent:0.19.0
     container_name: beszel-agent
     restart: unless-stopped
     network_mode: host
