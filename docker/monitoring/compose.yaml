@@ -21,7 +21,7 @@ services:
       HUB_URL: https://monitor.pika.stream
 
   beszel-hub:
-    image: "henrygd/beszel:0.18.7"
+    image: "henrygd/beszel:0.19.0"
     container_name: "beszel-hub"
     restart: unless-stopped
     ports:
